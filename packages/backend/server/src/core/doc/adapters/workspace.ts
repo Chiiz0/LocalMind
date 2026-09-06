@@ -13,7 +13,9 @@ import {
 } from '../../../base';
 import { retryable } from '../../../base/utils/promise';
 import { Models } from '../../../models';
+import { applyUpdatesWithNative } from '../merge-updates';
 import { DocStorageOptions } from '../options';
+import type { RootDocUpdatePlan } from '../root-doc-registration';
 import {
   DocRecord,
   DocStorageAdapter,
@@ -55,7 +57,9 @@ export class PgWorkspaceDocStorageAdapter extends DocStorageAdapter {
     workspaceId: string,
     docId: string,
     updates: Uint8Array[],
-    editorId?: string
+    editorId?: string,
+    beforeInsert?: () => Promise<void>,
+    afterInsert?: () => Promise<void>
   ) {
     if (!updates.length) {
       return 0;
@@ -69,6 +73,18 @@ export class PgWorkspaceDocStorageAdapter extends DocStorageAdapter {
     let pendings = updates;
     let done = 0;
     let timestamp = Date.now();
+    let authorizationFailure: { error: unknown } | undefined;
+    const authorize = beforeInsert
+      ? async () => {
+          if (authorizationFailure) throw authorizationFailure.error;
+          try {
+            await beforeInsert();
+          } catch (error) {
+            authorizationFailure = { error };
+            throw error;
+          }
+        }
+      : undefined;
     try {
       await retryable(async () => {
         if (done !== 0) {
@@ -91,7 +107,9 @@ export class PgWorkspaceDocStorageAdapter extends DocStorageAdapter {
                 timestamp: createdAt,
                 editorId,
               };
-            })
+            }),
+            authorize,
+            afterInsert
           );
           timestamp = Math.max(timestamp, ...created.timestamps);
           await this.queue.add(
@@ -120,11 +138,91 @@ export class PgWorkspaceDocStorageAdapter extends DocStorageAdapter {
         });
       }
     } catch (e) {
+      if (authorizationFailure) throw authorizationFailure.error;
       this.logger.error('Failed to insert doc updates', e);
       metrics.doc.counter('doc_update_insert_failed').add(1);
       throw new FailedToSaveUpdates();
     }
     return timestamp;
+  }
+
+  async persistRootDocUpdate(
+    workspaceId: string,
+    build: (rootDoc: Uint8Array) => RootDocUpdatePlan,
+    editorId?: string,
+    beforeWrite?: () => Promise<void>
+  ) {
+    await using _lock = await this.lockDocForUpdate(workspaceId, workspaceId);
+    const current = await this.squashPendingUpdatesToSnapshot(
+      workspaceId,
+      workspaceId
+    );
+    if (!current) {
+      throw new DocNotFound({ spaceId: workspaceId, docId: workspaceId });
+    }
+
+    const plan = build(current.bin);
+    if (this.isEmptyBin(plan.update)) {
+      return { update: plan.update, timestamp: current.timestamp };
+    }
+
+    if (!plan.replacementSnapshot) {
+      const timestamp = await this.pushDocUpdates(
+        workspaceId,
+        workspaceId,
+        [plan.update],
+        editorId,
+        beforeWrite
+      );
+      await this.squashPendingUpdatesToSnapshot(
+        workspaceId,
+        workspaceId,
+        async pending =>
+          applyUpdatesWithNative(
+            pending,
+            'doc.workspace.persist_root_updates',
+            this.logger
+          )
+      );
+      return { update: plan.update, timestamp };
+    }
+
+    const valid = await this.filterValidDocUpdates(workspaceId, workspaceId, [
+      plan.replacementSnapshot,
+    ]);
+    if (!valid.length) throw new FailedToSaveUpdates();
+
+    let authorizationFailure: { error: unknown } | undefined;
+    const authorize = beforeWrite
+      ? async () => {
+          if (authorizationFailure) throw authorizationFailure.error;
+          try {
+            await beforeWrite();
+          } catch (error) {
+            authorizationFailure = { error };
+            throw error;
+          }
+        }
+      : undefined;
+    const timestamp = Math.max(Date.now(), current.timestamp + 1);
+    try {
+      const success = await this.setDocSnapshot(
+        {
+          spaceId: workspaceId,
+          docId: workspaceId,
+          bin: plan.replacementSnapshot,
+          timestamp,
+          editor: editorId,
+        },
+        authorize
+      );
+      if (!success) throw new FailedToUpsertSnapshot();
+      await this.createDocHistory(current);
+    } catch (error) {
+      if (authorizationFailure) throw authorizationFailure.error;
+      throw error;
+    }
+    return { update: plan.update, timestamp };
   }
 
   protected async getDocUpdates(workspaceId: string, docId: string) {
@@ -322,20 +420,26 @@ export class PgWorkspaceDocStorageAdapter extends DocStorageAdapter {
     };
   }
 
-  protected async setDocSnapshot(snapshot: DocRecord) {
+  protected async setDocSnapshot(
+    snapshot: DocRecord,
+    beforeWrite?: () => Promise<void>
+  ) {
     if (this.isEmptyBin(snapshot.bin)) {
       return false;
     }
 
     try {
       const blob = Buffer.from(snapshot.bin);
-      const updatedSnapshot = await this.models.doc.upsert({
-        spaceId: snapshot.spaceId,
-        docId: snapshot.docId,
-        blob,
-        timestamp: snapshot.timestamp,
-        editorId: snapshot.editor,
-      });
+      const updatedSnapshot = await this.models.doc.upsert(
+        {
+          spaceId: snapshot.spaceId,
+          docId: snapshot.docId,
+          blob,
+          timestamp: snapshot.timestamp,
+          editorId: snapshot.editor,
+        },
+        beforeWrite
+      );
 
       if (updatedSnapshot) {
         this.event.emitDetached('doc.snapshot.updated', {

@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { Injectable, Logger } from '@nestjs/common';
 import { Transactional } from '@nestjs-cls/transactional';
 
@@ -18,6 +20,7 @@ import {
   URLHelper,
 } from '../../../base';
 import { Models } from '../../../models';
+import { COPILOT_COPY_BLOB_PREFIX } from '../../../models/blob';
 import type { StorageProviderCapabilities } from '../../../native';
 import { StorageRuntimeProvider } from '../../storage-runtime';
 import { MULTIPART_PART_SIZE } from '../constants';
@@ -80,6 +83,7 @@ export class WorkspaceBlobStorage {
     blob: Buffer,
     metadata?: PutObjectMetadata
   ) {
+    this.models.blob.assertMutableUploadKey(key);
     const storedMetadata = await this.rt.putObject(
       'blob',
       `${workspaceId}/${key}`,
@@ -91,6 +95,47 @@ export class WorkspaceBlobStorage {
       contentLength: storedMetadata.contentLength,
       lastModified: storedMetadata.lastModified,
     });
+  }
+
+  async putCopyAttachment(
+    workspaceId: string,
+    key: string,
+    blob: Buffer,
+    input: { uploadId: string; contentType: string },
+    authorize: () => Promise<void>
+  ) {
+    if (
+      !key.endsWith(`-${createHash('sha256').update(blob).digest('base64url')}`)
+    )
+      throw new BlobInvalid(
+        'Copy attachment key does not match its frozen content'
+      );
+    await authorize();
+    const reservation = {
+      workspaceId,
+      key,
+      uploadId: input.uploadId,
+      size: blob.length,
+      mime: input.contentType,
+    };
+    const needsUpload = await this.models.blob.reserveCopyUpload(reservation);
+    if (needsUpload) {
+      const metadata = await this.rt.putObject(
+        'blob',
+        `${workspaceId}/${key}`,
+        blob,
+        { contentType: input.contentType, contentLength: blob.length }
+      );
+      if (
+        metadata.contentLength !== blob.length ||
+        metadata.contentType !== input.contentType
+      )
+        throw new BlobInvalid(
+          'Copy attachment upload metadata does not match its reservation'
+        );
+    }
+    // Uploaded bytes stay unreadable until this authorization transaction commits.
+    await this.models.blob.publishCopyUpload(reservation, authorize);
   }
 
   async capabilities(): Promise<StorageProviderCapabilities> {
@@ -122,6 +167,11 @@ export class WorkspaceBlobStorage {
     key: string,
     signedUrl?: boolean
   ): Promise<BlobGetResult> {
+    if (key.startsWith(COPILOT_COPY_BLOB_PREFIX)) {
+      const record = await this.models.blob.get(workspaceId, key);
+      if (!record || record.status !== 'completed' || record.deletedAt)
+        return {};
+    }
     if (signedUrl) {
       const presigned = await this.rt.presignGet(
         'blob',
@@ -139,6 +189,7 @@ export class WorkspaceBlobStorage {
     key: string,
     metadata?: PutObjectMetadata
   ) {
+    this.models.blob.assertMutableUploadKey(key);
     const config = this.uploadURLConfig();
     if (!config) return;
     if (config.signKey) {
@@ -162,6 +213,7 @@ export class WorkspaceBlobStorage {
     key: string,
     metadata?: PutObjectMetadata
   ) {
+    this.models.blob.assertMutableUploadKey(key);
     return this.rt.createMultipartUpload(
       'blob',
       `${workspaceId}/${key}`,
@@ -175,6 +227,7 @@ export class WorkspaceBlobStorage {
     uploadId: string,
     partNumber: number
   ) {
+    this.models.blob.assertMutableUploadKey(key);
     const config = this.uploadURLConfig();
     if (!config) return;
     const contentLength = await this.multipartPartContentLength(
@@ -225,6 +278,7 @@ export class WorkspaceBlobStorage {
     uploadId: string,
     parts: { partNumber: number; etag: string }[]
   ) {
+    this.models.blob.assertMutableUploadKey(key);
     return await this.rt.completeMultipartUpload(
       'blob',
       `${workspaceId}/${key}`,
@@ -238,6 +292,7 @@ export class WorkspaceBlobStorage {
     key: string,
     uploadId: string
   ) {
+    this.models.blob.assertMutableUploadKey(key);
     return await this.rt.abortMultipartUpload(
       'blob',
       `${workspaceId}/${key}`,
@@ -254,6 +309,7 @@ export class WorkspaceBlobStorage {
     key: string,
     expected: { size: number; mime: string }
   ): Promise<BlobCompleteResult> {
+    this.models.blob.assertMutableUploadKey(key);
     const result = await this.rt.completeWorkspaceBlobUpload(
       workspaceId,
       key,

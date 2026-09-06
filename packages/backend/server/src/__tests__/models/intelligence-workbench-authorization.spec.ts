@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 
 import { PrismaClient, type User, type Workspace } from '@prisma/client';
 import ava, { type TestFn } from 'ava';
@@ -289,6 +290,228 @@ test('only a project owner can directly grant a document', async t => {
     level: 'read',
     source: 'direct',
   });
+});
+
+test('access notifications follow human decisions, deduplicate replay, and redact former approvers', async t => {
+  const { models, db, authorization } = t.context;
+  const sourceOwner = await createUser(t.context, 'notification-owner');
+  const requester = await createUser(t.context, 'notification-requester');
+  const outsider = await createUser(t.context, 'notification-outsider');
+  const workspace = await createWorkspace(t.context, sourceOwner);
+  const project = await createProject(t.context, requester);
+  const result = await authorization.requestProjectDocumentAccess({
+    projectId: project.id,
+    workspaceId: workspace.id,
+    docId: 'notification-doc',
+    requesterUserId: requester.id,
+    requestedLevel: 'read',
+    requestedTitle: 'Supplied document',
+    idempotencyKey: 'notification-request',
+  });
+  const requestId = result.request.id;
+  const refreshBeforeDecision = await db.notificationRefresh.findUniqueOrThrow({
+    where: { userId: sourceOwner.id },
+  });
+  const notification = await db.notification.findFirstOrThrow({
+    where: {
+      userId: sourceOwner.id,
+      type: 'AccessRequest',
+    },
+  });
+  await db.notification.delete({ where: { id: notification.id } });
+  await db.notificationRefresh.deleteMany({
+    where: { userId: sourceOwner.id },
+  });
+  const backfillSql = await readFile(
+    new URL(
+      '../../../migrations/20260905021000_access_request_notifications_backfill/migration.sql',
+      import.meta.url
+    ),
+    'utf8'
+  );
+  await db.$executeRawUnsafe(backfillSql);
+  await db.$executeRawUnsafe(backfillSql);
+  t.is(await db.notification.count({ where: { id: notification.id } }), 1);
+  t.truthy(
+    await db.notificationRefresh.findUnique({
+      where: { userId: sourceOwner.id },
+    })
+  );
+  t.deepEqual(notification.body, {
+    workspaceId: workspace.id,
+    createdByUserId: requester.id,
+    requestId,
+  });
+  t.like(
+    await authorization.getAccessRequestNotification(requestId, sourceOwner.id),
+    {
+      canDecide: true,
+      projectId: project.id,
+      requestedLevel: 'read',
+      docId: 'notification-doc',
+    }
+  );
+  t.deepEqual(
+    await authorization.getAccessRequestNotification(requestId, outsider.id),
+    {
+      requestId,
+      status: 'unavailable',
+      canDecide: false,
+    }
+  );
+  await t.throwsAsync(
+    authorization.approveAccessRequest({ requestId, actorUserId: requester.id })
+  );
+  t.is(
+    await db.notification.count({ where: { type: 'AccessRequestResolved' } }),
+    0
+  );
+  await authorization.rejectAccessRequest({
+    requestId,
+    actorUserId: sourceOwner.id,
+    resolutionReason: 'Not for this project',
+  });
+  await authorization.rejectAccessRequest({
+    requestId,
+    actorUserId: sourceOwner.id,
+  });
+  t.is(
+    (
+      await models.notification.acknowledgeRefresh(
+        sourceOwner.id,
+        refreshBeforeDecision.revision
+      )
+    ).count,
+    0
+  );
+  const refreshAfterDecision = await db.notificationRefresh.findUniqueOrThrow({
+    where: { userId: sourceOwner.id },
+  });
+  t.not(refreshBeforeDecision.revision, refreshAfterDecision.revision);
+  t.is(
+    (
+      await models.notification.acknowledgeRefresh(
+        sourceOwner.id,
+        refreshAfterDecision.revision
+      )
+    ).count,
+    1
+  );
+  t.truthy(
+    await db.notificationRefresh.findUnique({ where: { userId: requester.id } })
+  );
+  t.true((await models.notification.get(notification.id)).read);
+  t.is(
+    await db.notification.count({
+      where: { userId: requester.id, type: 'AccessRequestResolved' },
+    }),
+    1
+  );
+  t.like(
+    await authorization.getAccessRequestNotification(requestId, requester.id),
+    {
+      status: 'rejected',
+      canDecide: false,
+      resolutionReason: 'Not for this project',
+    }
+  );
+  await db.workspaceMember.deleteMany({
+    where: { workspaceId: workspace.id, userId: sourceOwner.id },
+  });
+  t.deepEqual(
+    await authorization.getAccessRequestNotification(requestId, sourceOwner.id),
+    {
+      requestId,
+      status: 'unavailable',
+      canDecide: false,
+    }
+  );
+});
+
+test('pending notifications follow new admins and document owners without realtime', async t => {
+  const { models, db, authorization } = t.context;
+  const owner = await createUser(t.context, 'recipient-owner');
+  const requester = await createUser(t.context, 'recipient-requester');
+  const nextAdmin = await createUser(t.context, 'recipient-admin');
+  const nextDocOwner = await createUser(t.context, 'recipient-doc-owner');
+  const workspace = await createWorkspace(t.context, owner);
+  const project = await createProject(t.context, requester);
+  const { request } = await authorization.requestProjectDocumentAccess({
+    projectId: project.id,
+    workspaceId: workspace.id,
+    docId: 'recipient-doc',
+    requesterUserId: requester.id,
+    requestedLevel: 'read',
+    idempotencyKey: 'recipient-request',
+  });
+  await addWorkspaceMember(t.context, workspace, nextAdmin, 'admin');
+  await setDocRole(
+    t.context,
+    workspace.id,
+    request.docId,
+    nextDocOwner.id,
+    'owner'
+  );
+  t.is(await models.notification.reconcileAccessRequestRecipients(), 2);
+  for (const user of [nextAdmin, nextDocOwner]) {
+    t.truthy(
+      await db.notification.findUnique({
+        where: { id: `access:${request.id}:${user.id}` },
+      })
+    );
+    t.like(
+      await authorization.getAccessRequestNotification(request.id, user.id),
+      {
+        canDecide: true,
+        status: 'pending',
+      }
+    );
+  }
+  const revision = await db.notificationRefresh.findUniqueOrThrow({
+    where: { userId: nextAdmin.id },
+  });
+  t.is(await models.notification.reconcileAccessRequestRecipients(), 0);
+  t.is(
+    (
+      await db.notificationRefresh.findUniqueOrThrow({
+        where: { userId: nextAdmin.id },
+      })
+    ).revision,
+    revision.revision
+  );
+  await db.workspaceMember.update({
+    where: {
+      workspaceId_userId_state: {
+        workspaceId: workspace.id,
+        userId: nextAdmin.id,
+        state: 'active',
+      },
+    },
+    data: { role: 'member' },
+  });
+  t.like(
+    await authorization.getAccessRequestNotification(request.id, nextAdmin.id),
+    {
+      canDecide: false,
+    }
+  );
+  await t.throwsAsync(
+    authorization.approveAccessRequest({
+      requestId: request.id,
+      actorUserId: nextAdmin.id,
+    })
+  );
+  await authorization.rejectAccessRequest({
+    requestId: request.id,
+    actorUserId: nextDocOwner.id,
+  });
+  t.is(await models.notification.reconcileAccessRequestRecipients(), 0);
+  t.is(
+    await db.notification.count({
+      where: { type: 'AccessRequestResolved', userId: requester.id },
+    }),
+    1
+  );
 });
 
 test('access request terminal transitions are idempotent only after actor authorization', async t => {

@@ -289,7 +289,8 @@ export class McpAiTaskControlService {
     if (record.status === 'cancelled') return null;
     if (
       record.status !== 'processing' &&
-      record.status !== 'waiting_approval'
+      record.status !== 'waiting_approval' &&
+      record.status !== 'waiting_for_location'
     ) {
       return null;
     }

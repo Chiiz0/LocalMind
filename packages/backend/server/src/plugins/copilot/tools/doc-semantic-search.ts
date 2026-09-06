@@ -66,7 +66,7 @@ export const buildDocSearchGetter = (
       ),
       sessionId
         ? context
-            .getBySessionId(sessionId)
+            .getOwnedBySessionId(options.user, sessionId, options.workspace)
             .then(
               current =>
                 current?.matchFiles(
@@ -84,6 +84,7 @@ export const buildDocSearchGetter = (
     const docChunks = await ac
       .user(options.user)
       .workspace(options.workspace)
+      .projectScope(null)
       .docs(
         chunks.filter(c => 'docId' in c),
         'Doc.Read'
@@ -202,7 +203,8 @@ export const buildProjectDocSearchGetter = (
             10,
             signal,
             0.8,
-            routeContext
+            routeContext,
+            initialScope.projectId
           );
           return chunks.map(chunk => ({
             ...chunk,

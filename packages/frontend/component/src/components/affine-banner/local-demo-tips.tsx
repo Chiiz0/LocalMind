@@ -44,6 +44,7 @@ export const LocalDemoTips = ({
         <IconButton
           onClick={onClose}
           size="20"
+          aria-label={t['Close']()}
           data-testid="local-demo-tips-close-button"
         >
           <CloseIcon />

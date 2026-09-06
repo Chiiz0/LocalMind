@@ -1,0 +1,24 @@
+query copilotDocumentDestinationWorkspaces {
+  currentUser {
+    copilot {
+      documentDestinationWorkspaces {
+        id
+        name
+      }
+    }
+  }
+}
+
+query copilotDocumentDestinationFolders($workspaceId: ID!, $after: String) {
+  currentUser {
+    copilot {
+      documentDestinationFolders(workspaceId: $workspaceId, after: $after) {
+        items {
+          id
+          name
+        }
+        nextCursor
+      }
+    }
+  }
+}

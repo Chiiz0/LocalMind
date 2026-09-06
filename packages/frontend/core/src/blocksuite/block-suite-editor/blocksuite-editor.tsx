@@ -288,6 +288,7 @@ export const BlockSuiteEditor = (props: EditorProps) => {
   const settings = useLiveData(
     editorSetting.settings$.selector(s => ({
       fontFamily: s.fontFamily,
+      fontSize: s.fontSize,
       customFontFamily: s.customFontFamily,
       fullWidthLayout: s.fullWidthLayout,
     }))
@@ -366,7 +367,14 @@ export const BlockSuiteEditor = (props: EditorProps) => {
   }, [loadStartTime, props.page, workspaceService]);
 
   return (
-    <Slot style={{ '--affine-font-family': fontFamily } as CSSProperties}>
+    <Slot
+      style={
+        {
+          '--affine-font-family': fontFamily,
+          '--affine-font-base': `${settings.fontSize}px`,
+        } as CSSProperties
+      }
+    >
       {isLoading ? (
         <EditorLoading longerLoading={longerLoading} />
       ) : (

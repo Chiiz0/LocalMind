@@ -133,6 +133,9 @@ LocalMind AI 的关键不变量：
    有界预算和隐私保护；不得为了召回率扩大到未授权 workspace/project/doc。
 8. 日志、错误、support bundle 和模型证据必须有界并脱敏，不得暴露 token、API
    key、完整私密提示词或不必要的文档正文。
+9. Project AI 权限、会话绑定、跨工作区文档位置确认和访问申请通知遵守
+   `docs/ai-modernization/tracks/project-ai-boundaries.md`。AI 不得创建 Project、
+   管理成员、修改权限策略或批准/拒绝授权，也不得用文件夹代替 Project。
 
 ---
 

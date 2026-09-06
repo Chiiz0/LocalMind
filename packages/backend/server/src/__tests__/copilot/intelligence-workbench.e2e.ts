@@ -10,6 +10,7 @@ import { AppModule } from '../../app.module';
 import { EventBus, JOB_SIGNAL } from '../../base';
 import { ConfigModule } from '../../base/config';
 import { DocReader, DocWriter } from '../../core/doc';
+import { PermissionAccess } from '../../core/permission';
 import { Models, WorkspaceRole } from '../../models';
 import { CopilotAgentRuntimeWorker } from '../../plugins/copilot/agent-runtime-worker';
 import { CopilotContextService } from '../../plugins/copilot/context/service';
@@ -1494,15 +1495,17 @@ test('formal project write creation fails closed before persisting for policy, g
     owner,
     workspaceId: fixture.hostWorkspace.id,
   });
-  await db.aiSession.update({
-    where: { id: fixture.sessionId },
-    data: { selectedContextProjectId: alternate.projectId },
-  });
+  await t.throwsAsync(
+    db.aiSession.update({
+      where: { id: fixture.sessionId },
+      data: { selectedContextProjectId: alternate.projectId },
+    })
+  );
   await t.throwsAsync(
     requestProjectDocWrite({
       app,
       sourceWorkspaceId: fixture.sourceWorkspace.id,
-      sessionId: fixture.sessionId,
+      sessionId: alternate.sessionId,
       docId: fixture.sharedDoc.docId,
       content: 'This project has no grant.',
       idempotencyKey: `grant-denied-${randomUUID()}`,
@@ -1532,7 +1535,7 @@ test('Workbench chat exposes explicit cross-workspace reads and approval-gated p
   const fixture = await createProjectWriteFixture({ app, db, owner });
   const runtime = app.get(ToolRuntime);
   const reader = app.get(DocReader);
-  const tools = await runtime.getTools(
+  let tools = await runtime.getTools(
     {
       tools: ['docRead', 'docUpdate'],
       user: owner.id,
@@ -1580,6 +1583,31 @@ test('Workbench chat exposes explicit cross-workspace reads and approval-gated p
   t.regex(policyDenied.message as string, /project_policy_denied/);
   t.is(await db.aiAgentRun.count(), 0);
 
+  const freshTools = async () => {
+    const session = await db.aiSession.findUniqueOrThrow({
+      where: { id: fixture.sessionId },
+    });
+    fixture.sessionId = await fixture.models.copilotSession.create({
+      sessionId: randomUUID(),
+      userId: owner.id,
+      workspaceId: fixture.hostWorkspace.id,
+      selectedContextProjectId: fixture.projectId,
+      title: null,
+      promptName: session.promptName,
+      promptAction: session.promptAction,
+    });
+    return await runtime.getTools(
+      {
+        tools: ['docRead', 'docUpdate'],
+        user: owner.id,
+        session: fixture.sessionId,
+        workspace: fixture.hostWorkspace.id,
+        featureKind: 'chat',
+      },
+      'test'
+    );
+  };
+  tools = await freshTools();
   await fixture.models.intelligenceWorkbenchAuthorization.setProjectAiPolicy({
     projectId: fixture.projectId,
     actorUserId: owner.id,
@@ -1612,6 +1640,7 @@ test('Workbench chat exposes explicit cross-workspace reads and approval-gated p
   t.regex(grantDenied.message as string, /grant_denied/);
   t.is(await db.aiAgentRun.count(), 0);
 
+  tools = await freshTools();
   const requested = (await tools.project_doc_update_request.execute?.(
     {
       source_workspace_id: fixture.sourceWorkspace.id,
@@ -1655,10 +1684,12 @@ test('Workbench chat exposes explicit cross-workspace reads and approval-gated p
     owner,
     workspaceId: fixture.hostWorkspace.id,
   });
-  await db.aiSession.update({
-    where: { id: fixture.sessionId },
-    data: { selectedContextProjectId: alternate.projectId },
-  });
+  await t.throwsAsync(
+    db.aiSession.update({
+      where: { id: fixture.sessionId },
+      data: { selectedContextProjectId: alternate.projectId },
+    })
+  );
   await approveProjectDocWrite({
     app,
     hostWorkspaceId: fixture.hostWorkspace.id,
@@ -1684,7 +1715,7 @@ test('Workbench chat exposes explicit cross-workspace reads and approval-gated p
   t.regex(updated!.markdown, /Created from the Workbench conversation tool/);
 });
 
-test('project search stays inside active cross-workspace grants and preserves document pairs', async t => {
+test('project search respects personal ACL and active grants while preserving document pairs', async t => {
   const { app, db, owner } = t.context;
   const fixture = await createProjectWriteFixture({ app, db, owner });
   const hostOnlyDoc = await fixture.docWriter.createDoc(
@@ -1773,14 +1804,15 @@ test('project search stays inside active cross-workspace grants and preserves do
   const semanticSearch = Sinon.stub(
     app.get(CopilotContextService),
     'matchWorkspaceProjectDocs'
-  ).callsFake(async (workspaceId, docIds) =>
-    docIds.map((docId, index) => ({
+  ).callsFake(async (workspaceId, docIds, ...args) => {
+    t.is(args[5], fixture.projectId);
+    return docIds.map((docId, index) => ({
       docId,
       chunk: index,
       content: `semantic ${workspaceId} ${docId}`,
       distance: index / 100,
-    }))
-  );
+    }));
+  });
   const tools = await app.get(ToolRuntime).getTools(
     {
       tools: ['docKeywordSearch', 'docSemanticSearch', 'office'],
@@ -1846,11 +1878,21 @@ test('project search stays inside active cross-workspace grants and preserves do
         result.docId === otherProjectDoc.docId
     )
   );
-  t.true(
-    semanticSearch
-      .getCalls()
-      .every(call => call.args[0] !== fixture.hostWorkspace.id)
-  );
+  for (const call of semanticSearch.getCalls()) {
+    const readable = await app
+      .get(PermissionAccess)
+      .user(owner.id)
+      .workspace(call.args[0])
+      .projectScope(fixture.projectId)
+      .docs(
+        call.args[1].map(docId => ({ docId })),
+        'Doc.Read'
+      );
+    t.deepEqual(
+      readable.map(doc => doc.docId),
+      call.args[1]
+    );
+  }
   t.true(
     semanticSearch
       .getCalls()
@@ -1868,11 +1910,20 @@ test('project search stays inside active cross-workspace grants and preserves do
     actorUserId: owner.id,
   });
   const afterRevoke = await keywordSearch('paired-duplicate-needle');
-  t.is(afterRevoke.length, 1);
-  t.like(afterRevoke[0], {
-    sourceWorkspaceId: pairWorkspaces[1].id,
-    docId: pairDocId,
-  });
+  t.is(afterRevoke.length, 2);
+  t.deepEqual(
+    afterRevoke.map(result => result.sourceWorkspaceId).sort(),
+    pairWorkspaces.map(workspace => workspace.id).sort()
+  );
+  t.true(
+    await app
+      .get(PermissionAccess)
+      .user(owner.id)
+      .workspace(pairWorkspaces[0].id)
+      .projectScope(null)
+      .doc(pairDocId)
+      .can('Doc.Read')
+  );
 });
 
 test('project search denies a host-workspace user who is not a project member', async t => {
@@ -1919,13 +1970,14 @@ test('project search denies a host-workspace user who is not a project member', 
     },
     'test'
   );
-  const denied = (await tools.doc_keyword_search.execute?.(
-    { query: 'Initial shared content', limit: 20 },
-    {}
-  )) as Record<string, unknown>;
-  t.like(denied, { type: 'error' });
-  t.false('docId' in denied);
-  t.false('sourceWorkspaceId' in denied);
+  await t.throwsAsync(
+    async () =>
+      tools.doc_keyword_search.execute?.(
+        { query: 'Initial shared content', limit: 20 },
+        {}
+      ),
+    { message: 'Project membership is no longer active.' }
+  );
 });
 
 test('legacy Agent Runtime APIs hide and deny another users project write proposal', async t => {
@@ -2167,6 +2219,270 @@ test('project grants authorize member reads without source ACL and revoke fails 
   );
 });
 
+test('project writes reject private tool sources and recheck source grants after approval', async t => {
+  const { app, db, owner } = t.context;
+  const fixture = await createProjectWriteFixture({ app, db, owner });
+  const source = await fixture.docWriter.createDoc(
+    fixture.sourceWorkspace.id,
+    'Private source',
+    'Private source content.',
+    owner.id
+  );
+  await app
+    .get(DocReader)
+    .getDocMarkdown(fixture.sourceWorkspace.id, source.docId, true);
+  const tools = await app.get(ToolRuntime).getTools(
+    {
+      tools: ['docRead'],
+      user: owner.id,
+      workspace: fixture.hostWorkspace.id,
+      session: fixture.sessionId,
+    },
+    'test'
+  );
+  const result = await tools.project_doc_read.execute?.(
+    { source_workspace_id: fixture.sourceWorkspace.id, doc_id: source.docId },
+    {}
+  );
+  t.like(result, {
+    sourceWorkspaceId: fixture.sourceWorkspace.id,
+    docId: source.docId,
+  });
+  t.is(
+    await db.aiSessionContextSource.count({
+      where: {
+        sessionId: fixture.sessionId,
+        workspaceId: fixture.sourceWorkspace.id,
+        kind: 'document',
+        sourceId: source.docId,
+      },
+    }),
+    1
+  );
+  const request = () =>
+    requestProjectDocWrite({
+      app,
+      sourceWorkspaceId: fixture.sourceWorkspace.id,
+      sessionId: fixture.sessionId,
+      docId: fixture.sharedDoc.docId,
+      content: 'Derived authorized content.',
+      idempotencyKey: randomUUID(),
+    });
+  await t.throwsAsync(request(), { message: /private or unverified sources/ });
+  t.is(await db.aiAgentRun.count(), 0);
+  await fixture.models.intelligenceWorkbenchAuthorization.addProjectDocument({
+    projectId: fixture.projectId,
+    workspaceId: fixture.sourceWorkspace.id,
+    docId: source.docId,
+    requesterUserId: owner.id,
+    requestedLevel: 'read',
+  });
+  await t.throwsAsync(request(), { message: /private or unverified sources/ });
+  const previous = await db.aiSession.findUniqueOrThrow({
+    where: { id: fixture.sessionId },
+  });
+  fixture.sessionId = await fixture.models.copilotSession.create({
+    sessionId: randomUUID(),
+    userId: owner.id,
+    workspaceId: fixture.hostWorkspace.id,
+    selectedContextProjectId: fixture.projectId,
+    title: null,
+    promptName: previous.promptName,
+    promptAction: previous.promptAction,
+  });
+  await fixture.models.copilotContext.recordDocumentSources({
+    sessionId: fixture.sessionId,
+    actorId: owner.id,
+    projectId: fixture.projectId,
+    documents: [
+      { workspaceId: fixture.sourceWorkspace.id, docId: source.docId },
+    ],
+  });
+  const authorizedScope = await app.get(ContextScopeResolver).resolve({
+    userId: owner.id,
+    workspaceId: fixture.hostWorkspace.id,
+    sessionId: fixture.sessionId,
+    selectedProjectId: fixture.projectId,
+  });
+  t.deepEqual(authorizedScope.projectIds, [fixture.projectId]);
+  const proposed = await request();
+  await approveProjectDocWrite({
+    app,
+    hostWorkspaceId: fixture.hostWorkspace.id,
+    runId: proposed.id,
+  });
+  await fixture.models.intelligenceWorkbenchAuthorization.revokeProjectGrant({
+    projectId: fixture.projectId,
+    workspaceId: fixture.sourceWorkspace.id,
+    docId: source.docId,
+    actorUserId: owner.id,
+  });
+  await app.get(CopilotAgentRuntimeWorker).runStandaloneAgentRuntime({
+    workspaceId: fixture.hostWorkspace.id,
+    runId: proposed.id,
+  });
+  const denied = await fixture.models.copilotAgentRuntime.get(
+    fixture.hostWorkspace.id,
+    proposed.id
+  );
+  t.is(denied?.status, 'failed');
+  t.like(denied?.executionResults[0], { sideEffectsApplied: false });
+  const unchanged = await app
+    .get(DocReader)
+    .getDocMarkdown(fixture.sourceWorkspace.id, fixture.sharedDoc.docId, true);
+  t.false(unchanged!.markdown.includes('Derived authorized content.'));
+  await fixture.models.intelligenceWorkbenchAuthorization.addProjectDocument({
+    projectId: fixture.projectId,
+    workspaceId: fixture.sourceWorkspace.id,
+    docId: source.docId,
+    requesterUserId: owner.id,
+    requestedLevel: 'read',
+  });
+  await t.throwsAsync(request(), { message: /private or unverified sources/ });
+});
+
+test('project memory rechecks cumulative sources in its persistence transaction', async t => {
+  const { app, db, owner } = t.context;
+  const fixture = await createProjectWriteFixture({ app, db, owner });
+  const source = await fixture.docWriter.createDoc(
+    fixture.sourceWorkspace.id,
+    'Private memory source',
+    'Private information.',
+    owner.id
+  );
+  const scope = await app.get(ContextScopeResolver).resolve({
+    userId: owner.id,
+    workspaceId: fixture.hostWorkspace.id,
+    sessionId: fixture.sessionId,
+    selectedProjectId: fixture.projectId,
+  });
+  t.deepEqual(scope.projectIds, [fixture.projectId]);
+  await fixture.models.copilotContext.recordDocumentSources({
+    sessionId: fixture.sessionId,
+    actorId: owner.id,
+    projectId: fixture.projectId,
+    documents: [
+      { workspaceId: fixture.sourceWorkspace.id, docId: source.docId },
+    ],
+  });
+  const write = () =>
+    fixture.models.copilotContextMemory.applyWriterDecision({
+      ownerUserId: owner.id,
+      workspaceId: fixture.hostWorkspace.id,
+      projectId: fixture.projectId,
+      sourceSessionId: fixture.sessionId,
+      sourceDocuments: [
+        {
+          workspaceId: fixture.sourceWorkspace.id,
+          docId: fixture.sharedDoc.docId,
+        },
+      ],
+      scope: 'project',
+      explicit: true,
+      writerVersion: 'structured-memory-writer/test',
+      decisionFingerprint: randomUUID(),
+      decision: {
+        operation: 'ADD',
+        factKey: `test:${randomUUID()}`,
+        content: 'Remember the authorized project fact.',
+        confidence: 1,
+        importance: 0.8,
+        sensitivity: 'private',
+        validFrom: new Date(),
+        validUntil: null,
+        expiresAt: null,
+        reasonCode: 'explicit_request',
+      },
+    });
+  await t.throwsAsync(write(), { message: /private or unverified sources/ });
+  t.is(
+    await db.aiContextMemory.count({ where: { projectId: fixture.projectId } }),
+    0
+  );
+  await fixture.models.intelligenceWorkbenchAuthorization.addProjectDocument({
+    projectId: fixture.projectId,
+    workspaceId: fixture.sourceWorkspace.id,
+    docId: source.docId,
+    requesterUserId: owner.id,
+    requestedLevel: 'read',
+  });
+  await t.throwsAsync(write(), { message: /private or unverified sources/ });
+  const previous = await db.aiSession.findUniqueOrThrow({
+    where: { id: fixture.sessionId },
+  });
+  fixture.sessionId = await fixture.models.copilotSession.create({
+    sessionId: randomUUID(),
+    userId: owner.id,
+    workspaceId: fixture.hostWorkspace.id,
+    selectedContextProjectId: fixture.projectId,
+    title: null,
+    promptName: previous.promptName,
+    promptAction: previous.promptAction,
+  });
+  await fixture.models.copilotContext.recordDocumentSources({
+    sessionId: fixture.sessionId,
+    actorId: owner.id,
+    projectId: fixture.projectId,
+    documents: [
+      { workspaceId: fixture.sourceWorkspace.id, docId: source.docId },
+    ],
+  });
+  const event = await write();
+  t.truthy(event.memoryId);
+  const recalled = await db.aiContextMemory.findUniqueOrThrow({
+    where: { id: event.memoryId! },
+  });
+  const provenance = {
+    sessionId: fixture.sessionId,
+    actorId: owner.id,
+    projectId: fixture.projectId,
+    sink: {
+      type: 'document_update' as const,
+      id: fixture.sharedDoc.docId,
+      workspaceId: fixture.sourceWorkspace.id,
+      phase: 'execute' as const,
+    },
+  };
+  await fixture.models.copilotContext.recordRecalledMemorySources({
+    ...provenance,
+    workspaceId: fixture.hostWorkspace.id,
+    memories: [{ id: recalled.id, content: recalled.content }],
+  });
+  await fixture.models.copilotContext.assertProjectSourcesShared(provenance);
+  await db.aiContextMemory.update({
+    where: { id: recalled.id },
+    data: { expiresAt: new Date(Date.now() - 1) },
+  });
+  await t.throwsAsync(
+    fixture.models.copilotContext.assertProjectSourcesShared(provenance)
+  );
+  await db.aiContextMemory.update({
+    where: { id: recalled.id },
+    data: { expiresAt: null },
+  });
+  t.is(
+    await db.aiContextMemorySource.count({
+      where: { memoryId: event.memoryId! },
+    }),
+    2
+  );
+  await fixture.models.intelligenceWorkbenchAuthorization.revokeProjectGrant({
+    projectId: fixture.projectId,
+    workspaceId: fixture.sourceWorkspace.id,
+    docId: source.docId,
+    actorUserId: owner.id,
+  });
+  await t.throwsAsync(write(), { message: /private or unverified sources/ });
+  t.like(await fixture.models.copilotContextMemory.get(event.memoryId!), {
+    status: 'disabled',
+    quarantineReason: 'project_grant_revoked',
+  });
+  t.is(
+    await db.aiContextMemory.count({ where: { projectId: fixture.projectId } }),
+    1
+  );
+});
+
 test('formal project writes freeze their principal and use FIFO without serializing reads or other documents', async t => {
   const { app, db, owner } = t.context;
   const fixture = await createProjectWriteFixture({ app, db, owner });
@@ -2209,10 +2525,12 @@ test('formal project writes freeze their principal and use FIFO without serializ
     owner,
     workspaceId: fixture.hostWorkspace.id,
   });
-  await db.aiSession.update({
-    where: { id: fixture.sessionId },
-    data: { selectedContextProjectId: alternate.projectId },
-  });
+  await t.throwsAsync(
+    db.aiSession.update({
+      where: { id: fixture.sessionId },
+      data: { selectedContextProjectId: alternate.projectId },
+    })
+  );
 
   for (const run of [first, second, independent]) {
     const approved = await approveProjectDocWrite({
@@ -2347,10 +2665,12 @@ test('formal project write drift returns to approval and executes against the fr
     owner,
     workspaceId: fixture.hostWorkspace.id,
   });
-  await db.aiSession.update({
-    where: { id: fixture.sessionId },
-    data: { selectedContextProjectId: alternate.projectId },
-  });
+  await t.throwsAsync(
+    db.aiSession.update({
+      where: { id: fixture.sessionId },
+      data: { selectedContextProjectId: alternate.projectId },
+    })
+  );
   await fixture.docWriter.updateDoc(
     fixture.sourceWorkspace.id,
     fixture.sharedDoc.docId,
@@ -3200,17 +3520,18 @@ test('Blocker suggestions require explicit member confirmation and expose only m
   await db.aiContextProjectMember.delete({
     where: { projectId_userId: { projectId, userId: outsider.id } },
   });
-  const membershipDriftDenied =
-    (await membershipCheckedTools.blocker_suggest.execute?.(
-      {
-        title: 'Must not survive membership removal',
-        type: 'custom',
-        waiting_on: 'Nobody',
-      },
-      {}
-    )) as Record<string, unknown>;
-  t.like(membershipDriftDenied, { type: 'error' });
-  t.regex(membershipDriftDenied.message as string, /Project not found/);
+  await t.throwsAsync(
+    async () =>
+      await membershipCheckedTools.blocker_suggest.execute?.(
+        {
+          title: 'Must not survive membership removal',
+          type: 'custom',
+          waiting_on: 'Nobody',
+        },
+        {}
+      ),
+    { message: /Project membership is no longer active/ }
+  );
   t.is(await db.aiContextProjectBlocker.count(), 0);
 
   await t.throwsAsync(

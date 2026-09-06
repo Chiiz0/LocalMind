@@ -14,7 +14,7 @@ import {
 import { useLiveData, useService } from '@toeverything/infra';
 import { cssVar } from '@toeverything/theme';
 import clsx from 'clsx';
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import * as styles from './styles.css';
 
@@ -27,15 +27,20 @@ export const PublicDoc = ({ disabled }: { disabled?: boolean }) => {
     shareInfoService.shareInfo.isRevalidating$
   );
   const currentMode = useLiveData(editorService.editor.mode$);
+  const pending = useRef(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     shareInfoService.shareInfo.revalidate();
   }, [shareInfoService]);
 
   const onDisablePublic = useAsyncCallback(async () => {
+    if (disabled || !isSharedPage || pending.current) return;
+    pending.current = true;
+    setIsSubmitting(true);
     try {
       await shareInfoService.shareInfo.disableShare();
-      notify.error({
+      notify.success({
         title:
           t[
             'com.affine.share-menu.disable-publish-link.notification.success.title'
@@ -45,7 +50,7 @@ export const PublicDoc = ({ disabled }: { disabled?: boolean }) => {
             'com.affine.share-menu.disable-publish-link.notification.success.message'
           ](),
       });
-    } catch (err) {
+    } catch {
       notify.error({
         title:
           t[
@@ -56,14 +61,18 @@ export const PublicDoc = ({ disabled }: { disabled?: boolean }) => {
             'com.affine.share-menu.disable-publish-link.notification.fail.message'
           ](),
       });
-      console.log(err);
+    } finally {
+      pending.current = false;
+      setIsSubmitting(false);
     }
-  }, [shareInfoService, t]);
+  }, [disabled, isSharedPage, shareInfoService, t]);
 
   const onClickAnyoneReadOnlyShare = useAsyncCallback(async () => {
-    if (isSharedPage) {
+    if (disabled || isSharedPage || pending.current) {
       return;
     }
+    pending.current = true;
+    setIsSubmitting(true);
     try {
       // TODO(@JimmFly): remove mode when we have a better way to handle it
       await shareInfoService.shareInfo.enableShare(
@@ -88,8 +97,11 @@ export const PublicDoc = ({ disabled }: { disabled?: boolean }) => {
         title: err.name,
         message: err.message,
       });
+    } finally {
+      pending.current = false;
+      setIsSubmitting(false);
     }
-  }, [currentMode, isSharedPage, shareInfoService.shareInfo, t]);
+  }, [disabled, currentMode, isSharedPage, shareInfoService.shareInfo, t]);
 
   return (
     <div className={styles.rowContainerStyle}>
@@ -115,6 +127,7 @@ export const PublicDoc = ({ disabled }: { disabled?: boolean }) => {
                 prefixIcon={<LockIcon />}
                 onSelect={onDisablePublic}
                 selected={!isSharedPage}
+                disabled={isSubmitting || isRevalidating || !isSharedPage}
               >
                 <div className={styles.publicItemRowStyle}>
                   <div>
@@ -127,6 +140,7 @@ export const PublicDoc = ({ disabled }: { disabled?: boolean }) => {
                 onSelect={onClickAnyoneReadOnlyShare}
                 data-testid="share-link-menu-enable-share"
                 selected={!!isSharedPage}
+                disabled={isSubmitting || isRevalidating || !!isSharedPage}
               >
                 <div className={styles.publicItemRowStyle}>
                   <div>{t['com.affine.share-menu.option.link.readonly']()}</div>
@@ -143,8 +157,8 @@ export const PublicDoc = ({ disabled }: { disabled?: boolean }) => {
             contentStyle={{
               width: '100%',
             }}
-            loading={isRevalidating}
-            disabled={isRevalidating}
+            loading={isRevalidating || isSubmitting}
+            disabled={isRevalidating || isSubmitting}
           >
             {isSharedPage
               ? t['com.affine.share-menu.option.link.readonly']()

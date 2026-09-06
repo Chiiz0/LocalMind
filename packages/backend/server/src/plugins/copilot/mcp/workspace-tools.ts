@@ -344,10 +344,14 @@ export function createWorkspaceMcpTools(
         try {
           await assertRootOperations(operations as WorkspaceRootOperation[]);
           return toolResult(
-            await organization.applyRootOperations(
-              workspaceId,
-              userId,
-              operations as WorkspaceRootOperation[]
+            await organization.withAiSourceCheck(
+              { workspaceId, actorId: userId },
+              () =>
+                organization.applyRootOperations(
+                  workspaceId,
+                  userId,
+                  operations as WorkspaceRootOperation[]
+                )
             )
           );
         } catch (error) {
@@ -383,14 +387,21 @@ export function createWorkspaceMcpTools(
             table as WorkspaceDataTable,
             operations as WorkspaceDataOperation[]
           );
-          return toolResult(
-            await organization.applyDataOperations(
+          const apply = () =>
+            organization.applyDataOperations(
               workspaceId,
               userId,
               userId,
               table as WorkspaceDataTable,
               operations as WorkspaceDataOperation[]
-            )
+            );
+          return toolResult(
+            await (table === 'favorites' || table === 'user_settings'
+              ? apply()
+              : organization.withAiSourceCheck(
+                  { workspaceId, actorId: userId },
+                  apply
+                ))
           );
         } catch (error) {
           logger.warn(

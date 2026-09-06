@@ -1,5 +1,34 @@
 # Track: Intelligence Workbench
 
+## Project AI Stage Two
+
+The stage-two acceptance record is in
+[Project AI Boundaries](project-ai-boundaries.md#stage-two-progress-on-2026-09-06).
+Shared Project writes now retain original source grants and immutable source
+check audits. A conversation that consumed a private or revoked source cannot
+resume shared writes after regrant; a newly authorized source requires a fresh
+conversation. Directory enumeration and destination selection use a bounded
+storage-validated parse cache with fresh per-request permissions, measured with
+10,000 rows and 64-level ancestry. External waiting tasks now appear in the
+action list and reuse the explicit Workspace/root/folder confirmation panel,
+with expiry, withdrawal and revision-change handling. Server checks persist
+the actor and target authority and reject MCP attempts to impersonate that
+confirmation. Destination audience evidence also prevents Project content from
+spreading to additional Workspace or other-Project readers. Delegated task
+results expose bounded document artifacts with actual storage Workspaces and
+live read checks. Notification snapshots start from authentication state and
+reconcile every 15 seconds and on
+focus/reconnection, including unchanged counts, so a missed push cannot leave
+the applicant/reviewer list stale indefinitely. Persistent recipient
+reconciliation covers changed source owners/admins. These changes have reached
+the backed-up 335-migration business runtime. Real Chrome passed second
+confirmation, rejection reasons, duplicates, withdrawal, expiry, reviewer/admin
+changes, revocation and applicant refresh. With realtime blocked, HTTP delivered
+the persistent result within 9,193 ms; reconnect retained it. Encrypted-BYOK
+location confirmation and worker recovery completed over a backend restart.
+Task details passed 1600x1000 and 390x844 light/dark visual checks. Exact fixture
+IDs, commands and remaining production-soak limits are in the authority record.
+
 ## Intent
 
 Turn the existing workspace-level Intelligence chat page into a global,
@@ -64,6 +93,11 @@ Today the pieces exist but do not compose into a workbench:
   in people's heads or chat transcripts.
 
 ## Settled Design Decisions
+
+The [2026-09-05 Project AI boundary contract](./project-ai-boundaries.md)
+supersedes conflicting older rules below, including AI management prohibitions,
+explicit conversation binding, personal/current-project read scope, destination
+confirmation, independent copies, and notification decisions.
 
 ### D1. Entry and layout
 

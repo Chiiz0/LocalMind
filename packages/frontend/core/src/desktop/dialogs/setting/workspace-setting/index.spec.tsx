@@ -7,6 +7,9 @@ import { describe, expect, test, vi } from 'vitest';
 
 vi.mock('./ai-context', () => ({ AIContextSettings: () => null }));
 vi.mock('./billing', () => ({ WorkspaceSettingBilling: () => null }));
+vi.mock('./directory-permissions', () => ({
+  WorkspaceDirectoryPermissions: () => null,
+}));
 vi.mock('./integration', () => ({ IntegrationSetting: () => null }));
 vi.mock('./license', () => ({ WorkspaceSettingLicense: () => null }));
 vi.mock('./members', () => ({ MembersPanel: () => null }));

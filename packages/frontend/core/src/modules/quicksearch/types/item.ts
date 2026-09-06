@@ -17,6 +17,7 @@ export type QuickSearchItem<S = any, P = any> = {
   disabled?: boolean;
   keyBinding?: string;
   timestamp?: number;
+  openMode?: 'beside';
   payload?: P;
   beforeSubmit?: () => boolean;
 } & (P extends NonNullable<unknown> ? { payload: P } : unknown);

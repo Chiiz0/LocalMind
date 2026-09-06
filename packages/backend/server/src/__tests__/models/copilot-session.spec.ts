@@ -109,6 +109,255 @@ const getSessionStates = async (db: PrismaClient, sessionIds: string[]) => {
   return sessions;
 };
 
+test('forks cannot move private or project history across user, workspace, or project boundaries', async t => {
+  const { db, copilotSession, models } = t.context;
+  await createTestPrompts(copilotSession, db);
+  const personal = await createTestSession(t);
+  const project = await db.aiContextProject.create({
+    data: {
+      name: 'Fork boundary',
+      createdByUserId: user.id,
+      members: { create: { userId: user.id, role: 'owner' } },
+    },
+  });
+  const source = {
+    ...personal,
+    sessionId: randomUUID(),
+    selectedContextProjectId: project.id,
+  };
+  await copilotSession.create(source);
+  const child = {
+    ...source,
+    sessionId: randomUUID(),
+    parentSessionId: source.sessionId,
+  };
+  t.truthy(await copilotSession.create(child));
+  for (const selectedContextProjectId of [null, randomUUID()]) {
+    await t.throwsAsync(
+      copilotSession.create({
+        ...child,
+        sessionId: randomUUID(),
+        selectedContextProjectId,
+      })
+    );
+  }
+  await t.throwsAsync(
+    copilotSession.create({
+      ...child,
+      sessionId: randomUUID(),
+      docId: 'another-doc',
+    })
+  );
+  await t.throwsAsync(
+    copilotSession.create({
+      ...child,
+      sessionId: randomUUID(),
+      workspaceId: randomUUID(),
+    })
+  );
+  await t.throwsAsync(
+    copilotSession.create({
+      ...child,
+      sessionId: randomUUID(),
+      parentSessionId: personal.sessionId,
+    })
+  );
+  const anotherUser = await models.user.create({
+    email: `fork-${randomUUID()}@example.com`,
+  });
+  await db.aiContextProjectMember.create({
+    data: { projectId: project.id, userId: anotherUser.id, role: 'member' },
+  });
+  await t.throwsAsync(
+    copilotSession.create({
+      ...child,
+      sessionId: randomUUID(),
+      userId: anotherUser.id,
+    })
+  );
+  await t.throwsAsync(
+    copilotSession.create({
+      ...personal,
+      sessionId: randomUUID(),
+      parentSessionId: personal.sessionId,
+      userId: anotherUser.id,
+    })
+  );
+  const foreignProjectForks = await copilotSession.list({
+    userId: anotherUser.id,
+    workspaceId: workspace.id,
+    fork: true,
+    action: false,
+  });
+  t.false(foreignProjectForks.some(session => session.id === child.sessionId));
+  t.is(
+    await copilotSession.count({
+      userId: user.id,
+      workspaceId: workspace.id,
+      sessionId: child.sessionId,
+    }),
+    1
+  );
+  await db.aiContextProjectMember.updateMany({
+    where: { projectId: project.id, userId: anotherUser.id },
+    data: { role: 'owner' },
+  });
+  await db.aiContextProjectMember.deleteMany({
+    where: { projectId: project.id, userId: user.id },
+  });
+  t.is(
+    await copilotSession.count({
+      userId: user.id,
+      workspaceId: workspace.id,
+      sessionId: child.sessionId,
+      action: false,
+      fork: true,
+    }),
+    0
+  );
+  await t.throwsAsync(
+    copilotSession.create({ ...child, sessionId: randomUUID() })
+  );
+  await db.aiContextProjectMember.create({
+    data: { projectId: project.id, userId: user.id, role: 'owner' },
+  });
+  await db.aiContextProject.update({
+    where: { id: project.id },
+    data: { status: 'archived' },
+  });
+  await t.throwsAsync(
+    copilotSession.create({ ...child, sessionId: randomUUID() })
+  );
+  t.is(
+    await copilotSession.count({
+      userId: user.id,
+      workspaceId: workspace.id,
+      sessionId: child.sessionId,
+    }),
+    0
+  );
+  t.is(
+    await copilotSession.count({
+      userId: user.id,
+      workspaceId: workspace.id,
+      sessionId: child.sessionId,
+      action: false,
+      fork: true,
+    }),
+    0
+  );
+});
+
+test('project selection cannot rebind a conversation or adopt previous personal messages', async t => {
+  const { db, copilotSession } = t.context;
+  await createTestPrompts(copilotSession, db);
+  const project = await db.aiContextProject.create({
+    data: {
+      name: 'Conversation boundary',
+      createdByUserId: user.id,
+      members: { create: { userId: user.id, role: 'owner' } },
+    },
+  });
+  const first = await createTestSession(t);
+  await copilotSession.update({
+    userId: user.id,
+    sessionId: first.sessionId,
+    selectedContextProjectId: project.id,
+  });
+  await t.throwsAsync(
+    copilotSession.update({
+      userId: user.id,
+      sessionId: first.sessionId,
+      selectedContextProjectId: null,
+    }),
+    { instanceOf: CopilotSessionInvalidInput }
+  );
+  await copilotSession.update({
+    userId: user.id,
+    sessionId: first.sessionId,
+    selectedContextProjectId: project.id,
+  });
+  const personal = await createTestSession(t);
+  await addMessagesToSession(
+    copilotSession,
+    personal.sessionId,
+    'Personal material'
+  );
+  await t.throwsAsync(
+    copilotSession.update({
+      userId: user.id,
+      sessionId: personal.sessionId,
+      selectedContextProjectId: project.id,
+    }),
+    { instanceOf: CopilotSessionInvalidInput }
+  );
+  t.is(
+    (
+      await db.aiSession.findUniqueOrThrow({
+        where: { id: personal.sessionId },
+      })
+    ).selectedContextProjectId,
+    null
+  );
+  await t.throwsAsync(
+    copilotSession.update({
+      userId: user.id,
+      sessionId: first.sessionId,
+      docId: 'document',
+    }),
+    { instanceOf: CopilotSessionInvalidInput }
+  );
+
+  const projectState = {
+    ...first,
+    sessionId: randomUUID(),
+    selectedContextProjectId: project.id,
+  };
+  t.is(await copilotSession.create(projectState, true), first.sessionId);
+  t.is(
+    await copilotSession.create(
+      { ...projectState, selectedContextProjectId: null },
+      true
+    ),
+    personal.sessionId
+  );
+  const other = await db.aiContextProject.create({
+    data: {
+      name: 'Another project',
+      createdByUserId: user.id,
+      members: { create: { userId: user.id, role: 'owner' } },
+    },
+  });
+  const otherSession = await copilotSession.create(
+    { ...projectState, selectedContextProjectId: other.id },
+    true
+  );
+  t.not(otherSession, first.sessionId);
+  t.not(otherSession, personal.sessionId);
+  await t.throwsAsync(
+    copilotSession.create({
+      ...projectState,
+      sessionId: randomUUID(),
+      docId: 'document',
+    }),
+    { instanceOf: CopilotSessionInvalidInput }
+  );
+  const outsider = await t.context.user.create({
+    email: 'outsider@affine.pro',
+  });
+  await t.throwsAsync(
+    copilotSession.create({ ...projectState, userId: outsider.id }, true),
+    { instanceOf: CopilotSessionInvalidInput }
+  );
+  await db.aiContextProject.update({
+    where: { id: project.id },
+    data: { status: 'archived' },
+  });
+  await t.throwsAsync(copilotSession.create(projectState, true), {
+    instanceOf: CopilotSessionInvalidInput,
+  });
+});
+
 const addMessagesToSession = async (
   copilotSession: CopilotSessionModel,
   sessionId: string,

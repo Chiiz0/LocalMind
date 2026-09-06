@@ -383,6 +383,7 @@ test('ConversationHost should replay durable tokens without enabling quota-backe
 });
 
 test('ToolRuntime should pass route context and appended messages into prompt-backed tools', async t => {
+  const recordInputSources = Sinon.stub().resolves();
   const promptRuntime = {
     runText: Sinon.stub().resolves('<html><body>done</body></html>'),
   };
@@ -395,8 +396,14 @@ test('ToolRuntime should pass route context and appended messages into prompt-ba
     {} as any,
     {} as any,
     {
+      copilotContext: { recordInputSources },
       copilotSession: {
-        getMeta: Sinon.stub().resolves({ selectedContextProjectId: null }),
+        getMeta: Sinon.stub().resolves({
+          selectedContextProjectId: null,
+          userId: 'user-1',
+          workspaceId: 'workspace-1',
+          docId: null,
+        }),
       },
     } as any,
     {} as any,
@@ -468,6 +475,7 @@ test('ToolRuntime should pass route context and appended messages into prompt-ba
     }
   );
   Sinon.assert.calledTwice(promptRuntime.runText);
+  Sinon.assert.calledTwice(recordInputSources);
 });
 
 test('ToolRuntime should expose SparkClaw tools with a stable task invocation', async t => {
@@ -715,13 +723,95 @@ test('ToolRuntime should expose semantic workspace organization tools', async t 
   ]);
 });
 
+test('ToolRuntime reloads authorized attachment context on every execution', async t => {
+  const recordInputSources = Sinon.stub().resolves();
+  const access = { allowLocal: () => access, can: async () => true };
+  const getFileContent = Sinon.stub().resolves('current content');
+  const getOwnedBySessionId = Sinon.stub().resolves({ id: 'context-1' });
+  const getOwnedContext = Sinon.stub().resolves({
+    workspaceId: 'workspace-1',
+    files: [
+      {
+        id: 'file-1',
+        blobId: 'blob-1',
+        name: 'current.txt',
+        mimeType: 'text/plain',
+      },
+    ],
+    getFileContent,
+    getBlobContent: async () => undefined,
+  });
+  const runtime = new ToolRuntime(
+    {} as never,
+    { user: () => ({ workspace: () => access }) } as never,
+    {} as never,
+    { getOwnedBySessionId, getOwnedContext } as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {
+      copilotContext: { recordInputSources },
+      copilotSession: {
+        getMeta: async () => ({
+          userId: 'user-1',
+          workspaceId: 'workspace-1',
+          selectedContextProjectId: null,
+        }),
+      },
+    } as never,
+    {} as never,
+    {} as never,
+    {} as never
+  );
+  const tools = await runtime.getTools(
+    {
+      tools: ['blobRead'],
+      user: 'user-1',
+      workspace: 'workspace-1',
+      session: 'session-1',
+    },
+    'test'
+  );
+  t.deepEqual(getOwnedBySessionId.firstCall.args, [
+    'user-1',
+    'session-1',
+    'workspace-1',
+  ]);
+  const read = () => tools.blob_read.execute?.({ blob_id: 'blob-1' }, {});
+  t.like(await read(), { content: 'current content' });
+  t.deepEqual(getOwnedContext.firstCall.args, [
+    'user-1',
+    'context-1',
+    { sessionId: 'session-1', workspaceId: 'workspace-1' },
+  ]);
+  getOwnedContext.resolves({
+    workspaceId: 'workspace-1',
+    files: [],
+    getBlobContent: async () => undefined,
+  });
+  t.like(await read(), { type: 'error' });
+  getOwnedContext.rejects(new Error('Context access is no longer available'));
+  t.like(await read(), { type: 'error' });
+  t.is(getOwnedContext.callCount, 3);
+  t.is(getFileContent.callCount, 1);
+  t.like(recordInputSources.firstCall.args[0], {
+    sessionId: 'session-1',
+    projectId: null,
+  });
+  t.like(recordInputSources.firstCall.args[0].sources[0], {
+    kind: 'private_attachment',
+    workspaceId: 'workspace-1',
+  });
+  Sinon.assert.calledThrice(recordInputSources);
+});
+
 test('ToolRuntime intersects task snapshots with current task-scoped tools', async t => {
-  const getBySessionId = Sinon.stub();
+  const getOwnedBySessionId = Sinon.stub();
   const runtime = new ToolRuntime(
     {} as any,
     {} as any,
     {} as any,
-    { getBySessionId } as any,
+    { getOwnedBySessionId } as any,
     {} as any,
     {} as any,
     {} as any,
@@ -760,7 +850,7 @@ test('ToolRuntime intersects task snapshots with current task-scoped tools', asy
     'task_attachment_read',
     'workspace_folder_list',
   ]);
-  t.false(getBySessionId.called);
+  t.false(getOwnedBySessionId.called);
 });
 
 test('ToolRuntime blocks the twenty-first tool execution', async t => {

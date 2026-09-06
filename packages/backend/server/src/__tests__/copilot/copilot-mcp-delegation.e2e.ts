@@ -13,6 +13,7 @@ import { PermissionAccess } from '../../core/permission';
 import { Models, WorkspaceMemberStatus, WorkspaceRole } from '../../models';
 import { LOCALMIND_DELEGATION_AI_TOOLS } from '../../plugins/copilot/agent-runtime-localmind-tool-agent-adapter';
 import { CopilotAgentRuntimeWorker } from '../../plugins/copilot/agent-runtime-worker';
+import { CopilotDocumentOperationService } from '../../plugins/copilot/document-operation-service';
 import {
   MCP_CAPABILITIES,
   MCP_DELEGATE_CAPABILITY,
@@ -22,7 +23,10 @@ import { McpCredentialService } from '../../plugins/copilot/mcp/credential';
 import { McpAiDelegationService } from '../../plugins/copilot/mcp/delegation';
 import { McpAiTaskControlService } from '../../plugins/copilot/mcp/task-control';
 import { McpAiTaskQueryService } from '../../plugins/copilot/mcp/task-query';
+import type { CopilotChatOptions } from '../../plugins/copilot/providers/types';
+import { CopilotResolver } from '../../plugins/copilot/resolver';
 import { CapabilityRuntime } from '../../plugins/copilot/runtime/capability-runtime';
+import { preparePromptMessagesForNativeRequest } from '../../plugins/copilot/runtime/native-request-runtime';
 import { ToolRuntime } from '../../plugins/copilot/runtime/tool-runtime';
 import {
   buildDocCreateHandler,
@@ -486,6 +490,270 @@ test('task query fails closed when a delegation points at another task run', asy
   );
 });
 
+test('delegated location waits without creation and resumes two distinct confirmed documents from durable checkpoints', async t => {
+  const { credentials, db, models, owner, runtime, worker } = t.context;
+  const { workspaceId } = await createDocument(
+    t.context,
+    owner.id,
+    'Isolated location host'
+  );
+  const { workspaceId: destinationId } = await createDocument(
+    t.context,
+    owner.id,
+    'Isolated location target'
+  );
+  await db.effectiveWorkspaceQuotaState.upsert({
+    where: { workspaceId: destinationId },
+    create: {
+      workspaceId: destinationId,
+      plan: 'free',
+      ownerUserId: owner.id,
+      seatLimit: 100,
+      blobLimit: 0,
+      storageQuota: 0,
+      historyPeriodSeconds: 0,
+      known: true,
+      stale: false,
+    },
+    update: { known: true, stale: false, staleAfter: null },
+  });
+  const issued = await credentials.create({
+    userId: owner.id,
+    workspaceId,
+    name: 'Isolated location task',
+    accessMode: McpAccessMode.READ_WRITE,
+    capabilities: [...MCP_CAPABILITIES],
+    expirationDays: 30,
+  });
+  Sinon.stub(runtime, 'generateStructuredValue').resolves({
+    value: {
+      result: plannerResult({
+        kind: 'tool_agent',
+        summary: 'Create two documents after location confirmation',
+      }),
+    },
+  } as never);
+  let turn = 0;
+  Sinon.stub(runtime, 'streamObject').callsFake(
+    (_conditions, messages, options) =>
+      (async function* () {
+        turn++;
+        t.true(messages.every(message => message.content.length > 0));
+        if (turn > 1) {
+          t.true(
+            preparePromptMessagesForNativeRequest(messages, false).some(
+              message => message.content.includes('"documentCreated":true')
+            )
+          );
+          t.true(
+            messages.some(message =>
+              message.streamObjects?.some(
+                event =>
+                  event.type === 'tool-result' &&
+                  (event.result as { documentCreated?: boolean })
+                    .documentCreated
+              )
+            )
+          );
+        }
+        if (turn <= 2) {
+          const tools = await t.context
+            .app!.get(ToolRuntime)
+            .getTools(options as CopilotChatOptions, 'location-test');
+          const args = {
+            title: 'Same title',
+            content: `Distinct document ${turn}`,
+            add_to_project: false,
+          };
+          const toolCallId = `location-create-${turn}`;
+          const result = await tools.doc_create.execute!(args, { toolCallId });
+          yield {
+            type: 'tool-result',
+            toolName: 'doc_create',
+            toolCallId,
+            args,
+            result,
+          };
+        } else {
+          yield {
+            type: 'text-delta',
+            textDelta:
+              'Both documents were created in their confirmed locations.',
+          };
+        }
+      })()
+  );
+  const delegated = await delegate(t.context, issued.token, {
+    request: 'Create two documents with the same title.',
+    documentIds: [],
+    idempotencyKey: 'location-checkpoint-two-documents',
+  });
+  const runId = String(delegated.agentRunId);
+  const requestId = String(delegated.taskId);
+  const before = await db.workspaceDoc.count();
+  await worker.runStandaloneAgentRuntime({ workspaceId, runId });
+  t.is(await db.workspaceDoc.count(), before);
+  const waiting = await getTaskThroughMcp(t.context, issued.token, {
+    taskId: requestId,
+    waitMs: 0,
+  });
+  t.like(waiting, {
+    status: 'waiting_for_location',
+    terminal: false,
+    phase: 'location',
+    availableControls: ['cancel'],
+  });
+  const request = (await models.copilotMcpDelegation.getRequest(requestId))!;
+  t.truthy(request.executionSessionId);
+  t.truthy(request.locationOperationId);
+  const service = t.context.app!.get(CopilotDocumentOperationService);
+  const firstId = request.locationOperationId!;
+  const forgedConfirmation = {
+    operationId: firstId,
+    workspaceId: destinationId,
+    root: true,
+    expectedRevision: 0,
+  };
+  const graphql = await t.context
+    .app!.POST('/graphql')
+    .set('Cookie', '')
+    .set('Authorization', `Bearer ${issued.token}`)
+    .set('x-user-id', owner.id)
+    .send({
+      query:
+        'mutation($input: ConfirmCopilotDocumentDestinationInput!) { confirmCopilotDocumentDestination(input: $input) { id status } }',
+      variables: { input: forgedConfirmation },
+    });
+  t.true(
+    graphql.status === 401 || !!graphql.body.errors?.length,
+    `Unexpected GraphQL status: ${graphql.status}`
+  );
+  const mcp = await t.context
+    .app!.POST(`/api/workspaces/${workspaceId}/mcp`)
+    .set('Authorization', `Bearer ${issued.token}`)
+    .set('MCP-Protocol-Version', '2025-06-18')
+    .send({
+      jsonrpc: '2.0',
+      id: 2,
+      method: 'tools/call',
+      params: {
+        name: 'confirmCopilotDocumentDestination',
+        arguments: { ...forgedConfirmation, actorId: owner.id },
+      },
+    });
+  t.truthy(mcp.body.error ?? mcp.body.result?.isError);
+  const unconfirmed = await models.copilotDocumentOperation.get({
+    actorId: owner.id,
+    operationId: firstId,
+  });
+  t.is(unconfirmed.destinationRevision, 0);
+  t.is(unconfirmed.destinationConfirmedBy, null);
+  t.is(await db.workspaceDoc.count(), before);
+  await t.throwsAsync(
+    service.confirmDestination({
+      operationId: firstId,
+      actorId: 'outsider',
+      workspaceId: destinationId,
+      folderId: null,
+      expectedRevision: 0,
+    })
+  );
+  await worker.runStandaloneAgentRuntime({ workspaceId, runId });
+  t.is(turn, 1);
+  t.is(await db.workspaceDoc.count(), before);
+  for (let index = 0; index < 2; index++) {
+    const current = (await models.copilotMcpDelegation.getRequest(requestId))!;
+    const operationId = current.locationOperationId!;
+    const confirmed = await service.confirmDestination({
+      operationId,
+      actorId: owner.id,
+      workspaceId: destinationId,
+      folderId: null,
+      expectedRevision: 0,
+    });
+    t.is(confirmed.destinationConfirmedBy, owner.id);
+    t.like(confirmed.destinationEvidence, {
+      workspaceId: destinationId,
+      actorId: owner.id,
+      canCreateDoc: true,
+    });
+    await t.throwsAsync(
+      db.copilotDocumentOperation.update({
+        where: { id: operationId },
+        data: { destinationEvidence: {} },
+      })
+    );
+    await service.execute({
+      operationId,
+      actorId: owner.id,
+      expectedRevision: 1,
+    });
+    // Recover the gap between a committed document and a lost resume/enqueue request.
+    await models.copilotMcpDelegation.recoverConfirmedLocations(50);
+    await worker.runStandaloneAgentRuntime({ workspaceId, runId });
+  }
+  t.is(turn, 3);
+  const final = await getTaskThroughMcp(t.context, issued.token, {
+    taskId: requestId,
+    waitMs: 0,
+  });
+  t.is(final.status, 'completed');
+  t.is(final.artifacts.length, 2);
+  t.true(
+    final.artifacts.every(
+      (artifact: { reference: { workspaceId: string } }) =>
+        artifact.reference.workspaceId === destinationId
+    )
+  );
+  const operations = await db.copilotDocumentOperation.findMany({
+    where: { sessionId: request.executionSessionId! },
+  });
+  t.is(operations.length, 2);
+  t.not(operations[0].documentId, operations[1].documentId);
+  const resolver = await t.context.app!.resolve(CopilotResolver);
+  const projected = await resolver.copilotTask(owner, { workspaceId }, runId);
+  t.is(projected?.artifacts.length, 2);
+  t.true(
+    projected!.artifacts.every(
+      artifact => artifact.workspaceId === destinationId
+    )
+  );
+  t.true(
+    operations.every(
+      operation =>
+        operation.status === 'complete' &&
+        operation.placedDocumentAt &&
+        operation.projectStatus === 'not_requested'
+    )
+  );
+  const calls = await models.copilotMcpDelegation.listToolCalls(requestId);
+  t.is(calls.length, 2);
+  await t.throwsAsync(
+    db.aiMcpDelegationToolCall.update({
+      where: { id: calls[0].id },
+      data: { args: { altered: true } },
+    })
+  );
+  await t.throwsAsync(
+    db.aiMcpDelegationToolCall.update({
+      where: { id: calls[0].id },
+      data: { result: { value: 'altered' } },
+    })
+  );
+  await db.workspaceMember.deleteMany({
+    where: { workspaceId: destinationId, userId: owner.id },
+  });
+  await db.docGrant.deleteMany({
+    where: { workspaceId: destinationId, principalId: owner.id },
+  });
+  const revoked = await (
+    await t.context.app!.resolve(CopilotResolver)
+  ).copilotTask(owner, { workspaceId }, runId);
+  t.deepEqual(revoked?.artifacts, []);
+  t.is(revoked?.resultSummary, null);
+  t.is(revoked?.resultEvidence, null);
+});
+
 test('LocalMind tool agent creates a document and returns a sanitized task artifact', async t => {
   const { credentials, db, owner, runtime, worker } = t.context;
   const { docId: sourceDocId, workspaceId } = await createDocument(
@@ -753,7 +1021,8 @@ test('LocalMind tool agent requires update evidence for an explicit single-docum
       };
       const updateDoc = buildDocUpdateHandler(
         t.context.app!.get(PermissionAccess),
-        t.context.app!.get(DocWriter)
+        t.context.app!.get(DocWriter),
+        t.context.models
       );
       const result = await updateDoc(
         options,
@@ -918,62 +1187,77 @@ test('LocalMind tool agent fails when an explicit document update stops after re
   t.true(markdown?.markdown.includes('Daily log must remain unchanged.'));
 });
 
-test('LocalMind tool agent rejects a text-only document creation claim', async t => {
-  const { credentials, models, owner, runtime, worker } = t.context;
-  const workspace = await models.workspace.create(owner.id);
-  const issued = await credentials.create({
-    userId: owner.id,
-    workspaceId: workspace.id,
-    name: 'LocalMind document creation evidence',
-    accessMode: McpAccessMode.READ_WRITE,
-    capabilities: [...MCP_CAPABILITIES],
-    expirationDays: 30,
-  });
-  Sinon.stub(runtime, 'generateStructuredValue').resolves({
-    value: {
-      result: plannerResult({
-        kind: 'tool_agent',
-        summary: 'Create a release-notes document',
-      }),
-    },
-  } as any);
-  Sinon.stub(runtime, 'streamObject').callsFake((() => {
-    return (async function* () {
-      yield {
-        type: 'text-delta',
-        textDelta: 'Created the release-notes document.',
-      };
-    })();
-  }) as any);
-
-  const delegated = await delegate(t.context, issued.token, {
-    request: 'Create a new document named Release Notes.',
-    documentIds: [],
-    idempotencyKey: 'document-create-text-only-claim',
-  });
-  await worker.runStandaloneAgentRuntime({
-    workspaceId: workspace.id,
-    runId: String(delegated.agentRunId),
-  });
-
-  const task = await getTask(t.context, issued.token, {
-    taskId: String(delegated.taskId),
-    waitMs: 0,
-  });
-  t.like(task, {
-    status: 'failed',
-    terminal: true,
-    result: null,
-    error: {
-      code: 'required_tool_evidence_missing',
-      retryable: true,
-      details: {
-        requiredToolNames: ['doc_create'],
+for (const waitingLocation of [false, true]) {
+  test(`LocalMind tool agent rejects a document creation claim with ${waitingLocation ? 'only a pending operation' : 'only text'}`, async t => {
+    const { credentials, models, owner, runtime, worker } = t.context;
+    const workspace = await models.workspace.create(owner.id);
+    const issued = await credentials.create({
+      userId: owner.id,
+      workspaceId: workspace.id,
+      name: 'LocalMind document creation evidence',
+      accessMode: McpAccessMode.READ_WRITE,
+      capabilities: [...MCP_CAPABILITIES],
+      expirationDays: 30,
+    });
+    Sinon.stub(runtime, 'generateStructuredValue').resolves({
+      value: {
+        result: plannerResult({
+          kind: 'tool_agent',
+          summary: 'Create a release-notes document',
+        }),
       },
-    },
+    } as any);
+    Sinon.stub(runtime, 'streamObject').callsFake((() => {
+      return (async function* () {
+        if (waitingLocation) {
+          yield {
+            type: 'tool-result',
+            toolCallId: 'waiting-create',
+            toolName: 'doc_create',
+            args: { title: 'Release Notes', content: 'Body' },
+            result: {
+              operationId: 'pending-operation',
+              status: 'waiting_location',
+              documentCreated: false,
+            },
+          };
+        }
+        yield {
+          type: 'text-delta',
+          textDelta: 'Created the release-notes document.',
+        };
+      })();
+    }) as any);
+
+    const delegated = await delegate(t.context, issued.token, {
+      request: 'Create a new document named Release Notes.',
+      documentIds: [],
+      idempotencyKey: 'document-create-text-only-claim',
+    });
+    await worker.runStandaloneAgentRuntime({
+      workspaceId: workspace.id,
+      runId: String(delegated.agentRunId),
+    });
+
+    const task = await getTask(t.context, issued.token, {
+      taskId: String(delegated.taskId),
+      waitMs: 0,
+    });
+    t.like(task, {
+      status: 'failed',
+      terminal: true,
+      result: null,
+      error: {
+        code: 'required_tool_evidence_missing',
+        retryable: true,
+        details: {
+          requiredToolNames: ['doc_create'],
+        },
+      },
+    });
+    t.deepEqual(task.artifacts, []);
   });
-  t.deepEqual(task.artifacts, []);
-});
+}
 
 test('LocalMind tool agent exposes missing conditional read evidence', async t => {
   const { credentials, models, owner, runtime, worker } = t.context;

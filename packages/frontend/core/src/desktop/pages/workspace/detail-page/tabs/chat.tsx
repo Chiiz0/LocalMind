@@ -19,6 +19,7 @@ import { createPlaygroundModal } from '@affine/core/blocksuite/ai/components/pla
 import { registerAIAppEffects } from '@affine/core/blocksuite/ai/effects/app';
 import type { AffineEditorContainer } from '@affine/core/blocksuite/block-suite-editor';
 import { NotificationServiceImpl } from '@affine/core/blocksuite/view-extensions/editor-view/notification-service';
+import { DocumentCreationPanel } from '@affine/core/components/ai-document-creation/document-creation-panel';
 import { useAIChatConfig } from '@affine/core/components/hooks/affine/use-ai-chat-config';
 import { useAISpecs } from '@affine/core/components/hooks/affine/use-ai-specs';
 import { useAISubscribe } from '@affine/core/components/hooks/affine/use-ai-subscribe';
@@ -483,6 +484,7 @@ export const EditorChatPanel = ({
             />
             <div ref={onChatToolContainerRef} />
           </div>
+          <DocumentCreationPanel sessionId={snapshot?.activeSessionId} />
           <div className={styles.content} ref={onChatContainerRef} />
         </div>
       )}

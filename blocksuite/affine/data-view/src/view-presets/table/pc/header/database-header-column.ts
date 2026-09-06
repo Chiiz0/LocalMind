@@ -26,11 +26,11 @@ import { html } from 'lit/static-html.js';
 
 import {
   inputConfig,
+  propertyTypeItem,
   typeConfig,
 } from '../../../../core/common/property-menu.js';
 import { filterTraitKey } from '../../../../core/filter/trait.js';
 import { firstFilterByRef } from '../../../../core/filter/utils.js';
-import { renderUniLit } from '../../../../core/index.js';
 import { sortTraitKey } from '../../../../core/sort/manager.js';
 import { createSortUtils } from '../../../../core/sort/utils.js';
 import {
@@ -83,16 +83,9 @@ export class DatabaseHeaderColumn extends SignalWatcher(
     event.stopPropagation();
     popMenu(popupTargetFromElement(this), {
       options: {
-        items: this.tableViewManager.propertyMetas$.value.map(config => {
-          return menu.action({
-            name: config.config.name,
-            isSelected: config.type === this.column.type$.value,
-            prefix: renderUniLit(config.renderer.icon),
-            select: () => {
-              this.column.typeSet?.(config.type);
-            },
-          });
-        }),
+        items: this.tableViewManager.propertyMetas$.value.map(config =>
+          propertyTypeItem(this.column, config)
+        ),
       },
     });
   };

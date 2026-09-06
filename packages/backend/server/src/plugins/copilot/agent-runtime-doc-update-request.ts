@@ -104,7 +104,7 @@ export async function resolveProjectDocumentOperation(input: {
     );
   }
   const projectId = session.selectedContextProjectId;
-  if (!projectId) {
+  if (!projectId || session.docId) {
     throw new BadRequest(
       `Project document ${input.operation} requires a selected project`
     );
@@ -115,6 +115,34 @@ export async function resolveProjectDocumentOperation(input: {
     .workspace(session.workspaceId)
     .allowLocal()
     .assert('Workspace.Copilot');
+  const project = await input.models.copilotContextMemory.getProject(projectId);
+  if (
+    !project ||
+    project.status !== 'active' ||
+    !project.members.some(member => member.userId === input.actorId)
+  ) {
+    throw new BadRequest('Project membership is no longer active');
+  }
+  if (input.operation === 'read') {
+    await input.ac
+      .user(input.actorId)
+      .doc({ workspaceId: input.sourceWorkspaceId, docId: input.docId })
+      .projectScope(projectId)
+      .allowLocal()
+      .assert('Doc.Read');
+    return { hostWorkspaceId: session.workspaceId, projectId };
+  }
+  await input.models.copilotContext.assertProjectSourcesShared({
+    actorId: input.actorId,
+    sessionId: input.sessionId,
+    projectId,
+    sink: {
+      type: 'document_update',
+      id: input.docId,
+      workspaceId: input.sourceWorkspaceId,
+      phase: 'prepare',
+    },
+  });
   const access =
     await input.models.intelligenceWorkbenchAuthorization.getProjectDocumentAccess(
       {
@@ -138,8 +166,9 @@ export async function resolveProjectDocumentOperation(input: {
   await input.ac
     .user(input.actorId)
     .doc({ workspaceId: input.sourceWorkspaceId, docId: input.docId })
+    .projectScope(projectId)
     .allowLocal()
-    .assert(input.operation === 'read' ? 'Doc.Read' : 'Doc.Update');
+    .assert('Doc.Update');
   return {
     hostWorkspaceId: session.workspaceId,
     projectId,
@@ -240,6 +269,17 @@ export async function createAgentRuntimeDocUpdateRequest(input: {
       .doc({ workspaceId: sourceWorkspaceId, docId })
       .allowLocal()
       .assert('Doc.Update');
+    await input.models.copilotContext.assertDocumentSourcesShared({
+      actorId: input.actorId,
+      sessionId,
+      sink: {
+        type: 'document_update',
+        id: docId,
+        documentId: docId,
+        workspaceId: sourceWorkspaceId,
+        phase: 'prepare',
+      },
+    });
   }
 
   const documentTimestamps = await input.models.doc.findTimestampsByDocIds(

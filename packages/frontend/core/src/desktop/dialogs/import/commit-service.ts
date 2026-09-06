@@ -125,7 +125,7 @@ export class ImportCommitService {
       tags.set(tag.name, docIds);
     }
 
-    const rootFolderId = this.applyNativeFolders(
+    const rootFolderId = await this.applyNativeFolders(
       batch.folders ?? [],
       warnings,
       batch.done
@@ -141,11 +141,11 @@ export class ImportCommitService {
     };
   }
 
-  private applyNativeFolders(
+  private async applyNativeFolders(
     folders: ImportFolder[],
     warnings: ImportCommitResult['warnings'],
     batchDone: boolean
-  ): string | undefined {
+  ): Promise<string | undefined> {
     const { organizeService } = this.options;
     if (folders.length === 0) return undefined;
     if (!organizeService) {
@@ -186,7 +186,7 @@ export class ImportCommitService {
               nextPending.push(folder);
               continue;
             }
-            const folderId = parent.createFolder(
+            const folderId = await parent.createFolder(
               folder.name,
               parent.indexAt('after')
             );
@@ -198,7 +198,7 @@ export class ImportCommitService {
           }
 
           if (folder.pageId) {
-            if (!this.applyFolderDocLink(folder)) {
+            if (!(await this.applyFolderDocLink(folder))) {
               nextPending.push(folder);
               continue;
             }
@@ -225,11 +225,15 @@ export class ImportCommitService {
       return rootFolderId;
     } catch (error) {
       this.options.logger.warn('Failed to commit import folders:', error);
+      warnings.push({
+        code: 'unresolved_folder',
+        message: `Folder placement failed: ${errorMessage(error)}`,
+      });
       return undefined;
     }
   }
 
-  private applyFolderDocLink(folder: ImportFolder): boolean {
+  private async applyFolderDocLink(folder: ImportFolder): Promise<boolean> {
     const { organizeService } = this.options;
     if (!folder.pageId) return true;
     if (!folder.parentPath) {
@@ -244,7 +248,7 @@ export class ImportCommitService {
       const parent =
         organizeService.folderTree.folderNode$(parentFolderId).value;
       if (!parent) return false;
-      parent.createLink('doc', folder.pageId, parent.indexAt('after'));
+      await parent.createLink('doc', folder.pageId, parent.indexAt('after'));
       this.linkedDocsByFolder.add(linkKey);
     }
     this.applyIcon(folder.pageId, folder.icon);

@@ -69,7 +69,7 @@ export function createDocumentMcpSurface(
     logger
   );
   const structuredTools = createStructuredDocumentMcpTools(
-    { ac, logger, structured },
+    { ac, logger, structured, models, writer },
     userId,
     workspaceId
   );
@@ -226,39 +226,16 @@ export function createDocumentMcpSurface(
       name: 'create_document',
       title: 'Create Document',
       description:
-        'Create a workspace document from a title and Markdown body. Database blocks and images are not supported.',
+        'Document creation requires human location confirmation. Use delegate_to_localmind to create a durable task that waits for the user to select a workspace and root or folder.',
       parser: z
         .object({ title: z.string().min(1), content: z.string() })
         .strict(),
       outputSchema: RESULT_OUTPUT_SCHEMA,
       annotations: WRITE_TOOL,
-      execute: async ({ title, content }) => {
-        try {
-          await ac
-            .user(userId)
-            .workspace(workspaceId)
-            .assert('Workspace.CreateDoc');
-          const sanitizedTitle = title.replace(/[\r\n]+/g, ' ').trim();
-          if (!sanitizedTitle) return toolError('Title cannot be empty.');
-          const strippedContent = content.replace(
-            /^[ \t]{0,3}#\s+[^\n]*#*\s*\n*/,
-            ''
-          );
-          const result = await writer.createDoc(
-            workspaceId,
-            sanitizedTitle,
-            strippedContent,
-            userId
-          );
-          return toolResult({ success: true, docId: result.docId });
-        } catch (error) {
-          logger.error(
-            'Failed to create document through MCP',
-            error instanceof Error ? error.stack : String(error)
-          );
-          return toolError('Failed to create document.');
-        }
-      },
+      execute: async () =>
+        toolError(
+          'Document location confirmation is required. Use delegate_to_localmind; no document has been created.'
+        ),
     }),
     defineTool({
       name: 'update_document',
@@ -278,7 +255,18 @@ export function createDocumentMcpSurface(
           .can('Doc.Update');
         if (!accessible) return toolError(`Doc with id ${docId} not found.`);
         try {
-          await writer.updateDoc(workspaceId, docId, content, userId);
+          await writer.updateDoc(workspaceId, docId, content, userId, () =>
+            models.copilotContext.assertDocumentSourcesShared({
+              actorId: userId,
+              sink: {
+                type: 'document_update',
+                id: docId,
+                documentId: docId,
+                workspaceId,
+                phase: 'execute',
+              },
+            })
+          );
           return toolResult({ success: true, docId });
         } catch (error) {
           logger.error(
@@ -312,7 +300,18 @@ export function createDocumentMcpSurface(
             workspaceId,
             docId,
             { title: sanitizedTitle },
-            userId
+            userId,
+            () =>
+              models.copilotContext.assertDocumentSourcesShared({
+                actorId: userId,
+                sink: {
+                  type: 'document_update',
+                  id: docId,
+                  documentId: docId,
+                  workspaceId,
+                  phase: 'execute',
+                },
+              })
           );
           return toolResult({ success: true, docId });
         } catch (error) {

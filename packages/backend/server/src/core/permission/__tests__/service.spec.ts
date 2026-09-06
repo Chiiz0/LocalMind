@@ -264,6 +264,31 @@ test('PermissionContextLoader treats missing quota state as unknown and stale', 
   t.true(input.runtime?.stale);
 });
 
+test('AI permission scopes exclude unrelated project grants while retaining personal grants', async t => {
+  const { loader, calls } = createLoader();
+  const base = {
+    userId: 'u1',
+    workspaceId: 'w1',
+    docs: [
+      { docId: 'private', actions: ['Doc.Read' as const] },
+      { docId: 'project-private', actions: ['Doc.Read' as const] },
+    ],
+  };
+  const personal = await loader.load({ ...base, projectId: null });
+  t.is(calls.projectDocGrants, 0);
+  t.is(personal.docs?.[0].explicitUserRole, 'manager');
+  t.deepEqual(personal.subject?.groupIds, []);
+  t.deepEqual(personal.docs?.[1].groupGrants, []);
+  const other = await loader.load({ ...base, projectId: 'project-2' });
+  t.deepEqual(other.subject?.groupIds, []);
+  t.deepEqual(other.docs?.[1].groupGrants, []);
+  const selected = await loader.load({ ...base, projectId: 'project-1' });
+  t.deepEqual(selected.subject?.groupIds, ['project-1']);
+  t.deepEqual(selected.docs?.[1].groupGrants, [
+    { groupId: 'project-1', role: 'reader' },
+  ]);
+});
+
 test('PermissionContextLoader memoizes quota runtime within a request', async t => {
   const { loader, calls } = createLoader();
 

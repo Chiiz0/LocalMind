@@ -98,6 +98,12 @@ export const expandedContent = style({
   height: 280,
   borderTop: `0.5px solid ${cssVarV2('layer/insideBorder/border')}`,
   overflow: 'hidden',
+  selectors: {
+    '&[data-compact="true"]': {
+      height: 'auto',
+      minHeight: 64,
+    },
+  },
   '@media': {
     'screen and (max-height: 720px)': {
       height: 220,
@@ -423,7 +429,7 @@ export const emptyGroup = style({
 
 export const centerState = style({
   width: '100%',
-  height: '100%',
+  minHeight: 64,
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'center',
@@ -433,6 +439,25 @@ export const centerState = style({
   color: cssVarV2('text/secondary'),
   fontSize: 12,
   textAlign: 'center',
+  overflowWrap: 'anywhere',
+});
+
+export const emptyState = style({
+  minHeight: 64,
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  padding: '12px 20px',
+  color: cssVarV2('text/secondary'),
+  fontSize: 13,
+  lineHeight: '20px',
+});
+
+globalStyle(`${emptyState} > svg`, {
+  width: 20,
+  height: 20,
+  flexShrink: 0,
+  color: cssVarV2('icon/secondary'),
 });
 
 globalStyle(`${summaryToggle} > svg`, {

@@ -1,6 +1,7 @@
 import { Injectable, Optional } from '@nestjs/common';
 
 import {
+  BadRequest,
   CopilotMessageNotFound,
   CopilotSessionNotFound,
   Mutex,
@@ -224,11 +225,26 @@ export class ConversationHost {
     sessionId: string,
     query: Record<string, string | string[]>
   ): Promise<PreparedConversationTurn> {
-    const { messageId, retry, params, byokLeaseId } =
+    const { messageId, retry, params, byokLeaseId, chatSurface } =
       ChatQuerySchema.parse(query);
     const session = await this.sessions.get(sessionId);
     if (!session || session.config.userId !== userId) {
       throw new CopilotSessionNotFound();
+    }
+    if (
+      chatSurface === 'intelligence_workbench' &&
+      (session.config.docId ||
+        !session.contextScope?.selectedProjectId ||
+        session.contextScope.projectResolution !== 'selected')
+    ) {
+      throw new BadRequest(
+        'Select an active project you belong to before sending an Intelligence message.'
+      );
+    }
+    if (session.contextScope?.projectResolution === 'invalid_selection') {
+      throw new BadRequest(
+        'The conversation project is no longer available. Select another project and start a new conversation.'
+      );
     }
     const appended = await this.appendSessionMessage(
       userId,

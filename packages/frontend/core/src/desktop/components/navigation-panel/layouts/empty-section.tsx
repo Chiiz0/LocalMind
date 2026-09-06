@@ -1,4 +1,5 @@
-import { Button } from '@affine/component';
+import { IconButton } from '@affine/component';
+import { PlusIcon } from '@blocksuite/icons/rc';
 import clsx from 'clsx';
 import {
   cloneElement,
@@ -51,9 +52,15 @@ export const NavigationPanelEmptySection = forwardRef(
           {message}
         </div>
         {actionText ? (
-          <Button className={styles.newButton} onClick={onActionClick}>
-            {actionText}
-          </Button>
+          <IconButton
+            className={styles.newButton}
+            onClick={onActionClick}
+            aria-label={actionText}
+            tooltip={actionText}
+            size="20"
+          >
+            <PlusIcon />
+          </IconButton>
         ) : null}
         {children}
       </div>

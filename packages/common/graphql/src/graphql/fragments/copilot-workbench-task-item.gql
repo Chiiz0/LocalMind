@@ -27,6 +27,7 @@ fragment CopilotWorkbenchTaskItemFields on CopilotWorkbenchTaskItemType {
   }
   run {
     id
+    sessionId
     workspaceId
     projectId
     title

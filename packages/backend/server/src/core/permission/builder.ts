@@ -44,6 +44,12 @@ export class UserAccessControllerBuilder {
     );
   }
 
+  documentWorkspaces() {
+    return assertPerm(this.permission).listPersonalDocumentWorkspaces(
+      this.userId
+    );
+  }
+
   doc(
     docId: DocID | { workspaceId: string; docId: string }
   ): DocAccessControllerBuilder;
@@ -88,6 +94,15 @@ class WorkspaceAccessControllerBuilder {
     return this;
   }
 
+  projectScope(projectId: string | null) {
+    this.data.projectId = projectId;
+    return this;
+  }
+
+  readableDocIds() {
+    return assertPerm(this.permission).listReadableDocIds(this.data);
+  }
+
   doc(docId: string) {
     return new DocAccessControllerBuilder(
       {
@@ -117,6 +132,7 @@ class WorkspaceAccessControllerBuilder {
         actions: [action],
       })),
       allowLocal: this.data.allowLocal,
+      projectId: this.data.projectId,
     });
     const docRolesMap = new Map(
       docRoles.map((role, index) => [docIds[index], role])
@@ -167,6 +183,11 @@ class DocAccessControllerBuilder {
 
   allowLocal() {
     this.data.allowLocal = true;
+    return this;
+  }
+
+  projectScope(projectId: string | null) {
+    this.data.projectId = projectId;
     return this;
   }
 

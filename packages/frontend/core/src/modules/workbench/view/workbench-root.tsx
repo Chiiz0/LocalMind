@@ -85,6 +85,23 @@ const WorkbenchView = ({ view }: { view: View }) => {
   }, [workbench, view]);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const keyboardFocus = useRef(false);
+
+  useEffect(() => {
+    let timeout: ReturnType<typeof setTimeout>;
+    const onKeyDown = (event: KeyboardEvent) => {
+      keyboardFocus.current = event.key === 'Tab';
+      clearTimeout(timeout);
+      timeout = setTimeout(() => {
+        keyboardFocus.current = false;
+      }, 0);
+    };
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown, true);
+      clearTimeout(timeout);
+    };
+  }, []);
 
   useEffect(() => {
     if (containerRef.current) {
@@ -102,7 +119,25 @@ const WorkbenchView = ({ view }: { view: View }) => {
   }, [handleOnFocus]);
 
   return (
-    <div className={styles.workbenchViewContainer} ref={containerRef}>
+    <div
+      className={styles.workbenchViewContainer}
+      ref={containerRef}
+      tabIndex={-1}
+      data-workbench-view-id={view.id}
+      onFocusCapture={() => {
+        if (workbench.activeView$.value === view) return;
+        if (keyboardFocus.current) handleOnFocus();
+        else {
+          // Inactive editors can autofocus while loading. Keep navigation's chosen pane active.
+          const activeId = workbench.activeView$.value.id;
+          document
+            .querySelector<HTMLElement>(
+              `[data-workbench-view-id="${CSS.escape(activeId)}"]`
+            )
+            ?.focus({ preventScroll: true });
+        }
+      }}
+    >
       <ViewRoot routes={routes} key={view.id} view={view} />
     </div>
   );

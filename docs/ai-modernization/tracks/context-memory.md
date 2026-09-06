@@ -8,6 +8,54 @@ adding more sophisticated extraction or retrieval.
 
 ## Implemented Foundation
 
+The [stage-two acceptance](project-ai-boundaries.md#stage-two-progress-on-2026-09-06)
+extends the session ledger to prompt, user-message, tool and recalled-memory
+sources, exact original Project grants, content fingerprints and immutable
+shared-write authorization audits. Legacy empty sessions also fail closed.
+Regrant does not revive old conversation sources. Automatic Project Memory
+decisions require a source session and recheck cumulative evidence even for
+replay and no-op. Document checks now include the destination's potential
+Workspace/direct-grant/other-Project audience. Ordinary conversation writes
+cannot share their private inputs: they require an actor-only destination;
+location confirmation does not upgrade source authority. Ordinary messages,
+prompts, Rules, recalled memories and tool outputs accumulate source evidence.
+Delegated planners retain source IDs and a private context fingerprint in their
+bound execution session, including direct document-update plans. Auxiliary
+PromptRuntime calls record their owned-session prompt fingerprint. Office
+single/batch commands and shared directory writes hold source authority through
+persistence; their rejected transactions retain source audits. The production
+MCP surface exposes delegation/query/cancellation only; inactive legacy
+factories must be audited before re-exposure. Business now runs 335 migrations
+after backed-up synchronization. Stage-two browser/transport acceptance passed;
+see the authority document's source/sink inventory. Recovered delegated tool
+receipts carry their revalidated results in structured message content because
+native prompt projection does not consume UI-only stream objects. No recovered
+receipt changes its original session source authority.
+
+Current project selection rules are defined in
+[Project AI Boundaries](project-ai-boundaries.md) and supersede the historical
+v5 inference rules below. Project conversations use an explicitly selected,
+active Project with current membership. Document-side conversations do not
+inherit project grants or infer project memory from attached documents.
+Generic semantic retrieval limits SQL candidates to personal ACL before
+reranking; explicit project retrieval uses the server-resolved Project and
+authorized source document IDs, then rechecks the scope before returning.
+Conversation forks cannot transfer private or project history between users,
+execution Workspaces, or Projects. Context GraphQL reads and mutations verify
+live ownership, session deletion, Project membership/status and document-side
+personal read permission before using cached attachment configuration.
+Prompt preparation and personal semantic attachment search use the same owned
+session lookup; attachment tools refresh that authorization and context on each
+execution, including after attachments are removed.
+Automatic project-memory capture also excludes private file/blob attachments,
+invalid context configuration and any attached document outside current Project
+grants, even if the actor can no longer read that document. Append-only session
+source rows retain document references and private-attachment markers after
+context clearing/removal and across forks. Legacy message history and source
+overflow retain an unknown-source marker. The stage-two inventory above
+supersedes the earlier partial message/tool provenance checkpoint; browser and
+transport recovery evidence remains separately tracked from source enforcement.
+
 LocalMind already persists private user-owned context records with user,
 workspace, document, or project scope. Users can manage these records and the
 Automatic Memory preference under **Workspace settings > AI context**.
@@ -135,6 +183,22 @@ Do not introduce a knowledge graph before fact keys, temporal versioning, and
 the evaluation suite show that multi-entity or multi-hop relations require it.
 
 ## Validation
+
+Project tool reads and search results record cumulative source Workspace/document
+pairs before content is returned to the model. Existing-document project writes
+check that ledger both when requested and inside worker execution. Project
+memory writer decisions with a source session recheck the ledger in the memory
+transaction, including active owned project conversation membership. Private
+attachments, unknown evidence and ungranted document sources reject the write.
+The transaction also merges cumulative document sources into memory source
+associations, so later grant revocation quarantines memories derived from sources
+discovered after initial scope resolution. Empty or rejected scope never falls
+back to a broader project-memory scope. Generated-document operations that
+request addition to the current Project also recheck this ledger during location
+confirmation and each execution revalidation. Independent snapshot copies use
+their separate source copying/sharing authorization checks. This does not yet
+establish complete provenance for all prompt inputs or all shared destinations;
+document storage writes still lack an atomic authorization fence.
 
 The inbound MCP surface no longer exposes direct AI Context tools. A future
 LocalMind AI Context executor must use this track's DLP, scope authorization,

@@ -173,8 +173,10 @@ export class CopilotContextService implements OnApplicationBootstrap {
     contextId: string,
     options: { workspaceId?: string; sessionId?: string } = {}
   ): Promise<ContextSession> {
-    const accessInfo =
-      await this.models.copilotContext.getAccessInfo(contextId);
+    const accessInfo = await this.models.copilotContext.getAccessInfo(
+      contextId,
+      userId
+    );
     if (
       !accessInfo ||
       accessInfo.session.userId !== userId ||
@@ -185,6 +187,19 @@ export class CopilotContextService implements OnApplicationBootstrap {
       throw new CopilotInvalidContext({ contextId });
     }
 
+    if (
+      accessInfo.session.docId &&
+      !(await this.permission.canDoc({
+        userId,
+        workspaceId: accessInfo.session.workspaceId,
+        docId: accessInfo.session.docId,
+        projectId: null,
+        action: 'Doc.Read',
+        allowLocal: true,
+      }))
+    ) {
+      throw new CopilotInvalidContext({ contextId });
+    }
     return await this.get(contextId);
   }
 
@@ -193,6 +208,17 @@ export class CopilotContextService implements OnApplicationBootstrap {
       await this.models.copilotContext.getBySessionId(sessionId);
     if (existsContext) return this.get(existsContext.id);
     return null;
+  }
+
+  async getOwnedBySessionId(
+    userId: string,
+    sessionId: string,
+    workspaceId?: string
+  ): Promise<ContextSession | null> {
+    const context = await this.models.copilotContext.getBySessionId(sessionId);
+    return context
+      ? this.getOwnedContext(userId, context.id, { sessionId, workspaceId })
+      : null;
   }
 
   async matchWorkspaceBlobs(
@@ -283,15 +309,18 @@ export class CopilotContextService implements OnApplicationBootstrap {
     topK: number = 5,
     signal?: AbortSignal,
     threshold: number = 0.8,
-    routeContext?: EmbeddingRouteContext
+    routeContext?: EmbeddingRouteContext,
+    projectId?: string
   ) {
     const scopedDocIds = [...new Set(docIds)];
     if (!scopedDocIds.length) return [];
     const client = this.embeddingClient;
     if (!client) return [];
-    const readablePredicate = this.readableDocPredicate(
+    const readablePredicate = readableContextDocPredicate(
+      this.permission,
       workspaceId,
-      routeContext
+      routeContext,
+      projectId ?? null
     );
     const options = this.embeddingOptions(workspaceId, signal, routeContext);
     const embedding = await client.getEmbedding(content, options);

@@ -1,17 +1,22 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
+
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { nanoid } from 'nanoid';
 
 import { EventBus } from '../../base';
 import {
-  addDocToRootDoc,
   createDocWithMarkdown,
-  readAllDocIdsFromRootDoc,
   updateDocProperties,
   updateDocTitle,
   updateDocWithMarkdown,
   updateRootDocMetaTitle,
 } from '../../native';
 import { PgWorkspaceDocStorageAdapter } from './adapters/workspace';
+import { retitleDocumentCopySnapshot } from './copy-snapshot';
+import {
+  prepareRootDocRegistration,
+  readRootDocPageIdsWithYjs,
+} from './root-doc-registration';
 
 export interface CreateDocResult {
   docId: string;
@@ -53,11 +58,22 @@ export interface DeferredDocUpdateResult {
 @Injectable()
 export class DocWriter {
   private readonly logger = new Logger(DocWriter.name);
+  private readonly deferredBroadcasts = new AsyncLocalStorage<
+    WorkspaceDocUpdatesPushedPayload[]
+  >();
 
   constructor(
     private readonly storage: PgWorkspaceDocStorageAdapter,
     private readonly event: EventBus
   ) {}
+
+  async withDeferredBroadcasts<T>(transaction: () => Promise<T>) {
+    if (this.deferredBroadcasts.getStore()) return await transaction();
+    const broadcasts: WorkspaceDocUpdatesPushedPayload[] = [];
+    const result = await this.deferredBroadcasts.run(broadcasts, transaction);
+    this.publishDocUpdatesPushed(broadcasts);
+    return result;
+  }
 
   /**
    * Creates a new document from markdown content.
@@ -73,7 +89,50 @@ export class DocWriter {
     title: string,
     markdown: string,
     editorId?: string,
-    requestedDocId?: string
+    requestedDocId?: string,
+    beforeWrite?: () => Promise<void>,
+    onCreated?: () => Promise<void>
+  ): Promise<CreateDocResult> {
+    return await this.createDocWithContent(
+      workspaceId,
+      title,
+      docId => createDocWithMarkdown(title, markdown, docId),
+      editorId,
+      requestedDocId,
+      beforeWrite,
+      onCreated
+    );
+  }
+
+  async createDocFromSnapshot(
+    workspaceId: string,
+    title: string,
+    snapshot: Uint8Array,
+    editorId: string,
+    requestedDocId: string,
+    beforeWrite?: () => Promise<void>,
+    onCreated?: () => Promise<void>
+  ): Promise<CreateDocResult> {
+    const binary = retitleDocumentCopySnapshot(snapshot, title, requestedDocId);
+    return await this.createDocWithContent(
+      workspaceId,
+      title,
+      () => binary,
+      editorId,
+      requestedDocId,
+      beforeWrite,
+      onCreated
+    );
+  }
+
+  private async createDocWithContent(
+    workspaceId: string,
+    title: string,
+    content: (docId: string) => Uint8Array,
+    editorId?: string,
+    requestedDocId?: string,
+    beforeWrite?: () => Promise<void>,
+    onCreated?: () => Promise<void>
   ): Promise<CreateDocResult> {
     // Fetch workspace root doc first - reject if not found
     // The root doc (docId = workspaceId) contains meta.pages array
@@ -84,21 +143,13 @@ export class DocWriter {
       );
     }
 
-    const rootDocBin = Buffer.isBuffer(rootDoc.bin)
-      ? rootDoc.bin
-      : Buffer.from(
-          rootDoc.bin.buffer,
-          rootDoc.bin.byteOffset,
-          rootDoc.bin.byteLength
-        );
-
     const docId = requestedDocId ?? nanoid();
     if (!/^[A-Za-z0-9_-]{1,128}$/.test(docId)) {
       throw new Error('Requested document ID is invalid');
     }
     let registeredDocIds = new Set<string>();
     try {
-      registeredDocIds = new Set(readAllDocIdsFromRootDoc(rootDocBin));
+      registeredDocIds = new Set(readRootDocPageIdsWithYjs(rootDoc.bin));
     } catch {
       // Legacy/bootstrap roots can be placeholders until their first update.
     }
@@ -107,63 +158,54 @@ export class DocWriter {
       : null;
 
     if (existingDoc?.bin) {
+      await beforeWrite?.();
+      await onCreated?.();
       if (!registeredDocIds.has(docId)) {
-        const rootDocUpdate = addDocToRootDoc(rootDocBin, docId, title);
-        const rootTimestamp = await this.storage.pushDocUpdates(
+        await this.registerDocInRoot(
           workspaceId,
-          workspaceId,
-          [rootDocUpdate],
-          editorId
+          docId,
+          title,
+          editorId,
+          beforeWrite
         );
-        this.emitDocUpdatesPushed({
-          spaceId: workspaceId,
-          docId: workspaceId,
-          updates: [rootDocUpdate],
-          timestamp: rootTimestamp,
-          editor: editorId,
-        });
       }
+      await beforeWrite?.();
       await this.updateDocProperties(
         workspaceId,
         docId,
         { updatedBy: editorId },
-        editorId
+        editorId,
+        undefined,
+        beforeWrite
       );
       return { docId, idempotentReplay: true };
     }
 
-    this.logger.debug(
-      `Creating doc ${docId} in workspace ${workspaceId} from markdown`
-    );
+    this.logger.debug(`Creating doc ${docId} in workspace ${workspaceId}`);
 
-    // Convert markdown to y-octo binary using the provided title
-    const binary = createDocWithMarkdown(title, markdown, docId);
+    const binary = content(docId);
 
     // Prepare root doc update to register the new document
     // A retry can observe the root registration after a previous attempt
     // stopped before writing the document body.
     if (!registeredDocIds.has(docId)) {
-      const rootDocUpdate = addDocToRootDoc(rootDocBin, docId, title);
-      const rootTimestamp = await this.storage.pushDocUpdates(
+      await this.registerDocInRoot(
         workspaceId,
-        workspaceId,
-        [rootDocUpdate],
-        editorId
+        docId,
+        title,
+        editorId,
+        beforeWrite
       );
-      this.emitDocUpdatesPushed({
-        spaceId: workspaceId,
-        docId: workspaceId,
-        updates: [rootDocUpdate],
-        timestamp: rootTimestamp,
-        editor: editorId,
-      });
     }
 
+    await beforeWrite?.();
     const docTimestamp = await this.storage.pushDocUpdates(
       workspaceId,
       docId,
       [binary],
-      editorId
+      editorId,
+      beforeWrite,
+      onCreated
     );
     this.emitDocUpdatesPushed({
       spaceId: workspaceId,
@@ -173,6 +215,7 @@ export class DocWriter {
       editor: editorId,
     });
 
+    await beforeWrite?.();
     await this.updateDocProperties(
       workspaceId,
       docId,
@@ -180,7 +223,9 @@ export class DocWriter {
         createdBy: editorId,
         updatedBy: editorId,
       },
-      editorId
+      editorId,
+      undefined,
+      beforeWrite
     );
 
     this.logger.debug(
@@ -188,6 +233,30 @@ export class DocWriter {
     );
 
     return { docId };
+  }
+
+  private async registerDocInRoot(
+    workspaceId: string,
+    docId: string,
+    title: string,
+    editorId?: string,
+    beforeWrite?: () => Promise<void>
+  ) {
+    await beforeWrite?.();
+    const persisted = await this.storage.persistRootDocUpdate(
+      workspaceId,
+      rootDoc => prepareRootDocRegistration(rootDoc, docId, title),
+      editorId,
+      beforeWrite
+    );
+    if (this.storage.isEmptyBin(persisted.update)) return;
+    this.emitDocUpdatesPushed({
+      spaceId: workspaceId,
+      docId: workspaceId,
+      updates: [persisted.update],
+      timestamp: persisted.timestamp,
+      editor: editorId,
+    });
   }
 
   /**
@@ -208,13 +277,15 @@ export class DocWriter {
     workspaceId: string,
     docId: string,
     markdown: string,
-    editorId?: string
+    editorId?: string,
+    beforeWrite?: () => Promise<void>
   ): Promise<UpdateDocResult> {
     const deferred = await this.updateDocDeferred(
       workspaceId,
       docId,
       markdown,
-      editorId
+      editorId,
+      beforeWrite
     );
     this.publishDocUpdatesPushed(deferred.broadcasts);
     return deferred.result;
@@ -224,13 +295,15 @@ export class DocWriter {
     workspaceId: string,
     docId: string,
     markdown: string,
-    editorId?: string
+    editorId?: string,
+    beforeWrite?: () => Promise<void>
   ): Promise<DeferredDocUpdateResult> {
     const broadcasts: WorkspaceDocUpdatesPushedPayload[] = [];
     this.logger.debug(
       `Updating doc ${docId} in workspace ${workspaceId} from markdown`
     );
 
+    await beforeWrite?.();
     // Fetch existing document
     const existingDoc = await this.storage.getDoc(workspaceId, docId);
     if (!existingDoc?.bin) {
@@ -260,7 +333,8 @@ export class DocWriter {
       workspaceId,
       docId,
       [delta],
-      editorId
+      editorId,
+      beforeWrite
     );
     this.recordDocUpdatesPushed(broadcasts, {
       spaceId: workspaceId,
@@ -275,7 +349,8 @@ export class DocWriter {
       docId,
       { updatedBy: editorId },
       editorId,
-      broadcasts
+      broadcasts,
+      beforeWrite
     );
 
     return {
@@ -339,11 +414,13 @@ export class DocWriter {
     workspaceId: string,
     docId: string,
     meta: { title?: string },
-    editorId?: string
+    editorId?: string,
+    beforeWrite?: () => Promise<void>
   ): Promise<UpdateDocResult> {
     if (meta.title === undefined) {
       throw new Error('No metadata provided');
     }
+    await beforeWrite?.();
 
     this.logger.debug(`Updating doc meta ${docId} in workspace ${workspaceId}`);
 
@@ -373,7 +450,6 @@ export class DocWriter {
           rootDoc.bin.byteOffset,
           rootDoc.bin.byteLength
         );
-
     const titleUpdate = updateDocTitle(existingBinary, meta.title, docId);
     const rootMetaUpdate = updateRootDocMetaTitle(
       rootDocBin,
@@ -385,7 +461,8 @@ export class DocWriter {
       workspaceId,
       workspaceId,
       [rootMetaUpdate],
-      editorId
+      editorId,
+      beforeWrite
     );
     this.emitDocUpdatesPushed({
       spaceId: workspaceId,
@@ -399,7 +476,8 @@ export class DocWriter {
       workspaceId,
       docId,
       [titleUpdate],
-      editorId
+      editorId,
+      beforeWrite
     );
     this.emitDocUpdatesPushed({
       spaceId: workspaceId,
@@ -413,7 +491,9 @@ export class DocWriter {
       workspaceId,
       docId,
       { updatedBy: editorId },
-      editorId
+      editorId,
+      undefined,
+      beforeWrite
     );
 
     return { success: true };
@@ -422,6 +502,11 @@ export class DocWriter {
   publishDocUpdatesPushed(
     payloads: readonly WorkspaceDocUpdatesPushedPayload[]
   ) {
+    const deferred = this.deferredBroadcasts.getStore();
+    if (deferred) {
+      deferred.push(...payloads);
+      return;
+    }
     for (const payload of payloads) {
       this.event.emitDetached('doc.updates.pushed', {
         spaceType: 'workspace',
@@ -446,7 +531,8 @@ export class DocWriter {
     docId: string,
     props: { createdBy?: string; updatedBy?: string },
     editorId?: string,
-    broadcasts?: WorkspaceDocUpdatesPushedPayload[]
+    broadcasts?: WorkspaceDocUpdatesPushedPayload[],
+    beforeWrite?: () => Promise<void>
   ) {
     if (!editorId) {
       return;
@@ -485,11 +571,13 @@ export class DocWriter {
       return;
     }
 
+    await beforeWrite?.();
     const timestamp = await this.storage.pushDocUpdates(
       workspaceId,
       propertiesDocId,
       [update],
-      editorId
+      editorId,
+      beforeWrite
     );
     const payload = {
       spaceId: workspaceId,

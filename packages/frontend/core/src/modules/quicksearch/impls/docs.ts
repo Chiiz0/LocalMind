@@ -89,6 +89,8 @@ export class DocsQuickSearchSession
   error$ = new LiveData<any>(null);
 
   lastQuery = '';
+  private resultLimit = 50;
+  private loadingMore = false;
 
   items$ = new LiveData<QuickSearchItem<'docs', DocsPayload>[]>([]);
 
@@ -96,6 +98,10 @@ export class DocsQuickSearchSession
 
   query = effect(
     tap(query => {
+      if (query !== this.lastQuery) {
+        this.resultLimit = 50;
+        this.loadingMore = false;
+      }
       this.lastQuery = query;
     }),
     throttleTime<string>(500, undefined, {
@@ -114,37 +120,46 @@ export class DocsQuickSearchSession
             ? 'local'
             : 'remote';
         const search$ = preferRemote
-          ? this.docsSearchService.search$(query, 'remote').pipe(
-              switchMap(docs => {
-                if (docs.length > 0) {
-                  return of({ docs, useLocalLabel: false });
-                }
-                return this.docsSearchService.search$(query, 'local').pipe(
-                  map(localDocs => ({
-                    docs: localDocs,
-                    useLocalLabel: true,
-                  }))
-                );
-              }),
-              catchError(() =>
-                this.docsSearchService.search$(query, 'local').pipe(
-                  map(localDocs => ({
-                    docs: localDocs,
-                    useLocalLabel: true,
-                  }))
+          ? this.docsSearchService
+              .search$(query, 'remote', this.resultLimit + 1)
+              .pipe(
+                switchMap(docs => {
+                  if (docs.length > 0) {
+                    return of({ docs, useLocalLabel: false });
+                  }
+                  return this.docsSearchService
+                    .search$(query, 'local', this.resultLimit + 1)
+                    .pipe(
+                      map(localDocs => ({
+                        docs: localDocs,
+                        useLocalLabel: true,
+                      }))
+                    );
+                }),
+                catchError(() =>
+                  this.docsSearchService
+                    .search$(query, 'local', this.resultLimit + 1)
+                    .pipe(
+                      map(localDocs => ({
+                        docs: localDocs,
+                        useLocalLabel: true,
+                      }))
+                    )
                 )
               )
-            )
-          : this.docsSearchService.search$(query, preferMode).pipe(
-              map(docs => ({
-                docs,
-                useLocalLabel: preferMode === 'local',
-              }))
-            );
+          : this.docsSearchService
+              .search$(query, preferMode, this.resultLimit + 1)
+              .pipe(
+                map(docs => ({
+                  docs,
+                  useLocalLabel: preferMode === 'local',
+                }))
+              );
 
         out = search$.pipe(
           map(({ docs, useLocalLabel }) => {
             const items = docs
+              .slice(0, this.resultLimit)
               .map(doc => {
                 const docRecord = this.docsService.list.doc$(doc.docId).value;
                 return [doc, docRecord] as const;
@@ -178,6 +193,30 @@ export class DocsQuickSearchSession
                   payload: doc,
                 } as QuickSearchItem<'docs', DocsPayload>;
               });
+            if (docs.length > this.resultLimit) {
+              items.push({
+                id: 'docs:load-more',
+                source: 'docs',
+                icon: SearchIcon,
+                label: {
+                  i18nKey: 'com.affine.quicksearch.load-more',
+                },
+                group: {
+                  id: 'docs:pagination',
+                  label: { i18nKey: 'com.affine.workspaceSubPath.all' },
+                  score: 4,
+                },
+                payload: { docId: '' },
+                beforeSubmit: () => {
+                  if (!this.loadingMore && !this.isQueryLoading$.value) {
+                    this.resultLimit += 50;
+                    this.loadingMore = true;
+                    this.query(this.lastQuery);
+                  }
+                  return false;
+                },
+              });
+            }
             return { items, useLocalLabel };
           })
         );
@@ -193,27 +232,33 @@ export class DocsQuickSearchSession
               : items
           );
           this.isQueryLoading$.next(false);
+          this.loadingMore = false;
         }),
         onStart(() => {
           this.error$.next(null);
-          this.items$.next(
-            this.isSupportServerIndexer() &&
-              !this.searchLocally &&
-              !this.isEnableBatterySaveMode()
-              ? [this.searchLocallyItem]
-              : []
-          );
+          if (!this.loadingMore)
+            this.items$.next(
+              this.isSupportServerIndexer() &&
+                !this.searchLocally &&
+                !this.isEnableBatterySaveMode()
+                ? [this.searchLocallyItem]
+                : []
+            );
           this.isQueryLoading$.next(true);
         }),
         catchError(err => {
           this.error$.next(err instanceof Error ? err.message : err);
-          this.items$.next(
-            this.isSupportServerIndexer() &&
-              !this.searchLocally &&
-              !this.isEnableBatterySaveMode()
-              ? [this.searchLocallyItem]
-              : []
-          );
+          if (this.loadingMore) {
+            this.resultLimit = Math.max(50, this.resultLimit - 50);
+          } else
+            this.items$.next(
+              this.isSupportServerIndexer() &&
+                !this.searchLocally &&
+                !this.isEnableBatterySaveMode()
+                ? [this.searchLocallyItem]
+                : []
+            );
+          this.loadingMore = false;
           this.isQueryLoading$.next(false);
           return EMPTY;
         }),
@@ -221,8 +266,6 @@ export class DocsQuickSearchSession
       );
     })
   );
-
-  // TODO(@EYHN): load more
 
   override dispose(): void {
     this.query.unsubscribe();

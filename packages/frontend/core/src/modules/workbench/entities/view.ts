@@ -113,7 +113,7 @@ export class View extends Entity<{
       replace?: boolean;
     } = {}
   ) {
-    const oldQueryStrings = queryString.parse(location.search, {
+    const oldQueryStrings = queryString.parse(this.history.location.search, {
       parseBooleans: true,
       parseNumbers: parseNumbers,
     });
@@ -175,6 +175,9 @@ export class View extends Entity<{
     return this.scrollPositions.get(this.history.location);
   }
 
+  private readonly scrollRevision$ = new LiveData(0);
+  readonly scrollPositionChanged$ = this.scrollRevision$.throttleTime(250);
+
   setScrollPosition(
     position:
       | number
@@ -184,7 +187,11 @@ export class View extends Entity<{
           zoom: number;
         }
   ) {
+    const previous = this.getScrollPosition();
     this.scrollPositions.set(this.history.location, position);
+    if (typeof position === 'number' && previous !== position) {
+      this.scrollRevision$.next(this.scrollRevision$.value + 1);
+    }
   }
 
   setTitle(title: string) {

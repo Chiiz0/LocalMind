@@ -903,15 +903,17 @@ export class ContextMemoryService implements OnModuleInit {
         );
         if (!settings.autoMemoryEnabled) return [];
       }
-      const projectIds =
-        input.scope?.projectIds ??
-        (input.docId
-          ? await this.models.copilotContextMemory.listProjectIdsForDoc({
-              userId: input.userId,
-              workspaceId: input.workspaceId,
-              docId: input.docId,
-            })
-          : []);
+      const projectIds = input.docId ? [] : (input.scope?.projectIds ?? []);
+      // A rejected project scope must never become a broader memory target.
+      if (
+        input.scope &&
+        (input.scope.projectResolution === 'invalid_selection' ||
+          (input.scope.selectedProjectId &&
+            (projectIds.length !== 1 ||
+              projectIds[0] !== input.scope.selectedProjectId)))
+      ) {
+        return [];
+      }
       const readableDocIds =
         input.scope?.readableDocIds ?? (input.docId ? [input.docId] : []);
       const targets =

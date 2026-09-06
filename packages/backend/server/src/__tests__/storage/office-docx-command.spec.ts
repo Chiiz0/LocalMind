@@ -54,6 +54,11 @@ test('executes a DOCX format command into immutable package/state evidence', asy
     },
   }));
   const models = {
+    copilotContext: {
+      withDocumentSourcesShared: Sinon.stub().callsFake(
+        async (_input, execute) => await execute()
+      ),
+    },
     officeArtifact: {
       get: Sinon.stub().resolves({
         id: 'artifact-1',
@@ -156,6 +161,11 @@ test('persists DOCX text replacement without storing replacement text in revisio
     input,
   }));
   const models = {
+    copilotContext: {
+      withDocumentSourcesShared: Sinon.stub().callsFake(
+        async (_input, execute) => await execute()
+      ),
+    },
     officeArtifact: {
       get: Sinon.stub().resolves({
         id: 'artifact-1',
@@ -222,6 +232,11 @@ test('rejects altered parent bytes before writing command evidence', async t => 
   const paragraph = firstEditableParagraph(sourceBytes);
   const appendRevision = Sinon.stub();
   const models = {
+    copilotContext: {
+      withDocumentSourcesShared: Sinon.stub().callsFake(
+        async (_input, execute) => await execute()
+      ),
+    },
     officeArtifact: {
       get: Sinon.stub().resolves({
         id: 'artifact-1',
@@ -290,6 +305,11 @@ test('previews a DOCX command without writing blobs or revisions', async t => {
   const appendRevision = Sinon.stub();
   const put = Sinon.stub();
   const models = {
+    copilotContext: {
+      withDocumentSourcesShared: Sinon.stub().callsFake(
+        async (_input, execute) => await execute()
+      ),
+    },
     officeArtifact: {
       get: Sinon.stub().resolves({
         id: 'artifact-1',
@@ -360,6 +380,11 @@ test('rejects a stale DOCX command before reading or writing bytes', async t => 
   const put = Sinon.stub();
   const appendRevision = Sinon.stub();
   const models = {
+    copilotContext: {
+      withDocumentSourcesShared: Sinon.stub().callsFake(
+        async (_input, execute) => await execute()
+      ),
+    },
     officeArtifact: {
       get: Sinon.stub().resolves({
         id: 'artifact-1',

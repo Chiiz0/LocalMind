@@ -1,6 +1,14 @@
 import { style } from '@vanilla-extract/css';
 export const editor = style({
   flex: 1,
+  width: '100%',
+  minWidth: 0,
+  maxWidth: '100%',
+  vars: {
+    '--affine-doc-title-font-size': '32px',
+    '--affine-doc-title-line-height': '42px',
+    '--affine-doc-title-block-padding': '24px',
+  },
   selectors: {
     '&.full-screen': {
       width: '100%',

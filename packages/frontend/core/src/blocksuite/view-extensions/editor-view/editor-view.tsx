@@ -28,6 +28,7 @@ import {
   type ReferenceReactRenderer,
 } from './reference-renderer';
 import { patchSideBarService } from './side-bar-service';
+import { slashMenuLocaleExtension } from './slash-menu-locale';
 
 const optionsSchema = z.object({
   // services
@@ -101,6 +102,7 @@ export class AffineEditorViewExtension extends ViewExtensionProvider<AffineEdito
 
     context
       .register([
+        slashMenuLocaleExtension,
         patchReferenceRenderer(reactToLit, referenceRenderer),
         patchNotificationService(confirmModal),
         patchOpenDocExtension(),

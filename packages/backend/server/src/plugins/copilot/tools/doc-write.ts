@@ -5,11 +5,184 @@ import { z } from 'zod';
 
 import { DocWriter } from '../../../core/doc';
 import { PermissionAccess } from '../../../core/permission';
+import type { Models } from '../../../models';
+import type { CopilotDocumentCopyService } from '../document-copy-service';
 import { toolError } from './error';
 import { defineTool } from './tool';
 import type { CopilotChatOptions } from './types';
 
 const logger = new Logger('DocWriteTool');
+
+export const createDocCopyRequestTool = (
+  copies: CopilotDocumentCopyService,
+  options: CopilotChatOptions
+) =>
+  defineTool({
+    description:
+      'Prepare an independent copy of an existing document into another workspace only when the user requests it. Preserve the original; do not synchronize or copy its permissions. The user must choose a destination before creation. This returns a pending operation, not a created document. Check doc_creation_status for the real result.',
+    inputSchema: z
+      .object({
+        source_workspace_id: z.string().min(1).max(256),
+        source_document_id: z.string().min(1).max(256),
+        title: z.string().trim().min(1).max(512),
+        add_to_project: z
+          .boolean()
+          .default(false)
+          .describe(
+            'Only request project addition if the user explicitly requested it.'
+          ),
+      })
+      .strict(),
+    execute: async ({
+      source_workspace_id,
+      source_document_id,
+      title,
+      add_to_project,
+    }) => {
+      try {
+        if (!options?.user || !options.session)
+          throw new Error(
+            'Document copying requires the current user conversation'
+          );
+        const operation = await copies.prepare({
+          actorId: options.user,
+          sessionId: options.session,
+          workspaceId: source_workspace_id,
+          documentId: source_document_id,
+          title,
+          addToProject: add_to_project,
+        });
+        return {
+          operationId: operation.id,
+          status: operation.status,
+          documentCreated: !!operation.createdDocumentAt,
+          documentId: operation.createdDocumentAt ? operation.documentId : null,
+          message: operation.createdDocumentAt
+            ? 'Copy creation is recorded. Check its current placement and project status.'
+            : 'Waiting for the user to choose the copy destination. No copy has been created.',
+        };
+      } catch (error) {
+        return toolError(
+          'Document Copy Request Failed',
+          error instanceof Error
+            ? error.message
+            : 'Document copy request is unavailable'
+        );
+      }
+    },
+  });
+
+export const createDocCreationStatusTool = (
+  models: Models,
+  options: CopilotChatOptions
+) =>
+  defineTool({
+    description:
+      'Read persisted document creation and project-addition results for this conversation. Only documentCreated=true proves creation; projectStatus=requested is still awaiting authorization.',
+    inputSchema: z
+      .object({ operation_id: z.string().min(1).max(256) })
+      .strict(),
+    execute: async ({ operation_id }) => {
+      try {
+        if (!options?.user || !options.session)
+          throw new Error(
+            'Document status requires the current user conversation'
+          );
+        const operation = await models.copilotDocumentOperation.receipt({
+          operationId: operation_id,
+          actorId: options.user,
+          sessionId: options.session,
+        });
+        return {
+          operationId: operation.id,
+          status: operation.status,
+          documentCreated: !!operation.createdDocumentAt,
+          placementComplete: !!operation.placedDocumentAt,
+          documentId: operation.createdDocumentAt ? operation.documentId : null,
+          workspaceId: operation.destinationWorkspaceId,
+          projectStatus: operation.projectStatus,
+          accessRequestId: operation.accessRequestId,
+        };
+      } catch (error) {
+        return toolError(
+          'Document Creation Status Failed',
+          error instanceof Error
+            ? error.message
+            : 'Document status is unavailable'
+        );
+      }
+    },
+  });
+
+export const createDocCreateRequestTool = (
+  ac: PermissionAccess,
+  models: Models,
+  options: CopilotChatOptions
+) =>
+  defineTool({
+    description:
+      'Prepare a new document for the user to choose its storage workspace and explicit root or folder. This does not create a document. Report waiting for location selection until a persisted operation result confirms creation. Never use a document or folder as a substitute for creating a Project.',
+    inputSchema: z
+      .object({
+        title: z.string().trim().min(1).max(512),
+        content: z.string().max(1024 * 1024),
+        add_to_project: z
+          .boolean()
+          .default(false)
+          .describe(
+            'Request addition only if the user explicitly asked to add the created document to the current Project.'
+          ),
+      })
+      .strict(),
+    execute: async ({ title, content, add_to_project }, executeOptions) => {
+      try {
+        if (!options?.user || !options.workspace || !options.session)
+          throw new Error(
+            'Document creation requires a user conversation and location selection'
+          );
+        const session = await models.copilotSession.getMeta(options.session);
+        if (
+          !session ||
+          session.userId !== options.user ||
+          session.workspaceId !== options.workspace
+        )
+          throw new Error('Document creation conversation is unavailable');
+        await ac
+          .user(options.user)
+          .workspace(options.workspace)
+          .assert('Workspace.Copilot');
+        const operation =
+          await models.copilotDocumentOperation.prepareForLatestTurn({
+            actorId: options.user,
+            sessionId: options.session,
+            title: sanitizeTitle(title),
+            markdown: stripLeadingH1(content),
+            addToProject: add_to_project,
+            ...(options.taskId
+              ? { delegatedCallId: executeOptions.toolCallId }
+              : {}),
+          });
+        return {
+          operationId: operation.id,
+          status: operation.status,
+          documentCreated: !!operation.createdDocumentAt,
+          projectStatus: operation.projectStatus,
+          documentId: operation.createdDocumentAt ? operation.documentId : null,
+          workspaceId: operation.destinationWorkspaceId,
+          message: operation.createdDocumentAt
+            ? 'Document creation is recorded. Check its placement and project-addition status separately.'
+            : 'Waiting for the user to select a storage workspace and location. No document has been created.',
+        };
+      } catch (error) {
+        return toolError(
+          'Document Creation Request Failed',
+          error instanceof Error
+            ? error.message
+            : 'Document creation request failed'
+        );
+      }
+    },
+  });
 
 const stripLeadingH1 = (content: string) =>
   content.replace(/^[ \t]{0,3}#\s+[^\n]*#*\s*\n*/, '');
@@ -72,9 +245,31 @@ export const buildDocCreateHandler = (
   };
 };
 
+function documentWriteSourceGuard(
+  models: Models,
+  actorId: string,
+  workspaceId: string,
+  sessionId: string | undefined,
+  docId: string
+) {
+  return () =>
+    models.copilotContext.assertDocumentSourcesShared({
+      actorId,
+      sessionId,
+      sink: {
+        type: 'document_update',
+        id: docId,
+        documentId: docId,
+        workspaceId,
+        phase: 'execute',
+      },
+    });
+}
+
 export const buildDocUpdateHandler = (
   ac: PermissionAccess,
-  writer: DocWriter
+  writer: DocWriter,
+  models: Models
 ) => {
   return async (
     options: CopilotChatOptions,
@@ -100,11 +295,20 @@ export const buildDocUpdateHandler = (
       return notFound;
     }
 
+    const beforeWrite = documentWriteSourceGuard(
+      models,
+      options.user,
+      options.workspace,
+      options.session,
+      docId
+    );
+    await beforeWrite();
     const result = await writer.updateDoc(
       options.workspace,
       docId,
       content,
-      options.user
+      options.user,
+      beforeWrite
     );
 
     return {
@@ -119,7 +323,8 @@ export const buildDocUpdateHandler = (
 
 export const buildDocUpdateMetaHandler = (
   ac: PermissionAccess,
-  writer: DocWriter
+  writer: DocWriter,
+  models: Models
 ) => {
   return async (options: CopilotChatOptions, docId: string, title: string) => {
     const notFound = toolError(
@@ -146,11 +351,20 @@ export const buildDocUpdateMetaHandler = (
       return toolError('Doc Meta Update Failed', 'Title cannot be empty');
     }
 
+    const beforeWrite = documentWriteSourceGuard(
+      models,
+      options.user,
+      options.workspace,
+      options.session,
+      docId
+    );
+    await beforeWrite();
     await writer.updateDocMeta(
       options.workspace,
       docId,
       { title: sanitizedTitle },
-      options.user
+      options.user,
+      beforeWrite
     );
 
     return {

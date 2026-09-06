@@ -205,6 +205,7 @@ export class IntelligenceWorkbenchAuthorizationModel extends BaseModel {
   async lockProjectDocumentAccessForExecution(
     input: ProjectDocumentRef & { userId: string }
   ) {
+    await this.lockProjectDocumentAuthorization(input);
     const projectId = requireString(input.projectId, 'projectId');
     const workspaceId = requireString(input.workspaceId, 'workspaceId');
     const docId = requireString(input.docId, 'docId');
@@ -277,6 +278,59 @@ export class IntelligenceWorkbenchAuthorizationModel extends BaseModel {
         projectGrant: true,
       },
     });
+  }
+
+  async getAccessRequestNotification(requestId: string, viewerUserId: string) {
+    const request = await this.db.accessRequest.findUnique({
+      where: { id: requestId },
+    });
+    const unavailable = { requestId, status: 'unavailable', canDecide: false };
+    if (!request) return unavailable;
+    let sourceActor = false;
+    try {
+      await this.requireSourceDecisionActor({
+        workspaceId: request.workspaceId,
+        docId: request.docId,
+        userId: viewerUserId,
+      });
+      sourceActor = true;
+    } catch (error) {
+      if (!(error instanceof NotFound)) throw error;
+    }
+    const requester = request.requesterUserId === viewerUserId;
+    if (!sourceActor && !requester) return unavailable;
+    const identityVisible =
+      sourceActor || (requester && request.requesterSuppliedIdentity);
+    const [project, doc] = await Promise.all([
+      request.beneficiaryProjectId
+        ? this.db.aiContextProject.findUnique({
+            where: { id: request.beneficiaryProjectId },
+            select: { name: true },
+          })
+        : null,
+      sourceActor
+        ? this.models.doc.getMeta(request.workspaceId, request.docId)
+        : null,
+    ]);
+    const expired =
+      request.status === 'pending' &&
+      !!request.expiresAt &&
+      request.expiresAt <= new Date();
+    return {
+      requestId,
+      status: expired ? 'expired' : request.status,
+      canDecide: sourceActor && request.status === 'pending' && !expired,
+      docId: identityVisible ? request.docId : null,
+      docTitle: sourceActor
+        ? (doc?.title ?? request.requestedTitle)
+        : identityVisible
+          ? request.requestedTitle
+          : null,
+      projectId: request.beneficiaryProjectId,
+      projectName: project?.name ?? null,
+      requestedLevel: request.requestedLevel,
+      resolutionReason: request.resolutionReason,
+    };
   }
 
   async listAccessRequests(input: {
@@ -2039,7 +2093,7 @@ export class IntelligenceWorkbenchAuthorizationModel extends BaseModel {
       throw new Error('Access request resolution requires actor provenance');
     }
     const request = await this.db.accessRequest.update({
-      where: { id: input.request.id },
+      where: { id: input.request.id, status: 'pending' },
       data: {
         status: input.status,
         resolvedByUserId: input.actorUserId,
@@ -2082,7 +2136,7 @@ export class IntelligenceWorkbenchAuthorizationModel extends BaseModel {
 
   private async expirePendingAccessRequest(request: AccessRequest, now: Date) {
     const expired = await this.db.accessRequest.update({
-      where: { id: request.id },
+      where: { id: request.id, status: 'pending' },
       data: { status: 'expired', resolvedAt: now },
     });
     await this.appendAccessRequestAudit({
@@ -2120,7 +2174,7 @@ export class IntelligenceWorkbenchAuthorizationModel extends BaseModel {
     actorUserIdSnapshot?: string | null;
     metadata?: Record<string, unknown>;
   }) {
-    return await this.db.accessRequestAuditEvent.create({
+    const event = await this.db.accessRequestAuditEvent.create({
       data: {
         accessRequestId: input.requestId,
         eventType: input.eventType,
@@ -2136,6 +2190,9 @@ export class IntelligenceWorkbenchAuthorizationModel extends BaseModel {
         metadata: (input.metadata ?? {}) as Prisma.InputJsonValue,
       },
     });
+    const request = await this.requireAccessRequest(input.requestId);
+    await this.models.notification.syncAccessRequest(request);
+    return event;
   }
 
   private async upsertPersonalDocGrant(input: {

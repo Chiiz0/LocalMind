@@ -15,10 +15,12 @@ const calendarCardToHeader = (card?: { titleColumnId?: string }) => ({
 export const viewConverts = [
   createViewConvert(tableViewModel, kanbanViewModel, data => ({
     filter: data.filter,
+    sort: data.sort,
     header: data.header,
   })),
   createViewConvert(kanbanViewModel, tableViewModel, data => ({
     filter: data.filter,
+    sort: data.sort,
     header: data.header,
     groupBy: data.groupBy,
   })),

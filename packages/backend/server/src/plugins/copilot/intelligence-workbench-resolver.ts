@@ -35,7 +35,11 @@ import {
   type IntelligenceWorkbenchTaskItem,
   Models,
 } from '../../models';
-import { CopilotTaskType, CopilotType, projectCopilotTask } from './resolver';
+import {
+  CopilotTaskType,
+  CopilotType,
+  projectCopilotTaskForViewer,
+} from './resolver';
 
 const ACCESS_REQUEST_VIEWS = [
   'requester',
@@ -634,10 +638,13 @@ export class IntelligenceWorkbenchResolver {
     };
   }
 
-  private presentTaskItem(
-    item: IntelligenceWorkbenchTaskItem
-  ): CopilotWorkbenchTaskItemType {
-    const run = item.run ? projectCopilotTask(item.run) : null;
+  private async presentTaskItem(
+    item: IntelligenceWorkbenchTaskItem,
+    userId: string
+  ): Promise<CopilotWorkbenchTaskItemType> {
+    const run = item.run
+      ? await projectCopilotTaskForViewer(item.run, userId, this.ac)
+      : null;
     return {
       id: item.id,
       entityId: item.entityId,
@@ -719,15 +726,23 @@ export class IntelligenceWorkbenchResolver {
     return {
       todo: {
         capped: panel.todo.capped,
-        items: panel.todo.items.map(item => this.presentTaskItem(item)),
+        items: await Promise.all(
+          panel.todo.items.map(item => this.presentTaskItem(item, user.id))
+        ),
       },
       inProgress: {
         capped: panel.inProgress.capped,
-        items: panel.inProgress.items.map(item => this.presentTaskItem(item)),
+        items: await Promise.all(
+          panel.inProgress.items.map(item =>
+            this.presentTaskItem(item, user.id)
+          )
+        ),
       },
       done: {
         capped: panel.done.capped,
-        items: panel.done.items.map(item => this.presentTaskItem(item)),
+        items: await Promise.all(
+          panel.done.items.map(item => this.presentTaskItem(item, user.id))
+        ),
       },
     };
   }
@@ -760,7 +775,9 @@ export class IntelligenceWorkbenchResolver {
     return {
       capped: list.capped,
       nextCursor: list.nextCursor,
-      items: list.items.map(item => this.presentTaskItem(item)),
+      items: await Promise.all(
+        list.items.map(item => this.presentTaskItem(item, user.id))
+      ),
     };
   }
 
@@ -780,7 +797,9 @@ export class IntelligenceWorkbenchResolver {
       taskId,
       limit: 1,
     });
-    return list.items[0] ? this.presentTaskItem(list.items[0]) : null;
+    return list.items[0]
+      ? await this.presentTaskItem(list.items[0], user.id)
+      : null;
   }
 
   @ResolveField(() => [CopilotAccessRequestType], {

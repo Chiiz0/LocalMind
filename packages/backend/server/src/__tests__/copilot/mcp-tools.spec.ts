@@ -71,7 +71,10 @@ test('MCP keyword search falls back to readable Markdown without an indexer prov
         user: () => ({
           workspace: () => ({
             can: async () => true,
-            doc: () => ({ can: async () => true }),
+            doc: () => ({
+              can: async () => true,
+              projectScope: () => ({ can: async () => true }),
+            }),
             docs: async () => {
               throw new Error(
                 'Indexer results should not be filtered on fallback'

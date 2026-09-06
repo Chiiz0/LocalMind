@@ -6,6 +6,7 @@ interface WorkspaceResource {
   type: 'ws';
   payload: {
     allowLocal?: boolean;
+    projectId?: string | null;
     workspaceId: string;
     userId: string;
   };
@@ -17,6 +18,7 @@ interface DocResource {
   type: 'doc';
   payload: {
     allowLocal?: boolean;
+    projectId?: string | null;
     workspaceId: string;
     docId: string;
     userId: string;

@@ -2,6 +2,27 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 # ------------------------------------------------------
 
+type AccessRequestNotificationBodyType {
+  canDecide: Boolean!
+
+  """
+  The user who created the notification, maybe null when user is deleted or sent by system
+  """
+  createdByUser: PublicUserType
+  docId: String
+  docTitle: String
+  projectId: ID
+  projectName: String
+  requestId: ID!
+  requestedLevel: String
+  resolutionReason: String
+  status: String!
+
+  """The type of the notification"""
+  type: NotificationType!
+  workspace: NotificationWorkspaceType
+}
+
 input AddContextBlobInput {
   blobId: String!
   contextId: String!
@@ -565,6 +586,14 @@ input ConfirmCopilotBlockerSuggestionInput {
   suggestion: CopilotBlockerSuggestionInput!
 }
 
+input ConfirmCopilotDocumentDestinationInput {
+  expectedRevision: Int!
+  folderId: ID
+  operationId: ID!
+  root: Boolean!
+  workspaceId: ID!
+}
+
 input ConnectExternalMcpInput {
   accessTicket: String!
   name: String! = "SparkClaw MCP"
@@ -670,6 +699,9 @@ type Copilot {
   List standalone Copilot tasks owned by the current user in one workspace or across all accessible workspaces.
   """
   copilotTasks(filter: CopilotTaskListFilterInput, limit: SafeInt): [CopilotTaskType!]!
+  documentDestinationFolders(after: String, workspaceId: ID!): CopilotDocumentFoldersType!
+  documentDestinationWorkspaces: [CopilotDocumentWorkspaceType!]!
+  documentOperations(after: ID, sessionId: ID!): [CopilotDocumentOperationType!]!
   histories(docId: String, options: QueryChatHistoriesInput): [CopilotHistories!]! @deprecated(reason: "use `chats` instead")
 
   """List available models for a prompt, with human-readable names"""
@@ -1434,6 +1466,40 @@ type CopilotContextStrategyType {
 
 type CopilotDocNotFoundDataType {
   docId: String!
+}
+
+type CopilotDocumentFolderType {
+  id: ID!
+  name: String!
+}
+
+type CopilotDocumentFoldersType {
+  items: [CopilotDocumentFolderType!]!
+  nextCursor: String
+}
+
+type CopilotDocumentOperationType {
+  accessRequestId: ID
+  createdDocumentAt: DateTime
+  destinationFolderId: ID
+  destinationRevision: Int!
+  destinationWorkspaceId: ID
+  documentId: ID!
+  failureCode: String
+  id: ID!
+  kind: String!
+  locationExpiresAt: DateTime!
+  placedDocumentAt: DateTime
+  projectStatus: String!
+  sourceDocumentId: ID
+  sourceWorkspaceId: ID
+  status: String!
+  title: String!
+}
+
+type CopilotDocumentWorkspaceType {
+  id: ID!
+  name: String!
 }
 
 type CopilotFailedToAddWorkspaceFileEmbeddingDataType {
@@ -3916,6 +3982,7 @@ type CopilotTaskType {
   projectId: String
   resultEvidence: JSON
   resultSummary: String
+  sessionId: String
   startedAt: DateTime
   status: String!
   steps: [CopilotTaskStepType!]!
@@ -5112,6 +5179,7 @@ type Mutation {
   cancelSubscription(idempotencyKey: String @deprecated(reason: "use header `Idempotency-Key`"), plan: SubscriptionPlan = Pro, workspaceId: String): SubscriptionType!
   changeEmail(email: String!, token: String!): UserType!
   changePassword(newPassword: String!, token: String!, userId: String): Boolean!
+  changeWorkspaceDirectoryPolicy(directoryId: ID!, expectedRevision: String!, principalId: ID!, rights: WorkspaceDirectoryRightsInput, workspaceId: ID!): WorkspaceDirectoryPolicyMutationType!
 
   """Cleanup sessions"""
   cleanupCopilotSession(options: DeleteSessionInput!): [String!]!
@@ -5123,6 +5191,7 @@ type Mutation {
   clearWorkspaceByokConfigs(provider: ByokProvider, workspaceId: String!): Boolean!
   completeBlobUpload(docScopeId: String, key: String!, parts: [BlobUploadPartInput!], uploadId: String, workspaceId: String!): String!
   confirmCopilotBlockerSuggestion(input: ConfirmCopilotBlockerSuggestionInput!): CopilotBlockerType!
+  confirmCopilotDocumentDestination(input: ConfirmCopilotDocumentDestinationInput!): CopilotDocumentOperationType!
   connectExternalMcp(input: ConnectExternalMcpInput!): ExternalMcpConnectionType!
 
   """
@@ -5261,6 +5330,7 @@ type Mutation {
 
   """mention user in a doc"""
   mentionUser(input: MentionInput!): ID!
+  mutateWorkspaceDirectory(changes: [WorkspaceDirectoryChangeInput!]!, expectedRevision: String!, workspaceId: ID!): WorkspaceDirectoryMutationType!
 
   """
   Preview a Prompt Registry message body edit and return a publishable diff fingerprint before writing.
@@ -5367,6 +5437,7 @@ type Mutation {
   resolveCopilotBlocker(blockerId: ID!): CopilotBlockerType!
   resolveOfficeComment(input: OfficeCommentResolveInput!): OfficeCommentType!
   resumeSubscription(idempotencyKey: String @deprecated(reason: "use header `Idempotency-Key`"), plan: SubscriptionPlan = Pro, workspaceId: String): SubscriptionType!
+  retryCopilotDocumentOperation(expectedRevision: Int!, operationId: ID!): CopilotDocumentOperationType!
 
   """
   Queue a fresh Provider Health probe attempt for a dead-lettered workspace attempt without mutating terminal evidence.
@@ -5454,6 +5525,7 @@ type Mutation {
   upsertWorkspaceByokConfig(input: UpsertWorkspaceByokConfigInput!): WorkspaceByokKeyConfigType!
   verifyEmail(token: String!): Boolean!
   withdrawCopilotAccessRequest(input: ResolveCopilotAccessRequestInput!): CopilotAccessRequestType!
+  withdrawCopilotDocumentOperation(expectedRevision: Int!, operationId: ID!): CopilotDocumentOperationType!
   withdrawCopilotProjectInvitation(invitationId: ID!): CopilotProjectInvitationType!
 }
 
@@ -5520,6 +5592,8 @@ type NotificationObjectTypeEdge {
 
 """Notification type"""
 enum NotificationType {
+  AccessRequest
+  AccessRequestResolved
   Comment
   CommentMention
   Invitation
@@ -5891,6 +5965,8 @@ type Query {
 
   """Get workspace by id"""
   workspace(id: String!): WorkspaceType!
+  workspaceDirectory(after: String, workspaceId: ID!): WorkspaceDirectoryPageType!
+  workspaceDirectoryAdministration(auditAfter: String, workspaceId: ID!): WorkspaceDirectoryAdministrationType!
 
   """Get workspace role permissions"""
   workspaceRolePermissions(id: String!): WorkspaceRolePermissions! @deprecated(reason: "use WorkspaceType[permissions] instead")
@@ -6437,7 +6513,7 @@ input TransferCopilotProjectOwnershipInput {
   projectId: ID!
 }
 
-union UnionNotificationBodyType = InvitationAcceptedNotificationBodyType | InvitationBlockedNotificationBodyType | InvitationNotificationBodyType | InvitationReviewApprovedNotificationBodyType | InvitationReviewDeclinedNotificationBodyType | InvitationReviewRequestNotificationBodyType | MentionNotificationBodyType
+union UnionNotificationBodyType = AccessRequestNotificationBodyType | InvitationAcceptedNotificationBodyType | InvitationBlockedNotificationBodyType | InvitationNotificationBodyType | InvitationReviewApprovedNotificationBodyType | InvitationReviewDeclinedNotificationBodyType | InvitationReviewRequestNotificationBodyType | MentionNotificationBodyType
 
 type UnknownOauthProviderDataType {
   name: String!
@@ -6782,6 +6858,100 @@ type WorkspaceCalendarObjectType {
   id: String!
   items: [WorkspaceCalendarItemObjectType!]!
   workspaceId: String!
+}
+
+type WorkspaceDirectoryAdministrationType {
+  auditEvents: [WorkspaceDirectoryPolicyAuditType!]!
+  auditNextCursor: String
+  directories: [WorkspaceDirectoryPolicyDirectoryType!]!
+  policies: [WorkspaceDirectoryPolicyType!]!
+  principals: [WorkspaceDirectoryPolicyPrincipalType!]!
+  revision: String!
+}
+
+input WorkspaceDirectoryChangeInput {
+  key: ID!
+  op: String!
+  values: WorkspaceDirectoryValuesInput
+}
+
+type WorkspaceDirectoryEntryType {
+  data: String!
+  id: ID!
+  index: String!
+  parentId: ID
+  rights: WorkspaceDirectoryRightsType!
+  type: String!
+}
+
+type WorkspaceDirectoryMutationType {
+  revision: String!
+}
+
+type WorkspaceDirectoryPageType {
+  authorizationRevision: String!
+  fullSyncAllowed: Boolean!
+  items: [WorkspaceDirectoryEntryType!]!
+  nextCursor: String
+  revision: String!
+  rootRights: WorkspaceDirectoryRightsType!
+}
+
+type WorkspaceDirectoryPolicyAuditType {
+  action: String!
+  actorId: ID!
+  after: WorkspaceDirectoryRightsType
+  before: WorkspaceDirectoryRightsType
+  createdAt: DateTime!
+  directoryId: ID!
+  id: ID!
+  principalId: ID!
+}
+
+type WorkspaceDirectoryPolicyDirectoryType {
+  id: ID!
+  name: String!
+  parentId: ID
+}
+
+type WorkspaceDirectoryPolicyMutationType {
+  policy: WorkspaceDirectoryPolicyType
+  revision: String!
+}
+
+type WorkspaceDirectoryPolicyPrincipalType {
+  allMembers: Boolean!
+  email: String
+  id: ID!
+  name: String
+}
+
+type WorkspaceDirectoryPolicyType {
+  directoryId: ID!
+  principalId: ID!
+  rights: WorkspaceDirectoryRightsType!
+  updatedAt: DateTime!
+}
+
+input WorkspaceDirectoryRightsInput {
+  canCreateFolder: Boolean!
+  canOrganize: Boolean!
+  canRead: Boolean!
+  canWrite: Boolean!
+}
+
+type WorkspaceDirectoryRightsType {
+  canCreateFolder: Boolean!
+  canOrganize: Boolean!
+  canRead: Boolean!
+  canWrite: Boolean!
+}
+
+input WorkspaceDirectoryValuesInput {
+  data: String!
+  index: String!
+  parentId: ID
+  type: String!
 }
 
 type WorkspaceDocMeta {

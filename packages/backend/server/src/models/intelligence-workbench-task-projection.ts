@@ -365,7 +365,7 @@ export class IntelligenceWorkbenchTaskProjectionModel extends BaseModel {
       this.listRunItems({
         userId,
         projectId,
-        statuses: ['waiting_approval', 'failed'],
+        statuses: ['waiting_approval', 'waiting_for_location', 'failed'],
         segment: 'todo',
         limit: INTELLIGENCE_WORKBENCH_TODO_LIMIT,
       }),
@@ -473,6 +473,7 @@ export class IntelligenceWorkbenchTaskProjectionModel extends BaseModel {
         projectId,
         statuses: [
           'waiting_approval',
+          'waiting_for_location',
           'failed',
           'queued',
           'running',
@@ -560,7 +561,7 @@ export class IntelligenceWorkbenchTaskProjectionModel extends BaseModel {
       filter === 'all'
         ? Prisma.sql`TRUE`
         : kind === 'run'
-          ? Prisma.sql`status IN (${Prisma.join(filter === 'active' ? ['queued', 'running'] : filter === 'approval' ? ['waiting_approval', 'failed'] : ['completed', 'cancelled'])})`
+          ? Prisma.sql`status IN (${Prisma.join(filter === 'active' ? ['queued', 'running'] : filter === 'approval' ? ['waiting_approval', 'waiting_for_location', 'failed'] : ['completed', 'cancelled'])})`
           : filter === 'active'
             ? Prisma.sql`FALSE`
             : kind === 'project_grant'
@@ -658,7 +659,9 @@ export class IntelligenceWorkbenchTaskProjectionModel extends BaseModel {
           input.segment ??
           (run.status === 'queued' || run.status === 'running'
             ? 'in_progress'
-            : run.status === 'waiting_approval' || run.status === 'failed'
+            : run.status === 'waiting_approval' ||
+                run.status === 'waiting_for_location' ||
+                run.status === 'failed'
               ? 'todo'
               : 'done');
         return [runItem(run, segment)];

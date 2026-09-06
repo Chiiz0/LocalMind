@@ -1,0 +1,118 @@
+query workspaceDirectory($workspaceId: ID!, $after: String) {
+  workspaceDirectory(workspaceId: $workspaceId, after: $after) {
+    revision
+    authorizationRevision
+    fullSyncAllowed
+    nextCursor
+    rootRights {
+      canRead
+      canWrite
+      canOrganize
+      canCreateFolder
+    }
+    items {
+      id
+      parentId
+      type
+      data
+      index
+      rights {
+        canRead
+        canWrite
+        canOrganize
+        canCreateFolder
+      }
+    }
+  }
+}
+
+mutation mutateWorkspaceDirectory(
+  $workspaceId: ID!
+  $expectedRevision: String!
+  $changes: [WorkspaceDirectoryChangeInput!]!
+) {
+  mutateWorkspaceDirectory(workspaceId: $workspaceId, expectedRevision: $expectedRevision, changes: $changes) {
+    revision
+  }
+}
+
+query workspaceDirectoryAdministration($workspaceId: ID!, $auditAfter: String) {
+  workspaceDirectoryAdministration(
+    workspaceId: $workspaceId
+    auditAfter: $auditAfter
+  ) {
+    revision
+    directories {
+      id
+      parentId
+      name
+    }
+    principals {
+      id
+      name
+      email
+      allMembers
+    }
+    policies {
+      directoryId
+      principalId
+      updatedAt
+      rights {
+        canRead
+        canWrite
+        canOrganize
+        canCreateFolder
+      }
+    }
+    auditEvents {
+      id
+      actorId
+      directoryId
+      principalId
+      action
+      createdAt
+      before {
+        canRead
+        canWrite
+        canOrganize
+        canCreateFolder
+      }
+      after {
+        canRead
+        canWrite
+        canOrganize
+        canCreateFolder
+      }
+    }
+    auditNextCursor
+  }
+}
+
+mutation changeWorkspaceDirectoryPolicy(
+  $workspaceId: ID!
+  $expectedRevision: String!
+  $directoryId: ID!
+  $principalId: ID!
+  $rights: WorkspaceDirectoryRightsInput
+) {
+  changeWorkspaceDirectoryPolicy(
+    workspaceId: $workspaceId
+    expectedRevision: $expectedRevision
+    directoryId: $directoryId
+    principalId: $principalId
+    rights: $rights
+  ) {
+    revision
+    policy {
+      directoryId
+      principalId
+      updatedAt
+      rights {
+        canRead
+        canWrite
+        canOrganize
+        canCreateFolder
+      }
+    }
+  }
+}

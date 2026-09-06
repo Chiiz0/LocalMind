@@ -119,6 +119,8 @@ export const TasksPage = ({ workspaceId }: { workspaceId: string }) => {
           return t['com.affine.localmind.tasks.status.running']();
         case 'waiting_approval':
           return t['com.affine.localmind.tasks.status.waiting_approval']();
+        case 'waiting_for_location':
+          return t['com.affine.localmind.documentCreation.waiting']();
         case 'completed':
           return t['com.affine.localmind.tasks.status.completed']();
         case 'failed':

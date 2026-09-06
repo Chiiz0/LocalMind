@@ -41,8 +41,10 @@ export class RealtimePublisher {
     try {
       this.publishLocal(payload);
       this.event.broadcast('realtime.topic.changed', payload);
+      return true;
     } catch (error) {
       this.logger.error(`Failed to publish realtime topic ${topic}`, error);
+      return false;
     }
   }
 

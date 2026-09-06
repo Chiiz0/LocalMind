@@ -25,6 +25,10 @@ import {
   SpaceAccessDenied,
 } from '../../base';
 import { DocMode, Models, PublicDocMode } from '../../models';
+import {
+  COPILOT_COPY_BLOB_PREFIX,
+  copyAttachmentDocumentId,
+} from '../../models/blob';
 import { buildPublicRootDoc } from '../../native';
 import { CurrentUser, Public } from '../auth';
 import { PgWorkspaceDocStorageAdapter } from '../doc';
@@ -109,11 +113,18 @@ export class WorkspacesController {
     @Query('docScopeId') docScopeId: string | undefined,
     @Res() res: Response
   ) {
-    if (docScopeId) {
+    const copyDocId = copyAttachmentDocumentId(name);
+    if (
+      name.startsWith(COPILOT_COPY_BLOB_PREFIX) &&
+      (!copyDocId || (docScopeId && docScopeId !== copyDocId))
+    )
+      throw new BlobNotFound({ spaceId: workspaceId, blobId: name });
+    const effectiveDocScope = copyDocId ?? docScopeId;
+    if (effectiveDocScope) {
       await this.assertBlobReferencedByReadableDoc(
         user?.id ?? 'anonymous',
         workspaceId,
-        docScopeId,
+        effectiveDocScope,
         name
       );
     } else {
@@ -130,7 +141,7 @@ export class WorkspacesController {
     const { body, metadata, redirectUrl } = await this.storage.get(
       workspaceId,
       name,
-      !docScopeId
+      !effectiveDocScope
     );
 
     if (redirectUrl) {
@@ -171,7 +182,9 @@ export class WorkspacesController {
 
     res.setHeader(
       'cache-control',
-      docScopeId ? 'private, no-store' : 'public, max-age=2592000, immutable'
+      effectiveDocScope
+        ? 'private, no-store'
+        : 'public, max-age=2592000, immutable'
     );
     body.pipe(res);
   }

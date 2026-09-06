@@ -106,6 +106,7 @@ const task = (
   availableActions,
   blocker: null,
   run: {
+    sessionId: null,
     id,
     workspaceId: 'workspace-1',
     projectId: 'project-1',
@@ -183,6 +184,78 @@ const renderPanel = (
   );
 
 describe('TaskPanel', () => {
+  const emptyPanel: WorkbenchTaskPanelData = {
+    todo: { capped: false, items: [] },
+    inProgress: { capped: false, items: [] },
+    done: { capped: false, items: [] },
+  };
+
+  test('shows one compact empty state instead of three empty columns', () => {
+    const { container } = renderPanel({ panel: emptyPanel });
+    expect(screen.getByRole('status').textContent).toBe(
+      'com.affine.localmind.tasks.empty.all'
+    );
+    expect(container.querySelector('[data-segment]')).toBeNull();
+  });
+
+  test('keeps waiting tasks visible even when no task needs my action', () => {
+    const { container } = renderPanel({
+      panel: {
+        ...emptyPanel,
+        todo: { capped: false, items: [panel.todo.items[1]] },
+      },
+    });
+    expect(screen.getByText('waiting title')).not.toBeNull();
+    expect(container.querySelector('[data-segment="todo"]')).not.toBeNull();
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  test('does not label loading or failed requests as empty and keeps errors visible when collapsed', () => {
+    const loading = renderPanel({ panel: emptyPanel, loading: true });
+    expect(screen.getByTestId('loading')).not.toBeNull();
+    expect(screen.queryByRole('status')).toBeNull();
+    loading.unmount();
+
+    const refresh = vi.fn();
+    renderPanel({
+      panel: emptyPanel,
+      error: 'Task request failed',
+      onRefresh: refresh,
+    });
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'com.affine.localmind.workbench.tasks',
+      })
+    );
+    expect(screen.getByRole('alert').textContent).toContain(
+      'Task request failed'
+    );
+    expect(screen.queryByRole('status')).toBeNull();
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'com.affine.localmind.workbench.retry',
+      })
+    );
+    expect(refresh).toHaveBeenCalledOnce();
+  });
+
+  test('allows adding a blocker from an empty project', () => {
+    renderPanel({ panel: emptyPanel, selectedProjectId: 'project-1' });
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'com.affine.localmind.workbench.blocker.add',
+      })
+    );
+    expect(screen.getByRole('form')).not.toBeNull();
+    expect(document.activeElement).toBe(
+      screen.getByRole('textbox', {
+        name: 'com.affine.localmind.workbench.blocker.title',
+      })
+    );
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' });
+    expect(screen.getByRole('status')).not.toBeNull();
+  });
+
   test('keeps failed runs in To do and renders capped-segment affordances', () => {
     const viewAll = vi.fn();
     const { container } = renderPanel({ onViewAll: viewAll });

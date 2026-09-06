@@ -18,6 +18,7 @@ import {
 } from '@affine/core/blocksuite/ai/components/ai-chat-toolbar';
 import { getViewManager } from '@affine/core/blocksuite/manager/view';
 import { NotificationServiceImpl } from '@affine/core/blocksuite/view-extensions/editor-view/notification-service';
+import { DocumentCreationPanel } from '@affine/core/components/ai-document-creation/document-creation-panel';
 import { useAIChatConfig } from '@affine/core/components/hooks/affine/use-ai-chat-config';
 import { useAISpecs } from '@affine/core/components/hooks/affine/use-ai-specs';
 import { useAISubscribe } from '@affine/core/components/hooks/affine/use-ai-subscribe';
@@ -50,7 +51,9 @@ import type { WorkbenchDocument } from './types';
 import * as styles from './workbench-conversation.css';
 
 type WorkbenchConversationProps = {
+  onDocumentsChanged?: () => Promise<unknown>;
   selectedProjectId: string | null;
+  selectedProjectName?: string;
   projectDocuments: WorkbenchDocument[];
   onOpenDocument: (document: WorkbenchDocument) => void;
   onConfirmBlockerSuggestion?: (suggestion: BlockerSuggestion) => Promise<void>;
@@ -85,7 +88,9 @@ const useAIRequestService = () => {
 };
 
 export const WorkbenchConversation = ({
+  onDocumentsChanged,
   selectedProjectId,
+  selectedProjectName,
   projectDocuments,
   onOpenDocument,
   onConfirmBlockerSuggestion,
@@ -146,10 +151,22 @@ export const WorkbenchConversation = ({
         scope: { kind: 'workspace', workspaceId },
         strategy: new WorkspaceAIChatSessionStrategy(),
         chatSurface: 'intelligence_workbench',
+        projectId: selectedProjectId,
       }),
-    [requestService, workspaceId]
+    [requestService, workspaceId, selectedProjectId]
   );
   const snapshot = useAIChatRuntime(runtime);
+  const previousStatus = useRef(snapshot?.status);
+  useEffect(() => {
+    const previous = previousStatus.current;
+    previousStatus.current = snapshot?.status;
+    if (
+      previous === 'transmitting' &&
+      (snapshot?.status === 'success' || snapshot?.status === 'error')
+    ) {
+      onDocumentsChanged?.().catch(console.error);
+    }
+  }, [onDocumentsChanged, snapshot?.status]);
   const activeSession =
     snapshot?.sessions.find(
       session => session.sessionId === snapshot.activeSessionId
@@ -162,9 +179,15 @@ export const WorkbenchConversation = ({
       .dispatch({
         type: 'setSelectedContextProject',
         projectId: selectedProjectId,
+        projectName: selectedProjectName,
       })
       .catch(console.error);
-  }, [runtime, selectedProjectId, snapshot?.activeSessionId]);
+  }, [
+    runtime,
+    selectedProjectId,
+    selectedProjectName,
+    snapshot?.activeSessionId,
+  ]);
 
   const mockStd = useMemo(
     () => createMockStd(workspace.docCollection),
@@ -350,6 +373,11 @@ export const WorkbenchConversation = ({
           />
         </div>
       </header>
+      <DocumentCreationPanel
+        key={snapshot?.activeSessionId ?? 'draft'}
+        sessionId={snapshot?.activeSessionId}
+        onChanged={onDocumentsChanged}
+      />
       <div className={styles.content} ref={setContentContainer} />
     </section>
   );

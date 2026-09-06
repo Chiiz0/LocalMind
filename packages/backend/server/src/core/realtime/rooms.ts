@@ -45,6 +45,10 @@ export function realtimeWorkspaceAccessRoom(workspaceId: string) {
   return realtimeWorkspaceRoom(workspaceId, 'access');
 }
 
+export function realtimeWorkspaceDirectoryPolicyRoom(workspaceId: string) {
+  return realtimeWorkspaceRoom(workspaceId, 'directory-policy');
+}
+
 export function realtimeWorkspaceConfigRoom(workspaceId: string) {
   return realtimeWorkspaceRoom(workspaceId, 'config');
 }

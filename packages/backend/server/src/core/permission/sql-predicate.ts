@@ -68,6 +68,7 @@ export class PermissionSqlPredicateBuilder {
     userId?: string;
     action: DocAction;
     docIdColumn?: RawDocIdColumn;
+    projectId?: string | null;
   }): PermissionSqlPredicate {
     const docRoles = this.docRolesForAction(input.action);
     const inheritedWorkspaceRoles = this.inheritedWorkspaceRolesForDocAction(
@@ -101,6 +102,11 @@ export class PermissionSqlPredicateBuilder {
         `JOIN ai_context_project_members project_member ON project_member.project_id = project_grant.project_id AND project_member.user_id = ?`,
         `WHERE project_grant.workspace_id = ? AND project_grant.doc_id = ${docIdColumn}`,
         `AND project_grant.status = 'active'`,
+        ...(input.projectId === undefined
+          ? []
+          : input.projectId === null
+            ? ['AND FALSE']
+            : ['AND project_grant.project_id = ?']),
         `AND (project_grant.level = ANY(?::text[]) OR dg.role = ANY(?::text[])))`,
         `))`,
       ].join(' '),
@@ -115,6 +121,7 @@ export class PermissionSqlPredicateBuilder {
         docRoles,
         input.userId,
         input.workspaceId,
+        ...(typeof input.projectId === 'string' ? [input.projectId] : []),
         projectGrantLevels,
         nonMemberGrantRoles,
       ],
@@ -126,6 +133,7 @@ export class PermissionSqlPredicateBuilder {
     userId?: string;
     action: DocAction;
     docIdColumn?: Prisma.Sql;
+    projectId?: string | null;
   }): Prisma.Sql {
     const docRoles = this.docRolesForAction(input.action);
     const grantRoles = docRoles.filter(role => role !== 'external');
@@ -173,6 +181,7 @@ export class PermissionSqlPredicateBuilder {
               WHERE project_grant.workspace_id = ${input.workspaceId}
                 AND project_grant.doc_id = ${docIdColumn}
                 AND project_grant.status = 'active'
+                ${input.projectId === undefined ? Prisma.empty : input.projectId === null ? Prisma.sql`AND FALSE` : Prisma.sql`AND project_grant.project_id = ${input.projectId}`}
                 AND (
                   project_grant.level = ANY(${Prisma.sql`${projectGrantLevels}::text[]`})
                   OR dg.role = ANY(${Prisma.sql`${nonMemberGrantRoles}::text[]`})

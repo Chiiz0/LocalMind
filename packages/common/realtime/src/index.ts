@@ -248,6 +248,10 @@ export interface RealtimeTopicMap {
     input: { workspaceId: string };
     event: { changed: true; reason: string };
   };
+  'workspace.directory-policy.changed': {
+    input: { workspaceId: string };
+    event: { changed: true; reason: string };
+  };
   'workspace.config.changed': {
     input: { workspaceId: string };
     event: { changed: true; reason: string };

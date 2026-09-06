@@ -1,4 +1,4 @@
-import { MenuItem, SafeArea, usePromptModal } from '@affine/component';
+import { MenuItem, SafeArea, toast, usePromptModal } from '@affine/component';
 import { usePageHelper } from '@affine/core/blocksuite/block-suite-page-list/utils';
 import { NavigationPanelTreeRoot } from '@affine/core/desktop/components/navigation-panel';
 import { CollectionService } from '@affine/core/modules/collection';
@@ -337,9 +337,21 @@ const RemoveFromFolderMenuItem = ({ relationId }: { relationId: string }) => {
     <MenuItem
       type="danger"
       prefixIcon={<RemoveFolderIcon />}
-      onClick={() =>
-        organizeService.folderTree.folderNode$(relationId).value?.delete()
-      }
+      onClick={() => {
+        (async () => {
+          try {
+            await organizeService.folderTree
+              .folderNode$(relationId)
+              .value?.delete();
+          } catch (error) {
+            toast(
+              error instanceof Error
+                ? error.message
+                : 'Directory operation failed'
+            );
+          }
+        })().catch(console.error);
+      }}
     >
       {t['com.affine.rootAppSidebar.organize.delete-from-folder']()}
     </MenuItem>
@@ -354,17 +366,24 @@ const useFolderNewDoc = (folderId: string, onCreated?: () => void) => {
   const { createPage } = usePageHelper(
     workspaceService.workspace.docCollection
   );
-  return useCallback(() => {
-    const folder = organizeService.folderTree.folderNode$(folderId).value;
-    if (!folder) return;
-    const doc = createPage();
-    folder.createLink('doc', doc.id, folder.indexAt('before'));
-    track.$.navigationPanel.folders.createDoc();
-    track.$.navigationPanel.organize.createOrganizeItem({
-      type: 'link',
-      target: 'doc',
-    });
-    onCreated?.();
+  return useCallback(async () => {
+    try {
+      const folder = organizeService.folderTree.folderNode$(folderId).value;
+      if (!folder) return;
+      const doc = createPage();
+      await folder.createLink('doc', doc.id, folder.indexAt('before'));
+      track.$.navigationPanel.folders.createDoc();
+      track.$.navigationPanel.organize.createOrganizeItem({
+        type: 'link',
+        target: 'doc',
+      });
+      onCreated?.();
+    } catch (error) {
+      toast(
+        error instanceof Error ? error.message : 'Directory operation failed'
+      );
+      return undefined;
+    }
   }, [createPage, folderId, onCreated, organizeService.folderTree]);
 };
 
@@ -390,7 +409,12 @@ const FolderRow = ({
           {
             index: 0,
             view: (
-              <MenuItem prefixIcon={<PageIcon />} onClick={handleNewDoc}>
+              <MenuItem
+                prefixIcon={<PageIcon />}
+                onClick={() => {
+                  handleNewDoc().catch(console.error);
+                }}
+              >
                 {t['com.affine.rootAppSidebar.organize.folder.new-doc']()}
               </MenuItem>
             ),
@@ -445,7 +469,9 @@ const FolderNewDocAction = ({ row }: { row: MobileNavigationRow }) => {
     >
       <AddItemPlaceholder
         label={t['com.affine.rootAppSidebar.organize.folder.new-doc']()}
-        onClick={handleCreate}
+        onClick={(...args) => {
+          handleCreate(...args).catch(console.error);
+        }}
         data-testid="new-folder-in-folder-button"
       />
     </div>
@@ -609,10 +635,17 @@ const OrganizeAction = () => {
   const [open, setOpen] = useState(false);
   const root = organizeService.folderTree.rootFolder;
   const handleCreate = useCallback(
-    (name: string) => {
-      const id = root.createFolder(name, root.indexAt('before'));
-      track.$.navigationPanel.organize.createOrganizeItem({ type: 'folder' });
-      return id;
+    async (name: string) => {
+      try {
+        const id = await root.createFolder(name, root.indexAt('before'));
+        track.$.navigationPanel.organize.createOrganizeItem({ type: 'folder' });
+        return id;
+      } catch (error) {
+        toast(
+          error instanceof Error ? error.message : 'Directory operation failed'
+        );
+        return undefined;
+      }
     },
     [root]
   );
@@ -627,7 +660,9 @@ const OrganizeAction = () => {
       <FolderRenameDialog
         open={open}
         onOpenChange={setOpen}
-        onConfirm={handleCreate}
+        onConfirm={(...args) => {
+          handleCreate(...args).catch(console.error);
+        }}
         descRenderer={FolderCreateTip}
       />
     </>

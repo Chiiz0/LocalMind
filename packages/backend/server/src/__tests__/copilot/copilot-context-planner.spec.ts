@@ -781,7 +781,7 @@ test('hybrid retrieval sends only authorized memory ids to vector and rerank', a
   ]);
 });
 
-test('automatic memory follows its owner into the active project', async t => {
+test('document-side automatic memory does not infer project authority', async t => {
   const stored: Array<Record<string, unknown>> = [];
   const service = new ContextMemoryService({
     ...grantedProjectDocuments([
@@ -812,14 +812,60 @@ test('automatic memory follows its owner into the active project', async t => {
   t.like(stored[0], {
     ownerUserId: 'user-a',
     workspaceId: 'workspace-a',
-    docId: null,
-    projectId: 'project-a',
-    scope: 'project',
+    docId: 'doc-a',
+    projectId: null,
+    scope: 'document',
   });
   t.like(stored[0].decision as Record<string, unknown>, {
     operation: 'ADD',
     factKey: 'project:codename',
   });
+});
+
+test('excluded project memory never falls back to document or workspace memory', async t => {
+  let writes = 0;
+  const service = new ContextMemoryService({
+    copilotContextMemory: {
+      applyWriterDecision: async () => {
+        writes += 1;
+        return { operation: 'ADD', memoryId: null };
+      },
+    },
+  } as unknown as Models);
+
+  for (const readableDocIds of [[], ['private-doc']]) {
+    for (const projectResolution of [
+      'selected',
+      'invalid_selection',
+    ] as const) {
+      await service.captureDurableTurn({
+        userId: 'user-a',
+        workspaceId: 'workspace-a',
+        sessionId: 'session-a',
+        turn: {
+          role: 'user',
+          content: 'Remember that the project codename is Juniper.',
+        } as never,
+        scope: {
+          userId: 'user-a',
+          workspaceId: 'workspace-a',
+          sessionId: 'session-a',
+          primaryDocId: null,
+          readableDocIds,
+          readableDocumentRefs: readableDocIds.map(docId => ({
+            workspaceId: 'workspace-a',
+            docId,
+          })),
+          candidateProjectIds: ['project-a'],
+          projectIds: [],
+          selectedProjectId:
+            projectResolution === 'selected' ? 'project-a' : null,
+          projectResolution,
+        },
+      });
+    }
+  }
+  t.is(writes, 0);
 });
 
 test('automatic memory setting disables implicit extraction but not explicit commands', async t => {
@@ -976,7 +1022,73 @@ test('automatic memory fails closed across ambiguous projects', async t => {
   t.is(stored.length, 0);
 });
 
-test('ContextScopeResolver recognizes one attached project after permission filtering', async t => {
+test('project memory excludes private attachments, invalid source config, and unreadable ungranted history', async t => {
+  const stored: unknown[] = [];
+  const sources = {
+    docIds: [] as string[],
+    hasPrivateAttachments: false,
+    valid: true,
+  };
+  const models = {
+    ...grantedProjectDocuments([
+      { workspaceId: 'workspace-a', docId: 'granted-doc' },
+    ]),
+    copilotContext: { getSessionSources: async () => sources },
+    copilotContextMemory: {
+      listProjectMembershipsForDocs: async () => [],
+      getProject: async () => ({
+        id: 'project-a',
+        status: 'active',
+        members: [{ userId: 'user-a', role: 'member' }],
+      }),
+      getPreference: async () => ({ autoMemoryEnabled: true }),
+      applyWriterDecision: async (input: unknown) => {
+        stored.push(input);
+        return { operation: 'ADD', memoryId: 'memory-1' };
+      },
+    },
+  } as unknown as Models;
+  const resolver = new ContextScopeResolver(models, {
+    filterReadableDocs: async (input: { docs: Array<{ docId: string }> }) =>
+      input.docs.filter(doc => doc.docId === 'granted-doc'),
+  } as unknown as PermissionService);
+  const resolve = () =>
+    resolver.resolve({
+      userId: 'user-a',
+      workspaceId: 'workspace-a',
+      sessionId: 'session-a',
+      selectedProjectId: 'project-a',
+    });
+  t.deepEqual((await resolve()).projectIds, ['project-a']);
+  const memory = new ContextMemoryService(models);
+  for (const state of [
+    { docIds: [], hasPrivateAttachments: true, valid: true },
+    { docIds: [], hasPrivateAttachments: false, valid: false },
+    {
+      docIds: ['private-unreadable-doc'],
+      hasPrivateAttachments: false,
+      valid: true,
+    },
+  ]) {
+    Object.assign(sources, state);
+    const scope = await resolve();
+    t.is(scope.selectedProjectId, 'project-a');
+    t.deepEqual(scope.projectIds, []);
+    await memory.captureDurableTurn({
+      userId: 'user-a',
+      workspaceId: 'workspace-a',
+      sessionId: 'session-a',
+      turn: {
+        role: 'user',
+        content: 'Remember that the private deployment region is eu-west-1.',
+      } as never,
+      scope,
+    });
+  }
+  t.deepEqual(stored, []);
+});
+
+test('ContextScopeResolver recognizes candidates without implicitly enabling project memory', async t => {
   let membershipInput: Record<string, unknown> | null = null;
   const resolver = new ContextScopeResolver(
     {
@@ -984,7 +1096,11 @@ test('ContextScopeResolver recognizes one attached project after permission filt
         { workspaceId: 'workspace-a', docId: 'doc-a' },
       ]),
       copilotContext: {
-        listSessionDocIds: async () => ['doc-a', 'doc-denied'],
+        getSessionSources: async () => ({
+          docIds: ['doc-a', 'doc-denied'],
+          hasPrivateAttachments: false,
+          valid: true,
+        }),
       },
       copilotContextMemory: {
         listProjectMembershipsForDocs: async (
@@ -1020,7 +1136,7 @@ test('ContextScopeResolver recognizes one attached project after permission filt
   });
 
   t.deepEqual(scope.readableDocIds, ['doc-a']);
-  t.deepEqual(scope.projectIds, ['project-a']);
+  t.deepEqual(scope.projectIds, []);
   t.is(scope.projectResolution, 'single');
   t.deepEqual(membershipInput, {
     userId: 'user-a',
@@ -1033,7 +1149,11 @@ test('ContextScopeResolver fails closed when attached docs span projects', async
   const resolver = new ContextScopeResolver(
     {
       copilotContext: {
-        listSessionDocIds: async () => ['doc-a', 'doc-b'],
+        getSessionSources: async () => ({
+          docIds: ['doc-a', 'doc-b'],
+          hasPrivateAttachments: false,
+          valid: true,
+        }),
       },
       copilotContextMemory: {
         listProjectMembershipsForDocs: async () => [
@@ -1071,7 +1191,11 @@ test('ContextScopeResolver fails closed when attached docs mix project and non-p
   const resolver = new ContextScopeResolver(
     {
       copilotContext: {
-        listSessionDocIds: async () => ['doc-project', 'doc-unscoped'],
+        getSessionSources: async () => ({
+          docIds: ['doc-project', 'doc-unscoped'],
+          hasPrivateAttachments: false,
+          valid: true,
+        }),
       },
       copilotContextMemory: {
         listProjectMembershipsForDocs: async () => [
@@ -1107,7 +1231,11 @@ test('ContextScopeResolver accepts only an authorized project candidate selectio
         { workspaceId: 'workspace-a', docId: 'doc-b' },
       ]),
       copilotContext: {
-        listSessionDocIds: async () => ['doc-a', 'doc-b'],
+        getSessionSources: async () => ({
+          docIds: ['doc-a', 'doc-b'],
+          hasPrivateAttachments: false,
+          valid: true,
+        }),
       },
       copilotContextMemory: {
         listProjectMembershipsForDocs: async () => [
@@ -1153,7 +1281,7 @@ test('ContextScopeResolver accepts only an authorized project candidate selectio
   });
 
   t.is(selected.projectResolution, 'selected');
-  t.deepEqual(selected.projectIds, ['project-b']);
+  t.deepEqual(selected.projectIds, []);
   t.is(selected.selectedProjectId, 'project-b');
   t.is(stale.projectResolution, 'invalid_selection');
   t.deepEqual(stale.projectIds, []);
@@ -1178,7 +1306,11 @@ test('ContextScopeResolver resolves selected project documents in each source wo
         },
       },
       copilotContext: {
-        listSessionDocIds: async () => [],
+        getSessionSources: async () => ({
+          docIds: [],
+          hasPrivateAttachments: false,
+          valid: true,
+        }),
       },
       copilotContextMemory: {
         listProjectMembershipsForDocs: async () => [],
@@ -1236,7 +1368,11 @@ test('ContextScopeResolver keeps selection but excludes project scope when one s
         { workspaceId: 'workspace-b', docId: 'doc-shared' },
       ]),
       copilotContext: {
-        listSessionDocIds: async () => [],
+        getSessionSources: async () => ({
+          docIds: [],
+          hasPrivateAttachments: false,
+          valid: true,
+        }),
       },
       copilotContextMemory: {
         listProjectMembershipsForDocs: async () => [],
@@ -1279,7 +1415,11 @@ test('ContextScopeResolver keeps an empty member project selected with no refs',
     {
       ...grantedProjectDocuments([]),
       copilotContext: {
-        listSessionDocIds: async () => [],
+        getSessionSources: async () => ({
+          docIds: [],
+          hasPrivateAttachments: false,
+          valid: true,
+        }),
       },
       copilotContextMemory: {
         listProjectMembershipsForDocs: async () => [],
@@ -1318,7 +1458,11 @@ test('ContextScopeResolver keeps an all-denied member project selected without w
         { workspaceId: 'workspace-b', docId: 'doc-b' },
       ]),
       copilotContext: {
-        listSessionDocIds: async () => [],
+        getSessionSources: async () => ({
+          docIds: [],
+          hasPrivateAttachments: false,
+          valid: true,
+        }),
       },
       copilotContextMemory: {
         listProjectMembershipsForDocs: async () => [],
@@ -1360,7 +1504,11 @@ test('ContextScopeResolver fails closed when an automatically inferred project h
         { workspaceId: 'workspace-b', docId: 'doc-denied' },
       ]),
       copilotContext: {
-        listSessionDocIds: async () => ['doc-host'],
+        getSessionSources: async () => ({
+          docIds: ['doc-host'],
+          hasPrivateAttachments: false,
+          valid: true,
+        }),
       },
       copilotContextMemory: {
         listProjectMembershipsForDocs: async () => [
@@ -1405,7 +1553,11 @@ test('ContextScopeResolver rejects selected projects for non-members', async t =
   const resolver = new ContextScopeResolver(
     {
       copilotContext: {
-        listSessionDocIds: async () => [],
+        getSessionSources: async () => ({
+          docIds: [],
+          hasPrivateAttachments: false,
+          valid: true,
+        }),
       },
       copilotContextMemory: {
         listProjectMembershipsForDocs: async () => [],

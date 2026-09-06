@@ -669,6 +669,17 @@ export class OfficeAgentCommandService {
     payload: OfficeAgentCommandPayload
   ) {
     const value = payload.kind === 'command' ? payload.command : payload.batch;
+    await this.models.copilotContext.assertDocumentSourcesShared({
+      sessionId: input.sessionId,
+      actorId: input.actorId,
+      sink: {
+        type: 'tool_write',
+        id: value.artifactId,
+        documentId: value.artifactId,
+        workspaceId: input.workspaceId,
+        phase: 'prepare',
+      },
+    });
     const preview =
       payload.kind === 'command'
         ? await this.commands.preview({
@@ -1080,11 +1091,13 @@ export class CopilotAgentRuntimeOfficeCommandAdapter {
         ? await this.commands.execute({
             workspaceId: run.workspaceId,
             actorId: run.actorId,
+            sourceSessionId: run.sessionId,
             command: payload.command,
           })
         : await this.commands.executeBatch({
             workspaceId: run.workspaceId,
             actorId: run.actorId,
+            sourceSessionId: run.sessionId,
             batch: payload.batch,
           });
     const operation =

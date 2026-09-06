@@ -87,10 +87,12 @@ export class ViewManagerBase implements ViewManager {
 
   viewChangeType(id: string, type: string): void {
     const from = this.viewGet(id)?.type;
+    if (this.readonly$.value || !from || from === type) return;
     const meta = this.dataSource.viewMetaGet(type);
     this.dataSource.viewDataUpdate(id, old => {
+      const { modeConfigs = {}, ...current } = old;
       let data = {
-        ...meta.model.defaultData(this),
+        ...(modeConfigs[type] ?? meta.model.defaultData(this)),
         id: old.id,
         name: old.name,
         mode: type,
@@ -104,7 +106,10 @@ export class ViewManagerBase implements ViewManager {
           ...convertFunction.convert(old),
         };
       }
-      return data;
+      return {
+        ...data,
+        modeConfigs: { ...modeConfigs, [from]: current },
+      };
     });
   }
 

@@ -28,6 +28,7 @@ import {
 import {
   WorkspaceAccessRealtimeProvider,
   WorkspaceConfigRealtimeProvider,
+  WorkspaceDirectoryPolicyRealtimeProvider,
   WorkspaceMembersRealtimeProvider,
 } from '../../workspaces/realtime';
 import { RealtimeRegistryCompletenessChecker } from '../completeness';
@@ -371,6 +372,12 @@ test('realtime providers expose runtime injection metadata for registry dependen
   t.true(
     Reflect.getMetadata(
       'design:paramtypes',
+      WorkspaceDirectoryPolicyRealtimeProvider
+    ).includes(RealtimeRegistry)
+  );
+  t.true(
+    Reflect.getMetadata(
+      'design:paramtypes',
       WorkspaceConfigRealtimeProvider
     ).includes(RealtimeRegistry)
   );
@@ -403,6 +410,10 @@ test('front and sync realtime gateway required handlers are registered by lightw
 
   new WorkspaceAccessRealtimeProvider(
     {} as never,
+    {} as never,
+    registry
+  ).onModuleInit();
+  new WorkspaceDirectoryPolicyRealtimeProvider(
     {} as never,
     registry
   ).onModuleInit();

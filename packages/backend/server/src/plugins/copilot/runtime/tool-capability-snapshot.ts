@@ -17,9 +17,11 @@ export type ToolCapabilitySnapshot = {
 
 const WORKSPACE_WRITE_TOOLS = new Set([
   'doc_create',
+  'doc_copy',
   'doc_update',
   'doc_update_meta',
   'project_doc_update_request',
+  'project_doc_add',
   'workspace_folder_create',
   'workspace_folder_rename',
   'workspace_folder_move',

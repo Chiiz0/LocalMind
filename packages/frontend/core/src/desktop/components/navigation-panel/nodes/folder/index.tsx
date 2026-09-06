@@ -8,6 +8,7 @@ import {
   MenuSeparator,
   MenuSub,
   notify,
+  toast,
 } from '@affine/component';
 import { usePageHelper } from '@affine/core/blocksuite/block-suite-page-list/utils';
 import { WorkspaceDialogService } from '@affine/core/modules/dialogs';
@@ -199,6 +200,8 @@ const NavigationPanelFolderNodeFolder = ({
     });
   const navigationPanelService = useService(NavigationPanelService);
   const name = useLiveData(node.name$);
+  const canDelete = useLiveData(node.canDelete$);
+  const canMutate = useLiveData(node.canMutate$);
   const enableEmojiIcon = useLiveData(
     featureFlagService.flags.enable_emoji_folder_icon.$
   );
@@ -218,17 +221,28 @@ const NavigationPanelFolderNodeFolder = ({
   const { createPage } = usePageHelper(
     workspaceService.workspace.docCollection
   );
-  const handleDelete = useCallback(() => {
-    node.delete();
-    track.$.navigationPanel.organize.deleteOrganizeItem({
-      type: 'folder',
-    });
-    notify.success({
-      title: t['com.affine.rootAppSidebar.organize.delete.notify-title']({
-        name,
-      }),
-      message: t['com.affine.rootAppSidebar.organize.delete.notify-message'](),
-    });
+  const handleDelete = useCallback(async () => {
+    try {
+      if (!(await node.delete())) {
+        toast(t['com.affine.rootAppSidebar.organize.delete.not-empty']());
+        return;
+      }
+      track.$.navigationPanel.organize.deleteOrganizeItem({
+        type: 'folder',
+      });
+      notify.success({
+        title: t['com.affine.rootAppSidebar.organize.delete.notify-title']({
+          name,
+        }),
+        message:
+          t['com.affine.rootAppSidebar.organize.delete.notify-message'](),
+      });
+    } catch (error) {
+      toast(
+        error instanceof Error ? error.message : 'Directory operation failed'
+      );
+      return undefined;
+    }
   }, [name, node, t]);
 
   const children = useLiveData(node.sortedChildren$);
@@ -252,57 +266,79 @@ const NavigationPanelFolderNodeFolder = ({
   }, [location, node.id]);
 
   const handleRename = useCallback(
-    (newName: string) => {
-      node.rename(newName);
+    async (newName: string) => {
+      try {
+        await node.rename(newName);
+      } catch (error) {
+        toast(
+          error instanceof Error ? error.message : 'Directory operation failed'
+        );
+        return undefined;
+      }
     },
     [node]
   );
 
   const handleDropOnFolder = useCallback(
-    (data: DropTargetDropEvent<AffineDNDData>) => {
-      if (data.source.data.entity?.type) {
-        track.$.navigationPanel.folders.drop({
-          type: data.source.data.entity.type,
-        });
-      }
-      if (data.treeInstruction?.type === 'make-child') {
-        if (data.source.data.entity?.type === 'folder') {
-          if (
-            node.id === data.source.data.entity.id ||
-            node.beChildOf(data.source.data.entity.id)
-          ) {
-            return;
-          }
-          node.moveHere(data.source.data.entity.id, node.indexAt('before'));
-          track.$.navigationPanel.organize.moveOrganizeItem({ type: 'folder' });
-        } else if (
-          data.source.data.entity?.type === 'collection' ||
-          data.source.data.entity?.type === 'doc' ||
-          data.source.data.entity?.type === 'tag'
-        ) {
-          if (
-            data.source.data.from?.at ===
-            'navigation-panel:organize:folder-node'
-          ) {
-            node.moveHere(data.source.data.from.nodeId, node.indexAt('before'));
-            track.$.navigationPanel.organize.moveOrganizeItem({
-              type: 'link',
-              target: data.source.data.entity?.type,
-            });
-          } else {
-            node.createLink(
-              data.source.data.entity?.type,
+    async (data: DropTargetDropEvent<AffineDNDData>) => {
+      try {
+        if (data.source.data.entity?.type) {
+          track.$.navigationPanel.folders.drop({
+            type: data.source.data.entity.type,
+          });
+        }
+        if (data.treeInstruction?.type === 'make-child') {
+          if (data.source.data.entity?.type === 'folder') {
+            if (
+              node.id === data.source.data.entity.id ||
+              node.beChildOf(data.source.data.entity.id)
+            ) {
+              return;
+            }
+            await node.moveHere(
               data.source.data.entity.id,
               node.indexAt('before')
             );
-            track.$.navigationPanel.organize.createOrganizeItem({
-              type: 'link',
-              target: data.source.data.entity?.type,
+            track.$.navigationPanel.organize.moveOrganizeItem({
+              type: 'folder',
             });
+          } else if (
+            data.source.data.entity?.type === 'collection' ||
+            data.source.data.entity?.type === 'doc' ||
+            data.source.data.entity?.type === 'tag'
+          ) {
+            if (
+              data.source.data.from?.at ===
+              'navigation-panel:organize:folder-node'
+            ) {
+              await node.moveHere(
+                data.source.data.from.nodeId,
+                node.indexAt('before')
+              );
+              track.$.navigationPanel.organize.moveOrganizeItem({
+                type: 'link',
+                target: data.source.data.entity?.type,
+              });
+            } else {
+              await node.createLink(
+                data.source.data.entity?.type,
+                data.source.data.entity.id,
+                node.indexAt('before')
+              );
+              track.$.navigationPanel.organize.createOrganizeItem({
+                type: 'link',
+                target: data.source.data.entity?.type,
+              });
+            }
           }
+        } else {
+          onDrop?.(data);
         }
-      } else {
-        onDrop?.(data);
+      } catch (error) {
+        toast(
+          error instanceof Error ? error.message : 'Directory operation failed'
+        );
+        return undefined;
       }
     },
     [node, onDrop]
@@ -339,65 +375,13 @@ const NavigationPanelFolderNodeFolder = ({
   );
 
   const handleDropOnPlaceholder = useCallback(
-    (data: DropTargetDropEvent<AffineDNDData>) => {
-      if (data.source.data.entity?.type) {
-        track.$.navigationPanel.folders.drop({
-          type: data.source.data.entity.type,
-        });
-      }
-      if (data.source.data.entity?.type === 'folder') {
-        if (
-          node.id === data.source.data.entity.id ||
-          node.beChildOf(data.source.data.entity.id)
-        ) {
-          return;
-        }
-        node.moveHere(data.source.data.entity.id, node.indexAt('before'));
-        track.$.navigationPanel.organize.moveOrganizeItem({ type: 'folder' });
-      } else if (
-        data.source.data.entity?.type === 'collection' ||
-        data.source.data.entity?.type === 'doc' ||
-        data.source.data.entity?.type === 'tag'
-      ) {
-        if (
-          data.source.data.from?.at === 'navigation-panel:organize:folder-node'
-        ) {
-          node.moveHere(data.source.data.from.nodeId, node.indexAt('before'));
-          track.$.navigationPanel.organize.moveOrganizeItem({
-            type: data.source.data.entity?.type,
-          });
-        } else {
-          node.createLink(
-            data.source.data.entity?.type,
-            data.source.data.entity.id,
-            node.indexAt('before')
-          );
-          track.$.navigationPanel.organize.createOrganizeItem({
-            type: 'link',
-            target: data.source.data.entity?.type,
+    async (data: DropTargetDropEvent<AffineDNDData>) => {
+      try {
+        if (data.source.data.entity?.type) {
+          track.$.navigationPanel.folders.drop({
+            type: data.source.data.entity.type,
           });
         }
-      }
-    },
-    [node]
-  );
-
-  const handleDropOnChildren = useCallback(
-    (data: DropTargetDropEvent<AffineDNDData>, dropAtNode?: FolderNode) => {
-      if (!dropAtNode || !dropAtNode.id) {
-        return;
-      }
-      if (data.source.data.entity?.type) {
-        track.$.navigationPanel.folders.drop({
-          type: data.source.data.entity.type,
-        });
-      }
-      if (
-        data.treeInstruction?.type === 'reorder-above' ||
-        data.treeInstruction?.type === 'reorder-below'
-      ) {
-        const at =
-          data.treeInstruction?.type === 'reorder-below' ? 'after' : 'before';
         if (data.source.data.entity?.type === 'folder') {
           if (
             node.id === data.source.data.entity.id ||
@@ -405,9 +389,9 @@ const NavigationPanelFolderNodeFolder = ({
           ) {
             return;
           }
-          node.moveHere(
+          await node.moveHere(
             data.source.data.entity.id,
-            node.indexAt(at, dropAtNode.id)
+            node.indexAt('before')
           );
           track.$.navigationPanel.organize.moveOrganizeItem({ type: 'folder' });
         } else if (
@@ -419,49 +403,127 @@ const NavigationPanelFolderNodeFolder = ({
             data.source.data.from?.at ===
             'navigation-panel:organize:folder-node'
           ) {
-            node.moveHere(
+            await node.moveHere(
               data.source.data.from.nodeId,
-              node.indexAt(at, dropAtNode.id)
+              node.indexAt('before')
             );
             track.$.navigationPanel.organize.moveOrganizeItem({
-              type: 'link',
-              target: data.source.data.entity?.type,
+              type: data.source.data.entity?.type,
             });
           } else {
-            node.createLink(
+            await node.createLink(
               data.source.data.entity?.type,
               data.source.data.entity.id,
-              node.indexAt(at, dropAtNode.id)
+              node.indexAt('before')
             );
-
             track.$.navigationPanel.organize.createOrganizeItem({
               type: 'link',
               target: data.source.data.entity?.type,
             });
           }
         }
-      } else if (data.treeInstruction?.type === 'reparent') {
-        const currentLevel = data.treeInstruction.currentLevel;
-        const desiredLevel = data.treeInstruction.desiredLevel;
-        if (currentLevel === desiredLevel + 1) {
-          onDrop?.({
-            ...data,
-            treeInstruction: {
-              type: 'reorder-below',
-              currentLevel,
-              indentPerLevel: data.treeInstruction.indentPerLevel,
-            },
-          });
+      } catch (error) {
+        toast(
+          error instanceof Error ? error.message : 'Directory operation failed'
+        );
+        return undefined;
+      }
+    },
+    [node]
+  );
+
+  const handleDropOnChildren = useCallback(
+    async (
+      data: DropTargetDropEvent<AffineDNDData>,
+      dropAtNode?: FolderNode
+    ) => {
+      try {
+        if (!dropAtNode || !dropAtNode.id) {
           return;
-        } else {
-          onDrop?.({
-            ...data,
-            treeInstruction: {
-              ...data.treeInstruction,
-              currentLevel: currentLevel - 1,
-            },
+        }
+        if (data.source.data.entity?.type) {
+          track.$.navigationPanel.folders.drop({
+            type: data.source.data.entity.type,
           });
         }
+        if (
+          data.treeInstruction?.type === 'reorder-above' ||
+          data.treeInstruction?.type === 'reorder-below'
+        ) {
+          const at =
+            data.treeInstruction?.type === 'reorder-below' ? 'after' : 'before';
+          if (data.source.data.entity?.type === 'folder') {
+            if (
+              node.id === data.source.data.entity.id ||
+              node.beChildOf(data.source.data.entity.id)
+            ) {
+              return;
+            }
+            await node.moveHere(
+              data.source.data.entity.id,
+              node.indexAt(at, dropAtNode.id)
+            );
+            track.$.navigationPanel.organize.moveOrganizeItem({
+              type: 'folder',
+            });
+          } else if (
+            data.source.data.entity?.type === 'collection' ||
+            data.source.data.entity?.type === 'doc' ||
+            data.source.data.entity?.type === 'tag'
+          ) {
+            if (
+              data.source.data.from?.at ===
+              'navigation-panel:organize:folder-node'
+            ) {
+              await node.moveHere(
+                data.source.data.from.nodeId,
+                node.indexAt(at, dropAtNode.id)
+              );
+              track.$.navigationPanel.organize.moveOrganizeItem({
+                type: 'link',
+                target: data.source.data.entity?.type,
+              });
+            } else {
+              await node.createLink(
+                data.source.data.entity?.type,
+                data.source.data.entity.id,
+                node.indexAt(at, dropAtNode.id)
+              );
+
+              track.$.navigationPanel.organize.createOrganizeItem({
+                type: 'link',
+                target: data.source.data.entity?.type,
+              });
+            }
+          }
+        } else if (data.treeInstruction?.type === 'reparent') {
+          const currentLevel = data.treeInstruction.currentLevel;
+          const desiredLevel = data.treeInstruction.desiredLevel;
+          if (currentLevel === desiredLevel + 1) {
+            onDrop?.({
+              ...data,
+              treeInstruction: {
+                type: 'reorder-below',
+                currentLevel,
+                indentPerLevel: data.treeInstruction.indentPerLevel,
+              },
+            });
+            return;
+          } else {
+            onDrop?.({
+              ...data,
+              treeInstruction: {
+                ...data.treeInstruction,
+                currentLevel: currentLevel - 1,
+              },
+            });
+          }
+        }
+      } catch (error) {
+        toast(
+          error instanceof Error ? error.message : 'Directory operation failed'
+        );
+        return undefined;
       }
     },
     [node, onDrop]
@@ -585,25 +647,39 @@ const NavigationPanelFolderNodeFolder = ({
     [node]
   );
 
-  const handleNewDoc = useCallback(() => {
-    const newDoc = createPage();
-    node.createLink('doc', newDoc.id, node.indexAt('before'));
-    track.$.navigationPanel.folders.createDoc();
-    track.$.navigationPanel.organize.createOrganizeItem({
-      type: 'link',
-      target: 'doc',
-    });
-    setCollapsed(false);
+  const handleNewDoc = useCallback(async () => {
+    try {
+      const newDoc = createPage();
+      await node.createLink('doc', newDoc.id, node.indexAt('before'));
+      track.$.navigationPanel.folders.createDoc();
+      track.$.navigationPanel.organize.createOrganizeItem({
+        type: 'link',
+        target: 'doc',
+      });
+      setCollapsed(false);
+    } catch (error) {
+      toast(
+        error instanceof Error ? error.message : 'Directory operation failed'
+      );
+      return undefined;
+    }
   }, [createPage, node, setCollapsed]);
 
-  const handleCreateSubfolder = useCallback(() => {
-    const newFolderId = node.createFolder(
-      t['com.affine.rootAppSidebar.organize.new-folders'](),
-      node.indexAt('before')
-    );
-    track.$.navigationPanel.organize.createOrganizeItem({ type: 'folder' });
-    setCollapsed(false);
-    setNewFolderId(newFolderId);
+  const handleCreateSubfolder = useCallback(async () => {
+    try {
+      const newFolderId = await node.createFolder(
+        t['com.affine.rootAppSidebar.organize.new-folders'](),
+        node.indexAt('before')
+      );
+      track.$.navigationPanel.organize.createOrganizeItem({ type: 'folder' });
+      setCollapsed(false);
+      setNewFolderId(newFolderId);
+    } catch (error) {
+      toast(
+        error instanceof Error ? error.message : 'Directory operation failed'
+      );
+      return undefined;
+    }
   }, [node, setCollapsed, t]);
 
   const handleAddToFolder = useCallback(
@@ -624,22 +700,33 @@ const NavigationPanelFolderNodeFolder = ({
           init: initialIds,
         },
         selectedIds => {
-          if (selectedIds === undefined) {
-            return;
-          }
-          const newItemIds = difference(selectedIds, initialIds);
-          const removedItemIds = difference(initialIds, selectedIds);
-          const removedItems = children.filter(
-            node =>
-              !!node.data$.value && removedItemIds.includes(node.data$.value)
-          );
+          (async () => {
+            try {
+              if (selectedIds === undefined) {
+                return;
+              }
+              const newItemIds = difference(selectedIds, initialIds);
+              const removedItemIds = difference(initialIds, selectedIds);
+              const removedItems = children.filter(
+                node =>
+                  !!node.data$.value &&
+                  removedItemIds.includes(node.data$.value)
+              );
 
-          newItemIds.forEach(id => {
-            node.createLink(type, id, node.indexAt('after'));
-          });
-          removedItems.forEach(node => node.delete());
-          const updated = newItemIds.length + removedItems.length;
-          updated && setCollapsed(false);
+              for (const id of newItemIds) {
+                await node.createLink(type, id, node.indexAt('after'));
+              }
+              for (const item of removedItems) await item.delete();
+              const updated = newItemIds.length + removedItems.length;
+              updated && setCollapsed(false);
+            } catch (error) {
+              toast(
+                error instanceof Error
+                  ? error.message
+                  : 'Directory operation failed'
+              );
+            }
+          })().catch(console.error);
         }
       );
       track.$.navigationPanel.organize.createOrganizeItem({
@@ -651,6 +738,13 @@ const NavigationPanelFolderNodeFolder = ({
   );
 
   const folderOperations = useMemo(() => {
+    if (!canMutate)
+      return [
+        {
+          index: 200,
+          view: node.id ? <FavoriteFolderOperation id={node.id} /> : null,
+        },
+      ];
     return [
       {
         index: 0,
@@ -658,7 +752,9 @@ const NavigationPanelFolderNodeFolder = ({
         view: (
           <IconButton
             size="16"
-            onClick={handleNewDoc}
+            onClick={() => {
+              handleNewDoc().catch(console.error);
+            }}
             tooltip={t[
               'com.affine.rootAppSidebar.explorer.organize-add-tooltip'
             ]()}
@@ -670,7 +766,12 @@ const NavigationPanelFolderNodeFolder = ({
       {
         index: 100,
         view: (
-          <MenuItem prefixIcon={<FolderIcon />} onClick={handleCreateSubfolder}>
+          <MenuItem
+            prefixIcon={<FolderIcon />}
+            onClick={() => {
+              handleCreateSubfolder().catch(console.error);
+            }}
+          >
             {t['com.affine.rootAppSidebar.organize.folder.create-subfolder']()}
           </MenuItem>
         ),
@@ -732,14 +833,27 @@ const NavigationPanelFolderNodeFolder = ({
           <MenuItem
             type={'danger'}
             prefixIcon={<DeleteIcon />}
-            onClick={handleDelete}
+            onClick={() => {
+              handleDelete().catch(console.error);
+            }}
+            disabled={!canDelete}
+            aria-disabled={!canDelete}
+            title={
+              !canDelete
+                ? t['com.affine.rootAppSidebar.organize.delete.not-empty']()
+                : undefined
+            }
           >
-            {t['com.affine.rootAppSidebar.organize.delete']()}
+            {canDelete
+              ? t['com.affine.rootAppSidebar.organize.delete']()
+              : t['com.affine.rootAppSidebar.organize.delete.empty-only']()}
           </MenuItem>
         ),
       },
     ];
   }, [
+    canMutate,
+    canDelete,
     handleAddToFolder,
     handleCreateSubfolder,
     handleDelete,
@@ -749,14 +863,16 @@ const NavigationPanelFolderNodeFolder = ({
   ]);
 
   const finalOperations = useMemo(() => {
+    if (!canMutate) return folderOperations;
     if (additionalOperations) {
       return [...additionalOperations, ...folderOperations];
     }
     return folderOperations;
-  }, [additionalOperations, folderOperations]);
+  }, [additionalOperations, folderOperations, canMutate]);
 
   const childrenOperations = useCallback(
     (type: string, node: FolderNode) => {
+      if (!canMutate) return [];
       if (type === 'doc' || type === 'collection' || type === 'tag') {
         return [
           {
@@ -767,7 +883,20 @@ const NavigationPanelFolderNodeFolder = ({
                 prefixIcon={<RemoveFolderIcon />}
                 data-event-props="$.navigationPanel.organize.deleteOrganizeItem"
                 data-event-args-type={node.type$.value}
-                onClick={() => node.delete()}
+                onClick={() => {
+                  (async () => {
+                    try {
+                      return await node.delete();
+                    } catch (error) {
+                      toast(
+                        error instanceof Error
+                          ? error.message
+                          : 'Directory operation failed'
+                      );
+                      return undefined;
+                    }
+                  })().catch(console.error);
+                }}
               >
                 {t['com.affine.rootAppSidebar.organize.delete-from-folder']()}
               </MenuItem>
@@ -777,7 +906,7 @@ const NavigationPanelFolderNodeFolder = ({
       }
       return [];
     },
-    [t]
+    [t, canMutate]
   );
 
   const handleCollapsedChange = useCallback(
@@ -797,29 +926,42 @@ const NavigationPanelFolderNodeFolder = ({
       icon={NavigationPanelFolderIcon}
       name={name}
       dndData={dndData}
-      onDrop={handleDropOnFolder}
+      onDrop={(...args) => {
+        handleDropOnFolder(...args).catch(console.error);
+      }}
       defaultRenaming={defaultRenaming}
-      renameable
+      renameable={canMutate}
       extractEmojiAsIcon={enableEmojiIcon}
-      reorderable={reorderable}
+      reorderable={canMutate && reorderable}
       collapsed={collapsed}
       setCollapsed={handleCollapsedChange}
-      onRename={handleRename}
+      onRename={(...args) => {
+        handleRename(...args).catch(console.error);
+      }}
       operations={finalOperations}
-      canDrop={handleCanDrop}
+      canDrop={canMutate ? handleCanDrop : () => false}
       childrenPlaceholder={
-        <FolderEmpty canDrop={handleCanDrop} onDrop={handleDropOnPlaceholder} />
+        <FolderEmpty
+          canDrop={canMutate ? handleCanDrop : () => false}
+          onDrop={(...args) => {
+            handleDropOnPlaceholder(...args).catch(console.error);
+          }}
+        />
       }
       dropEffect={handleDropEffect}
       data-testid={`navigation-panel-folder-${node.id}`}
-      explorerIconConfig={node.id ? { where: 'folder', id: node.id } : null}
+      explorerIconConfig={
+        canMutate && node.id ? { where: 'folder', id: node.id } : null
+      }
     >
       {children.map(child => (
         <NavigationPanelFolderNode
           key={child.id}
           nodeId={child.id as string}
           defaultRenaming={child.id === newFolderId}
-          onDrop={handleDropOnChildren}
+          onDrop={(data, child?: FolderNode) => {
+            handleDropOnChildren(data, child).catch(console.error);
+          }}
           operations={childrenOperations}
           dropEffect={handleDropEffectOnChildren}
           canDrop={handleChildrenCanDrop}

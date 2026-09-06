@@ -20,8 +20,8 @@ const DOC_BLOCK_CHILD_PADDING = 24;
 export class DocTitle extends WithDisposable(ShadowlessElement) {
   static override styles = css`
     .doc-title-container {
-      font-size: 40px;
-      line-height: 50px;
+      font-size: var(--affine-doc-title-font-size, 40px);
+      line-height: var(--affine-doc-title-line-height, 50px);
       font-weight: 700;
     }
     .doc-icon-container,
@@ -36,7 +36,7 @@ export class DocTitle extends WithDisposable(ShadowlessElement) {
       max-width: var(--affine-editor-width);
       margin-left: auto;
       margin-right: auto;
-      padding: 38px 0;
+      padding: var(--affine-doc-title-block-padding, 38px) 0;
 
       padding-left: var(
         --affine-editor-side-padding,

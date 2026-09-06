@@ -494,14 +494,8 @@ export class DatabaseBlockDataSource extends DataSourceBase {
     return result.column.type;
   }
 
-  propertyTypeSet(propertyId: string, toType: string): void {
-    if (this.isFixedProperty(propertyId)) {
-      return;
-    }
+  private preparePropertyConversion(propertyId: string, toType: string) {
     const meta = this.propertyMetaGet(toType);
-    if (!meta) {
-      return;
-    }
     const currentType = this.propertyTypeGet(propertyId);
     const currentData = this.propertyDataGet(propertyId);
     const rows = this.rows$.value;
@@ -511,29 +505,95 @@ export class DatabaseBlockDataSource extends DataSourceBase {
     const convertFunction = databasePropertyConverts.find(
       v => v.from === currentType && v.to === toType
     )?.convert;
-    const result = convertFunction?.(
-      currentData as any,
+    const supported =
+      !!currentType &&
+      !!meta &&
+      !this.readonly$.value &&
+      !this.isFixedProperty(propertyId) &&
+      (currentType === toType ||
+        !!convertFunction ||
+        currentCells.every(value => value == null || value.toString() === ''));
+    const result =
+      currentType === toType
+        ? { property: currentData, cells: currentCells }
+        : (convertFunction?.(
+            currentData as any,
 
-      currentCells as any
-    ) ?? {
-      property: meta.config.propertyData.default(),
-      cells: currentCells.map(() => undefined),
-    };
-    this.doc.captureSync();
-    updateProperty(this._model, propertyId, () => ({
-      type: toType,
-      data: result.property,
-    }));
-    const cells: Record<string, unknown> = {};
-    currentCells.forEach((value, i) => {
-      if (value != null || result.cells[i] != null) {
-        const rowId = rows[i];
-        if (rowId) {
-          cells[rowId] = result.cells[i];
-        }
+            currentCells as any
+          ) ?? {
+            property: meta?.config.propertyData.default() ?? {},
+            cells: currentCells.map(() => undefined),
+          });
+    const incompatible = currentCells.filter((value, index) => {
+      if (value == null || value.toString() === '' || currentType === toType)
+        return false;
+      if (
+        !supported ||
+        result.cells[index] == null ||
+        result.cells[index]?.toString() === ''
+      )
+        return true;
+      if (currentType === 'select' || currentType === 'multi-select') {
+        const options = currentData.options;
+        const known = new Set(
+          Array.isArray(options) ? options.map(option => option.id) : []
+        );
+        if ((Array.isArray(value) ? value : [value]).some(id => !known.has(id)))
+          return true;
       }
+      if (toType === 'progress') {
+        const number = Number(value.toString());
+        return !Number.isFinite(number) || number < 0 || number > 100;
+      }
+      if (
+        currentType === 'multi-select' &&
+        toType === 'select' &&
+        Array.isArray(value)
+      )
+        return value.length > 1;
+      return false;
+    }).length;
+    return {
+      total: rows.length,
+      incompatible,
+      supported,
+      rows,
+      currentCells,
+      result,
+    };
+  }
+
+  propertyTypeConversionPreview(propertyId: string, toType: string) {
+    const { total, incompatible, supported } = this.preparePropertyConversion(
+      propertyId,
+      toType
+    );
+    return { total, incompatible, supported };
+  }
+
+  propertyTypeSet(propertyId: string, toType: string): void {
+    if (this.propertyTypeGet(propertyId) === toType) return;
+    const { supported, incompatible, rows, currentCells, result } =
+      this.preparePropertyConversion(propertyId, toType);
+    if (!supported || incompatible) return;
+    this.doc.captureSync();
+    this.doc.transact(() => {
+      updateProperty(this._model, propertyId, () => ({
+        type: toType,
+        data: result.property,
+      }));
+      const cells: Record<string, unknown> = {};
+      currentCells.forEach((value, i) => {
+        if (value != null || result.cells[i] != null) {
+          const rowId = rows[i];
+          if (rowId) {
+            cells[rowId] = result.cells[i];
+          }
+        }
+      });
+      updateCells(this._model, propertyId, cells);
     });
-    updateCells(this._model, propertyId, cells);
+    this.doc.captureSync();
   }
 
   rowAdd(insertPosition: InsertToPosition | number): string {
@@ -597,7 +657,13 @@ export class DatabaseBlockDataSource extends DataSourceBase {
     id: string,
     updater: (data: ViewData) => Partial<ViewData>
   ): void {
-    updateView(this._model, id, updater);
+    const current = this.viewDataGet(id) as ViewData | undefined;
+    if (!current || this.readonly$.value) return;
+    const update = updater(current);
+    const changesMode = update.mode && update.mode !== current.mode;
+    if (changesMode) this.doc.captureSync();
+    updateView(this._model, id, () => update);
+    if (changesMode) this.doc.captureSync();
   }
 
   viewMetaGet(type: string): ViewMeta {

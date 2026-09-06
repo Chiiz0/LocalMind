@@ -21,6 +21,7 @@ export const styles = css`
     box-sizing: border-box;
     padding: 8px 4px 8px 8px;
     width: 280px;
+    max-width: calc(100vw - 16px);
     overflow-y: auto;
     font-family: ${unsafeCSS(baseTheme.fontSansFamily)};
 

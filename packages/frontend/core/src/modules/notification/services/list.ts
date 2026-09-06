@@ -28,6 +28,20 @@ export class NotificationListService extends Service {
     private readonly notificationCount: NotificationCountService
   ) {
     super();
+    const subscription = this.notificationCount.revision$.subscribe(
+      revision => {
+        if (!revision) return;
+        if (
+          this.notifications$.value.length ||
+          !this.hasMore$.value ||
+          this.isLoading$.value
+        ) {
+          this.reset();
+          this.loadMore();
+        }
+      }
+    );
+    this.disposables.push(() => subscription.unsubscribe());
   }
 
   readonly loadMore = effect(

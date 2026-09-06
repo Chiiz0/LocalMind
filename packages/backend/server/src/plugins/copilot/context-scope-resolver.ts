@@ -38,19 +38,20 @@ export class ContextScopeResolver {
     primaryDocId?: string | null;
     selectedProjectId?: string | null;
   }): Promise<ContextScopeResolution> {
-    const attachedDocIds = await this.models.copilotContext.listSessionDocIds(
+    const sources = await this.models.copilotContext.getSessionSources(
       input.sessionId
     );
     const candidateDocs = Array.from(
       new Set(
-        [input.primaryDocId, ...attachedDocIds].filter(
+        [input.primaryDocId, ...sources.docIds].filter(
           (docId): docId is string => Boolean(docId)
         )
       )
     ).map(docId => ({ workspaceId: input.workspaceId, docId }));
     const readableHostDocuments = await this.filterReadableDocumentRefs(
       input.userId,
-      candidateDocs
+      candidateDocs,
+      input.primaryDocId ? null : (input.selectedProjectId ?? null)
     );
     const readableDocIds = readableHostDocuments.map(doc => doc.docId);
     const memberships =
@@ -76,7 +77,7 @@ export class ContextScopeResolver {
       const isActiveMember =
         project?.status === 'active' &&
         project.members.some(member => member.userId === input.userId);
-      if (isActiveMember) {
+      if (isActiveMember && !input.primaryDocId) {
         const projectDocuments = this.uniqueDocumentRefs(
           await this.models.intelligenceWorkbenchAuthorization.listGrantedProjectDocuments(
             { projectId: project.id, userId: input.userId }
@@ -84,34 +85,21 @@ export class ContextScopeResolver {
         );
         selectedProjectDocuments = await this.filterReadableDocumentRefs(
           input.userId,
-          projectDocuments
+          projectDocuments,
+          project.id
         );
         selectedProjectId = project.id;
         selectedProjectScopeAuthorized =
-          selectedProjectDocuments.length === projectDocuments.length;
-      }
-    }
-    let inferredProjectScopeAuthorized = false;
-    if (!input.selectedProjectId && automaticResolution === 'single') {
-      const inferredProjectId = inferredProjectIds[0];
-      const project = inferredProjectId
-        ? await this.models.copilotContextMemory.getProject(inferredProjectId)
-        : null;
-      const isActiveMember =
-        project?.status === 'active' &&
-        project.members.some(member => member.userId === input.userId);
-      if (isActiveMember) {
-        const projectDocuments = this.uniqueDocumentRefs(
-          await this.models.intelligenceWorkbenchAuthorization.listGrantedProjectDocuments(
-            { projectId: project.id, userId: input.userId }
-          )
-        );
-        const readableProjectDocuments = await this.filterReadableDocumentRefs(
-          input.userId,
-          projectDocuments
-        );
-        inferredProjectScopeAuthorized =
-          readableProjectDocuments.length === projectDocuments.length;
+          sources.valid &&
+          !sources.hasPrivateAttachments &&
+          selectedProjectDocuments.length === projectDocuments.length &&
+          [...candidateDocs, ...(sources.documentRefs ?? [])].every(document =>
+            projectDocuments.some(
+              granted =>
+                granted.workspaceId === document.workspaceId &&
+                granted.docId === document.docId
+            )
+          );
       }
     }
     const candidateProjectIds = Array.from(
@@ -145,9 +133,7 @@ export class ContextScopeResolver {
       projectIds:
         projectResolution === 'selected' && selectedProjectScopeAuthorized
           ? [selectedProjectId as string]
-          : projectResolution === 'single' && inferredProjectScopeAuthorized
-            ? candidateProjectIds
-            : [],
+          : [],
       selectedProjectId,
       projectResolution,
     };
@@ -187,7 +173,8 @@ export class ContextScopeResolver {
 
   private async filterReadableDocumentRefs(
     userId: string,
-    documents: CopilotContextDocumentRef[]
+    documents: CopilotContextDocumentRef[],
+    projectId: string | null
   ) {
     const uniqueDocuments = this.uniqueDocumentRefs(documents);
     const documentsByWorkspace = new Map<string, CopilotContextDocumentRef[]>();
@@ -207,6 +194,7 @@ export class ContextScopeResolver {
               docId: document.docId,
             })),
             allowLocal: true,
+            projectId,
           });
           for (const document of readable) {
             readableKeys.add(this.documentRefKey(workspaceId, document.docId));

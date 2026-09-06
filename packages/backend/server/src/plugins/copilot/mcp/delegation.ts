@@ -766,6 +766,32 @@ export class McpAiDelegationService {
       })),
     });
 
+    const executionSessionId =
+      await this.models.copilotMcpDelegation.ensureExecutionSession(
+        created.record.id
+      );
+    await this.models.copilotContext.recordDocumentSources({
+      sessionId: executionSessionId,
+      actorId: credential.userId,
+      projectId: null,
+      documents: documents.map(document => ({
+        workspaceId: credential.workspaceId,
+        docId: document.docId,
+      })),
+    });
+    await this.models.copilotContext.recordInputSources({
+      sessionId: executionSessionId,
+      actorId: credential.userId,
+      projectId: null,
+      sources: [
+        {
+          workspaceId: credential.workspaceId,
+          kind: 'private',
+          sourceId: `delegated-context:${contextFingerprint}`,
+        },
+      ],
+    });
+
     const contextMessage = (content: string): PromptMessage => ({
       role: 'user',
       content,
@@ -1001,6 +1027,7 @@ export class McpAiDelegationService {
       const run = await this.models.copilotAgentRuntime.createRun({
         workspaceId: credential.workspaceId,
         actorId: credential.userId,
+        sessionId: executionSessionId,
         workflow: 'agent_runtime_record_only',
         sourceType: 'mcp_ai_delegation',
         sourceId: created.record.id,
@@ -1120,6 +1147,7 @@ export class McpAiDelegationService {
             user: credential.userId,
             workspace: credential.workspaceId,
             taskId: created.record.id,
+            session: executionSessionId,
             tools: [...LOCALMIND_DELEGATION_AI_TOOLS],
             sparkClawToolNames,
             enterpriseToolCapabilities,
@@ -1155,6 +1183,7 @@ export class McpAiDelegationService {
         workspaceId: credential.workspaceId,
         actorId: credential.userId,
         workflow: AGENT_RUNTIME_LOCALMIND_TOOL_AGENT_WORKFLOW,
+        sessionId: executionSessionId,
         sourceType: 'mcp_ai_delegation',
         sourceId: created.record.id,
         status: 'queued',
@@ -1279,6 +1308,7 @@ export class McpAiDelegationService {
     const run = await this.models.copilotAgentRuntime.createRun({
       workspaceId: credential.workspaceId,
       actorId: credential.userId,
+      sessionId: executionSessionId,
       workflow: AGENT_RUNTIME_DOC_UPDATE_WORKFLOW,
       sourceType: 'mcp_ai_delegation',
       sourceId: created.record.id,

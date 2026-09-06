@@ -7,7 +7,9 @@ import type {
   StructuredDocService,
   WhiteboardOperation,
 } from '../../../core/doc/structured';
+import type { DocWriter } from '../../../core/doc/writer';
 import type { PermissionAccess } from '../../../core/permission';
+import type { Models } from '../../../models';
 import {
   defineTool,
   DESTRUCTIVE_WRITE_TOOL,
@@ -23,6 +25,8 @@ type StructuredToolDependencies = {
   ac: PermissionAccess;
   logger: Logger;
   structured: StructuredDocService;
+  models: Models;
+  writer: DocWriter;
 };
 
 const jsonObject = z.record(z.string(), z.unknown());
@@ -173,7 +177,7 @@ export function createStructuredDocumentMcpTools(
   userId: string,
   workspaceId: string
 ) {
-  const { ac, logger, structured } = dependencies;
+  const { ac, logger, structured, models } = dependencies;
 
   const canRead = async (docId: string) =>
     await ac.user(userId).workspace(workspaceId).doc(docId).can('Doc.Read');
@@ -207,7 +211,23 @@ export function createStructuredDocumentMcpTools(
       return toolError(`Doc with id ${docId} not found.`);
     }
     try {
-      return toolResult(await operation());
+      return toolResult(
+        await dependencies.writer.withDeferredBroadcasts(() =>
+          models.copilotContext.withDocumentSourcesShared(
+            {
+              actorId: userId,
+              sink: {
+                type: 'tool_write',
+                id: docId,
+                documentId: docId,
+                workspaceId,
+                phase: 'execute',
+              },
+            },
+            operation
+          )
+        )
+      );
     } catch (error) {
       logger.warn(
         `Rejected structured document update ${workspaceId}/${docId}: ${

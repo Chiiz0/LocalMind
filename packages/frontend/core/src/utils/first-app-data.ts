@@ -47,13 +47,13 @@ export async function buildShowcaseWorkspace(
   // create default organize
   if (folderTutorialDoc) {
     const organizeService = workspace.scope.get(OrganizeService);
-    const folderId = organizeService.folderTree.rootFolder.createFolder(
+    const folderId = await organizeService.folderTree.rootFolder.createFolder(
       'First Folder',
       organizeService.folderTree.rootFolder.indexAt('after')
     );
     const firstFolderNode =
       organizeService.folderTree.folderNode$(folderId).value;
-    firstFolderNode?.createLink(
+    await firstFolderNode?.createLink(
       'doc',
       folderTutorialDoc.id,
       firstFolderNode.indexAt('after')

@@ -10,6 +10,7 @@ import {
 import {
   WorkspaceAccessRealtimeProvider,
   WorkspaceConfigRealtimeProvider,
+  WorkspaceDirectoryPolicyRealtimeProvider,
   WorkspaceMembersRealtimeProvider,
 } from './realtime';
 
@@ -18,6 +19,7 @@ import {
   providers: [
     DocGrantsService,
     WorkspaceAccessRealtimeProvider,
+    WorkspaceDirectoryPolicyRealtimeProvider,
     WorkspaceConfigRealtimeProvider,
     WorkspaceMembersRealtimeProvider,
     DocShareRealtimeProvider,

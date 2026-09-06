@@ -107,6 +107,12 @@ type TaskQueryCredential = Pick<
 >;
 
 type TaskStateMarker = {
+  locationOperation?: {
+    id: string;
+    status: string;
+    destinationRevision: number;
+    locationExpiresAt: Date;
+  } | null;
   id: string;
   status: string;
   updatedAt: Date;
@@ -123,6 +129,7 @@ type TaskStateMarker = {
 };
 
 type PublicTaskStatus =
+  | 'waiting_for_location'
   | 'planning'
   | 'waiting_approval'
   | 'queued'
@@ -160,6 +167,15 @@ function stateVersion(marker: TaskStateMarker, now = Date.now()) {
     requestId: marker.id,
     requestStatus: marker.status,
     requestUpdatedAt: marker.updatedAt.toISOString(),
+    location: marker.locationOperation
+      ? {
+          id: marker.locationOperation.id,
+          status: marker.locationOperation.status,
+          revision: marker.locationOperation.destinationRevision,
+          expiresAt: marker.locationOperation.locationExpiresAt.toISOString(),
+          expired: marker.locationOperation.locationExpiresAt.getTime() <= now,
+        }
+      : null,
     planFingerprint: marker.planFingerprint,
     approvalDecision: marker.approvalDecision,
     approvalExpired:
@@ -275,6 +291,12 @@ export class McpAiTaskQueryService {
       return { error: { code: 'task_state_invalid' } };
     }
     const marker: TaskStateMarker = {
+      locationOperation: record.locationOperationId
+        ? await this.models.copilotDocumentOperation.get({
+            actorId: record.actorId,
+            operationId: record.locationOperationId,
+          })
+        : null,
       id: record.id,
       status: record.status,
       updatedAt: record.updatedAt,
@@ -325,6 +347,21 @@ export class McpAiTaskQueryService {
         plan,
         steps: this.steps(run, plan),
         approval: this.approval(record, plan, status),
+        location:
+          status === 'waiting_for_location' && record.locationOperationId
+            ? {
+                operationId: record.locationOperationId,
+                confirmationChannel: 'authenticated_user',
+                status:
+                  marker.locationOperation &&
+                  marker.locationOperation.locationExpiresAt <= new Date()
+                    ? 'expired'
+                    : marker.locationOperation?.status,
+                revision: marker.locationOperation?.destinationRevision,
+                expiresAt:
+                  marker.locationOperation?.locationExpiresAt.toISOString(),
+              }
+            : null,
         result: this.result(record, run, status, plan),
         error: this.error(record, status),
         artifacts: this.artifacts(record, status, plan),
@@ -405,14 +442,16 @@ export class McpAiTaskQueryService {
     }
 
     const documentAccess = await Promise.all(
-      this.referencedDocumentIds(record).map(async documentId => ({
-        documentId,
-        allowed: await this.ac
-          .user(record.actorId)
-          .doc({ workspaceId: record.workspaceId, docId: documentId })
-          .allowLocal()
-          .can('Doc.Read'),
-      }))
+      this.referencedDocuments(record).map(
+        async ({ workspaceId, documentId }) => ({
+          documentId,
+          allowed: await this.ac
+            .user(record.actorId)
+            .doc({ workspaceId, docId: documentId })
+            .allowLocal()
+            .can('Doc.Read'),
+        })
+      )
     );
     const deniedDocument = documentAccess.find(item => !item.allowed);
     if (deniedDocument) {
@@ -427,30 +466,40 @@ export class McpAiTaskQueryService {
     return { record };
   }
 
-  private referencedDocumentIds(record: AiMcpDelegationRequest) {
-    const ids = new Set(record.requestedDocumentIds);
-    if (record.targetDocumentId) ids.add(record.targetDocumentId);
+  private referencedDocuments(record: AiMcpDelegationRequest) {
+    const ids = new Map<string, { workspaceId: string; documentId: string }>();
     const result = objectValue(record.result);
-    const add = (value: unknown) => {
+    const add = (value: unknown, workspaceId = record.workspaceId) => {
       const documentId = stringValue(value);
-      if (documentId && ids.size < 100) ids.add(documentId);
+      if (documentId)
+        ids.set(`${workspaceId}:${documentId}`, { workspaceId, documentId });
     };
+    record.requestedDocumentIds.forEach(id => add(id));
+    add(record.targetDocumentId);
     add(result.documentId);
     if (Array.isArray(result.toolExecutions)) {
       result.toolExecutions.slice(0, 20).forEach(value => {
         const execution = objectValue(value);
-        add(execution.documentId);
+        const workspaceId =
+          stringValue(execution.workspaceId) ?? record.workspaceId;
+        add(execution.documentId, workspaceId);
         if (Array.isArray(execution.documentIds)) {
-          execution.documentIds.slice(0, 20).forEach(add);
+          execution.documentIds
+            .slice(0, 20)
+            .forEach(id => add(id, workspaceId));
         }
       });
     }
     if (Array.isArray(result.artifacts)) {
       result.artifacts.slice(0, 20).forEach(value => {
-        add(objectValue(value).documentId);
+        const artifact = objectValue(value);
+        add(
+          artifact.documentId,
+          stringValue(artifact.workspaceId) ?? record.workspaceId
+        );
       });
     }
-    return [...ids];
+    return [...ids.values()];
   }
 
   private publicStatus(
@@ -490,6 +539,7 @@ export class McpAiTaskQueryService {
   private phase(status: PublicTaskStatus) {
     if (status === 'planning') return 'planning';
     if (status === 'waiting_approval') return 'approval';
+    if (status === 'waiting_for_location') return 'location';
     if (status === 'queued') return 'queue';
     if (status === 'running' || status === 'cancelling') return 'execution';
     return 'terminal';
@@ -613,6 +663,9 @@ export class McpAiTaskQueryService {
                 status: executionStatus,
                 argsFingerprint,
                 ...(documentId ? { documentId } : {}),
+                ...(stringValue(execution.workspaceId)
+                  ? { workspaceId: stringValue(execution.workspaceId) }
+                  : {}),
                 ...(documentIds.length ? { documentIds } : {}),
                 ...(relation && ['created', 'updated'].includes(relation)
                   ? { relation }
@@ -812,6 +865,8 @@ export class McpAiTaskQueryService {
             relation,
             reference: {
               type: 'localmind_document',
+              workspaceId:
+                stringValue(artifact.workspaceId) ?? record.workspaceId,
               documentId,
             },
             versionFingerprint,
@@ -851,7 +906,12 @@ export class McpAiTaskQueryService {
     ) {
       return [];
     }
-    return ['waiting_approval', 'queued', 'running'].includes(status)
+    return [
+      'waiting_approval',
+      'waiting_for_location',
+      'queued',
+      'running',
+    ].includes(status)
       ? ['cancel']
       : [];
   }

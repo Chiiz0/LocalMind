@@ -296,7 +296,7 @@ test('revalidates persisted Office turn context and injects fixed-layout planner
   const persistTextResult = Sinon.stub().resolves();
   const orchestrator = new TurnOrchestrator(
     conversations as never,
-    { getBySessionId: Sinon.stub().resolves(null) } as never,
+    { getOwnedBySessionId: Sinon.stub().resolves(null) } as never,
     { validateAiContext } as never,
     { selectChat } as never,
     {
@@ -390,7 +390,7 @@ test('supports the object stream transport used by Office AI Chat', async t => {
   } as const;
   const orchestrator = new TurnOrchestrator(
     conversations as never,
-    { getBySessionId: Sinon.stub().resolves(null) } as never,
+    { getOwnedBySessionId: Sinon.stub().resolves(null) } as never,
     { validateAiContext } as never,
     { selectChat } as never,
     {

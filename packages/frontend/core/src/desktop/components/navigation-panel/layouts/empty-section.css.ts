@@ -5,10 +5,11 @@ import { style } from '@vanilla-extract/css';
 export const content = style({
   position: 'relative',
   display: 'flex',
-  flexDirection: 'column',
+  flexDirection: 'row',
+  flexWrap: 'nowrap',
   alignItems: 'center',
-  gap: 4,
-  padding: '12px 0px',
+  gap: 6,
+  padding: '6px 8px',
   borderRadius: 8,
   selectors: {
     // assume that the section can be dragged over
@@ -18,13 +19,12 @@ export const content = style({
   },
 });
 export const iconWrapper = style({
-  width: 36,
-  height: 36,
+  width: 20,
+  height: 20,
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  borderRadius: '50%',
-  backgroundColor: cssVarV2('button/emptyIconBackground'),
+  flexShrink: 0,
 });
 export const icon = style({
   fontSize: 20,
@@ -32,7 +32,9 @@ export const icon = style({
 });
 export const message = style({
   fontSize: cssVar('fontSm'),
-  textAlign: 'center',
+  textAlign: 'left',
+  flex: 1,
+  minWidth: 0,
   color: cssVarV2('text/tertiary'),
   userSelect: 'none',
   fontWeight: 400,
@@ -40,8 +42,7 @@ export const message = style({
 });
 
 export const newButton = style({
-  marginTop: 8,
-  padding: '4px 8px',
-  height: '30px',
-  fontSize: cssVar('fontSm'),
+  flexShrink: 0,
+  width: 28,
+  height: 28,
 });

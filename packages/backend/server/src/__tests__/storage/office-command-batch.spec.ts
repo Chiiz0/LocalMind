@@ -67,6 +67,11 @@ function fixture(options?: {
       },
     }));
   const models = {
+    copilotContext: {
+      withDocumentSourcesShared: Sinon.stub().callsFake(
+        async (_input, execute) => await execute()
+      ),
+    },
     officeArtifact: {
       get: Sinon.stub().resolves({
         id: 'artifact-1',
@@ -137,6 +142,31 @@ test('previews an atomic batch without persistence and commits exactly one AI re
   t.is(revisionInput.operationSummary.operation, 'office.command.batch');
   t.is(revisionInput.operationSummary.commandCount, batch.commands.length);
   t.is(revisionInput.operationSummary.source, 'ai');
+});
+
+test('source rejection prevents both Office blobs and revision creation on every attempt', async t => {
+  const f = fixture();
+  const check = f.models.copilotContext
+    .withDocumentSourcesShared as Sinon.SinonStub;
+  check.rejects(new Error('unshared_source'));
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await t.throwsAsync(
+      f.service.executeBatch({
+        workspaceId: 'workspace-1',
+        actorId: 'user-1',
+        sourceSessionId: 'session-1',
+        batch,
+      }),
+      { message: 'unshared_source' }
+    );
+  }
+  t.is(check.callCount, 2);
+  t.like(check.firstCall.args[0], {
+    sessionId: 'session-1',
+    sink: { type: 'tool_write', id: 'artifact-1', workspaceId: 'workspace-1' },
+  });
+  t.false((f.storage.put as Sinon.SinonStub).called);
+  t.false(f.appendRevision.called);
 });
 
 test('does not persist partial package or state bytes when a middle batch command fails', async t => {

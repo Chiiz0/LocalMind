@@ -1,4 +1,5 @@
 import { Button, IconButton, Loading, notify, Tabs } from '@affine/component';
+import { DocumentCreationPanel } from '@affine/core/components/ai-document-creation/document-creation-panel';
 import { useQuery } from '@affine/core/components/hooks/use-query';
 import { getWorkspaceDocPath } from '@affine/core/desktop/route-paths';
 import { GraphQLService, ServerService } from '@affine/core/modules/cloud';
@@ -23,6 +24,7 @@ import type {
   WorkbenchPanelTaskAction,
   WorkbenchTask,
 } from '../../intelligence/types';
+import { useAccessRequestConfirmation } from '../../intelligence/use-access-request-confirmation';
 import { executeWorkbenchTaskAction } from '../../intelligence/workbench-task-action';
 import * as styles from './index.css';
 
@@ -172,6 +174,8 @@ export const GlobalWorkbenchTasks = () => {
 
   const titleFor = useCallback(
     (task: WorkbenchTask) => {
+      if (task.status === 'waiting_for_location')
+        return t['com.affine.localmind.documentCreation.waiting']();
       if (task.redacted) {
         return t['com.affine.localmind.tasks.authorization.redacted']();
       }
@@ -195,6 +199,8 @@ export const GlobalWorkbenchTasks = () => {
 
   const statusFor = useCallback(
     (task: WorkbenchTask) => {
+      if (task.status === 'waiting_for_location')
+        return t['com.affine.localmind.documentCreation.waiting']();
       if (task.run?.abandoned) {
         return t['com.affine.localmind.tasks.status.abandoned']();
       }
@@ -275,12 +281,29 @@ export const GlobalWorkbenchTasks = () => {
     [t]
   );
 
+  const confirmAccessRequest = useAccessRequestConfirmation();
   const runAction = useCallback(
     async (task: WorkbenchTask, action: WorkbenchPanelTaskAction) => {
       if (pending || !task.availableActions.includes(action)) return;
       setPending({ action, taskId: task.id });
       try {
-        await executeWorkbenchTaskAction(graphqlService, task, action);
+        const confirmation =
+          action === 'approve_access_request' ||
+          action === 'reject_access_request'
+            ? await confirmAccessRequest(task, action)
+            : null;
+        if (
+          (action === 'approve_access_request' ||
+            action === 'reject_access_request') &&
+          !confirmation
+        )
+          return;
+        await executeWorkbenchTaskAction(
+          graphqlService,
+          task,
+          action,
+          confirmation
+        );
         await Promise.all([mutate(), refreshDetail()]);
         notify.success({
           title: t['com.affine.localmind.tasks.action.success'](),
@@ -294,7 +317,7 @@ export const GlobalWorkbenchTasks = () => {
         setPending(null);
       }
     },
-    [graphqlService, mutate, refreshDetail, pending, t]
+    [confirmAccessRequest, graphqlService, mutate, refreshDetail, pending, t]
   );
 
   const filterLabel = (value: WorkbenchTaskFilter) =>
@@ -437,6 +460,9 @@ export const GlobalWorkbenchTasks = () => {
             ) : selectedTask ? (
               <GlobalTaskDetail
                 task={selectedTask}
+                onChanged={async () => {
+                  await Promise.all([mutate(), refreshDetail()]);
+                }}
                 pending={pending}
                 title={titleFor(selectedTask)}
                 status={statusFor(selectedTask)}
@@ -472,6 +498,7 @@ export const GlobalWorkbenchTasks = () => {
 
 const GlobalTaskDetail = ({
   task,
+  onChanged,
   pending,
   title,
   status,
@@ -481,6 +508,7 @@ const GlobalTaskDetail = ({
   onOpenArtifact,
 }: {
   task: WorkbenchTaskDetail;
+  onChanged: () => Promise<void>;
   pending: { action: WorkbenchPanelTaskAction; taskId: string } | null;
   title: string;
   status: string;
@@ -549,6 +577,14 @@ const GlobalTaskDetail = ({
           ))}
         </div>
       </header>
+
+      {task.run?.sessionId &&
+      task.run.workflow === 'agent_runtime_localmind_tool_agent' ? (
+        <DocumentCreationPanel
+          sessionId={task.run.sessionId}
+          onChanged={onChanged}
+        />
+      ) : null}
 
       {approval ? (
         <section className={styles.detailSection}>

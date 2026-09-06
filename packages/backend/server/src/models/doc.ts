@@ -122,13 +122,20 @@ export class DocModel extends BaseModel {
   }
 
   @Transactional()
-  async createUpdates(updates: Doc[]) {
+  async createUpdates(
+    updates: Doc[],
+    beforeInsert?: () => Promise<void>,
+    afterInsert?: () => Promise<void>
+  ) {
+    await beforeInsert?.();
     await this.lockContentWrites(
       updates.map(update => ({
         workspaceId: update.spaceId,
         docId: update.docId,
       }))
     );
+    // Lock waits can outlive an execution lease; validate again at the write.
+    await beforeInsert?.();
     const latestTimestamps = new Map<string, number>();
     for (const update of updates) {
       const key = `${update.spaceId}\0${update.docId}`;
@@ -160,6 +167,7 @@ export class DocModel extends BaseModel {
     const result = await this.db.update.createMany({
       data: assigned.map(r => this.docRecordToUpdate(r)),
     });
+    await afterInsert?.();
     return {
       ...result,
       timestamps: assigned.map(update => update.timestamp),
@@ -242,9 +250,11 @@ export class DocModel extends BaseModel {
    * insert or update a doc.
    */
   @Transactional()
-  async upsert(doc: Doc) {
+  async upsert(doc: Doc, beforeWrite?: () => Promise<void>) {
     const { spaceId, docId, blob, timestamp, editorId } = doc;
+    await beforeWrite?.();
     await this.lockContentWrites([{ workspaceId: spaceId, docId }]);
+    await beforeWrite?.();
     const updatedAt = new Date(timestamp);
     const size = blob.byteLength ?? blob.length;
     // CONCERNS:

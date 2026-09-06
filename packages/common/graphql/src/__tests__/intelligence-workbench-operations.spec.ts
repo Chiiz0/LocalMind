@@ -7,12 +7,17 @@ import serverSchema from '../../../../backend/server/src/schema.gql?raw';
 import {
   abandonCopilotBlockerMutation,
   confirmCopilotBlockerSuggestionMutation,
+  confirmCopilotDocumentDestinationMutation,
+  copilotDocumentDestinationFoldersQuery,
+  copilotDocumentDestinationWorkspacesQuery,
+  copilotDocumentOperationsQuery,
   copilotWorkbenchBlockersGetQuery,
   copilotWorkbenchTaskGetQuery,
   copilotWorkbenchTaskPanelGetQuery,
   copilotWorkbenchTasksGetQuery,
   createCopilotBlockerMutation,
   resolveCopilotBlockerMutation,
+  retryCopilotDocumentOperationMutation,
 } from '../graphql';
 
 const schema = buildSchema(serverSchema);
@@ -20,12 +25,17 @@ const schema = buildSchema(serverSchema);
 test.each([
   abandonCopilotBlockerMutation,
   confirmCopilotBlockerSuggestionMutation,
+  confirmCopilotDocumentDestinationMutation,
+  copilotDocumentDestinationFoldersQuery,
+  copilotDocumentDestinationWorkspacesQuery,
+  copilotDocumentOperationsQuery,
   copilotWorkbenchBlockersGetQuery,
   copilotWorkbenchTaskGetQuery,
   copilotWorkbenchTaskPanelGetQuery,
   copilotWorkbenchTasksGetQuery,
   createCopilotBlockerMutation,
   resolveCopilotBlockerMutation,
+  retryCopilotDocumentOperationMutation,
 ])(
   '$id sends a complete executable operation including its fragments',
   operation => {

@@ -1,0 +1,29 @@
+#import "./fragments/copilot-document-operation.gql"
+
+query copilotDocumentOperations($sessionId: ID!, $after: ID) {
+  currentUser {
+    copilot {
+      documentOperations(sessionId: $sessionId, after: $after) {
+        ...CopilotDocumentOperationFields
+      }
+    }
+  }
+}
+
+mutation confirmCopilotDocumentDestination($input: ConfirmCopilotDocumentDestinationInput!) {
+  confirmCopilotDocumentDestination(input: $input) {
+    ...CopilotDocumentOperationFields
+  }
+}
+
+mutation retryCopilotDocumentOperation($operationId: ID!, $expectedRevision: Int!) {
+  retryCopilotDocumentOperation(operationId: $operationId, expectedRevision: $expectedRevision) {
+    ...CopilotDocumentOperationFields
+  }
+}
+
+mutation withdrawCopilotDocumentOperation($operationId: ID!, $expectedRevision: Int!) {
+  withdrawCopilotDocumentOperation(operationId: $operationId, expectedRevision: $expectedRevision) {
+    ...CopilotDocumentOperationFields
+  }
+}

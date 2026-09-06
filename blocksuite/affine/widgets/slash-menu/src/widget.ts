@@ -10,7 +10,10 @@ import { InlineEditor } from '@blocksuite/std/inline';
 import debounce from 'lodash-es/debounce';
 
 import { AFFINE_SLASH_MENU_TRIGGER_KEY } from './consts';
-import { SlashMenuExtension } from './extensions';
+import {
+  SlashMenuDisplayOptionsIdentifier,
+  SlashMenuExtension,
+} from './extensions';
 import { SlashMenu } from './slash-menu-popover';
 import type { SlashMenuConfig, SlashMenuContext, SlashMenuItem } from './types';
 import { buildSlashMenuItems } from './utils';
@@ -48,7 +51,14 @@ const showSlashMenu = debounce(
     slashMenu.items = buildSlashMenuItems(
       typeof config.items === 'function' ? config.items(context) : config.items,
       context,
-      configItemTransform
+      item => {
+        const transformed = configItemTransform(item);
+        return (
+          context.std
+            .getOptional(SlashMenuDisplayOptionsIdentifier)
+            ?.transform(transformed) ?? transformed
+        );
+      }
     );
 
     // FIXME(Flrande): It is not a best practice,

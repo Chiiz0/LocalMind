@@ -116,7 +116,8 @@ export class DocsSearchService extends Service {
 
   search$(
     query: string,
-    prefer: IndexerPreferOptions = 'remote'
+    prefer: IndexerPreferOptions = 'remote',
+    limit = 50
   ): Observable<
     {
       docId: string;
@@ -163,7 +164,7 @@ export class DocsSearchService extends Service {
         'docId',
         {
           pagination: {
-            limit: 50,
+            limit,
             skip: 0,
           },
           hits: {
@@ -189,7 +190,7 @@ export class DocsSearchService extends Service {
 
           for (const bucket of buckets) {
             const firstMatchFlavour = bucket.hits.nodes[0]?.fields.flavour;
-            if (firstMatchFlavour === 'affine:page') {
+            if (stringField(firstMatchFlavour) === 'affine:page') {
               // is title match
               const blockContent = normalizeSearchText(
                 bucket.hits.nodes[1]?.highlights.content[0]
@@ -201,6 +202,9 @@ export class DocsSearchService extends Service {
                 ),
                 score: bucket.score,
                 blockContent,
+                blockId:
+                  stringField(bucket.hits.nodes[1]?.fields.blockId) ??
+                  undefined,
               });
             } else {
               const title =
@@ -211,10 +215,7 @@ export class DocsSearchService extends Service {
               result.push({
                 docId: bucket.key,
                 title: title,
-                blockId:
-                  typeof matchedBlockId === 'string'
-                    ? matchedBlockId
-                    : matchedBlockId[0],
+                blockId: stringField(matchedBlockId) ?? undefined,
                 score: bucket.score,
                 blockContent: normalizeSearchText(
                   bucket.hits.nodes[0]?.highlights.content[0]

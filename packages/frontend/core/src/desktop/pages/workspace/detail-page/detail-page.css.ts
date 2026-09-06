@@ -7,6 +7,8 @@ export const mainContainer = style({
   display: 'flex',
   flexDirection: 'column',
   flex: 1,
+  minWidth: 0,
+  minHeight: 0,
   overflow: 'hidden',
   borderTop: `0.5px solid transparent`,
   transition: 'border-color 0.2s',
@@ -21,6 +23,7 @@ export const mainContainer = style({
 });
 
 export const editorContainer = style({
+  minWidth: 0,
   position: 'relative',
   display: 'flex',
   flexDirection: 'column',
@@ -50,11 +53,12 @@ export const affineDocViewport = style({
 export const pageModeViewportContentBox = style({});
 globalStyle(
   `${pageModeViewportContentBox} >:first-child:has(>[data-affine-editor-container])`,
-  { display: 'table !important', minWidth: '100%' }
-);
-globalStyle(
-  `${pageModeViewportContentBox} >:first-child:has(>[data-affine-editor-container].full-screen)`,
-  { display: 'block !important', width: '100%', minWidth: '100%' }
+  {
+    display: 'block !important',
+    width: '100%',
+    maxWidth: '100%',
+    minWidth: 0,
+  }
 );
 globalStyle(
   `${pageModeViewportContentBox} >:first-child:has(>[data-editor-loading="true"]) > [data-editor-loading="true"]`,

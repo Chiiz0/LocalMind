@@ -43,6 +43,14 @@ export interface DataSource {
   propertyTypeGet$(propertyId: string): ReadonlySignal<string | undefined>;
   propertyTypeSet(propertyId: string, type: string): void;
   propertyTypeCanSet(propertyId: string): boolean;
+  propertyTypeConversionPreview?(
+    propertyId: string,
+    type: string
+  ): {
+    total: number;
+    incompatible: number;
+    supported: boolean;
+  };
 
   propertyDataGet(propertyId: string): Record<string, unknown>;
   propertyDataGet$(

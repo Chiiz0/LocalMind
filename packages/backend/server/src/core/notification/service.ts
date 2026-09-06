@@ -60,6 +60,32 @@ export class NotificationService {
     return count;
   }
 
+  async deliverPendingRefreshes() {
+    const pending = await this.models.notification.pendingRefreshes();
+    for (const row of pending) {
+      try {
+        const count = await this.countByUserId(row.userId);
+        const published = this.realtime.publish(
+          'notification.count.changed',
+          {},
+          { count, reason: 'created' },
+          { room: realtimeNotificationRoom(row.userId) }
+        );
+        if (!published) {
+          await this.models.notification.deferRefresh(row.userId, row.revision);
+          continue;
+        }
+        await this.models.notification.acknowledgeRefresh(
+          row.userId,
+          row.revision
+        );
+      } catch (error) {
+        this.logger.warn('Access notification refresh will retry', error);
+        await this.models.notification.deferRefresh(row.userId, row.revision);
+      }
+    }
+  }
+
   async createComment(input: CommentNotificationCreate, isMention?: boolean) {
     const notification = isMention
       ? await this.models.notification.createCommentMention(input)
@@ -658,16 +684,27 @@ export class NotificationService {
       }
     }
 
-    return notifications.map(n => ({
-      ...n,
-      body: {
-        ...(n.body as UnionNotificationBody),
-        // set type to body.type to improve type inference on frontend
-        type: n.type,
-        workspace: workspaceInfos.get(n.body.workspaceId),
-        createdByUser: userInfos.get(n.body.createdByUserId),
-      },
-    }));
+    return Promise.all(
+      notifications.map(async n => ({
+        ...n,
+        body: {
+          ...(n.body as UnionNotificationBody),
+          // set type to body.type to improve type inference on frontend
+          type: n.type,
+          workspace: workspaceInfos.get(n.body.workspaceId),
+          createdByUser: userInfos.get(n.body.createdByUserId),
+          ...((n.type === NotificationType.AccessRequest ||
+            n.type === NotificationType.AccessRequestResolved) &&
+          'requestId' in n.body &&
+          typeof n.body.requestId === 'string'
+            ? await this.models.intelligenceWorkbenchAuthorization.getAccessRequestNotification(
+                n.body.requestId,
+                userId
+              )
+            : {}),
+        },
+      }))
+    );
   }
 
   async countByUserId(userId: string, options?: { includeRead?: boolean }) {

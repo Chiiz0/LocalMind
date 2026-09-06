@@ -31,6 +31,14 @@ export const headerActions = style({
   gap: '4px',
 });
 
+export const accessDecision = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '12px',
+  minWidth: 0,
+  overflowWrap: 'anywhere',
+});
+
 export const scrollRoot = style({
   flex: 1,
   display: 'flex',
@@ -162,6 +170,11 @@ export const itemMain = style({
   fontSize: '14px',
   lineHeight: '22px',
 });
+
+export const accessRequestMain = style([
+  itemMain,
+  { minWidth: 0, overflowWrap: 'anywhere' },
+]);
 
 export const itemDate = style({
   color: cssVarV2('text/secondary'),

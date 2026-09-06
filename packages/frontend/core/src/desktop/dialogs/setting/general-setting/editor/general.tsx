@@ -320,22 +320,9 @@ const FontSizeSettings = () => {
     (fontSize: number[]) => {
       const size = fontSize[0];
       editorSettingService.editorSetting.set('fontSize', size);
-      // Update CSS variable immediately
-      document.documentElement.style.setProperty(
-        '--affine-font-base',
-        `${size}px`
-      );
     },
     [editorSettingService.editorSetting]
   );
-
-  // Apply current font size to CSS variable on mount
-  useEffect(() => {
-    document.documentElement.style.setProperty(
-      '--affine-font-base',
-      `${settings.fontSize}px`
-    );
-  }, [settings.fontSize]);
 
   return (
     <SettingRow

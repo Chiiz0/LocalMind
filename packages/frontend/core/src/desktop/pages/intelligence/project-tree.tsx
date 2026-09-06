@@ -6,6 +6,7 @@ import {
   Menu,
   MenuItem,
 } from '@affine/component';
+import type { Workspace } from '@affine/core/modules/workspace';
 import { useI18n } from '@affine/i18n';
 import {
   DeleteTemporarilyIcon,
@@ -17,6 +18,7 @@ import {
 } from '@blocksuite/icons/rc';
 import { Fragment, useEffect, useMemo, useState } from 'react';
 
+import { ProjectDocumentTitle } from './project-document-title';
 import * as styles from './project-tree.css';
 import {
   isWorkbenchDocumentOpenable,
@@ -25,6 +27,7 @@ import {
 } from './types';
 
 type ProjectTreeProps = {
+  workspace?: Workspace;
   projects: WorkbenchProject[];
   selectedProjectId: string | null;
   loading: boolean;
@@ -65,6 +68,7 @@ const groupDocuments = (documents: WorkbenchDocument[]) => {
 };
 
 export const ProjectTree = ({
+  workspace,
   projects,
   selectedProjectId,
   loading,
@@ -354,16 +358,23 @@ export const ProjectTree = ({
                                 }}
                               >
                                 <PageIcon />
-                                <span title={document.title ?? undefined}>
-                                  {openable
-                                    ? document.title ||
-                                      t[
-                                        'com.affine.localmind.workbench.document.untitled'
-                                      ]()
-                                    : document.title
-                                      ? `${document.title} - ${placeholderLabel}`
-                                      : placeholderLabel}
-                                </span>
+                                <ProjectDocumentTitle
+                                  document={document}
+                                  workspace={workspace}
+                                  untitled={t[
+                                    'com.affine.localmind.workbench.document.untitled'
+                                  ]()}
+                                  fallback={
+                                    openable
+                                      ? document.title ||
+                                        t[
+                                          'com.affine.localmind.workbench.document.untitled'
+                                        ]()
+                                      : document.title
+                                        ? `${document.title} - ${placeholderLabel}`
+                                        : placeholderLabel
+                                  }
+                                />
                               </button>
                               {project.canManage && document.docId ? (
                                 <IconButton

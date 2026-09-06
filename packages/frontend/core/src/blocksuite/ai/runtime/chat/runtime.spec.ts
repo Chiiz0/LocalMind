@@ -10,6 +10,7 @@ import {
   DocAIChatSessionStrategy,
   ForkAIChatSessionStrategy,
   PlaygroundAIChatSessionStrategy,
+  WorkspaceAIChatSessionStrategy,
 } from './session-strategy';
 import type { AIChatScope } from './state';
 
@@ -208,12 +209,17 @@ describe('AIChatRuntime', () => {
   });
 
   test('marks first send and retry only for an opted-in Intelligence Workbench runtime', async () => {
-    const request = createRequest();
+    const request = createRequest({
+      createSessionWithHistory: vi
+        .fn()
+        .mockResolvedValue(session({ docId: null })),
+    });
     const runtime = new AIChatRuntime({
       request,
-      scope: docScope,
-      strategy: new DocAIChatSessionStrategy(),
+      scope: { kind: 'workspace', workspaceId: 'workspace-1' },
+      strategy: new WorkspaceAIChatSessionStrategy(),
       chatSurface: 'intelligence_workbench',
+      projectId: 'project-1',
     });
     await runtime.dispatch({ type: 'initialize' });
 
@@ -231,6 +237,70 @@ describe('AIChatRuntime', () => {
         retry: true,
       })
     );
+  });
+
+  test('Intelligence without a project creates no session and sends no message', async () => {
+    const request = createRequest();
+    const runtime = new AIChatRuntime({
+      request,
+      scope: { kind: 'workspace', workspaceId: 'workspace-1' },
+      strategy: new WorkspaceAIChatSessionStrategy(),
+      chatSurface: 'intelligence_workbench',
+      projectId: null,
+    });
+    await runtime.dispatch({ type: 'initialize' });
+    await runtime.dispatch({ type: 'send', input: 'create something' });
+    expect(request.createSessionWithHistory).not.toHaveBeenCalled();
+    expect(request.executeAction).not.toHaveBeenCalled();
+    expect(runtime.getSnapshot().messages).toEqual([]);
+  });
+
+  test('Intelligence filters history and refuses opening or rebinding another project session', async () => {
+    const own = session({ docId: null, selectedContextProjectId: 'project-1' });
+    const other = session({
+      sessionId: 'other',
+      docId: null,
+      selectedContextProjectId: 'project-2',
+      messages: [
+        {
+          id: 'secret',
+          role: 'user',
+          content: 'private history',
+          attachments: ['project-2-private-attachment'],
+          streamObjects: [],
+          createdAt: new Date().toISOString(),
+        },
+      ] as never,
+    });
+    const request = createRequest({
+      getSessions: vi.fn().mockResolvedValue([other]),
+      getSession: vi.fn().mockResolvedValue(other),
+      getRecentSessions: vi.fn().mockResolvedValue([own, other]),
+    });
+    const runtime = new AIChatRuntime({
+      request,
+      scope: { kind: 'workspace', workspaceId: 'workspace-1' },
+      strategy: new WorkspaceAIChatSessionStrategy(),
+      chatSurface: 'intelligence_workbench',
+      projectId: 'project-1',
+    });
+    await runtime.dispatch({ type: 'initialize' });
+    await runtime.dispatch({ type: 'refreshHistory' });
+    await runtime.dispatch({ type: 'openSession', sessionId: 'other' });
+    await runtime.dispatch({
+      type: 'setSelectedContextProject',
+      projectId: 'project-2',
+    });
+    expect(runtime.getSnapshot().history.recent).toEqual([own]);
+    expect(runtime.getSnapshot().messages).toEqual([]);
+    expect(JSON.stringify(runtime.getSnapshot())).not.toContain(
+      'project-2-private-attachment'
+    );
+    expect(runtime.getSnapshot().activeSessionId).toBeNull();
+    expect(runtime.getSnapshot().composer.projectScope.selectedProjectId).toBe(
+      'project-1'
+    );
+    expect(request.updateSession).not.toHaveBeenCalled();
   });
 
   test('does not mark ordinary document chat requests as Workbench traffic', async () => {
@@ -414,6 +484,7 @@ describe('AIChatRuntime', () => {
     await runtime.dispatch({
       type: 'setSelectedContextProject',
       projectId: 'project-1',
+      projectName: 'One',
     });
 
     expect(updateSession).not.toHaveBeenCalled();
@@ -421,6 +492,7 @@ describe('AIChatRuntime', () => {
       expect.objectContaining({
         projectResolution: 'selected',
         selectedProjectId: 'project-1',
+        candidates: [{ id: 'project-1', name: 'One' }],
       })
     );
 

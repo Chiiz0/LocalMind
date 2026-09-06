@@ -56,7 +56,7 @@ export function createContextMcpTools(
   const copilot = { workspaceId };
 
   const ensureVisible = async (
-    kind: 'memory' | 'rule' | 'policy' | 'project',
+    kind: 'memory' | 'rule' | 'policy',
     id: string
   ): Promise<WorkspaceMcpToolResult | undefined> => {
     const rows =
@@ -64,9 +64,7 @@ export function createContextMcpTools(
         ? await resolver.contextMemories(copilot, user, undefined, true)
         : kind === 'rule'
           ? await resolver.contextRules(copilot, user, true)
-          : kind === 'policy'
-            ? await resolver.contextPolicies(copilot, user, true)
-            : await resolver.contextProjects(copilot, user, true);
+          : await resolver.contextPolicies(copilot, user, true);
     if (!rows.some(row => row.id === id)) {
       return toolError(`AI context ${kind} not found.`);
     }
@@ -414,91 +412,6 @@ export function createContextMcpTools(
         return toolResult(
           await resolver.deleteCopilotContextPolicy(user, id, workspaceId)
         );
-      },
-    }),
-    defineTool({
-      name: 'create_ai_context_project',
-      title: 'Create AI Context Project',
-      description:
-        'Create a global context project from documents the caller may share in this workspace.',
-      parser: z
-        .object({
-          name: z.string().min(1),
-          description: z.string().optional(),
-          documentIds: z.array(z.string().min(1)).max(100).default([]),
-        })
-        .strict(),
-      outputSchema: RESULT_OUTPUT_SCHEMA,
-      annotations: WRITE_TOOL,
-      execute: async input =>
-        toolResult(
-          await resolver.createCopilotContextProject(user, {
-            name: input.name,
-            description: input.description,
-            documents: [...new Set(input.documentIds)].map(
-              (docId, sortOrder) => ({ workspaceId, docId, sortOrder })
-            ),
-          })
-        ),
-    }),
-    defineTool({
-      name: 'update_ai_context_project',
-      title: 'Update AI Context Project',
-      description: 'Update a visible context project.',
-      parser: z
-        .object({
-          id: z.string().min(1),
-          name: z.string().optional(),
-          description: z.string().optional(),
-          status: z.enum(['active', 'archived']).optional(),
-          documentIds: z.array(z.string().min(1)).optional(),
-        })
-        .strict(),
-      outputSchema: RESULT_OUTPUT_SCHEMA,
-      annotations: { ...WRITE_TOOL, idempotentHint: true },
-      execute: async input => {
-        const error = await ensureVisible('project', input.id);
-        if (error) return error;
-        const { documentIds, ...projectInput } = input;
-        if (
-          projectInput.name === undefined &&
-          projectInput.description === undefined &&
-          projectInput.status === undefined &&
-          documentIds === undefined
-        ) {
-          return toolResult(
-            await resolver.contextProject(copilot, user, input.id)
-          );
-        }
-        return toolResult(
-          await resolver.updateCopilotContextProject(user, {
-            ...projectInput,
-            ...(documentIds === undefined
-              ? {}
-              : {
-                  workspaceDocuments: {
-                    workspaceId,
-                    documents: [...new Set(documentIds)].map(
-                      (docId, sortOrder) => ({ docId, sortOrder })
-                    ),
-                  },
-                }),
-          })
-        );
-      },
-    }),
-    defineTool({
-      name: 'delete_ai_context_project',
-      title: 'Delete AI Context Project',
-      description:
-        'Delete a context project that has no user memories. Archive projects with memories instead.',
-      parser: z.object({ id: z.string().min(1) }).strict(),
-      outputSchema: RESULT_OUTPUT_SCHEMA,
-      annotations: DESTRUCTIVE_WRITE_TOOL,
-      execute: async ({ id }) => {
-        const error = await ensureVisible('project', id);
-        if (error) return error;
-        return toolResult(await resolver.deleteCopilotContextProject(user, id));
       },
     }),
     defineTool({

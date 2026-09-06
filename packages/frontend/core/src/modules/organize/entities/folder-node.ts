@@ -24,6 +24,11 @@ export class FolderNode extends Entity<{
   );
   data$ = this.info$.map(info => info?.data);
   name$ = this.info$.map(info => (info?.type === 'folder' ? info.data : ''));
+  canDelete$ = LiveData.from(
+    this.id === null ? of(false) : this.store.watchFolderCanDelete(this.id),
+    false
+  );
+  canMutate$ = LiveData.from(this.store.watchCanMutate(this.id), false);
   children$ = LiveData.from<FolderNode[]>(
     // watch children if this is a folder, otherwise return empty array
     this.type$.pipe(
@@ -89,7 +94,7 @@ export class FolderNode extends Entity<{
     if (this.type$.value !== 'folder') {
       throw new Error('Cannot create folder on non-folder node');
     }
-    return this.store.createFolder(this.id, name, index);
+    return this.store.createFolderAuthorized(this.id, name, index);
   }
 
   createLink(
@@ -103,29 +108,25 @@ export class FolderNode extends Entity<{
     if (this.type$.value !== 'folder') {
       throw new Error('Cannot create link on non-folder node');
     }
-    return this.store.createLink(this.id, type, targetId, index);
+    return this.store.createLinkAuthorized(this.id, type, targetId, index);
   }
 
   delete() {
     if (this.id === null) {
       throw new Error('Cannot delete root node');
     }
-    if (this.type$.value === 'folder') {
-      this.store.removeFolder(this.id);
-    } else {
-      this.store.removeLink(this.id);
-    }
+    return this.store.removeNodeAuthorized(this.id);
   }
 
   moveHere(childId: string, index: string) {
-    return this.store.moveNode(childId, this.id, index);
+    return this.store.moveNodeAuthorized(childId, this.id, index);
   }
 
   rename(name: string) {
     if (this.id === null) {
       throw new Error('Cannot rename root node');
     }
-    this.store.renameNode(this.id, name);
+    return this.store.renameNodeAuthorized(this.id, name);
   }
 
   indexAt(at: 'before' | 'after', targetId?: string) {

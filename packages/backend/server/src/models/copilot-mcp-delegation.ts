@@ -14,6 +14,7 @@ export type McpDelegationRequestStatus =
   | 'processing'
   | 'completed'
   | 'waiting_approval'
+  | 'waiting_for_location'
   | 'unsupported_task'
   | 'credential_scope_denied'
   | 'permission_denied'
@@ -78,6 +79,361 @@ export type CreateMcpAttachmentInput = {
 
 @Injectable()
 export class CopilotMcpDelegationModel extends BaseModel {
+  listToolCalls(requestId: string) {
+    return this.db.aiMcpDelegationToolCall.findMany({
+      where: { requestId },
+      orderBy: { ordinal: 'asc' },
+    });
+  }
+
+  private async assertToolLease(input: {
+    requestId: string;
+    sessionId: string;
+    runId: string;
+    workerLeaseId: string;
+    workerAttempt: number;
+  }) {
+    const request = await this.getRequest(input.requestId);
+    const run =
+      request &&
+      (await this.models.copilotAgentRuntime.currentLeasedStandaloneRunBeforeAdapterExecution(
+        {
+          workspaceId: request.workspaceId,
+          id: input.runId,
+          workerLeaseId: input.workerLeaseId,
+          workerAttempt: input.workerAttempt,
+        }
+      ));
+    if (
+      !request ||
+      request.status !== 'processing' ||
+      request.executionSessionId !== input.sessionId ||
+      request.agentRunId !== input.runId ||
+      !run ||
+      run.sessionId !== input.sessionId ||
+      run.actorId !== request.actorId ||
+      run.sourceId !== request.id
+    )
+      throw new Error('Delegated tool execution lease is unavailable');
+    return request;
+  }
+
+  @Transactional()
+  async beginToolCall(input: {
+    requestId: string;
+    sessionId: string;
+    runId: string;
+    workerLeaseId: string;
+    workerAttempt: number;
+    callId: string;
+    toolName: string;
+    args: Record<string, unknown>;
+  }) {
+    await this.db
+      .$queryRaw`SELECT id FROM ai_mcp_delegation_requests WHERE id = ${input.requestId} FOR UPDATE`;
+    const request = await this.assertToolLease(input);
+    if (!input.callId || input.callId.length > 256)
+      throw new Error('Delegated tool call identity is missing');
+    const pendingLocation = await this.db.copilotDocumentOperation.findFirst({
+      where: {
+        sessionId: input.sessionId,
+        status: { not: 'complete' },
+        requestKey: { not: `delegated:${input.callId}` },
+      },
+    });
+    if (pendingLocation) throw new Error('waiting_for_location');
+    const calls = await this.listToolCalls(request.id);
+    const existing = calls.find(call => call.callId === input.callId);
+    if (existing) {
+      if (
+        existing.toolName !== input.toolName ||
+        mcpDelegationFingerprint(existing.args) !==
+          mcpDelegationFingerprint(input.args)
+      )
+        throw new Error('Delegated tool call identity changed');
+      if (!existing.completedAt && input.toolName !== 'doc_create')
+        throw new Error(
+          'Uncertain delegated tool execution requires manual reconciliation'
+        );
+      return existing;
+    }
+    if (calls.some(call => !call.completedAt))
+      throw new Error('Delegated tool checkpoint is incomplete');
+    if (calls.length >= 20) throw new Error('tool_execution_limit_exceeded');
+    const args = JSON.parse(
+      JSON.stringify(input.args)
+    ) as Prisma.InputJsonObject;
+    if (
+      Buffer.byteLength(JSON.stringify(args)) > 1024 * 1024 ||
+      Buffer.byteLength(JSON.stringify(calls)) +
+        Buffer.byteLength(JSON.stringify(args)) >
+        8 * 1024 * 1024
+    )
+      throw new Error('Delegated tool checkpoint budget exceeded');
+    return await this.db.aiMcpDelegationToolCall.create({
+      data: {
+        requestId: request.id,
+        callId: input.callId,
+        ordinal: calls.length,
+        toolName: input.toolName,
+        args,
+      },
+    });
+  }
+
+  @Transactional()
+  async completeToolCall(input: {
+    requestId: string;
+    sessionId: string;
+    runId: string;
+    workerLeaseId: string;
+    workerAttempt: number;
+    callId: string;
+    result: unknown;
+  }) {
+    await this.db
+      .$queryRaw`SELECT id FROM ai_mcp_delegation_requests WHERE id = ${input.requestId} FOR UPDATE`;
+    await this.assertToolLease(input);
+    const result = {
+      value: JSON.parse(JSON.stringify(input.result ?? null)),
+    } as Prisma.InputJsonObject;
+    const calls = await this.listToolCalls(input.requestId);
+    if (
+      Buffer.byteLength(JSON.stringify(result)) > 1024 * 1024 ||
+      Buffer.byteLength(JSON.stringify(calls)) +
+        Buffer.byteLength(JSON.stringify(result)) >
+        8 * 1024 * 1024
+    )
+      throw new Error('Delegated tool checkpoint budget exceeded');
+    const changed = await this.db.aiMcpDelegationToolCall.updateMany({
+      where: {
+        requestId: input.requestId,
+        callId: input.callId,
+        completedAt: null,
+      },
+      data: { result, completedAt: new Date() },
+    });
+    if (changed.count !== 1)
+      throw new Error('Delegated tool checkpoint changed');
+  }
+
+  async pendingLocation(sessionId: string) {
+    return await this.db.copilotDocumentOperation.findFirst({
+      where: { sessionId, status: { not: 'complete' } },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    });
+  }
+
+  @Transactional()
+  async ensureExecutionSession(id: string) {
+    await this.db
+      .$queryRaw`SELECT id FROM ai_mcp_delegation_requests WHERE id = ${id} FOR UPDATE`;
+    const request = await this.getRequest(id);
+    if (!request || request.status !== 'processing')
+      throw new Error('Delegated request is unavailable');
+    if (request.executionSessionId) return request.executionSessionId;
+    const sessionId = await this.models.copilotSession.createWithPrompt({
+      sessionId: randomUUID(),
+      userId: request.actorId,
+      workspaceId: request.workspaceId,
+      title: 'LocalMind delegated task',
+      prompt: {
+        name: 'LocalMind delegated task',
+        model: 'gpt-5-mini',
+        action: null,
+      },
+    });
+    await this.db.aiSessionMessage.create({
+      data: {
+        sessionId,
+        role: 'user',
+        content: request.requestText,
+        params: { delegatedTaskId: request.id },
+      },
+    });
+    if (request.requestedAttachmentIds.length)
+      await this.db.aiSessionContextSource.create({
+        data: {
+          sessionId,
+          workspaceId: request.workspaceId,
+          kind: 'private_attachment',
+          sourceId: `delegated-attachments:${id}`,
+        },
+      });
+    await this.db.aiMcpDelegationRequest.update({
+      where: { id },
+      data: { executionSessionId: sessionId },
+    });
+    return sessionId;
+  }
+
+  async recoverConfirmedLocations(limit: number) {
+    const boundedLimit = Math.min(Math.max(Math.trunc(limit) || 1, 1), 100);
+    const requests = await this.db.aiMcpDelegationRequest.findMany({
+      where: {
+        status: 'waiting_for_location',
+        locationOperation: { status: 'complete' },
+        agentRun: { status: 'waiting_for_location' },
+      },
+      orderBy: [{ updatedAt: 'asc' }, { id: 'asc' }],
+      take: boundedLimit,
+    });
+    for (const request of requests) {
+      try {
+        if (!request.locationOperationId)
+          throw new Error('Delegated location binding is missing');
+        await this.resumeAfterLocation(
+          request.locationOperationId,
+          request.actorId
+        );
+      } catch {
+        // A concurrent cancellation or unavailable request must not stop the batch.
+        this.logger.warn('Skipped a delegated location recovery conflict');
+      }
+    }
+    return requests.length;
+  }
+
+  @Transactional()
+  async resumeExecutionRequest(input: {
+    requestId: string;
+    runId: string;
+    actorId: string;
+    sessionId: string | null;
+    workspaceId: string;
+  }) {
+    await this.db
+      .$queryRaw`SELECT id FROM ai_mcp_delegation_requests WHERE id = ${input.requestId} FOR UPDATE`;
+    const request = await this.getRequest(input.requestId);
+    if (
+      !request ||
+      request.agentRunId !== input.runId ||
+      request.actorId !== input.actorId ||
+      request.workspaceId !== input.workspaceId ||
+      request.executionSessionId !== input.sessionId ||
+      !['processing', 'failed', 'cancelled'].includes(request.status) ||
+      request.approvalDecision === 'rejected'
+    )
+      throw new Error('Agent runtime delegated request cannot be resumed');
+    const credential =
+      await this.models.mcpCredential.findUsableFamilyCredential(
+        request.credentialFamilyId,
+        request.actorId,
+        request.workspaceId
+      );
+    if (!credential)
+      throw new Error('Agent runtime delegated credential is unavailable');
+    if (input.sessionId) {
+      const session = await this.models.copilotSession.getMeta(input.sessionId);
+      const withdrawn = await this.db.copilotDocumentOperation.findFirst({
+        where: { sessionId: input.sessionId, status: 'cancelled' },
+        select: { id: true },
+      });
+      if (
+        !session ||
+        session.userId !== input.actorId ||
+        session.workspaceId !== input.workspaceId ||
+        withdrawn
+      )
+        throw new Error(
+          'Agent runtime delegated conversation cannot be resumed'
+        );
+    }
+    const changed = await this.db.aiMcpDelegationRequest.updateMany({
+      where: {
+        id: request.id,
+        status: request.status,
+        updatedAt: request.updatedAt,
+      },
+      data: {
+        status: 'processing',
+        result: {
+          kind: 'tool_agent',
+          execution: 'queued',
+          agentRunId: input.runId,
+        },
+      },
+    });
+    if (changed.count !== 1)
+      throw new Error('Agent runtime delegated request changed while resuming');
+  }
+
+  @Transactional()
+  async waitForLocation(input: {
+    id: string;
+    runId: string;
+    workerLeaseId: string;
+    workerAttempt: number;
+    operationId: string;
+  }) {
+    const request = await this.getRequest(input.id);
+    if (
+      !request ||
+      request.status !== 'processing' ||
+      request.agentRunId !== input.runId
+    )
+      throw new Error('Delegated request changed before location wait');
+    const run = await this.models.copilotAgentRuntime.waitForDocumentLocation({
+      workspaceId: request.workspaceId,
+      id: input.runId,
+      workerLeaseId: input.workerLeaseId,
+      workerAttempt: input.workerAttempt,
+      operationId: input.operationId,
+    });
+    const changed = await this.db.aiMcpDelegationRequest.updateMany({
+      where: { id: request.id, status: 'processing', agentRunId: input.runId },
+      data: {
+        status: 'waiting_for_location',
+        locationOperationId: input.operationId,
+        result: {
+          kind: 'tool_agent',
+          execution: 'waiting_for_location',
+          operationId: input.operationId,
+          agentRunId: input.runId,
+        },
+      },
+    });
+    if (changed.count !== 1)
+      throw new Error('Delegated request changed before location wait');
+    return run;
+  }
+
+  @Transactional()
+  async resumeAfterLocation(operationId: string, actorId: string) {
+    const request = await this.db.aiMcpDelegationRequest.findUnique({
+      where: { locationOperationId: operationId },
+    });
+    if (!request) return null;
+    if (request.actorId !== actorId || !request.agentRunId)
+      throw new Error('Delegated operation is unavailable');
+    if (request.status !== 'waiting_for_location') return null;
+    const run =
+      await this.models.copilotAgentRuntime.resumeAfterDocumentLocation({
+        workspaceId: request.workspaceId,
+        id: request.agentRunId,
+        actorId,
+        operationId,
+      });
+    const changed = await this.db.aiMcpDelegationRequest.updateMany({
+      where: {
+        id: request.id,
+        status: 'waiting_for_location',
+        locationOperationId: operationId,
+      },
+      data: {
+        status: 'processing',
+        result: {
+          kind: 'tool_agent',
+          execution: 'queued',
+          agentRunId: request.agentRunId,
+        },
+      },
+    });
+    if (changed.count !== 1)
+      throw new Error('Delegated request changed while resuming');
+    return run;
+  }
+
   async createOrReuseAttachment(input: CreateMcpAttachmentInput) {
     const findExisting = () =>
       this.db.aiMcpAttachment.findUnique({
@@ -217,6 +573,12 @@ export class CopilotMcpDelegationModel extends BaseModel {
     return this.db.aiMcpDelegationRequest.findUnique({ where: { id } });
   }
 
+  getRequestByExecutionSession(executionSessionId: string) {
+    return this.db.aiMcpDelegationRequest.findUnique({
+      where: { executionSessionId },
+    });
+  }
+
   getRequestForCredentialFamily(input: {
     id: string;
     workspaceId: string;
@@ -254,6 +616,14 @@ export class CopilotMcpDelegationModel extends BaseModel {
         approvalDecision: true,
         approvalExpiresAt: true,
         approvalResolvedAt: true,
+        locationOperation: {
+          select: {
+            id: true,
+            status: true,
+            destinationRevision: true,
+            locationExpiresAt: true,
+          },
+        },
         agentRun: {
           select: {
             id: true,
@@ -536,6 +906,7 @@ export class CopilotMcpDelegationModel extends BaseModel {
     });
   }
 
+  @Transactional()
   async finalizeCancellation(input: {
     id: string;
     workspaceId: string;
@@ -556,7 +927,9 @@ export class CopilotMcpDelegationModel extends BaseModel {
         workspaceId: input.workspaceId,
         actorId: input.actorId,
         agentRunId: input.agentRunId,
-        status: { in: ['waiting_approval', 'processing'] },
+        status: {
+          in: ['waiting_approval', 'waiting_for_location', 'processing'],
+        },
       },
       data: {
         status: 'cancelled',
@@ -573,6 +946,20 @@ export class CopilotMcpDelegationModel extends BaseModel {
     ) {
       return null;
     }
+    if (record.executionSessionId)
+      await this.db.copilotDocumentOperation.updateMany({
+        where: {
+          sessionId: record.executionSessionId,
+          actorId: record.actorId,
+          status: { notIn: ['complete', 'cancelled'] },
+        },
+        data: {
+          status: 'cancelled',
+          failureCode: 'task_cancelled',
+          leaseToken: null,
+          leaseExpiresAt: null,
+        },
+      });
     return record;
   }
 

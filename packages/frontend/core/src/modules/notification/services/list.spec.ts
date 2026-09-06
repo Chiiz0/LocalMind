@@ -44,6 +44,7 @@ function createService(notifications: Notification[] = []) {
     dismissReadNotifications: vi.fn(async () => true),
   };
   const count = {
+    revision$: new LiveData(0),
     count$: new LiveData(1),
     setCount: vi.fn((value: number) => count.count$.setValue(value)),
   };
@@ -65,6 +66,24 @@ function createService(notifications: Notification[] = []) {
 }
 
 describe('NotificationListService', () => {
+  test('realtime revisions refresh status even when the unread count is unchanged', async () => {
+    const { service, store, count } = createService([makeNotification('one')]);
+    service.loadMore();
+    await vi.waitFor(() =>
+      expect(service.notifications$.value).toHaveLength(1)
+    );
+    count.revision$.setValue(1);
+    await vi.waitFor(() =>
+      expect(store.listNotification).toHaveBeenCalledTimes(2)
+    );
+    expect(store.listNotification.mock.calls[1][0]).toEqual({
+      first: 8,
+      after: undefined,
+    });
+    await vi.waitFor(() =>
+      expect(service.notifications$.value).toHaveLength(1)
+    );
+  });
   test('loads unread and all modes with distinct query variables', async () => {
     const { service, store } = createService([makeNotification('one')]);
 

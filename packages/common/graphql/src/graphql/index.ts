@@ -53,6 +53,24 @@ export const copilotChatHistoryFragment = `fragment CopilotChatHistory on Copilo
   createdAt
   updatedAt
 }`;
+export const copilotDocumentOperationFieldsFragment = `fragment CopilotDocumentOperationFields on CopilotDocumentOperationType {
+  id
+  kind
+  sourceWorkspaceId
+  sourceDocumentId
+  title
+  status
+  projectStatus
+  documentId
+  destinationWorkspaceId
+  destinationFolderId
+  destinationRevision
+  locationExpiresAt
+  createdDocumentAt
+  placedDocumentAt
+  failureCode
+  accessRequestId
+}`;
 export const copilotWorkbenchTaskItemFieldsFragment = `fragment CopilotWorkbenchTaskItemFields on CopilotWorkbenchTaskItemType {
   id
   entityId
@@ -82,6 +100,7 @@ export const copilotWorkbenchTaskItemFieldsFragment = `fragment CopilotWorkbench
   }
   run {
     id
+    sessionId
     workspaceId
     projectId
     title
@@ -2894,6 +2913,93 @@ export const requestCopilotDocumentAccessMutation = {
     updatedAt
   }
 }`,
+};
+
+export const copilotDocumentDestinationWorkspacesQuery = {
+  id: 'copilotDocumentDestinationWorkspacesQuery' as const,
+  op: 'copilotDocumentDestinationWorkspaces',
+  query: `query copilotDocumentDestinationWorkspaces {
+  currentUser {
+    copilot {
+      documentDestinationWorkspaces {
+        id
+        name
+      }
+    }
+  }
+}`,
+};
+
+export const copilotDocumentDestinationFoldersQuery = {
+  id: 'copilotDocumentDestinationFoldersQuery' as const,
+  op: 'copilotDocumentDestinationFolders',
+  query: `query copilotDocumentDestinationFolders($workspaceId: ID!, $after: String) {
+  currentUser {
+    copilot {
+      documentDestinationFolders(workspaceId: $workspaceId, after: $after) {
+        items {
+          id
+          name
+        }
+        nextCursor
+      }
+    }
+  }
+}`,
+};
+
+export const copilotDocumentOperationsQuery = {
+  id: 'copilotDocumentOperationsQuery' as const,
+  op: 'copilotDocumentOperations',
+  query: `query copilotDocumentOperations($sessionId: ID!, $after: ID) {
+  currentUser {
+    copilot {
+      documentOperations(sessionId: $sessionId, after: $after) {
+        ...CopilotDocumentOperationFields
+      }
+    }
+  }
+}
+${copilotDocumentOperationFieldsFragment}`,
+};
+
+export const confirmCopilotDocumentDestinationMutation = {
+  id: 'confirmCopilotDocumentDestinationMutation' as const,
+  op: 'confirmCopilotDocumentDestination',
+  query: `mutation confirmCopilotDocumentDestination($input: ConfirmCopilotDocumentDestinationInput!) {
+  confirmCopilotDocumentDestination(input: $input) {
+    ...CopilotDocumentOperationFields
+  }
+}
+${copilotDocumentOperationFieldsFragment}`,
+};
+
+export const retryCopilotDocumentOperationMutation = {
+  id: 'retryCopilotDocumentOperationMutation' as const,
+  op: 'retryCopilotDocumentOperation',
+  query: `mutation retryCopilotDocumentOperation($operationId: ID!, $expectedRevision: Int!) {
+  retryCopilotDocumentOperation(
+    operationId: $operationId
+    expectedRevision: $expectedRevision
+  ) {
+    ...CopilotDocumentOperationFields
+  }
+}
+${copilotDocumentOperationFieldsFragment}`,
+};
+
+export const withdrawCopilotDocumentOperationMutation = {
+  id: 'withdrawCopilotDocumentOperationMutation' as const,
+  op: 'withdrawCopilotDocumentOperation',
+  query: `mutation withdrawCopilotDocumentOperation($operationId: ID!, $expectedRevision: Int!) {
+  withdrawCopilotDocumentOperation(
+    operationId: $operationId
+    expectedRevision: $expectedRevision
+  ) {
+    ...CopilotDocumentOperationFields
+  }
+}
+${copilotDocumentOperationFieldsFragment}`,
 };
 
 export const getCopilotHistoryIdsQuery = {
@@ -10101,6 +10207,135 @@ export const workspaceByokSettingsQuery = {
       date
       featureKind
       totalTokens
+    }
+  }
+}`,
+};
+
+export const workspaceDirectoryQuery = {
+  id: 'workspaceDirectoryQuery' as const,
+  op: 'workspaceDirectory',
+  query: `query workspaceDirectory($workspaceId: ID!, $after: String) {
+  workspaceDirectory(workspaceId: $workspaceId, after: $after) {
+    revision
+    authorizationRevision
+    fullSyncAllowed
+    nextCursor
+    rootRights {
+      canRead
+      canWrite
+      canOrganize
+      canCreateFolder
+    }
+    items {
+      id
+      parentId
+      type
+      data
+      index
+      rights {
+        canRead
+        canWrite
+        canOrganize
+        canCreateFolder
+      }
+    }
+  }
+}`,
+};
+
+export const mutateWorkspaceDirectoryMutation = {
+  id: 'mutateWorkspaceDirectoryMutation' as const,
+  op: 'mutateWorkspaceDirectory',
+  query: `mutation mutateWorkspaceDirectory($workspaceId: ID!, $expectedRevision: String!, $changes: [WorkspaceDirectoryChangeInput!]!) {
+  mutateWorkspaceDirectory(
+    workspaceId: $workspaceId
+    expectedRevision: $expectedRevision
+    changes: $changes
+  ) {
+    revision
+  }
+}`,
+};
+
+export const workspaceDirectoryAdministrationQuery = {
+  id: 'workspaceDirectoryAdministrationQuery' as const,
+  op: 'workspaceDirectoryAdministration',
+  query: `query workspaceDirectoryAdministration($workspaceId: ID!, $auditAfter: String) {
+  workspaceDirectoryAdministration(
+    workspaceId: $workspaceId
+    auditAfter: $auditAfter
+  ) {
+    revision
+    directories {
+      id
+      parentId
+      name
+    }
+    principals {
+      id
+      name
+      email
+      allMembers
+    }
+    policies {
+      directoryId
+      principalId
+      updatedAt
+      rights {
+        canRead
+        canWrite
+        canOrganize
+        canCreateFolder
+      }
+    }
+    auditEvents {
+      id
+      actorId
+      directoryId
+      principalId
+      action
+      createdAt
+      before {
+        canRead
+        canWrite
+        canOrganize
+        canCreateFolder
+      }
+      after {
+        canRead
+        canWrite
+        canOrganize
+        canCreateFolder
+      }
+    }
+    auditNextCursor
+  }
+}`,
+};
+
+export const changeWorkspaceDirectoryPolicyMutation = {
+  id: 'changeWorkspaceDirectoryPolicyMutation' as const,
+  op: 'changeWorkspaceDirectoryPolicy',
+  query: `mutation changeWorkspaceDirectoryPolicy($workspaceId: ID!, $expectedRevision: String!, $directoryId: ID!, $principalId: ID!, $rights: WorkspaceDirectoryRightsInput) {
+  changeWorkspaceDirectoryPolicy(
+    workspaceId: $workspaceId
+    expectedRevision: $expectedRevision
+    directoryId: $directoryId
+    principalId: $principalId
+    rights: $rights
+  ) {
+    revision
+    policy {
+      directoryId
+      principalId
+      updatedAt
+      rights {
+        canRead
+        canWrite
+        canOrganize
+        canCreateFolder
+      }
     }
   }
 }`,

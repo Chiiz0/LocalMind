@@ -435,6 +435,19 @@ export class CopilotAgentRuntimeDocUpdateAdapter {
     let canUpdate = false;
     let missingPermission = 'Doc.Update';
     if (projectId) {
+      if (!run.sessionId)
+        throw new Error('Project source validation requires its session');
+      await this.models.copilotContext.assertProjectSourcesShared({
+        actorId: run.actorId,
+        sessionId: run.sessionId,
+        projectId,
+        sink: {
+          type: 'document_update',
+          id: request.docId,
+          workspaceId: request.workspaceId,
+          phase: workerAttempt > 1 ? 'retry' : 'execute',
+        },
+      });
       const decision = evaluateIntelligenceWorkbenchOperation({
         grantLevel:
           projectAccess?.grantStatus === 'active'
@@ -476,6 +489,30 @@ export class CopilotAgentRuntimeDocUpdateAdapter {
         );
       }
       throw new Error(message);
+    }
+
+    if (!projectId) {
+      try {
+        await this.models.copilotContext.assertDocumentSourcesShared({
+          actorId: run.actorId,
+          sessionId: run.sessionId,
+          sink: {
+            type: 'document_update',
+            id: request.docId,
+            documentId: request.docId,
+            workspaceId: request.workspaceId,
+            phase: workerAttempt > 1 ? 'retry' : 'execute',
+          },
+        });
+      } catch (error) {
+        if (delegation)
+          throw new AgentRuntimeDocUpdateDelegationFailure(
+            'Delegated document sources are not authorized for its readers',
+            'permission_denied',
+            { code: 'unshared_source', documentId: request.docId }
+          );
+        throw error;
+      }
     }
 
     if (await checkCancellationRequested()) {

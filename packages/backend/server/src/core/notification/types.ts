@@ -133,10 +133,41 @@ export class InvitationReviewApprovedNotificationBodyType
 @ObjectType()
 export class InvitationReviewDeclinedNotificationBodyType extends BaseNotificationBodyType {}
 
+@ObjectType()
+export class AccessRequestNotificationBodyType extends BaseNotificationBodyType {
+  @Field(() => ID)
+  requestId!: string;
+
+  @Field(() => String)
+  status!: string;
+
+  @Field(() => Boolean)
+  canDecide!: boolean;
+
+  @Field(() => String, { nullable: true })
+  docId?: string | null;
+
+  @Field(() => String, { nullable: true })
+  docTitle?: string | null;
+
+  @Field(() => ID, { nullable: true })
+  projectId?: string | null;
+
+  @Field(() => String, { nullable: true })
+  projectName?: string | null;
+
+  @Field(() => String, { nullable: true })
+  requestedLevel?: string | null;
+
+  @Field(() => String, { nullable: true })
+  resolutionReason?: string | null;
+}
+
 export const UnionNotificationBodyType = createUnionType({
   name: 'UnionNotificationBodyType',
   types: () =>
     [
+      AccessRequestNotificationBodyType,
       MentionNotificationBodyType,
       InvitationNotificationBodyType,
       InvitationAcceptedNotificationBodyType,

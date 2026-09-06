@@ -1,4 +1,4 @@
-import type { Command } from '@blocksuite/std';
+import { BlockSelection, type Command } from '@blocksuite/std';
 import { type BlockModel, Slice } from '@blocksuite/store';
 
 import { draftSelectedModelsCommand } from './draft-selected-models';
@@ -16,11 +16,15 @@ export const duplicateSelectedModelsCommand: Command<{
 }> = (ctx, next) => {
   const { std, selectedModels } = ctx;
   let { parentModel, index } = ctx;
-  if (!selectedModels) return;
+  if (!selectedModels?.length || std.store.readonly) return;
+  const subtree = new Map(selectedModels.map(model => [model.id, model]));
+  for (const model of subtree.values()) {
+    for (const child of model.children) subtree.set(child.id, child);
+  }
 
   const [_, { draftedModels }] = ctx.std.command.exec(
     draftSelectedModelsCommand,
-    { selectedModels }
+    { selectedModels: Array.from(subtree.values()) }
   );
   if (!draftedModels) return;
 
@@ -41,6 +45,15 @@ export const duplicateSelectedModelsCommand: Command<{
 
   draftedModels
     .then(models => {
+      if (std.store.readonly || !std.store.getModelById(parentModel.id)) return;
+      // Duplication always copies whole blocks. Text selections are paste merge targets.
+      std.selection.setGroup(
+        'note',
+        models.map(model =>
+          std.selection.create(BlockSelection, { blockId: model.id })
+        )
+      );
+      std.store.captureSync();
       const slice = Slice.fromModels(std.store, models);
       return std.clipboard.duplicateSlice(
         slice,
@@ -49,6 +62,7 @@ export const duplicateSelectedModelsCommand: Command<{
         index
       );
     })
+    .then(() => std.store.captureSync())
     .catch(console.error);
 
   return next();

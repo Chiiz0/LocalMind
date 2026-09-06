@@ -7,6 +7,7 @@ import { NotificationService } from './service';
 
 declare global {
   interface Jobs {
+    'notification.refreshAccessRequests': {};
     'nightly.cleanExpiredNotifications': {};
     'notification.sendInvitation': {
       inviterId: string;
@@ -44,6 +45,24 @@ export class NotificationJob {
     private readonly service: NotificationService,
     private readonly queue: JobQueue
   ) {}
+
+  @Cron(CronExpression.EVERY_5_SECONDS)
+  async scheduleAccessRequestRefresh() {
+    await this.queue.add(
+      'notification.refreshAccessRequests',
+      {},
+      {
+        jobId: 'notification-access-request-refresh',
+      }
+    );
+  }
+
+  @OnJob('notification.refreshAccessRequests')
+  async refreshAccessRequests() {
+    await this.models.intelligenceWorkbenchAuthorization.expireDueAccessRequests();
+    await this.models.notification.reconcileAccessRequestRecipients();
+    await this.service.deliverPendingRefreshes();
+  }
 
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
   async nightlyJob() {

@@ -40,6 +40,7 @@ import {
   DocStorageAdapter,
   PgUserspaceDocStorageAdapter,
   PgWorkspaceDocStorageAdapter,
+  WorkspaceOrganizationService,
 } from '../doc';
 import { applyUpdatesWithNative } from '../doc/merge-updates';
 import {
@@ -245,7 +246,8 @@ export class SpaceSyncGateway
     private readonly workspace: PgWorkspaceDocStorageAdapter,
     private readonly userspace: PgUserspaceDocStorageAdapter,
     private readonly docReader: DocReader,
-    private readonly models: Models
+    private readonly models: Models,
+    private readonly organization: WorkspaceOrganizationService
   ) {}
 
   onModuleInit() {
@@ -325,7 +327,7 @@ export class SpaceSyncGateway
     }
   }
 
-  private broadcastDocUpdate(
+  private async broadcastDocUpdate(
     client: Socket,
     adapter: SyncSocketAdapter,
     spaceType: SpaceType,
@@ -335,6 +337,20 @@ export class SpaceSyncGateway
     timestamp: number,
     editor: string
   ) {
+    if (
+      spaceType === SpaceType.Workspace &&
+      docId === `db$${spaceId}$folders`
+    ) {
+      await this.broadcastDirectoryUpdate({
+        spaceId,
+        docId,
+        updates: [Buffer.from(update, 'base64')],
+        timestamp,
+        editor,
+        excludeSocketId: client.id,
+      });
+      return;
+    }
     const payload = this.buildBroadcastPayload(
       spaceType,
       spaceId,
@@ -362,6 +378,68 @@ export class SpaceSyncGateway
         timestamp,
         editor,
       } satisfies BroadcastDocUpdateMessage);
+  }
+
+  private async broadcastDirectoryUpdate(input: {
+    spaceId: string;
+    docId: string;
+    updates: Uint8Array[];
+    timestamp: number;
+    editor?: string | null;
+    excludeSocketId?: string;
+  }) {
+    const rooms = [
+      `${SpaceType.Workspace}:${Room(input.spaceId, 'sync-025')}`,
+      `${SpaceType.Workspace}:${Room(input.spaceId, 'sync-026')}`,
+    ];
+    await this.models.workspaceDirectoryGrant.withMutationLock(
+      input.spaceId,
+      async () => {
+        const sockets = await this.server.in(rooms).fetchSockets();
+        const access = new Map<string, boolean>();
+        const payload = this.buildBroadcastPayload(
+          SpaceType.Workspace,
+          input.spaceId,
+          input.docId,
+          input.updates,
+          input.timestamp,
+          input.editor ?? undefined
+        );
+        for (const socket of sockets) {
+          if (socket.id === input.excludeSocketId) continue;
+          const actorId = this.resolvePresenceUserId(socket);
+          if (!actorId) continue;
+          let allowed = access.get(actorId);
+          if (allowed === undefined) {
+            allowed =
+              (await this.ac
+                .user(actorId)
+                .doc(input.spaceId, input.docId)
+                .projectScope(null)
+                .can('Doc.Read')) &&
+              (await this.models.workspaceDirectoryGrant.canReadWholeTable(
+                input.spaceId,
+                actorId
+              ));
+            access.set(actorId, allowed);
+          }
+          if (!allowed) continue;
+          if (socket.rooms.has(rooms[1]))
+            socket.emit('space:broadcast-doc-updates', payload);
+          if (socket.rooms.has(rooms[0])) {
+            for (const update of this.encodeUpdates(input.updates))
+              socket.emit('space:broadcast-doc-update', {
+                spaceType: SpaceType.Workspace,
+                spaceId: input.spaceId,
+                docId: input.docId,
+                update,
+                timestamp: input.timestamp,
+                editor: input.editor ?? '',
+              });
+          }
+        }
+      }
+    );
   }
 
   private rejectJoin(client: Socket) {
@@ -401,7 +479,7 @@ export class SpaceSyncGateway
 
     try {
       const normalized = new DocID(docScopeId, spaceId).guid;
-      if (normalized === spaceId) {
+      if (normalized === spaceId || normalized === `db$${spaceId}$folders`) {
         throw new SpaceAccessDenied({ spaceId });
       }
       return normalized;
@@ -698,7 +776,7 @@ export class SpaceSyncGateway
   }
 
   @OnEvent('doc.updates.pushed')
-  onDocUpdatesPushed({
+  async onDocUpdatesPushed({
     spaceType,
     spaceId,
     docId,
@@ -707,6 +785,19 @@ export class SpaceSyncGateway
     editor,
   }: Events['doc.updates.pushed']) {
     if (!this.server || updates.length === 0) {
+      return;
+    }
+    if (
+      spaceType === SpaceType.Workspace &&
+      docId === `db$${spaceId}$folders`
+    ) {
+      await this.broadcastDirectoryUpdate({
+        spaceId,
+        docId,
+        updates,
+        timestamp,
+        editor,
+      });
       return;
     }
 
@@ -751,7 +842,8 @@ export class SpaceSyncGateway
         this.workspace,
         this.ac,
         this.docReader,
-        this.models
+        this.models,
+        this.organization
       );
       const userspace = new UserspaceSyncAdapter(client, this.userspace);
 
@@ -939,11 +1031,28 @@ export class SpaceSyncGateway
       'Doc.Read'
     );
 
-    const doc = await adapter.diff(
-      spaceId,
-      id.guid,
-      stateVector ? Buffer.from(stateVector, 'base64') : undefined
-    );
+    const load = () =>
+      adapter.diff(
+        spaceId,
+        id.guid,
+        stateVector ? Buffer.from(stateVector, 'base64') : undefined
+      );
+    const doc =
+      spaceType === SpaceType.Workspace && id.guid === `db$${spaceId}$folders`
+        ? await this.models.workspaceDirectoryGrant.withMutationLock(
+            spaceId,
+            async () => {
+              if (
+                !(await this.models.workspaceDirectoryGrant.canReadWholeTable(
+                  spaceId,
+                  user.id
+                ))
+              )
+                throw new SpaceAccessDenied({ spaceId });
+              return await load();
+            }
+          )
+        : await load();
 
     if (!doc) {
       throw new DocNotFound({ spaceId, docId });
@@ -1017,7 +1126,7 @@ export class SpaceSyncGateway
         [Buffer.from(update, 'base64')],
         user.id
       );
-      this.broadcastDocUpdate(
+      await this.broadcastDocUpdate(
         client,
         adapter,
         spaceType,
@@ -1044,7 +1153,7 @@ export class SpaceSyncGateway
       user.id
     );
 
-    this.broadcastDocUpdate(
+    await this.broadcastDocUpdate(
       client,
       adapter,
       spaceType,
@@ -1306,7 +1415,8 @@ class WorkspaceSyncAdapter extends SyncSocketAdapter {
     storage: DocStorageAdapter,
     private readonly ac: PermissionAccess,
     private readonly docReader: DocReader,
-    private readonly models: Models
+    private readonly models: Models,
+    private readonly organization: WorkspaceOrganizationService
   ) {
     super(SpaceType.Workspace, client, storage);
   }
@@ -1324,6 +1434,21 @@ class WorkspaceSyncAdapter extends SyncSocketAdapter {
     });
     if (docMeta?.blocked) {
       throw new DocUpdateBlocked({ spaceId, docId });
+    }
+    if (docId === `db$${spaceId}$folders`) {
+      return await this.organization.acceptFolderSync({
+        workspaceId: spaceId,
+        actorId: editorId,
+        updates,
+        persist: async () => {
+          await this.ac
+            .user(editorId)
+            .doc(spaceId, docId)
+            .projectScope(null)
+            .assert('Doc.Update');
+          return await super.pushDocUpdates(spaceId, docId, updates, editorId);
+        },
+      });
     }
     return await super.pushDocUpdates(spaceId, docId, updates, editorId);
   }

@@ -10,6 +10,7 @@ import {
   AiIcon,
   CollaborationIcon,
   IntegrationsIcon,
+  LockIcon,
   PaymentIcon,
   PropertyIcon,
   SaveIcon,
@@ -21,6 +22,7 @@ import { useMemo } from 'react';
 import type { SettingSidebarItem, SettingState } from '../types';
 import { AIContextSettings } from './ai-context';
 import { WorkspaceSettingBilling } from './billing';
+import { WorkspaceDirectoryPermissions } from './directory-permissions';
 import { IntegrationSetting } from './integration';
 import { WorkspaceSettingLicense } from './license';
 import { MembersPanel } from './members';
@@ -51,6 +53,8 @@ export const WorkspaceSetting = ({
           onChangeSettingState={onChangeSettingState}
         />
       );
+    case 'workspace:directory-permissions':
+      return <WorkspaceDirectoryPermissions />;
     case 'workspace:billing':
       return <WorkspaceSettingBilling />;
     case 'workspace:storage':
@@ -86,6 +90,9 @@ export const useWorkspaceSettingList = (): SettingSidebarItem[] => {
   );
   const serverFeatures = useLiveData(serverService.server.features$);
   const showAIContext = Boolean(serverFeatures?.copilot);
+  const showDirectoryPermissions =
+    workspaceService.workspace.flavour !== 'local' &&
+    Boolean(information?.isOwner || information?.isAdmin);
 
   const t = useI18n();
 
@@ -111,6 +118,12 @@ export const useWorkspaceSettingList = (): SettingSidebarItem[] => {
         title: t['Members'](),
         icon: <CollaborationIcon />,
         testId: 'workspace-setting:members',
+      },
+      showDirectoryPermissions && {
+        key: 'workspace:directory-permissions' as SettingTab,
+        title: t['com.affine.localmind.directoryPermissions.title'](),
+        icon: <LockIcon />,
+        testId: 'workspace-setting:directory-permissions',
       },
       {
         key: 'workspace:integrations',
@@ -152,7 +165,7 @@ export const useWorkspaceSettingList = (): SettingSidebarItem[] => {
         testId: 'workspace-setting:license',
       },
     ].filter((item): item is SettingSidebarItem => !!item);
-  }, [showAIContext, showBilling, showLicense, t]);
+  }, [showAIContext, showBilling, showDirectoryPermissions, showLicense, t]);
 
   return items;
 };

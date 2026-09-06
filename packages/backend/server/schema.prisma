@@ -54,6 +54,7 @@ model User {
   createdAiJobs                             AiJobs[]                               @relation("createdAiJobs")
   // receive notifications
   notifications                             Notification[]                         @relation("user_notifications")
+  notificationRefresh                       NotificationRefresh?
   iscpAgentEndpoints                        IscpAgentEndpoint[]
   iscpEnrollments                           IscpEnrollment[]
   settings                                  UserSettings?
@@ -301,10 +302,44 @@ model Workspace {
   officeArtifacts                       OfficeArtifact[]                       @relation("office_artifact_workspace")
   officeRevisions                       OfficeRevision[]                       @relation("office_revision_workspace")
   officeCommandRequests                 OfficeCommandRequest[]                 @relation("office_command_request_workspace")
+  directoryGrants                       WorkspaceDirectoryGrant[]
 
   @@index([lastCheckEmbeddings])
   @@index([createdAt])
   @@map("workspaces")
+}
+
+model WorkspaceDirectoryGrant {
+  workspaceId     String   @map("workspace_id") @db.VarChar
+  directoryId     String   @map("directory_id") @db.VarChar
+  principalId     String   @map("principal_id") @db.VarChar
+  canRead         Boolean  @map("can_read")
+  canWrite        Boolean  @map("can_write")
+  canOrganize     Boolean  @map("can_organize")
+  canCreateFolder Boolean  @map("can_create_folder")
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, directoryId, principalId])
+  @@map("workspace_directory_grants")
+}
+
+model WorkspaceDirectoryPolicyEvent {
+  id          String   @id @default(uuid()) @db.VarChar
+  workspaceId String   @map("workspace_id") @db.VarChar
+  actorId     String   @map("actor_id") @db.VarChar
+  directoryId String   @map("directory_id") @db.VarChar
+  principalId String   @map("principal_id") @db.VarChar
+  action      String   @db.VarChar
+  before      Json?    @map("before_policy") @db.JsonB
+  after       Json?    @map("after_policy") @db.JsonB
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  // Intentionally retain actor/workspace identifiers as immutable evidence
+  // even if their live records are later removed.
+  @@index([workspaceId, createdAt, id])
+  @@map("workspace_directory_policy_events")
 }
 
 model Entitlement {
@@ -1161,6 +1196,10 @@ model AiSession {
   actionRuns             AiActionRun[]
   agentRuns              AiAgentRun[]           @relation("agent_run_session")
 
+  documentOperations CopilotDocumentOperation[]
+  contextSources     AiSessionContextSource[]
+  delegatedExecution AiMcpDelegationRequest?    @relation("mcp_delegation_execution_session")
+
   //NOTE:
   // unrecorded index:
   // @@index([userId, workspaceId]) where pinned = true and deleted_at is null
@@ -1171,6 +1210,85 @@ model AiSession {
   @@index([userId, workspaceId, docId])
   @@index([selectedContextProjectId])
   @@map("ai_sessions_metadata")
+}
+
+model CopilotDocumentOperation {
+  id                     String    @id @default(uuid()) @db.VarChar
+  kind                   String    @default("create") @db.VarChar
+  sessionId              String    @map("session_id") @db.VarChar
+  actorId                String    @map("actor_id") @db.VarChar
+  projectId              String?   @map("project_id") @db.VarChar
+  requestKey             String    @map("request_key") @db.VarChar
+  contentFingerprint     String    @map("content_fingerprint") @db.VarChar
+  title                  String    @db.VarChar
+  markdown               String    @db.Text
+  documentId             String    @unique @default(uuid()) @map("document_id") @db.VarChar
+  destinationWorkspaceId String?   @map("destination_workspace_id") @db.VarChar
+  destinationFolderId    String?   @map("destination_folder_id") @db.VarChar
+  destinationRevision    Int       @default(0) @map("destination_revision")
+  destinationConfirmedAt DateTime? @map("destination_confirmed_at") @db.Timestamptz(3)
+  destinationFingerprint String?   @map("destination_fingerprint") @db.VarChar
+  destinationConfirmedBy String?   @map("destination_confirmed_by") @db.VarChar
+  destinationEvidence    Json      @default("{}") @map("destination_evidence") @db.JsonB
+  locationExpiresAt      DateTime  @default(dbgenerated("(now() + '24:00:00'::interval)")) @map("location_expires_at") @db.Timestamptz(3)
+  status                 String    @default("waiting_location") @db.VarChar
+  createdDocumentAt      DateTime? @map("created_document_at") @db.Timestamptz(3)
+  placedDocumentAt       DateTime? @map("placed_document_at") @db.Timestamptz(3)
+  executionStartedAt     DateTime? @map("execution_started_at") @db.Timestamptz(3)
+  projectStatus          String    @default("not_requested") @map("project_status") @db.VarChar
+  accessRequestId        String?   @map("access_request_id") @db.VarChar
+  leaseToken             String?   @map("lease_token") @db.VarChar
+  leaseExpiresAt         DateTime? @map("lease_expires_at") @db.Timestamptz(3)
+  failureCode            String?   @map("failure_code") @db.VarChar
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  session AiSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  events            CopilotDocumentOperationEvent[]
+  copySource        CopilotDocumentCopySource?
+  waitingDelegation AiMcpDelegationRequest?         @relation("mcp_delegation_location_operation")
+
+  @@unique([sessionId, requestKey])
+  @@index([status, leaseExpiresAt])
+  @@map("copilot_document_operations")
+}
+
+model CopilotDocumentCopySource {
+  operationId String                     @id @map("operation_id") @db.VarChar
+  workspaceId String                     @map("workspace_id") @db.VarChar
+  documentId  String                     @map("document_id") @db.VarChar
+  snapshot    Bytes                      @db.ByteA
+  fingerprint String                     @db.VarChar
+  operation   CopilotDocumentOperation   @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  assets      CopilotDocumentCopyAsset[]
+
+  @@map("copilot_document_copy_sources")
+}
+
+model CopilotDocumentCopyAsset {
+  operationId String                    @map("operation_id") @db.VarChar
+  key         String                    @db.VarChar
+  data        Bytes                     @db.ByteA
+  contentType String                    @map("content_type") @db.VarChar
+  fingerprint String                    @db.VarChar
+  source      CopilotDocumentCopySource @relation(fields: [operationId], references: [operationId], onDelete: Cascade)
+
+  @@id([operationId, key])
+  @@map("copilot_document_copy_assets")
+}
+
+model CopilotDocumentOperationEvent {
+  id          String   @id @default(uuid()) @db.VarChar
+  operationId String   @map("operation_id") @db.VarChar
+  eventType   String   @map("event_type") @db.VarChar
+  detail      Json     @db.JsonB
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  operation CopilotDocumentOperation @relation(fields: [operationId], references: [id], onDelete: Cascade)
+
+  @@index([operationId, createdAt])
+  @@map("copilot_document_operation_events")
 }
 
 model AiContextMemory {
@@ -2261,6 +2379,42 @@ model AiTranscriptTask {
   @@map("ai_transcript_tasks")
 }
 
+model AiSessionContextSource {
+  sessionId   String   @map("session_id") @db.VarChar
+  workspaceId String   @map("workspace_id") @db.VarChar
+  kind        String   @db.VarChar
+  sourceId    String   @map("source_id") @db.VarChar
+  evidence    Json     @default("{}") @db.JsonB
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  session AiSession @relation(fields: [sessionId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([sessionId, workspaceId, kind, sourceId])
+  @@map("ai_session_context_sources")
+}
+
+model AiSharedWriteSourceCheck {
+  id                String   @id @default(uuid()) @db.VarChar
+  sessionId         String   @map("session_id") @db.VarChar
+  actorId           String   @map("actor_id") @db.VarChar
+  projectId         String?  @map("project_id") @db.VarChar
+  sinkType          String   @map("sink_type") @db.VarChar
+  sinkId            String   @map("sink_id") @db.VarChar
+  sinkWorkspaceId   String?  @map("sink_workspace_id") @db.VarChar
+  phase             String   @db.VarChar
+  allowed           Boolean
+  reasonCode        String   @map("reason_code") @db.VarChar
+  sourceFingerprint String   @map("source_fingerprint") @db.VarChar
+  sources           Json     @db.JsonB
+  audienceEvidence  Json     @default("{}") @map("audience_evidence") @db.JsonB
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  // Authorization evidence survives deletion of the actor, session and sink.
+  @@index([sessionId, createdAt])
+  @@index([sinkType, sinkId, createdAt])
+  @@map("ai_shared_write_source_checks")
+}
+
 model AiContext {
   id        String @id @default(uuid()) @db.VarChar
   sessionId String @map("session_id") @db.VarChar
@@ -2828,6 +2982,8 @@ model OfficeCommandRequest {
 }
 
 enum NotificationType {
+  AccessRequest
+  AccessRequestResolved
   Mention
   Invitation
   InvitationAccepted
@@ -2849,6 +3005,16 @@ enum NotificationLevel {
   Low
   Min
   None
+}
+
+model NotificationRefresh {
+  userId    String   @id @map("user_id") @db.VarChar
+  revision  String   @db.VarChar
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([updatedAt])
+  @@map("notification_refresh")
 }
 
 model Notification {
@@ -3111,6 +3277,8 @@ model AiMcpDelegationRequest {
   status                      String    @db.VarChar
   result                      Json      @default("{}") @db.JsonB
   agentRunId                  String?   @map("agent_run_id") @db.VarChar
+  executionSessionId          String?   @unique @map("execution_session_id") @db.VarChar
+  locationOperationId         String?   @unique @map("location_operation_id") @db.VarChar
   targetDocumentId            String?   @map("target_document_id") @db.VarChar
   targetDocumentVersion       DateTime? @map("target_document_version") @db.Timestamptz(3)
   approvalId                  String?   @unique @map("approval_id") @db.VarChar
@@ -3127,14 +3295,34 @@ model AiMcpDelegationRequest {
   actor              User                              @relation("mcp_delegation_request_actor", fields: [actorId], references: [id], onDelete: Cascade)
   credential         McpCredential                     @relation("mcp_delegation_request_credential", fields: [credentialId], references: [id], onDelete: Cascade)
   agentRun           AiAgentRun?                       @relation("mcp_delegation_request_agent_run", fields: [agentRunId], references: [id], onDelete: SetNull)
+  executionSession   AiSession?                        @relation("mcp_delegation_execution_session", fields: [executionSessionId], references: [id], onDelete: Restrict)
+  locationOperation  CopilotDocumentOperation?         @relation("mcp_delegation_location_operation", fields: [locationOperationId], references: [id], onDelete: Restrict)
   callbackDeliveries AiMcpDelegationCallbackDelivery[]
   controls           AiMcpDelegationControl[]
+  toolCalls          AiMcpDelegationToolCall[]
 
   @@unique([workspaceId, credentialFamilyId, idempotencyKey])
   @@index([workspaceId, createdAt])
   @@index([actorId, createdAt])
   @@index([status, updatedAt])
   @@map("ai_mcp_delegation_requests")
+}
+
+model AiMcpDelegationToolCall {
+  id          String                 @id @default(uuid()) @db.VarChar
+  requestId   String                 @map("request_id") @db.VarChar
+  callId      String                 @map("call_id") @db.VarChar
+  ordinal     Int
+  toolName    String                 @map("tool_name") @db.VarChar
+  args        Json                   @db.JsonB
+  result      Json?                  @db.JsonB
+  createdAt   DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  completedAt DateTime?              @map("completed_at") @db.Timestamptz(3)
+  request     AiMcpDelegationRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, callId])
+  @@unique([requestId, ordinal])
+  @@map("ai_mcp_delegation_tool_calls")
 }
 
 model AiMcpDelegationControl {

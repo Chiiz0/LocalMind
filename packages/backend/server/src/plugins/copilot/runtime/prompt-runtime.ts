@@ -1,6 +1,9 @@
+import { createHash } from 'node:crypto';
+
 import { Injectable } from '@nestjs/common';
 
 import { CopilotPromptNotFound } from '../../../base';
+import { Models } from '../../../models';
 import type { CopilotProviderRoutePolicyFeatureKind } from '../config';
 import type { ResolvedPrompt } from '../prompt';
 import {
@@ -58,7 +61,8 @@ export class PromptRuntime {
   constructor(
     private readonly prompts: PromptService,
     private readonly capabilityPolicy: CapabilityPolicyHost,
-    private readonly runtime: CapabilityRuntime
+    private readonly runtime: CapabilityRuntime,
+    private readonly models: Models
   ) {}
 
   private async preparePrompt(
@@ -79,6 +83,29 @@ export class PromptRuntime {
 
     const providerOptions: PromptRuntimeProviderOptions =
       options.providerOptions ?? {};
+    if (providerOptions.session) {
+      const session = await this.models.copilotSession.getMeta(
+        providerOptions.session
+      );
+      if (
+        !session ||
+        session.userId !== providerOptions.user ||
+        session.workspaceId !== providerOptions.workspace
+      )
+        throw new Error('Prompt conversation authorization is unavailable');
+      await this.models.copilotContext.recordInputSources({
+        sessionId: session.id,
+        actorId: session.userId,
+        projectId: session.selectedContextProjectId,
+        sources: [
+          {
+            workspaceId: session.workspaceId,
+            kind: 'workspace',
+            sourceId: `system-prompt:${createHash('sha256').update(JSON.stringify(prompt)).digest('hex')}`,
+          },
+        ],
+      });
+    }
     const featureKind =
       providerOptions.featureKind ?? resolvePromptRouteFeatureKind(prompt);
     const selection = await this.capabilityPolicy.selectPrompt({

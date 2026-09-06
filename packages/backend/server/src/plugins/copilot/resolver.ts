@@ -5275,6 +5275,8 @@ class CopilotTaskDocumentUpdateType {
 @ObjectType()
 export class CopilotTaskType {
   @Field(() => String, { nullable: true })
+  sessionId!: string | null;
+  @Field(() => String, { nullable: true })
   approvalFingerprint!: string | null;
 
   @Field(() => CopilotTaskDocumentUpdateType, { nullable: true })
@@ -5461,6 +5463,69 @@ function copilotTaskResultEvidence(run: CopilotAgentRunRecord) {
   return copilotTaskPayloadRecord(payload?.sideEffectSummary);
 }
 
+function copilotTaskDelegatedArtifacts(
+  run: CopilotAgentRunRecord,
+  evidence: Record<string, unknown> | null
+): CopilotTaskArtifactType[] {
+  if (
+    run.status !== 'completed' ||
+    run.workflow !== 'agent_runtime_localmind_tool_agent' ||
+    evidence?.version !== 'localmind-tool-agent-result/v1' ||
+    !Array.isArray(evidence.artifacts)
+  )
+    return [];
+  const artifacts = new Map<string, CopilotTaskArtifactType>();
+  for (const value of evidence.artifacts.slice(0, 20)) {
+    const artifact = copilotTaskPayloadRecord(value);
+    if (
+      artifact?.kind !== 'document' ||
+      !['created', 'updated'].includes(String(artifact.relation)) ||
+      typeof artifact.workspaceId !== 'string' ||
+      !artifact.workspaceId ||
+      artifact.workspaceId.length > 256 ||
+      typeof artifact.documentId !== 'string' ||
+      !artifact.documentId ||
+      artifact.documentId.length > 256
+    )
+      continue;
+    artifacts.set(`${artifact.workspaceId}:${artifact.documentId}`, {
+      kind: 'document',
+      workspaceId: artifact.workspaceId,
+      id: artifact.documentId,
+      title:
+        typeof artifact.title === 'string'
+          ? artifact.title.slice(0, 512)
+          : null,
+    });
+  }
+  return [...artifacts.values()];
+}
+
+export async function projectCopilotTaskForViewer(
+  run: CopilotAgentRunRecord,
+  userId: string,
+  ac: PermissionAccess
+) {
+  const task = projectCopilotTask(run);
+  if (run.workflow !== 'agent_runtime_localmind_tool_agent') return task;
+  const artifacts: CopilotTaskArtifactType[] = [];
+  for (const artifact of task.artifacts) {
+    if (
+      await ac
+        .user(userId)
+        .workspace(artifact.workspaceId)
+        .doc(artifact.id)
+        .can('Doc.Read')
+    )
+      artifacts.push(artifact);
+  }
+  if (artifacts.length !== task.artifacts.length) {
+    task.resultEvidence = null;
+    task.resultSummary = null;
+  }
+  return { ...task, artifacts };
+}
+
 export function projectCopilotTask(
   run: CopilotAgentRunRecord
 ): CopilotTaskType {
@@ -5479,7 +5544,9 @@ export function projectCopilotTask(
   const availableActions: CopilotTaskType['availableActions'] =
     run.status === 'waiting_approval'
       ? ['approve', 'reject']
-      : run.status === 'queued' || run.status === 'running'
+      : run.status === 'queued' ||
+          run.status === 'running' ||
+          run.status === 'waiting_for_location'
         ? ['cancel']
         : run.status === 'failed'
           ? ['resume', 'abandon']
@@ -5491,6 +5558,7 @@ export function projectCopilotTask(
 
   return {
     id: run.id,
+    sessionId: run.sessionId ?? null,
     approvalFingerprint:
       run.status === 'waiting_approval' ? run.timelineFingerprint : null,
     documentUpdate,
@@ -5537,6 +5605,7 @@ export function projectCopilotTask(
         }
       : null,
     artifacts: [
+      ...copilotTaskDelegatedArtifacts(run, resultEvidence),
       ...(documentId
         ? [
             {
@@ -22965,6 +23034,13 @@ export class CopilotResolver {
     private readonly agentRuntimeWorkflowRegistry?: CopilotAgentRuntimeWorkflowRegistry
   ) {}
 
+  private async projectTaskForViewer(
+    run: CopilotAgentRunRecord,
+    userId: string
+  ) {
+    return await projectCopilotTaskForViewer(run, userId, this.ac);
+  }
+
   @ResolveField(() => CopilotQuotaType, {
     name: 'quota',
     description: 'Get the quota of the user in the workspace',
@@ -24972,7 +25048,7 @@ export class CopilotResolver {
       );
     }
 
-    return projectCopilotTask(record);
+    return await this.projectTaskForViewer(record, user.id);
   }
 
   @Mutation(() => CopilotSupportBundleType, {
@@ -25549,7 +25625,9 @@ export class CopilotResolver {
           user.id,
           { filter, limit }
         );
-    return runs.map(projectCopilotTask);
+    return await Promise.all(
+      runs.map(run => this.projectTaskForViewer(run, user.id))
+    );
   }
 
   @ResolveField(() => [CopilotRepairExecutionRecordType], {
@@ -25670,7 +25748,7 @@ export class CopilotResolver {
       user.id,
       id
     );
-    return run ? projectCopilotTask(run) : null;
+    return run ? await this.projectTaskForViewer(run, user.id) : null;
   }
 
   @ResolveField(() => CopilotModelsType, {
@@ -26431,7 +26509,12 @@ export class CopilotResolver {
     @Args({ name: 'options', type: () => ForkChatSessionInput })
     options: ForkChatSessionInput
   ): Promise<string> {
-    await this.ac.user(user.id).doc(options).allowLocal().assert('Doc.Update');
+    await this.ac
+      .user(user.id)
+      .doc(options)
+      .projectScope(null)
+      .allowLocal()
+      .assert('Doc.Update');
     const lockFlag = `${COPILOT_LOCKER}:session:${user.id}:${options.workspaceId}`;
     await using lock = await this.mutex.acquire(lockFlag);
     if (!lock) {

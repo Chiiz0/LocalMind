@@ -82,7 +82,7 @@ export const docPropertiesTable = style({
   padding: `0 ${cssVar('editorSidePadding', '24px')}`,
   '@container': {
     [`viewport (width <= 640px)`]: {
-      padding: '0 16px',
+      padding: '0 20px',
     },
   },
 });

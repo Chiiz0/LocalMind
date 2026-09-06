@@ -5,6 +5,7 @@ import type { PromptMessage } from '../providers/types';
 import { toToolJsonSchema } from './json-schema';
 
 export type CopilotToolExecuteOptions = {
+  toolCallId?: string;
   signal?: AbortSignal;
   messages?: PromptMessage[];
 };

@@ -1,0 +1,18 @@
+fragment CopilotDocumentOperationFields on CopilotDocumentOperationType {
+  id
+  kind
+  sourceWorkspaceId
+  sourceDocumentId
+  title
+  status
+  projectStatus
+  documentId
+  destinationWorkspaceId
+  destinationFolderId
+  destinationRevision
+  locationExpiresAt
+  createdDocumentAt
+  placedDocumentAt
+  failureCode
+  accessRequestId
+}

@@ -30,6 +30,9 @@ import { ConversationInboxService } from './conversation/inbox';
 import { ConversationPolicy } from './conversation/policy';
 import { ConversationStore } from './conversation/store';
 import { CopilotCronJobs } from './cron';
+import { CopilotDocumentCopyService } from './document-copy-service';
+import { CopilotDocumentOperationResolver } from './document-operation-resolver';
+import { CopilotDocumentOperationService } from './document-operation-service';
 import {
   CopilotEmbeddingClientService,
   CopilotEmbeddingJob,
@@ -159,6 +162,7 @@ export const COPILOT_RUNTIME_PROVIDERS = [
   NativeExecutionEngine,
   TaskPolicy,
   ToolRuntime,
+  CopilotDocumentCopyService,
   ToolExecutorHost,
   AttachmentMaterializer,
   AttachmentAdmissionHost,
@@ -208,6 +212,7 @@ export const COPILOT_RESOLVER_PROVIDERS = [
 ];
 
 export const COPILOT_JOB_PROVIDERS = [
+  CopilotDocumentOperationService,
   CopilotEmbeddingJob,
   CopilotCronJobs,
   CopilotAgentRuntimeWorkflowRegistry,
@@ -243,6 +248,7 @@ export const COPILOT_FEATURE_PROVIDERS = [
 ];
 
 export const COPILOT_API_PROVIDERS = [
+  CopilotDocumentOperationResolver,
   ...COPILOT_RESOLVER_PROVIDERS,
   ...COPILOT_MCP_PROVIDERS,
 ];

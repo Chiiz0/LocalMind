@@ -70,11 +70,16 @@ export class PermissionService {
     workspaceId: string;
     action: DocAction;
     docIdColumn?: Prisma.Sql;
+    projectId?: string | null;
   }) {
     return this.sqlPredicate.docReadableSql(input);
   }
 
-  async listReadableDocIds(input: { userId: string; workspaceId: string }) {
+  async listReadableDocIds(input: {
+    userId: string;
+    workspaceId: string;
+    projectId?: string | null;
+  }) {
     const predicate = this.docReadableSqlPredicate({
       ...input,
       action: 'Doc.Read',
@@ -91,6 +96,10 @@ export class PermissionService {
         error instanceof Error ? error.message : undefined
       );
     }
+  }
+
+  async listPersonalDocumentWorkspaces(userId: string) {
+    return this.loader.listPersonalDocumentWorkspaces(userId);
   }
 
   async workspacePermissions(input: {
@@ -141,12 +150,14 @@ export class PermissionService {
     docId: string;
     actions: PermissionDocAction[];
     allowLocal?: boolean;
+    projectId?: string | null;
   }) {
     const output = await this.evaluateLoaded({
       userId: input.userId,
       workspaceId: input.workspaceId,
       docs: [{ docId: input.docId, actions: input.actions }],
       allowLocal: input.allowLocal,
+      projectId: input.projectId,
     });
     const doc = output.docs[0];
     return {
@@ -161,6 +172,7 @@ export class PermissionService {
     docId: string;
     action: PermissionDocAction;
     allowLocal?: boolean;
+    projectId?: string | null;
   }) {
     const output = await this.docPermissions({
       ...input,
@@ -175,6 +187,7 @@ export class PermissionService {
     docId: string;
     action: PermissionDocAction;
     allowLocal?: boolean;
+    projectId?: string | null;
   }) {
     if (!(await this.canDoc(input))) {
       throw new DocActionDenied({
@@ -190,6 +203,7 @@ export class PermissionService {
     workspaceId: string;
     docs: T[];
     allowLocal?: boolean;
+    projectId?: string | null;
   }) {
     const decisions = await this.batchDocPermissions({
       ...input,
@@ -209,6 +223,7 @@ export class PermissionService {
     workspaceId: string;
     docs: Array<{ docId: string; actions: PermissionDocAction[] }>;
     allowLocal?: boolean;
+    projectId?: string | null;
   }) {
     const output = await this.evaluateLoaded(input);
     return output.docs.map(doc => ({

@@ -478,7 +478,15 @@ test('doc_read should return specific sync errors for unavailable docs', async t
 
   const ac = {
     user: () => ({
-      workspace: () => ({ doc: () => ({ can: async () => true }) }),
+      workspace: () => ({
+        doc: () => ({
+          projectScope(projectId: string | null) {
+            t.is(projectId, null);
+            return this;
+          },
+          can: async () => true,
+        }),
+      }),
     }),
   } as unknown as PermissionAccess;
 
@@ -588,6 +596,10 @@ test('doc_semantic_search should return empty array when nothing matches', async
   const ac = {
     user: () => ({
       workspace: () => ({
+        projectScope(projectId: string | null) {
+          t.is(projectId, null);
+          return this;
+        },
         can: async () => true,
         docs: async () => [],
       }),
@@ -620,6 +632,10 @@ test('doc_semantic_search should pass BYOK route context into embedding matches'
   const ac = {
     user: () => ({
       workspace: () => ({
+        projectScope(projectId: string | null) {
+          t.is(projectId, null);
+          return this;
+        },
         can: async () => true,
         docs: async () => [],
       }),
@@ -639,12 +655,15 @@ test('doc_semantic_search should pass BYOK route context into embedding matches'
       workspaceRouteContext = args[7];
       return [];
     },
-    getBySessionId: async () => ({
-      matchFiles: async (...args: unknown[]) => {
-        sessionRouteContext = args[5];
-        return [];
-      },
-    }),
+    getOwnedBySessionId: async (...scope: unknown[]) => {
+      t.deepEqual(scope, ['user-1', 'session-1', 'workspace-1']);
+      return {
+        matchFiles: async (...args: unknown[]) => {
+          sessionRouteContext = args[5];
+          return [];
+        },
+      };
+    },
   } as unknown as Parameters<typeof buildDocSearchGetter>[1];
 
   const semanticTool = createDocSemanticSearchTool(
@@ -675,6 +694,10 @@ test('doc_keyword_search ranks only readable document ids', async t => {
   const ac = {
     user: () => ({
       workspace: () => ({
+        projectScope(projectId: string | null) {
+          t.is(projectId, null);
+          return this;
+        },
         can: async () => true,
         docs: async (docs: Array<{ docId: string }>) =>
           docs.filter(doc => readableDocIds.includes(doc.docId)),
@@ -723,7 +746,7 @@ test('doc_keyword_search ranks only readable document ids', async t => {
   );
 
   t.deepEqual(searchOptions, { docIds: readableDocIds, limit: 20 });
-  t.is(permissionReads, 1, 'the tool-call loop should reuse permission scans');
+  t.is(permissionReads, 2, 'each execution must recheck readable document IDs');
   t.deepEqual(
     Array.isArray(result) ? result.map(doc => doc.docId) : result,
     readableDocIds
@@ -742,7 +765,13 @@ test('doc_keyword_search fallback ranks all bounded candidates before applying t
     user: () => ({
       workspace: () => ({
         can: async () => true,
-        doc: () => ({ can: async () => true }),
+        doc: () => ({
+          projectScope(projectId: string | null) {
+            t.is(projectId, null);
+            return this;
+          },
+          can: async () => true,
+        }),
       }),
     }),
   } as unknown as PermissionAccess;

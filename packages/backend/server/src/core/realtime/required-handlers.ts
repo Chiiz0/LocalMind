@@ -19,6 +19,7 @@ export const REALTIME_GATEWAY_REQUIRED_REQUESTS = [
 
 export const REALTIME_GATEWAY_REQUIRED_TOPICS = [
   'workspace.access.changed',
+  'workspace.directory-policy.changed',
   'workspace.config.changed',
   'workspace.members.changed',
   'workspace.invite-link.changed',

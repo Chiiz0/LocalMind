@@ -97,7 +97,11 @@ export const useNavigationPanelDocNodeOperations = (
       confirmButtonOptions: {
         variant: 'error',
       },
-      onConfirm() {
+      async onConfirm() {
+        if (!(await guardService.can('Doc_Trash', docId))) {
+          toast(t['com.affine.no-permission']());
+          return;
+        }
         docRecord.moveToTrash();
         track.$.navigationPanel.docs.deleteDoc({
           control: 'button',
@@ -105,7 +109,7 @@ export const useNavigationPanelDocNodeOperations = (
         toast(t['com.affine.toastMessage.movedTrash']());
       },
     });
-  }, [docRecord, openConfirmModal, t]);
+  }, [docId, docRecord, guardService, openConfirmModal, t]);
 
   const handleOpenInNewTab = useCallback(() => {
     workbenchService.workbench.openDoc(docId, {
@@ -236,21 +240,17 @@ export const useNavigationPanelDocNodeOperations = (
           </MenuItem>
         ),
       },
-      ...(BUILD_CONFIG.isElectron
-        ? [
-            {
-              index: 100,
-              view: (
-                <MenuItem
-                  prefixIcon={<SplitViewIcon />}
-                  onClick={handleOpenInSplitView}
-                >
-                  {t['com.affine.workbench.split-view.page-menu-open']()}
-                </MenuItem>
-              ),
-            },
-          ]
-        : []),
+      {
+        index: 100,
+        view: (
+          <MenuItem
+            prefixIcon={<SplitViewIcon />}
+            onClick={handleOpenInSplitView}
+          >
+            {t['com.affine.workbench.split-view.page-menu-open']()}
+          </MenuItem>
+        ),
+      },
       {
         index: 199,
         view: (
@@ -264,43 +264,40 @@ export const useNavigationPanelDocNodeOperations = (
           </MenuItem>
         ),
       },
-      ...(!options.isInFolder
-        ? [
-            {
-              index: 9999,
-              view: <MenuSeparator key="menu-separator" />,
-            },
-            {
-              index: 10000,
-              view: options.linkedFromDocId ? (
-                <Guard docId={options.linkedFromDocId} permission="Doc_Update">
-                  {canEdit => (
-                    <MenuItem
-                      prefixIcon={<UnlinkIcon />}
-                      onClick={handleRemoveLinkedDoc}
-                      disabled={!canEdit}
-                    >
-                      {t['com.affine.rootAppSidebar.doc.remove-link']()}
-                    </MenuItem>
-                  )}
-                </Guard>
-              ) : (
-                <Guard docId={docId} permission="Doc_Trash">
-                  {canMoveToTrash => (
-                    <MenuItem
-                      type={'danger'}
-                      prefixIcon={<DeleteIcon />}
-                      onClick={handleMoveToTrash}
-                      disabled={!canMoveToTrash}
-                    >
-                      {t['com.affine.moveToTrash.title']()}
-                    </MenuItem>
-                  )}
-                </Guard>
-              ),
-            },
-          ]
-        : []),
+      {
+        index: 9999,
+        view: <MenuSeparator key="menu-separator" />,
+      },
+      {
+        index: 10000,
+        view:
+          options.linkedFromDocId && !options.isInFolder ? (
+            <Guard docId={options.linkedFromDocId} permission="Doc_Update">
+              {canEdit => (
+                <MenuItem
+                  prefixIcon={<UnlinkIcon />}
+                  onClick={handleRemoveLinkedDoc}
+                  disabled={!canEdit}
+                >
+                  {t['com.affine.rootAppSidebar.doc.remove-link']()}
+                </MenuItem>
+              )}
+            </Guard>
+          ) : (
+            <Guard docId={docId} permission="Doc_Trash">
+              {canMoveToTrash => (
+                <MenuItem
+                  type={'danger'}
+                  prefixIcon={<DeleteIcon />}
+                  onClick={handleMoveToTrash}
+                  disabled={!canMoveToTrash}
+                >
+                  {t['com.affine.moveToTrash.title']()}
+                </MenuItem>
+              )}
+            </Guard>
+          ),
+      },
     ],
     [
       addLinkedPageLoading,

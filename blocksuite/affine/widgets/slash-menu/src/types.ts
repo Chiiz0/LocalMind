@@ -13,6 +13,9 @@ export type SlashMenuTooltip = {
 };
 
 type SlashMenuItemBase = {
+  /** Stable identity; defaults to the original name for existing extensions. */
+  id?: string;
+  label?: string;
   name: string;
   description?: string;
   icon?: TemplateResult;

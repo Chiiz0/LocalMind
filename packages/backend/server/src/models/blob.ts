@@ -2,7 +2,17 @@ import { Injectable } from '@nestjs/common';
 import { Transactional } from '@nestjs-cls/transactional';
 import { Prisma } from '@prisma/client';
 
+import { BlobInvalid } from '../base';
 import { BaseModel } from './base';
+
+export const COPILOT_COPY_BLOB_PREFIX = 'ai-copy-';
+
+export function copyAttachmentDocumentId(key: string) {
+  if (key.length > 256) return null;
+  return (
+    /^ai-copy-([A-Za-z0-9_-]{1,128})-[A-Za-z0-9_-]{43}$/.exec(key)?.[1] ?? null
+  );
+}
 
 export type CreateBlobInput = Prisma.BlobUncheckedCreateInput;
 
@@ -11,7 +21,89 @@ export type CreateBlobInput = Prisma.BlobUncheckedCreateInput;
  */
 @Injectable()
 export class BlobModel extends BaseModel {
+  assertMutableUploadKey(key: string) {
+    if (key.startsWith(COPILOT_COPY_BLOB_PREFIX))
+      throw new BlobInvalid(
+        'Copy attachments can only be published by their document operation'
+      );
+  }
+
+  @Transactional()
+  async reserveCopyUpload(input: {
+    workspaceId: string;
+    key: string;
+    uploadId: string;
+    size: number;
+    mime: string;
+  }) {
+    if (
+      !input.key.startsWith(COPILOT_COPY_BLOB_PREFIX) ||
+      input.key.length > 256 ||
+      !input.uploadId ||
+      input.uploadId.length > 128
+    )
+      throw new BlobInvalid('Invalid copy attachment reservation');
+    await this.db.blob.createMany({
+      data: [{ ...input, status: 'pending' }],
+      skipDuplicates: true,
+    });
+    const existing = await this.get(input.workspaceId, input.key);
+    if (
+      !existing ||
+      existing.deletedAt ||
+      existing.size !== input.size ||
+      existing.mime !== input.mime ||
+      (existing.status !== 'completed' &&
+        (existing.status !== 'pending' || existing.uploadId !== input.uploadId))
+    )
+      throw new BlobInvalid(
+        'Copy attachment reservation conflicts with stored data'
+      );
+    return existing.status !== 'completed';
+  }
+
+  @Transactional()
+  async publishCopyUpload(
+    input: {
+      workspaceId: string;
+      key: string;
+      uploadId: string;
+      size: number;
+      mime: string;
+    },
+    authorize: () => Promise<void>
+  ) {
+    await authorize();
+    const updated = await this.db.blob.updateMany({
+      where: {
+        workspaceId: input.workspaceId,
+        key: input.key,
+        uploadId: input.uploadId,
+        size: input.size,
+        mime: input.mime,
+        deletedAt: null,
+        status: 'pending',
+      },
+      data: { status: 'completed', uploadId: null },
+    });
+    if (!updated.count) {
+      const existing = await this.get(input.workspaceId, input.key);
+      if (
+        !existing ||
+        existing.status !== 'completed' ||
+        existing.deletedAt ||
+        existing.size !== input.size ||
+        existing.mime !== input.mime
+      )
+        throw new BlobInvalid(
+          'Copy attachment reservation is no longer active'
+        );
+    }
+    await this.markQuotaStateStale(input.workspaceId);
+  }
+
   async upsert(blob: CreateBlobInput) {
+    this.assertMutableUploadKey(blob.key);
     const result = await this.db.blob.upsert({
       where: {
         workspaceId_key: {

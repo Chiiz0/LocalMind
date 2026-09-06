@@ -1,6 +1,9 @@
+import { randomUUID } from 'node:crypto';
+
 import { Injectable } from '@nestjs/common';
 import { Transactional } from '@nestjs-cls/transactional';
 import {
+  type AccessRequest,
   Notification,
   NotificationLevel,
   NotificationType,
@@ -124,10 +127,17 @@ export const CommentMentionNotificationCreateSchema =
   });
 
 export type UnionNotificationBody =
+  | AccessRequestNotificationBody
   | MentionNotificationBody
   | InvitationNotificationBody
   | InvitationReviewDeclinedNotificationBody
   | CommentNotificationBody;
+
+export type AccessRequestNotificationBody = {
+  workspaceId: string;
+  createdByUserId: string;
+  requestId: string;
+};
 
 // #endregion
 
@@ -146,6 +156,7 @@ export type CommentNotification = Notification &
   z.infer<typeof CommentNotificationCreateSchema>;
 
 export type UnionNotification =
+  | (Notification & { body: AccessRequestNotificationBody })
   | MentionNotification
   | InvitationNotification
   | InvitationReviewDeclinedNotification
@@ -155,6 +166,151 @@ export type UnionNotification =
 
 @Injectable()
 export class NotificationModel extends BaseModel {
+  private async enqueueRefresh(userId: string) {
+    const revision = randomUUID();
+    await this.db.notificationRefresh.upsert({
+      where: { userId },
+      create: { userId, revision },
+      update: { revision },
+    });
+  }
+
+  async pendingRefreshes() {
+    return await this.db.notificationRefresh.findMany({
+      orderBy: [{ updatedAt: 'asc' }, { userId: 'asc' }],
+      take: 100,
+    });
+  }
+
+  async acknowledgeRefresh(userId: string, revision: string) {
+    return await this.db.notificationRefresh.deleteMany({
+      where: { userId, revision },
+    });
+  }
+
+  async deferRefresh(userId: string, revision: string) {
+    return await this.db.notificationRefresh.updateMany({
+      where: { userId, revision },
+      data: { updatedAt: new Date() },
+    });
+  }
+
+  @Transactional()
+  async reconcileAccessRequestRecipients() {
+    // Find missing recipients from current authority, without replaying every
+    // pending notification or relying on a role-change realtime event.
+    const missing = await this.db.$queryRaw<
+      Array<{ requestId: string; userId: string }>
+    >`
+      SELECT request.id AS "requestId", recipient.user_id AS "userId"
+      FROM access_requests request
+      CROSS JOIN LATERAL (
+        SELECT user_id FROM workspace_members
+        WHERE workspace_id = request.workspace_id AND state = 'active'
+          AND role IN ('owner', 'admin')
+        UNION
+        SELECT principal_id FROM doc_grants
+        WHERE workspace_id = request.workspace_id AND doc_id = request.doc_id
+          AND principal_type = 'user' AND role = 'owner'
+      ) recipient
+      WHERE request.status = 'pending'
+        AND (request.expires_at IS NULL OR request.expires_at > CURRENT_TIMESTAMP)
+        AND NOT EXISTS (
+          SELECT 1 FROM notifications notification
+          WHERE notification.id = 'access:' || request.id || ':' || recipient.user_id
+        )
+      ORDER BY request.created_at, request.id, recipient.user_id
+      LIMIT 100
+    `;
+    for (const { requestId, userId } of missing) {
+      const request = await this.db.accessRequest.findUniqueOrThrow({
+        where: { id: requestId },
+      });
+      const inserted = await this.db.notification.createMany({
+        data: {
+          id: `access:${request.id}:${userId}`,
+          userId,
+          type: NotificationType.AccessRequest,
+          level: NotificationLevel.Default,
+          body: {
+            workspaceId: request.workspaceId,
+            createdByUserId: request.requesterUserIdSnapshot,
+            requestId: request.id,
+          },
+          read: request.status !== 'pending',
+        },
+        skipDuplicates: true,
+      });
+      if (inserted.count) await this.enqueueRefresh(userId);
+    }
+    return missing.length;
+  }
+
+  @Transactional()
+  async syncAccessRequest(request: AccessRequest) {
+    const body: AccessRequestNotificationBody = {
+      workspaceId: request.workspaceId,
+      createdByUserId: request.requesterUserIdSnapshot,
+      requestId: request.id,
+    };
+    if (request.status === 'pending') {
+      const recipients = await this.db.$queryRaw<{ userId: string }[]>`
+        SELECT user_id AS "userId" FROM workspace_members
+        WHERE workspace_id = ${request.workspaceId} AND state = 'active'
+          AND role IN ('owner', 'admin')
+        UNION
+        SELECT principal_id AS "userId" FROM doc_grants
+        WHERE workspace_id = ${request.workspaceId} AND doc_id = ${request.docId}
+          AND principal_type = 'user' AND role = 'owner'
+      `;
+      for (const { userId } of recipients) {
+        const id = `access:${request.id}:${userId}`;
+        await this.db.notification.upsert({
+          where: { id },
+          update: {},
+          create: {
+            id,
+            userId,
+            type: NotificationType.AccessRequest,
+            level: NotificationLevel.Default,
+            body,
+          },
+        });
+        await this.enqueueRefresh(userId);
+      }
+      return;
+    }
+    const notificationWhere = {
+      type: NotificationType.AccessRequest,
+      body: { path: ['requestId'], equals: request.id },
+    };
+    const recipients = await this.db.notification.findMany({
+      where: notificationWhere,
+      select: { userId: true },
+      distinct: ['userId'],
+    });
+    await this.db.notification.updateMany({
+      where: notificationWhere,
+      data: { read: true },
+    });
+    for (const { userId } of recipients) await this.enqueueRefresh(userId);
+    if (request.requesterUserId) {
+      const id = `access-result:${request.id}:${request.requesterUserId}`;
+      await this.db.notification.upsert({
+        where: { id },
+        update: {},
+        create: {
+          id,
+          userId: request.requesterUserId,
+          type: NotificationType.AccessRequestResolved,
+          level: NotificationLevel.Default,
+          body,
+        },
+      });
+      await this.enqueueRefresh(request.requesterUserId);
+    }
+  }
+
   // #region mention
 
   @Transactional()

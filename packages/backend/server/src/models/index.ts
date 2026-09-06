@@ -23,6 +23,7 @@ import { CopilotWorkspaceByokConfigModel } from './copilot-byok';
 import { CopilotContextModel } from './copilot-context';
 import { CopilotContextMemoryModel } from './copilot-context-memory';
 import { CopilotContextRuleModel } from './copilot-context-rule';
+import { CopilotDocumentOperationModel } from './copilot-document-operation';
 import { CopilotEnterpriseAuthorizationModel } from './copilot-enterprise-authorization';
 import { CopilotEnterpriseConnectionModel } from './copilot-enterprise-connection';
 import { CopilotExternalMcpModel } from './copilot-external-mcp';
@@ -71,6 +72,7 @@ import { VerificationTokenModel } from './verification-token';
 import { WorkspaceModel } from './workspace';
 import { WorkspaceAnalyticsModel } from './workspace-analytics';
 import { WorkspaceCalendarModel } from './workspace-calendar';
+import { WorkspaceDirectoryGrantModel } from './workspace-directory-grant';
 import { WorkspaceUserModel } from './workspace-user';
 
 const MODELS = {
@@ -82,6 +84,7 @@ const MODELS = {
   authSession: AuthSessionModel,
   feature: FeatureModel,
   workspace: WorkspaceModel,
+  workspaceDirectoryGrant: WorkspaceDirectoryGrantModel,
   userFeature: UserFeatureModel,
   doc: DocModel,
   userDoc: UserDocModel,
@@ -102,6 +105,7 @@ const MODELS = {
   docGrant: DocGrantModel,
   userSettings: UserSettingsModel,
   copilotSession: CopilotSessionModel,
+  copilotDocumentOperation: CopilotDocumentOperationModel,
   copilotUsage: CopilotUsageModel,
   copilotTranscriptTask: CopilotTranscriptTaskModel,
   copilotActionRun: CopilotActionRunModel,
@@ -202,6 +206,7 @@ export * from './copilot-byok';
 export * from './copilot-context';
 export * from './copilot-context-memory';
 export * from './copilot-context-rule';
+export * from './copilot-document-operation';
 export * from './copilot-enterprise-authorization';
 export * from './copilot-enterprise-connection';
 export * from './copilot-job';

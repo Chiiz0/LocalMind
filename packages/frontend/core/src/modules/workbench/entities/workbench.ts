@@ -92,6 +92,49 @@ export class Workbench extends Entity {
     this.basename$.next(basename);
   }
 
+  restoreViews(state: {
+    activeViewIndex: number;
+    views: {
+      id: string;
+      path: { pathname: string; search: string; hash: string };
+      size: number;
+      scrollTop?: number;
+    }[];
+  }) {
+    const views = state.views.map(meta => {
+      const existing = this.views$.value.find(view => view.id === meta.id);
+      const view =
+        existing ??
+        this.framework.createEntity(View, {
+          id: meta.id,
+          defaultLocation: meta.path,
+        });
+      if (existing) {
+        const path = meta.path;
+        const current = view.history.location;
+        if (
+          current.pathname !== path.pathname ||
+          current.search !== path.search ||
+          current.hash !== path.hash
+        ) {
+          const index = view.history.entries.findIndex(
+            entry =>
+              entry.pathname === path.pathname &&
+              entry.search === path.search &&
+              entry.hash === path.hash
+          );
+          if (index >= 0) view.history.go(index - view.history.index);
+          else view.history.replace(path);
+        }
+      }
+      view.setSize(meta.size);
+      if (meta.scrollTop !== undefined) view.setScrollPosition(meta.scrollTop);
+      return view;
+    });
+    this.views$.next(views);
+    this.active(state.activeViewIndex);
+  }
+
   createView(
     at: WorkbenchPosition = 'beside',
     defaultLocation: To,
@@ -155,6 +198,7 @@ export class Workbench extends Entity {
         } else {
           view.history.push(to);
         }
+        if (at !== 'active' && option.show !== false) this.active(view);
       }
     }
   }

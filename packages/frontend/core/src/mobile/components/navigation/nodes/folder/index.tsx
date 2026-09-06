@@ -4,6 +4,7 @@ import {
   MenuSeparator,
   MenuSub,
   notify,
+  toast,
 } from '@affine/component';
 import { usePageHelper } from '@affine/core/blocksuite/block-suite-page-list/utils';
 import type {
@@ -130,6 +131,7 @@ const NavigationPanelFolderIcon: NavigationPanelTreeNodeIcon = ({
 
 const NavigationPanelFolderMenu = ({
   nodeId,
+  canDelete,
   name,
   handleDelete,
   handleRename,
@@ -139,6 +141,7 @@ const NavigationPanelFolderMenu = ({
   additionalOperations,
 }: {
   nodeId: string;
+  canDelete: boolean;
   name: string;
   handleDelete: () => void;
   handleRename: (name: string) => void;
@@ -226,13 +229,23 @@ const NavigationPanelFolderMenu = ({
             type="danger"
             prefixIcon={<DeleteIcon />}
             onClick={handleDelete}
+            disabled={!canDelete}
+            aria-disabled={!canDelete}
+            title={
+              !canDelete
+                ? t['com.affine.rootAppSidebar.organize.delete.not-empty']()
+                : undefined
+            }
           >
-            {t['com.affine.rootAppSidebar.organize.delete']()}
+            {canDelete
+              ? t['com.affine.rootAppSidebar.organize.delete']()
+              : t['com.affine.rootAppSidebar.organize.delete.empty-only']()}
           </MenuItem>
         ),
       },
     ],
     [
+      canDelete,
       createSubTipRenderer,
       handleAddToFolder,
       handleCreateSubfolder,
@@ -264,28 +277,57 @@ export const NavigationPanelFolderNodeMenu = ({
   });
   const node = useLiveData(organizeService.folderTree.folderNode$(nodeId));
   const name = useLiveData(node?.name$) ?? '';
+  const canDelete = useLiveData(node?.canDelete$) ?? false;
+  const canMutate = useLiveData(node?.canMutate$) ?? false;
   const children = useLiveData(node?.sortedChildren$);
 
-  const handleDelete = useCallback(() => {
-    if (!node) return;
-    node.delete();
-    track.$.navigationPanel.organize.deleteOrganizeItem({ type: 'folder' });
-    notify.success({
-      title: t['com.affine.rootAppSidebar.organize.delete.notify-title']({
-        name,
-      }),
-      message: t['com.affine.rootAppSidebar.organize.delete.notify-message'](),
-    });
+  const handleDelete = useCallback(async () => {
+    try {
+      if (!node) return;
+      if (!(await node.delete())) {
+        toast(t['com.affine.rootAppSidebar.organize.delete.not-empty']());
+        return;
+      }
+      track.$.navigationPanel.organize.deleteOrganizeItem({ type: 'folder' });
+      notify.success({
+        title: t['com.affine.rootAppSidebar.organize.delete.notify-title']({
+          name,
+        }),
+        message:
+          t['com.affine.rootAppSidebar.organize.delete.notify-message'](),
+      });
+    } catch (error) {
+      toast(
+        error instanceof Error ? error.message : 'Directory operation failed'
+      );
+      return undefined;
+    }
   }, [name, node, t]);
   const handleRename = useCallback(
-    (newName: string) => node?.rename(newName),
+    async (newName: string) => {
+      try {
+        return await node?.rename(newName);
+      } catch (error) {
+        toast(
+          error instanceof Error ? error.message : 'Directory operation failed'
+        );
+        return undefined;
+      }
+    },
     [node]
   );
   const handleCreateSubfolder = useCallback(
-    (newName: string) => {
-      if (!node) return;
-      node.createFolder(newName, node.indexAt('before'));
-      track.$.navigationPanel.organize.createOrganizeItem({ type: 'folder' });
+    async (newName: string) => {
+      try {
+        if (!node) return;
+        await node.createFolder(newName, node.indexAt('before'));
+        track.$.navigationPanel.organize.createOrganizeItem({ type: 'folder' });
+      } catch (error) {
+        toast(
+          error instanceof Error ? error.message : 'Directory operation failed'
+        );
+        return undefined;
+      }
     },
     [node]
   );
@@ -307,19 +349,28 @@ export const NavigationPanelFolderNodeMenu = ({
         selector,
         { init: initialIds },
         selectedIds => {
-          if (selectedIds === undefined) return;
-          const newItemIds = difference(selectedIds, initialIds);
-          const removedItemIds = difference(initialIds, selectedIds);
-          newItemIds.forEach(id =>
-            node.createLink(type, id, node.indexAt('after'))
-          );
-          currentChildren
-            .filter(
-              child =>
-                !!child.data$.value &&
-                removedItemIds.includes(child.data$.value)
-            )
-            .forEach(child => child.delete());
+          (async () => {
+            try {
+              if (selectedIds === undefined) return;
+              const newItemIds = difference(selectedIds, initialIds);
+              const removedItemIds = difference(initialIds, selectedIds);
+              for (const id of newItemIds) {
+                await node.createLink(type, id, node.indexAt('after'));
+              }
+              const removedItems = currentChildren.filter(
+                child =>
+                  !!child.data$.value &&
+                  removedItemIds.includes(child.data$.value)
+              );
+              for (const child of removedItems) await child.delete();
+            } catch (error) {
+              toast(
+                error instanceof Error
+                  ? error.message
+                  : 'Directory operation failed'
+              );
+            }
+          })().catch(console.error);
         }
       );
       track.$.navigationPanel.organize.createOrganizeItem({
@@ -336,14 +387,21 @@ export const NavigationPanelFolderNodeMenu = ({
     [name]
   );
 
-  if (!node) return null;
+  if (!node || !canMutate) return null;
   return (
     <NavigationPanelFolderMenu
       nodeId={nodeId}
       name={name}
-      handleDelete={handleDelete}
-      handleRename={handleRename}
-      handleCreateSubfolder={handleCreateSubfolder}
+      handleDelete={(...args) => {
+        handleDelete(...args).catch(console.error);
+      }}
+      canDelete={canDelete}
+      handleRename={(...args) => {
+        handleRename(...args).catch(console.error);
+      }}
+      handleCreateSubfolder={(...args) => {
+        handleCreateSubfolder(...args).catch(console.error);
+      }}
       handleAddToFolder={handleAddToFolder}
       createSubTipRenderer={createSubTipRenderer}
       additionalOperations={additionalOperations}
@@ -366,6 +424,7 @@ const NavigationPanelFolderNodeFolder = ({
     FeatureFlagService,
   });
   const name = useLiveData(node.name$);
+  const canMutate = useLiveData(node.canMutate$);
   const enableEmojiIcon = useLiveData(
     featureFlagService.flags.enable_emoji_folder_icon.$
   );
@@ -387,15 +446,22 @@ const NavigationPanelFolderNodeFolder = ({
   );
   const children = useLiveData(node.sortedChildren$);
 
-  const handleNewDoc = useCallback(() => {
-    const newDoc = createPage();
-    node.createLink('doc', newDoc.id, node.indexAt('before'));
-    track.$.navigationPanel.folders.createDoc();
-    track.$.navigationPanel.organize.createOrganizeItem({
-      type: 'link',
-      target: 'doc',
-    });
-    setCollapsed(false);
+  const handleNewDoc = useCallback(async () => {
+    try {
+      const newDoc = createPage();
+      await node.createLink('doc', newDoc.id, node.indexAt('before'));
+      track.$.navigationPanel.folders.createDoc();
+      track.$.navigationPanel.organize.createOrganizeItem({
+        type: 'link',
+        target: 'doc',
+      });
+      setCollapsed(false);
+    } catch (error) {
+      toast(
+        error instanceof Error ? error.message : 'Directory operation failed'
+      );
+      return undefined;
+    }
   }, [createPage, node, setCollapsed]);
 
   const menuTarget = useMemo(
@@ -410,6 +476,7 @@ const NavigationPanelFolderNodeFolder = ({
 
   const childrenOperations = useCallback(
     (type: string, node: FolderNode) => {
+      if (!canMutate) return [];
       if (type === 'doc' || type === 'collection' || type === 'tag') {
         return [
           {
@@ -420,7 +487,20 @@ const NavigationPanelFolderNodeFolder = ({
                 prefixIcon={<RemoveFolderIcon />}
                 data-event-props="$.navigationPanel.organize.deleteOrganizeItem"
                 data-event-args-type={node.type$.value}
-                onClick={() => node.delete()}
+                onClick={() => {
+                  (async () => {
+                    try {
+                      return await node.delete();
+                    } catch (error) {
+                      toast(
+                        error instanceof Error
+                          ? error.message
+                          : 'Directory operation failed'
+                      );
+                      return undefined;
+                    }
+                  })().catch(console.error);
+                }}
               >
                 {t['com.affine.rootAppSidebar.organize.delete-from-folder']()}
               </MenuItem>
@@ -430,7 +510,7 @@ const NavigationPanelFolderNodeFolder = ({
       }
       return [];
     },
-    [t]
+    [t, canMutate]
   );
 
   const handleCollapsedChange = useCallback(
@@ -464,11 +544,15 @@ const NavigationPanelFolderNodeFolder = ({
           parentPath={path}
         />
       ))}
-      <AddItemPlaceholder
-        label={t['com.affine.rootAppSidebar.organize.folder.new-doc']()}
-        onClick={handleNewDoc}
-        data-testid="new-folder-in-folder-button"
-      />
+      {canMutate ? (
+        <AddItemPlaceholder
+          label={t['com.affine.rootAppSidebar.organize.folder.new-doc']()}
+          onClick={() => {
+            handleNewDoc().catch(console.error);
+          }}
+          data-testid="new-folder-in-folder-button"
+        />
+      ) : null}
     </NavigationPanelTreeNode>
   );
 };

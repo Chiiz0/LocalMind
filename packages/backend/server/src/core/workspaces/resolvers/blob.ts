@@ -233,6 +233,7 @@ export class WorkspaceBlobResolver {
     @Args('docScopeId', { nullable: true }) docScopeId?: string
   ): Promise<BlobUploadInit> {
     await this.assertCanWriteBlob(user.id, workspaceId, docScopeId);
+    this.models.blob.assertMutableUploadKey(key);
 
     let record = await this.models.blob.get(workspaceId, key);
     let keepCompletedRecord = false;
@@ -389,6 +390,7 @@ export class WorkspaceBlobResolver {
     @Args('docScopeId', { nullable: true }) docScopeId?: string
   ): Promise<string> {
     await this.assertCanWriteBlob(user.id, workspaceId, docScopeId);
+    this.models.blob.assertMutableUploadKey(key);
 
     const record = await this.models.blob.get(workspaceId, key);
     if (!record) {
@@ -474,6 +476,7 @@ export class WorkspaceBlobResolver {
     @Args('docScopeId', { nullable: true }) docScopeId?: string
   ) {
     await this.assertCanWriteBlob(user.id, workspaceId, docScopeId);
+    this.models.blob.assertMutableUploadKey(key);
     if (docScopeId) {
       throw new BlobInvalid('Scoped multipart blob upload is not supported');
     }

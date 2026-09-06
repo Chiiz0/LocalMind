@@ -2,6 +2,7 @@ import test from 'ava';
 import * as Y from 'yjs';
 
 import { WorkspaceOrganizationService } from '../../core/doc';
+import { directoryPolicySnapshot } from '../../models/workspace-directory-grant';
 import { createWorkspaceOrganizationTools } from '../../plugins/copilot/tools/workspace-organization';
 
 function rootFixture() {
@@ -65,7 +66,31 @@ function createOrganization(input?: {
       docs.delete(docId);
     },
   };
-  return new WorkspaceOrganizationService(reader as never, writer as never);
+  return new WorkspaceOrganizationService(
+    reader as never,
+    writer as never,
+    {
+      copilotContext: {
+        withDocumentSourcesShared: async (
+          _input: unknown,
+          operation: () => Promise<unknown>
+        ) => await operation(),
+      },
+      workspaceDirectoryGrant: {
+        snapshot: async () => directoryPolicySnapshot('actor', []),
+        withMutationLock: async (
+          _workspaceId: string,
+          operation: () => Promise<unknown>
+        ) => await operation(),
+        rights: async () => ({
+          canRead: true,
+          canWrite: true,
+          canOrganize: true,
+          canCreateFolder: true,
+        }),
+      },
+    } as never
+  );
 }
 
 function createPermissions(input?: {

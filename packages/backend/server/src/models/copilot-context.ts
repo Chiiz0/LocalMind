@@ -1,9 +1,10 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
-import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Inject, Injectable } from '@nestjs/common';
+import { Transactional } from '@nestjs-cls/transactional';
+import { Prisma, PrismaClient } from '@prisma/client';
 
-import { CopilotSessionNotFound } from '../base';
+import { BadRequest, CopilotSessionNotFound } from '../base';
 import { BaseModel } from './base';
 import {
   clearEmbeddingContent,
@@ -22,14 +23,186 @@ import {
   PendingEmbeddingBackfillChunk,
   toPgVector,
 } from './common/copilot';
+import {
+  permissionDocumentLockKey,
+  permissionWorkspaceLockKey,
+} from './permission-write';
 
 type UpdateCopilotContextInput = Pick<CopilotContext, 'config'>;
+
+export type SharedWriteSourceSink = {
+  type:
+    | 'document_create'
+    | 'document_copy'
+    | 'document_update'
+    | 'project_memory'
+    | 'conditional_noop'
+    | 'tool_write';
+  id: string;
+  workspaceId?: string;
+  documentId?: string;
+  phase: 'prepare' | 'confirm' | 'execute' | 'retry' | 'noop';
+};
+
+export type CopilotInputSource = {
+  workspaceId: string;
+  kind: 'workspace' | 'document' | 'private' | 'private_attachment' | 'unknown';
+  sourceId: string;
+};
 
 /**
  * Copilot Job Model
  */
 @Injectable()
 export class CopilotContextModel extends BaseModel {
+  @Inject(PrismaClient)
+  private readonly sourceAuditDb!: PrismaClient;
+
+  private async lockDocumentAudience(workspaceId: string, documentId: string) {
+    await this.db
+      .$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${permissionWorkspaceLockKey(workspaceId)}, 0))`;
+    await this.db
+      .$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${permissionDocumentLockKey(workspaceId, documentId)}, 0))`;
+    const policies = await this.db.$queryRaw<
+      Array<{ sharingEnabled: boolean }>
+    >`
+      SELECT sharing_enabled AS "sharingEnabled" FROM workspace_access_policies
+      WHERE workspace_id = ${workspaceId} FOR SHARE
+    `;
+    const documents = await this.db.$queryRaw<Array<{ visibility: string }>>`
+      SELECT visibility FROM doc_access_policies
+      WHERE workspace_id = ${workspaceId} AND doc_id = ${documentId} FOR SHARE
+    `;
+    const projects = await this.db.$queryRaw<Array<{ id: string }>>`
+      SELECT project.id FROM ai_context_projects project
+      WHERE EXISTS (SELECT 1 FROM ai_context_project_grants grant_row
+        WHERE grant_row.project_id = project.id AND grant_row.workspace_id = ${workspaceId}
+          AND grant_row.doc_id = ${documentId} AND grant_row.status = 'active')
+      ORDER BY project.id LIMIT 4097 FOR UPDATE
+    `;
+    // Include all potential readers, even where a directory or explicit deny
+    // narrows access. Never assume the Project is the document's only audience.
+    const users = await this.db.$queryRaw<Array<{ userId: string }>>`
+      SELECT user_id AS "userId" FROM (
+        SELECT user_id FROM workspace_members WHERE workspace_id = ${workspaceId} AND state = 'active'
+        UNION
+        SELECT principal_id FROM doc_grants WHERE workspace_id = ${workspaceId}
+          AND doc_id = ${documentId} AND role <> 'none'
+        UNION
+        SELECT member.user_id FROM ai_context_project_members member
+        JOIN ai_context_projects project ON project.id = member.project_id AND project.status = 'active'
+        JOIN ai_context_project_grants grant_row ON grant_row.project_id = project.id
+        WHERE grant_row.workspace_id = ${workspaceId} AND grant_row.doc_id = ${documentId} AND grant_row.status = 'active'
+      ) audience ORDER BY user_id LIMIT 4097
+    `;
+    return {
+      version: 'shared-write-audience/v1',
+      workspaceId,
+      documentId,
+      known: policies.length === 1,
+      public:
+        policies[0]?.sharingEnabled === true &&
+        documents[0]?.visibility === 'public',
+      overBudget: users.length > 4096 || projects.length > 4096,
+      userIds: users.map(user => user.userId),
+    };
+  }
+
+  @Transactional()
+  async withDocumentSourcesShared<T>(
+    input: Parameters<CopilotContextModel['assertDocumentSourcesShared']>[0],
+    execute: () => Promise<T>
+  ) {
+    await this.assertDocumentSourcesShared(input);
+    return await execute();
+  }
+
+  @Transactional()
+  async assertDocumentSourcesShared(input: {
+    sessionId?: string | null;
+    actorId: string;
+    sink: SharedWriteSourceSink & { workspaceId: string; documentId: string };
+  }) {
+    const session = input.sessionId
+      ? await this.models.copilotSession.getMeta(input.sessionId)
+      : null;
+    if (input.sessionId && (!session || session.userId !== input.actorId))
+      throw new BadRequest('Shared write conversation is unavailable');
+    if (session?.selectedContextProjectId)
+      return await this.assertProjectSourcesShared({
+        ...input,
+        sessionId: session.id,
+        projectId: session.selectedContextProjectId,
+      });
+    const audienceEvidence = await this.lockDocumentAudience(
+      input.sink.workspaceId,
+      input.sink.documentId
+    );
+    if (input.sessionId)
+      await this.db
+        .$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${'context-source:' + input.sessionId}, 0))`;
+    const sources = session
+      ? await this.db.aiSessionContextSource.findMany({
+          where: { sessionId: session.id },
+          select: {
+            workspaceId: true,
+            kind: true,
+            sourceId: true,
+            evidence: true,
+          },
+          orderBy: [
+            { workspaceId: 'asc' },
+            { kind: 'asc' },
+            { sourceId: 'asc' },
+          ],
+          take: 4098,
+        })
+      : [
+          {
+            workspaceId: input.sink.workspaceId,
+            kind: 'unknown',
+            sourceId: 'missing-conversation-lineage',
+            evidence: {},
+          },
+        ];
+    const overBudget =
+      sources.length > 4097 ||
+      sources.some(source => source.sourceId === 'source-budget-exceeded');
+    const privateAudience =
+      audienceEvidence.known &&
+      !audienceEvidence.public &&
+      !audienceEvidence.overBudget &&
+      audienceEvidence.userIds.every(id => id === input.actorId);
+    // Personal input has no authority for additional readers. Until a source
+    // carries a verified shared scope, a personal conversation stays private.
+    const allowed = privateAudience && !overBudget;
+    const evidence = sources.slice(0, 4097);
+    await this.sourceAuditDb.aiSharedWriteSourceCheck.create({
+      data: {
+        sessionId: input.sessionId ?? 'unbound',
+        actorId: input.actorId,
+        sinkType: input.sink.type,
+        sinkId: input.sink.id,
+        sinkWorkspaceId: input.sink.workspaceId,
+        phase: input.sink.phase,
+        allowed,
+        reasonCode: allowed
+          ? 'authorized'
+          : overBudget
+            ? 'source_budget_exceeded'
+            : 'unshared_source',
+        sources: evidence,
+        sourceFingerprint: createHash('sha256')
+          .update(JSON.stringify(evidence))
+          .digest('hex'),
+        audienceEvidence,
+      },
+    });
+    if (!allowed)
+      throw new BadRequest(
+        'This conversation has no verified source authority for the destination readers. Use an authorized Project conversation before writing shared content.'
+      );
+  }
   // ================ contexts ================
 
   async create(sessionId: string) {
@@ -63,9 +236,25 @@ export class CopilotContextModel extends BaseModel {
     return row;
   }
 
-  async getAccessInfo(id: string) {
+  async getAccessInfo(id: string, userId: string) {
     return await this.db.aiContext.findFirst({
-      where: { id },
+      where: {
+        id,
+        session: {
+          userId,
+          deletedAt: null,
+          OR: [
+            { selectedContextProjectId: null },
+            {
+              docId: null,
+              selectedContextProject: {
+                status: 'active',
+                members: { some: { userId } },
+              },
+            },
+          ],
+        },
+      },
       select: {
         id: true,
         sessionId: true,
@@ -73,6 +262,7 @@ export class CopilotContextModel extends BaseModel {
           select: {
             userId: true,
             workspaceId: true,
+            docId: true,
           },
         },
       },
@@ -108,23 +298,351 @@ export class CopilotContextModel extends BaseModel {
     return row;
   }
 
-  async listSessionDocIds(sessionId: string) {
+  async getSessionSources(sessionId: string) {
+    const evidence = await this.db.aiSessionContextSource.findMany({
+      where: { sessionId },
+      select: { workspaceId: true, kind: true, sourceId: true },
+    });
+    const session = await this.db.aiSession.findUnique({
+      where: { id: sessionId },
+      select: { workspaceId: true },
+    });
+    const documentRefs = evidence
+      .filter(source => source.kind === 'document')
+      .map(source => ({
+        workspaceId: source.workspaceId,
+        docId: source.sourceId,
+      }));
+    const historicalDocs = documentRefs
+      .filter(source => source.workspaceId === session?.workspaceId)
+      .map(source => source.docId);
+    const hasPrivateAttachments = evidence.some(
+      source =>
+        source.kind === 'private_attachment' || source.kind === 'private'
+    );
+    const valid = evidence.every(source => source.kind !== 'unknown');
     const row = await this.db.aiContext.findFirst({
       where: { sessionId },
       select: { config: true },
     });
-    if (!row) return [];
+    if (!row)
+      return {
+        docIds: historicalDocs,
+        documentRefs,
+        hasPrivateAttachments,
+        valid,
+      };
 
     const config = ContextConfigSchema.safeParse(row.config);
-    if (!config.success) return [];
-    return Array.from(
-      new Set([
-        ...config.data.docs.map(doc => doc.id),
-        ...config.data.categories.flatMap(category =>
-          category.docs.map(doc => doc.id)
-        ),
-      ])
-    );
+    if (!config.success)
+      return {
+        docIds: historicalDocs,
+        documentRefs,
+        hasPrivateAttachments,
+        valid: false,
+      };
+    return {
+      documentRefs,
+      docIds: Array.from(
+        new Set([
+          ...historicalDocs,
+          ...config.data.docs.map(doc => doc.id),
+          ...config.data.categories.flatMap(category =>
+            category.docs.map(doc => doc.id)
+          ),
+        ])
+      ),
+      hasPrivateAttachments:
+        hasPrivateAttachments ||
+        config.data.files.length > 0 ||
+        config.data.blobs.length > 0,
+      valid,
+    };
+  }
+
+  @Transactional()
+  async recordDocumentSources(input: {
+    sessionId: string;
+    actorId: string;
+    projectId: string | null;
+    documents: Array<{ workspaceId: string; docId: string }>;
+  }) {
+    if (
+      input.documents.length > 4096 ||
+      input.documents.some(
+        doc =>
+          !doc.workspaceId ||
+          !doc.docId ||
+          doc.workspaceId.length > 256 ||
+          doc.docId.length > 256
+      )
+    )
+      throw new BadRequest('Document source evidence is invalid or too large');
+    await this.recordInputSources({
+      ...input,
+      sources: input.documents.map(document => ({
+        workspaceId: document.workspaceId,
+        kind: 'document' as const,
+        sourceId: document.docId,
+      })),
+    });
+  }
+
+  @Transactional()
+  async recordInputSources(input: {
+    sessionId: string;
+    actorId: string;
+    projectId: string | null;
+    sources: CopilotInputSource[];
+  }) {
+    if (input.projectId) {
+      await this.lockProjectSourceSession({
+        ...input,
+        projectId: input.projectId,
+      });
+    } else {
+      await this.db
+        .$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${'context-source:' + input.sessionId}, 0))`;
+      const sessions = await this.db.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM ai_sessions_metadata WHERE id = ${input.sessionId}
+          AND user_id = ${input.actorId} AND deleted_at IS NULL AND selected_context_project_id IS NULL FOR SHARE
+      `;
+      if (!sessions.length)
+        throw new BadRequest('Input source conversation is unavailable');
+    }
+    if (
+      input.sources.length > 4096 ||
+      input.sources.some(
+        source =>
+          !source.workspaceId ||
+          source.workspaceId.length > 256 ||
+          !source.sourceId ||
+          source.sourceId.length > 256
+      )
+    )
+      throw new BadRequest('Input source evidence is invalid or too large');
+    await this.db.aiSessionContextSource.createMany({
+      data: input.sources.map(source => ({
+        ...source,
+        sessionId: input.sessionId,
+      })),
+      skipDuplicates: true,
+    });
+  }
+
+  @Transactional()
+  async recordRecalledMemorySources(input: {
+    sessionId: string;
+    actorId: string;
+    projectId: string | null;
+    workspaceId: string;
+    memories: Array<{ id: string; content: string }>;
+  }) {
+    if (input.memories.length > 64)
+      throw new BadRequest('Recalled memory sources exceed their limit');
+    const memories = await this.db.aiContextMemory.findMany({
+      where: { id: { in: input.memories.map(memory => memory.id) } },
+      include: { sources: true },
+    });
+    const byId = new Map(memories.map(memory => [memory.id, memory]));
+    const sources: CopilotInputSource[] = [];
+    for (const { id, content } of input.memories) {
+      const memory = byId.get(id);
+      const shared =
+        memory?.scope === 'project' &&
+        memory.projectId === input.projectId &&
+        memory.status === 'active' &&
+        memory.content === content &&
+        !memory.quarantinedAt &&
+        memory.sources.length > 0;
+      sources.push({
+        workspaceId: input.workspaceId,
+        kind: shared ? 'workspace' : memory ? 'private' : 'unknown',
+        sourceId: `recalled-memory:${id}:${createHash('sha256').update(content).digest('hex')}`,
+      });
+      if (shared)
+        for (const source of memory.sources)
+          sources.push({
+            workspaceId: source.workspaceId,
+            kind: 'document',
+            sourceId: source.docId,
+          });
+    }
+    await this.recordInputSources({ ...input, sources });
+  }
+
+  private async lockProjectSourceSession(input: {
+    sessionId: string;
+    actorId: string;
+    projectId: string;
+  }) {
+    await this.db
+      .$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${'context-source:' + input.sessionId}, 0))`;
+    const sessions = await this.db.$queryRaw<Array<{ workspaceId: string }>>`
+      SELECT session.workspace_id AS "workspaceId"
+      FROM ai_sessions_metadata session
+      JOIN ai_context_projects project ON project.id = session.selected_context_project_id
+      JOIN ai_context_project_members member ON member.project_id = project.id AND member.user_id = ${input.actorId}
+      WHERE session.id = ${input.sessionId} AND session.user_id = ${input.actorId}
+        AND session.deleted_at IS NULL AND session.doc_id IS NULL
+        AND project.id = ${input.projectId} AND project.status = 'active'
+      FOR UPDATE OF project FOR SHARE OF session, member
+    `;
+    if (!sessions[0])
+      throw new BadRequest(
+        'Project source evidence requires an active owned project conversation'
+      );
+    return sessions[0];
+  }
+
+  @Transactional()
+  async assertProjectSourcesShared(input: {
+    sessionId: string;
+    actorId: string;
+    projectId: string;
+    sink?: SharedWriteSourceSink;
+  }) {
+    const documentSink = input.sink && input.sink.type !== 'project_memory';
+    const audienceEvidence =
+      documentSink && input.sink?.workspaceId
+        ? await this.lockDocumentAudience(
+            input.sink.workspaceId,
+            input.sink.documentId ?? input.sink.id
+          )
+        : null;
+    const session = await this.lockProjectSourceSession(input);
+    const members = audienceEvidence
+      ? await this.db.aiContextProjectMember.findMany({
+          where: {
+            projectId: input.projectId,
+            userId: { in: audienceEvidence.userIds },
+          },
+          select: { userId: true },
+        })
+      : [];
+    const audienceAllowed =
+      !documentSink ||
+      (!!audienceEvidence &&
+        audienceEvidence.known &&
+        !audienceEvidence.public &&
+        !audienceEvidence.overBudget &&
+        members.length === audienceEvidence.userIds.length);
+    const sources = await this.db.aiSessionContextSource.findMany({
+      where: { sessionId: input.sessionId },
+      select: { workspaceId: true, kind: true, sourceId: true, evidence: true },
+      orderBy: [{ workspaceId: 'asc' }, { kind: 'asc' }, { sourceId: 'asc' }],
+      take: 4098,
+    });
+    const shared = await this.db.$queryRaw<Array<{ id: string }>>`
+      SELECT grant_row.id FROM ai_session_context_sources source
+      JOIN ai_context_project_grants grant_row
+        ON grant_row.project_id = ${input.projectId}
+        AND grant_row.workspace_id = source.workspace_id
+        AND grant_row.doc_id = source.source_id AND grant_row.status = 'active'
+        AND grant_row.id = source.evidence->>'projectGrantId'
+      WHERE source.session_id = ${input.sessionId} AND source.kind = 'document'
+      FOR SHARE OF grant_row
+    `;
+    const overBudget =
+      sources.length > 4097 ||
+      sources.some(source => source.sourceId === 'source-budget-exceeded');
+    let projectInputs = 0;
+    for (const source of sources) {
+      if (
+        source.kind !== 'workspace' ||
+        source.workspaceId !== session.workspaceId
+      )
+        continue;
+      if (
+        ['project-input:', 'system-prompt:', 'derived-tool:'].some(prefix =>
+          source.sourceId.startsWith(prefix)
+        )
+      ) {
+        projectInputs++;
+      } else if (source.sourceId.startsWith('recalled-memory:')) {
+        const [, id, fingerprint] = source.sourceId.split(':');
+        const memories = await this.db.$queryRaw<Array<{ content: string }>>`
+          SELECT content FROM ai_context_memories
+          WHERE id = ${id} AND project_id = ${input.projectId} AND scope = 'project'
+            AND status = 'active' AND quarantined_at IS NULL
+            AND (expires_at IS NULL OR expires_at > now())
+            AND (valid_until IS NULL OR valid_until > now())
+          FOR SHARE
+        `;
+        if (
+          memories[0] &&
+          createHash('sha256').update(memories[0].content).digest('hex') ===
+            fingerprint
+        )
+          projectInputs++;
+      } else if (source.sourceId.startsWith('workspace-policy:')) {
+        const policies = await this.db.$queryRaw<Array<{ id: string }>>`
+          SELECT policy.id FROM ai_context_policies policy
+          JOIN ai_context_policy_revisions revision ON revision.policy_id = policy.id
+          WHERE revision.id = ${source.sourceId.slice('workspace-policy:'.length)}
+            AND policy.workspace_id = ${source.workspaceId} AND policy.status = 'active'
+            AND policy.active_revision = revision.revision
+          FOR SHARE OF policy, revision
+        `;
+        await this.db.$queryRaw`
+          SELECT workspace_member.id FROM workspace_members workspace_member
+          JOIN ai_context_project_members project_member ON project_member.user_id = workspace_member.user_id
+          WHERE project_member.project_id = ${input.projectId}
+            AND workspace_member.workspace_id = ${source.workspaceId}
+            AND workspace_member.state = 'active'
+          FOR SHARE OF workspace_member
+        `;
+        const unrepresented = await this.db.aiContextProjectMember.count({
+          where: {
+            projectId: input.projectId,
+            user: {
+              workspaceMembers: {
+                none: { workspaceId: source.workspaceId, state: 'active' },
+              },
+            },
+          },
+        });
+        if (policies.length === 1 && !unrepresented) projectInputs++;
+      }
+    }
+    const allowed =
+      audienceAllowed &&
+      !overBudget &&
+      shared.length + projectInputs === sources.length;
+    if (input.sink) {
+      const evidence = sources.slice(0, 4097);
+      // A denial must remain auditable even when its caller rolls back the write.
+      // No live-record foreign keys or permission locks are taken by this insert.
+      await this.sourceAuditDb.aiSharedWriteSourceCheck.create({
+        data: {
+          sessionId: input.sessionId,
+          actorId: input.actorId,
+          projectId: input.projectId,
+          sinkType: input.sink.type,
+          sinkId: input.sink.id,
+          phase: input.sink.phase,
+          sinkWorkspaceId: input.sink.workspaceId ?? null,
+          allowed,
+          reasonCode: allowed
+            ? 'authorized'
+            : overBudget
+              ? 'source_budget_exceeded'
+              : 'unshared_source',
+          sources: evidence,
+          audienceEvidence: audienceEvidence ?? {
+            version: 'project-memory-audience/v1',
+            projectId: input.projectId,
+          },
+          sourceFingerprint: createHash('sha256')
+            .update(JSON.stringify(evidence))
+            .digest('hex'),
+        },
+      });
+    }
+    if (!allowed)
+      throw new BadRequest(
+        'This conversation contains private or unverified sources that are not authorized for the entire Project. Start a new conversation after authorizing the source documents, without private or unverified sources, before writing shared content.'
+      );
   }
 
   async mergeBlobStatus(

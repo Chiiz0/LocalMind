@@ -128,13 +128,21 @@ export abstract class DocStorageAdapter extends Connection {
 
   async getDoc(spaceId: string, docId: string): Promise<DocRecord | null> {
     await using _lock = await this.lockDocForUpdate(spaceId, docId);
+    return await this.squashPendingUpdatesToSnapshot(spaceId, docId);
+  }
 
+  protected async squashPendingUpdatesToSnapshot(
+    spaceId: string,
+    docId: string,
+    merge?: (updates: Uint8Array[]) => Promise<Uint8Array>
+  ): Promise<DocRecord | null> {
     const snapshot = await this.getDocSnapshot(spaceId, docId);
     const updates = await this.getDocUpdates(spaceId, docId);
 
     if (updates.length) {
       const docUpdate = await this.squash(
-        snapshot ? [snapshot, ...updates] : updates
+        snapshot ? [snapshot, ...updates] : updates,
+        merge
       );
       return await this.squashUpdatesToSnapshot(
         spaceId,
@@ -170,7 +178,7 @@ export abstract class DocStorageAdapter extends Connection {
   }
 
   @Transactional<TransactionalAdapterPrisma>({ timeout: 60000 })
-  private async squashUpdatesToSnapshot(
+  protected async squashUpdatesToSnapshot(
     spaceId: string,
     docId: string,
     updates: DocUpdate[],
@@ -280,7 +288,10 @@ export abstract class DocStorageAdapter extends Connection {
     spaceId: string,
     docId: string
   ): Promise<DocRecord | null>;
-  protected abstract setDocSnapshot(snapshot: DocRecord): Promise<boolean>;
+  protected abstract setDocSnapshot(
+    snapshot: DocRecord,
+    beforeWrite?: () => Promise<void>
+  ): Promise<boolean>;
   protected abstract getDocUpdates(
     spaceId: string,
     docId: string

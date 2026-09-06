@@ -99,8 +99,16 @@ export const createReadableDocIdsLoader = (
     string,
     { expiresAt: number; promise: Promise<string[]> }
   >();
-  return (input: { userId: string; workspaceId: string }) => {
-    const key = `${input.userId}\0${input.workspaceId}`;
+  return (input: {
+    userId: string;
+    workspaceId: string;
+    projectId?: string | null;
+  }) => {
+    const key = JSON.stringify([
+      input.userId,
+      input.workspaceId,
+      input.projectId === undefined ? { all: true } : input.projectId,
+    ]);
     const existing = cache.get(key);
     if (existing && existing.expiresAt > Date.now()) {
       return existing.promise;
@@ -126,6 +134,7 @@ async function searchReadableMarkdown(input: {
   workspaceId: string;
   userId: string;
   docIds: string[];
+  projectId?: string | null;
   query: string;
   limit: number;
 }): Promise<WorkspaceKeywordSearchResult[]> {
@@ -157,6 +166,7 @@ async function searchReadableMarkdown(input: {
           .user(input.userId)
           .workspace(input.workspaceId)
           .doc(docId)
+          .projectScope(input.projectId ?? null)
           .can('Doc.Read');
         if (!readable) return null;
         let content;
@@ -213,7 +223,7 @@ export const buildDocKeywordSearchGetter = (
   docReader: DocReader,
   logger: Pick<Console, 'debug' | 'warn'> = console
 ) => {
-  const loadReadableDocIds = createReadableDocIdsLoader(permission);
+  const loadReadableDocIds = createReadableDocIdsLoader(permission, 0);
   const searchDocs = async (
     options: CopilotChatOptions,
     query?: string,
@@ -243,6 +253,7 @@ export const buildDocKeywordSearchGetter = (
     const docIds = await loadReadableDocIds({
       userId: options.user,
       workspaceId: options.workspace,
+      projectId: null,
     });
     try {
       const docs = await indexerService.searchDocsByKeyword(
@@ -254,6 +265,7 @@ export const buildDocKeywordSearchGetter = (
       const readableDocs = await ac
         .user(options.user)
         .workspace(options.workspace)
+        .projectScope(null)
         .docs(docs, 'Doc.Read');
       return (readableDocs ?? []).map(doc => ({
         docId: doc.docId,
@@ -401,6 +413,7 @@ export const buildProjectDocKeywordSearchGetter = (
               logger,
               workspaceId,
               userId: options.user as string,
+              projectId: initialScope.projectId,
               docIds,
               query: queryTrimmed,
               limit: boundedLimit,

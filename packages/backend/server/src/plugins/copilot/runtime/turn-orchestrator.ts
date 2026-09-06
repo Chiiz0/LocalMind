@@ -81,13 +81,14 @@ export class TurnOrchestrator {
   }
 
   private async buildPromptParams(
+    userId: string,
     sessionId: string,
     options: {
       latestTurn?: Turn;
       includeContextFiles?: boolean;
     } = {}
   ): Promise<Record<string, unknown>> {
-    const current = await this.context.getBySessionId(sessionId);
+    const current = await this.context.getOwnedBySessionId(userId, sessionId);
     const contextFiles =
       options.includeContextFiles &&
       current &&
@@ -133,7 +134,7 @@ export class TurnOrchestrator {
         'Office AI context does not support image generation'
       );
     }
-    const promptParams = await this.buildPromptParams(sessionId, {
+    const promptParams = await this.buildPromptParams(userId, sessionId, {
       latestTurn: prepared.latestTurn,
       includeContextFiles: selection.includeContextFiles,
     });
@@ -164,9 +165,25 @@ export class TurnOrchestrator {
       },
       { contextWindow: selected.contextWindow }
     );
-    const finalMessage = office
+    const messagesWithOfficePolicy = office
       ? this.appendOfficePlannerPolicy(renderedMessages, office)
       : renderedMessages;
+    const managementPolicy: PromptMessage = {
+      role: 'system',
+      content:
+        'LocalMind Projects are managed by people. You must not create a Project, manage its members, change its permissions or AI policy, or approve/reject access requests. If asked to create a Project, explain that the user must create it in Intelligence. Never create a folder as a substitute. Do not delete or convert existing folders. Document creation requires an explicitly chosen destination workspace and location, including an explicit root choice. Report only actual tool execution outcomes; an access request is not a grant and a write preview is not a completed edit.',
+    };
+    const policyIndex = messagesWithOfficePolicy.findIndex(
+      message => message.role !== 'system'
+    );
+    const finalMessage =
+      policyIndex < 0
+        ? [...messagesWithOfficePolicy, managementPolicy]
+        : [
+            ...messagesWithOfficePolicy.slice(0, policyIndex),
+            managementPolicy,
+            ...messagesWithOfficePolicy.slice(policyIndex),
+          ];
 
     return {
       prepared,

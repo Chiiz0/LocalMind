@@ -183,6 +183,48 @@ describe('ImportCommitService', () => {
     });
   });
 
+  test('waits for folder authorization and reports denial without claiming placement', async () => {
+    const collection = new TestWorkspace({ id: 'folder-denial' });
+    collection.meta.initialize();
+    const tree = createFolderTree();
+    const createFolder = vi.spyOn(
+      tree.service.folderTree.rootFolder,
+      'createFolder'
+    );
+    let rejectCreation!: (error: Error) => void;
+    createFolder.mockImplementation(
+      () =>
+        new Promise<string>((_resolve, reject) => {
+          rejectCreation = reject;
+        }) as never
+    );
+    const service = createCommitService(collection, {
+      organizeService: tree.service,
+    });
+    let finished = false;
+    const pending = service
+      .commitBatch({
+        blobs: [],
+        docs: [],
+        folders: [{ path: 'target', name: 'Target' }],
+        done: true,
+      })
+      .then(result => {
+        finished = true;
+        return result;
+      });
+    await Promise.resolve();
+    expect(finished).toBe(false);
+    rejectCreation(new Error('Directory permission revoked'));
+    const result = await pending;
+    expect(result.rootFolderId).toBeUndefined();
+    expect(result.warnings).toContainEqual({
+      code: 'unresolved_folder',
+      message: 'Folder placement failed: Directory permission revoked',
+    });
+    expect(tree.links).toEqual([]);
+  });
+
   test('records doc commit failures as warnings and continues remaining docs', async () => {
     const collection = new TestWorkspace({ id: 'test' });
     collection.meta.initialize();

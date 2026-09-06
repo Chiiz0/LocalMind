@@ -63,11 +63,59 @@ describe('executeWorkbenchTaskAction', () => {
   });
 
   test('dispatches access requests through the dedicated state machine', async () => {
-    await executeWorkbenchTaskAction(graphql, item(), 'approve_access_request');
+    await executeWorkbenchTaskAction(
+      graphql,
+      item(),
+      'approve_access_request',
+      {
+        requestId: 'request-1',
+        action: 'approve_access_request',
+      }
+    );
 
     expect(gql).toHaveBeenCalledWith({
       query: tokens.approveAccess,
       variables: { input: { requestId: 'request-1' } },
+    });
+  });
+
+  test('rejects absent or mismatched decision confirmation without a mutation', async () => {
+    for (const confirmation of [
+      undefined,
+      { requestId: 'other', action: 'approve_access_request' as const },
+      { requestId: 'request-1', action: 'reject_access_request' as const },
+    ]) {
+      await expect(
+        executeWorkbenchTaskAction(
+          graphql,
+          item(),
+          'approve_access_request',
+          confirmation
+        )
+      ).rejects.toThrow('human confirmation');
+    }
+    expect(gql).not.toHaveBeenCalled();
+  });
+
+  test('preserves the human rejection reason', async () => {
+    await executeWorkbenchTaskAction(
+      graphql,
+      item({ availableActions: ['reject_access_request'] }),
+      'reject_access_request',
+      {
+        requestId: 'request-1',
+        action: 'reject_access_request',
+        reason: 'This document must remain private.',
+      }
+    );
+    expect(gql).toHaveBeenCalledWith({
+      query: tokens.rejectAccess,
+      variables: {
+        input: {
+          requestId: 'request-1',
+          reason: 'This document must remain private.',
+        },
+      },
     });
   });
 

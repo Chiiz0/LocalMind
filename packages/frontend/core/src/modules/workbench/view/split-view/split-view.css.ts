@@ -1,5 +1,11 @@
 import { cssVarV2 } from '@toeverything/theme/v2';
-import { createVar, fallbackVar, keyframes, style } from '@vanilla-extract/css';
+import {
+  createVar,
+  fallbackVar,
+  globalStyle,
+  keyframes,
+  style,
+} from '@vanilla-extract/css';
 
 const gap = createVar();
 const borderRadius = createVar();
@@ -30,13 +36,17 @@ const expandDropIndicator = keyframes({
 });
 
 export const splitViewPanel = style({
-  flexShrink: 0,
+  flexBasis: 0,
+  minWidth: 0,
+  flexShrink: 1,
   flexGrow: fallbackVar(size, '1'),
   position: 'relative',
   order: panelOrder,
   display: 'flex',
 
   selectors: {
+    '&[hidden]': { display: 'none' },
+    '&[data-compact="true"]': { order: 1, minHeight: 0, width: '100%' },
     '[data-is-resizing="true"]&': {
       transition: 'none',
     },
@@ -211,6 +221,7 @@ export const splitViewRoot = style({
   margin: '0 -10px',
 
   selectors: {
+    '&[data-compact="true"]': { flexDirection: 'column' },
     '&[data-client-border="true"]': {
       vars: {
         [gap]: '8px',
@@ -220,6 +231,47 @@ export const splitViewRoot = style({
       overflow: 'clip',
     },
   },
+});
+
+export const compactTabs = style({
+  display: 'flex',
+  flexShrink: 0,
+  gap: 4,
+  overflowX: 'auto',
+  minWidth: 0,
+  padding: '4px 8px',
+  borderBottom: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
+});
+
+export const compactTab = style({
+  display: 'flex',
+  alignItems: 'center',
+  minWidth: 100,
+  maxWidth: 220,
+  gap: 4,
+  color: cssVarV2('text/secondary'),
+  borderRadius: 4,
+  padding: '2px 4px',
+  selectors: {
+    '&[data-active="true"]': {
+      background: cssVarV2('layer/background/hoverOverlay'),
+      color: cssVarV2('text/primary'),
+    },
+  },
+});
+
+globalStyle(`${compactTab} > button[role="tab"]`, {
+  flex: 1,
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  border: 0,
+  background: 'transparent',
+  color: 'inherit',
+  font: 'inherit',
+  textAlign: 'left',
+  cursor: 'pointer',
 });
 
 export const folderWarningMessage = style({

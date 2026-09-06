@@ -59,7 +59,11 @@ export type AIChatAction =
   | { type: 'stopContextPolling' }
   | { type: 'pollEmbeddingStatus' }
   | { type: 'loadProjectScope' }
-  | { type: 'setSelectedContextProject'; projectId: string | null }
+  | {
+      type: 'setSelectedContextProject';
+      projectId: string | null;
+      projectName?: string;
+    }
   | ({ type: 'send' } & AIChatSendOptions)
   | { type: 'retry'; messageId: string }
   | { type: 'stop' };

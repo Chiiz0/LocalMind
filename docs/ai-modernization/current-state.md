@@ -1,5 +1,99 @@
 # Current State
 
+## Project AI Stage Two Accepted
+
+Stage two passed isolated Linux, real Chrome and encrypted-BYOK acceptance.
+Its current authority is
+[Project AI Boundaries](tracks/project-ai-boundaries.md#stage-two-progress-on-2026-09-06).
+The isolated Linux regression and upgrade databases now have 335 migrations;
+the retained scale database remains at 332. The business runtime has also been
+upgraded to 335 migrations through the existing synchronization scripts after
+database backups. A restored business backup independently passed 331-to-335
+upgrade validation. No image was rebuilt.
+
+The source ledger now records prompt/message, attachment, tool and recalled
+memory evidence, freezes the original document grant, and persists immutable
+shared-write checks outside a failed write transaction. Legacy sessions retain
+an unknown marker, including empty sessions. Project creation/copy, document
+updates and memory writes reject private, unknown, over-budget and revoked
+sources; regrant does not revive the original conversation evidence. Document
+checks also persist the destination audience and reject exposure beyond the
+Project. Ordinary conversation writes currently require a destination whose
+potential readers are limited to the actor; private or unproven personal input
+does not acquire shared authority from location confirmation. User messages,
+tool outputs, Rules and recalled memories now accumulate evidence in ordinary
+sessions as well. Delegated planners bind a durable session before consuming
+document/attachment context, including direct document-update plans.
+
+External tool tasks now persist `waiting_for_location`, a session/operation
+binding, confirmed destination revision, actor, permission evidence and expiry.
+Bounded tool checkpoints recover completed calls; location recovery rechecks
+authority and does not recreate completed documents. Linux fixtures cover
+withdrawal, expiry, stale leases, queue outage, forged MCP confirmation, audience
+drift and multiple same-title documents. Cancelled runs cannot block another
+location recovery; manual resume updates the delegated request transactionally
+and rejects withdrawn operations or revoked credentials. Office command/batch
+writes and directory mutations enforce the source check through persistence;
+transactional tool writes defer document broadcasts until commit.
+
+Real Chrome verified human approve/reject second confirmation, rejection reason,
+duplicate handling, withdrawal, expiry, offline reconnection, reviewer/admin
+changes, revocation and applicant results using isolated documents. Notification
+snapshots start from authentication state and reconcile every 15 seconds,
+including unchanged counts. An HTTP-only browser proxy blocked realtime while
+the persistent result appeared within 9,193 ms and survived reconnection. A
+real isolated Redis WRITE pause also preserved the committed decision and
+notification before publication resumed.
+
+Encrypted-BYOK task `fc65e3e2-005e-499d-bd05-340add3cf842` survived a backend
+restart while waiting with zero creation. Explicit Workspace/root confirmation
+then created exactly one document with revision 1 and separate placement and
+Project-addition receipts. The recovered worker completed, and MCP returned the
+actual destination Workspace. Recovered tool receipts now survive native prompt
+projection; the earlier failed task and its document remain as evidence. The
+final backend sync used a fresh waiting-state database backup and did not
+rebuild the image. Desktop/narrow-screen light/dark visual checks passed.
+
+The 10,000-row directory fixture passed pagination, 64-level ancestry,
+concurrent policy revision and missed-realtime revocation checks. The latest
+sample measured a 329 ms directory first page, a 129.36 ms destination-picker
+page, and 13,858.33 ms for the remaining 100 directory pages. Parsing cache
+entries are bounded and validated against freshly read storage bytes; actor
+permissions are not cached across requests. Detailed measurements and retained
+fixture IDs are in the authority document.
+
+## Project AI Boundaries Stage Accepted
+
+The current product contract, implementation record, and residual risks are
+maintained in [Project AI Boundaries](tracks/project-ai-boundaries.md). Explicit
+conversation project selection supersedes inference from attached documents.
+AI cannot create or administer Projects. Document creation requires a confirmed
+storage Workspace and location; execution Workspace and storage Workspace are
+separate.
+
+The 2026-09-05 stage includes server and tool capability enforcement, immutable
+conversation/project binding, cumulative source provenance checks, durable
+creation and independent-copy operations, directory grants and administration,
+project access requests, human decision notifications, audit, and realtime
+refresh. Conflicting native root histories are repaired through a canonical
+snapshot that remains readable by both Yjs and the native reader; copied
+snapshots rewrite their internal title before persistence.
+
+The backend business runtime was synchronized with
+`yarn localmind:sync:backend` after a database backup. All 331 migrations were
+applied with zero pending migrations; no Docker image was rebuilt. The fixed
+`localmind-affine:test` runner passed the focused backend, frontend, lint,
+format, and TypeScript checks. Browser acceptance proved a real cross-Workspace
+copy with a new document ID, persistent title, and bidirectional edit
+independence, plus immediate directory-policy hide/restore behavior without a
+page refresh.
+
+The broader provenance, external location recovery and large-directory work
+listed at this earlier stage is covered by stage two above. Production transport
+soak and sustained capacity measurement remain outside the local acceptance.
+Two intentionally retained failed copy samples and two isolated test folders
+remain as audit evidence; they were not deleted or converted.
+
 ## Native Office And AI Editing
 
 The LocalMind Native Office vertical slice and its AI editing loop are

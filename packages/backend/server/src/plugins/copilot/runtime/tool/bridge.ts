@@ -126,7 +126,10 @@ export async function executeToolCall(
       tool.inputSchema instanceof z.ZodType
         ? tool.inputSchema.parse(request.args)
         : request.args;
-    const output = await tool.execute(args, options);
+    const output = await tool.execute(args, {
+      ...options,
+      toolCallId: request.callId,
+    });
     return {
       callId: request.callId,
       name: request.name,

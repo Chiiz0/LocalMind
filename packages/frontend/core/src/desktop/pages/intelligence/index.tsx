@@ -22,6 +22,7 @@ import {
 } from '@affine/core/modules/cloud';
 import { useAppLayoutReady } from '@affine/core/modules/desktop-api';
 import { WorkspaceDialogService } from '@affine/core/modules/dialogs';
+import { NotificationCountService } from '@affine/core/modules/notification';
 import { QuickSearchContainer } from '@affine/core/modules/quicksearch';
 import { CMDKQuickSearchService } from '@affine/core/modules/quicksearch/services/cmdk';
 import {
@@ -79,6 +80,7 @@ import {
   type WorkbenchProjectMember,
   type WorkbenchTask,
 } from './types';
+import { useAccessRequestConfirmation } from './use-access-request-confirmation';
 import { WorkbenchConversation } from './workbench-conversation';
 import { executeWorkbenchTaskAction } from './workbench-task-action';
 
@@ -176,6 +178,7 @@ const IntelligenceWorkbench = ({
   const t = useI18n();
   const navigate = useNavigate();
   const graphqlService = useService(GraphQLService);
+  const notificationCount = useService(NotificationCountService);
   const workspaceDialogService = useService(WorkspaceDialogService);
   const quickSearchService = useServiceOptional(CMDKQuickSearchService);
   const { openConfirmModal } = useConfirmModal();
@@ -257,6 +260,14 @@ const IntelligenceWorkbench = ({
   );
   const taskPanel =
     taskPanelData?.currentUser?.copilot.workbenchTaskPanel ?? EMPTY_TASK_PANEL;
+
+  useEffect(() => {
+    const subscription = notificationCount.revision$.subscribe(revision => {
+      if (!revision) return;
+      Promise.all([refreshProjects(), refreshTaskPanel()]).catch(console.error);
+    });
+    return () => subscription.unsubscribe();
+  }, [notificationCount, refreshProjects, refreshTaskPanel]);
 
   useEffect(() => {
     if (
@@ -728,6 +739,7 @@ const IntelligenceWorkbench = ({
     t,
   ]);
 
+  const confirmAccessRequest = useAccessRequestConfirmation();
   const controlTask = useCallback(
     async (task: WorkbenchTask, action: WorkbenchPanelTaskAction) => {
       if (pendingTaskAction || !task.availableActions.includes(action)) return;
@@ -739,7 +751,23 @@ const IntelligenceWorkbench = ({
       }
       setPendingTaskAction({ taskId: task.id, action });
       try {
-        await executeWorkbenchTaskAction(graphqlService, task, action);
+        const confirmation =
+          action === 'approve_access_request' ||
+          action === 'reject_access_request'
+            ? await confirmAccessRequest(task, action)
+            : null;
+        if (
+          (action === 'approve_access_request' ||
+            action === 'reject_access_request') &&
+          !confirmation
+        )
+          return;
+        await executeWorkbenchTaskAction(
+          graphqlService,
+          task,
+          action,
+          confirmation
+        );
         await Promise.all([refreshProjects(), refreshTaskPanel()]);
         notify.success({
           title:
@@ -759,6 +787,7 @@ const IntelligenceWorkbench = ({
       }
     },
     [
+      confirmAccessRequest,
       graphqlService,
       navigate,
       pendingTaskAction,
@@ -947,6 +976,7 @@ const IntelligenceWorkbench = ({
         </div>
 
         <ProjectTree
+          workspace={hostWorkspace}
           projects={projects}
           selectedProjectId={selectedProjectId}
           loading={projectsLoading}
@@ -1007,7 +1037,9 @@ const IntelligenceWorkbench = ({
         />
         <div className={styles.conversationAndPeek} data-peek={!!peekDocument}>
           <WorkbenchConversation
+            onDocumentsChanged={refreshProjects}
             selectedProjectId={selectedProjectId}
+            selectedProjectName={selectedProject?.name}
             projectDocuments={selectedProject?.documents ?? []}
             onOpenDocument={onOpenDocument}
             onConfirmBlockerSuggestion={

@@ -30,11 +30,35 @@ import { RealtimeRegistry } from '../realtime/registry';
 import {
   realtimeWorkspaceAccessRoom,
   realtimeWorkspaceConfigRoom,
+  realtimeWorkspaceDirectoryPolicyRoom,
   realtimeWorkspaceInviteLinkRoom,
   realtimeWorkspaceMembersRoom,
 } from '../realtime/rooms';
 
 const workspaceInput = z.object({ workspaceId: z.string() }).strict();
+
+@Injectable()
+export class WorkspaceDirectoryPolicyRealtimeProvider implements OnModuleInit {
+  constructor(
+    private readonly ac: PermissionAccess,
+    private readonly registry: RealtimeRegistry
+  ) {}
+
+  onModuleInit() {
+    this.registry.registerTopic({
+      name: 'workspace.directory-policy.changed',
+      input: workspaceInput,
+      authorize: async (user, input) => {
+        await this.ac
+          .user(user.id)
+          .workspace(input.workspaceId)
+          .assert('Workspace.Organize.Read');
+      },
+      room: (_user, input) =>
+        realtimeWorkspaceDirectoryPolicyRoom(input.workspaceId),
+    });
+  }
+}
 
 function serializeWorkspaceMember(
   row: WorkspaceUserCompat

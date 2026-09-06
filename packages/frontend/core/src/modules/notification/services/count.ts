@@ -17,6 +17,11 @@ export class NotificationCountService extends Service {
     private readonly nbstoreService: NbstoreService
   ) {
     super();
+    const subscription = this.loggedIn$.subscribe(() => {
+      this.subscribe();
+      this.revalidate();
+    });
+    this.disposables.push(() => subscription.unsubscribe());
   }
 
   loggedIn$ = this.authService.session.status$.map(v => v === 'authenticated');
@@ -24,13 +29,19 @@ export class NotificationCountService extends Service {
   readonly count$ = LiveData.from(this.store.watchNotificationCountCache(), 0);
   readonly isLoading$ = new LiveData(false);
   readonly error$ = new LiveData<any>(null);
+  readonly revision$ = new LiveData(0);
+  private refreshTimer?: ReturnType<typeof setInterval>;
   private readonly liveQuery = new RealtimeLiveQuery({
     request: signal => this.requestCount(signal),
     subscribe: () =>
       this.nbstoreService.realtime.subscribe('notification.count.changed', {}),
-    applySnapshot: result => this.setCount(result.count),
+    applySnapshot: result => {
+      this.setCount(result.count);
+      this.revision$.setValue(this.revision$.value + 1);
+    },
     applyEvent: event => {
       this.setCount(event.count);
+      this.revision$.setValue(this.revision$.value + 1);
       return 'applied';
     },
     onError: error => this.error$.setValue(error),
@@ -65,26 +76,41 @@ export class NotificationCountService extends Service {
 
   override dispose(): void {
     super.dispose();
+    clearInterval(this.refreshTimer);
     this.liveQuery.dispose();
   }
 
   private subscribe() {
+    clearInterval(this.refreshTimer);
     if (!this.loggedIn$.value) {
       this.liveQuery.stop();
       this.setCount(0);
       return;
     }
     this.liveQuery.start();
+    // Reconcile a dropped event even when the transport remains connected.
+    this.refreshTimer = setInterval(this.revalidate, 15000);
   }
 
   private async requestCount(signal: AbortSignal) {
     this.isLoading$.setValue(true);
     try {
-      return await this.nbstoreService.realtime.request(
-        'notification.count.get',
-        {},
-        { signal, timeoutMs: 10000 }
-      );
+      try {
+        return await this.nbstoreService.realtime.request(
+          'notification.count.get',
+          {},
+          { signal, timeoutMs: 10000 }
+        );
+      } catch (error) {
+        if (signal.aborted) throw error;
+        const notifications = await this.store.listNotification(
+          { first: 1 },
+          false,
+          signal
+        );
+        if (!notifications) throw error;
+        return { count: notifications.totalCount };
+      }
     } finally {
       this.isLoading$.setValue(false);
     }

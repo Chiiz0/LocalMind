@@ -93,6 +93,432 @@ test('should create a copilot context', async t => {
   t.is(context1?.id, contextId, 'should get context by session id');
 });
 
+test('context access requires a live owned session and active project membership', async t => {
+  const { db, copilotContext, copilotSession } = t.context;
+  const projectOwner = await t.context.user.create({
+    email: `context-owner-${randomUUID()}@example.com`,
+  });
+  const project = await db.aiContextProject.create({
+    data: {
+      name: 'Context isolation',
+      createdByUserId: projectOwner.id,
+      members: {
+        create: [
+          { userId: projectOwner.id, role: 'owner' },
+          { userId: user.id, role: 'member' },
+        ],
+      },
+    },
+  });
+  const projectSessionId = await copilotSession.create({
+    sessionId: randomUUID(),
+    workspaceId: workspace.id,
+    userId: user.id,
+    selectedContextProjectId: project.id,
+    title: null,
+    promptName: 'prompt-name',
+    promptAction: null,
+  });
+  const context = await copilotContext.create(projectSessionId);
+  t.truthy(await copilotContext.getAccessInfo(context.id, user.id));
+  t.is(await copilotContext.getAccessInfo(context.id, projectOwner.id), null);
+  await db.aiContextProjectMember.deleteMany({
+    where: { projectId: project.id, userId: user.id },
+  });
+  t.is(await copilotContext.getAccessInfo(context.id, user.id), null);
+  await db.aiContextProjectMember.create({
+    data: { projectId: project.id, userId: user.id, role: 'member' },
+  });
+  t.truthy(await copilotContext.getAccessInfo(context.id, user.id));
+  await db.aiContextProject.update({
+    where: { id: project.id },
+    data: { status: 'archived' },
+  });
+  t.is(await copilotContext.getAccessInfo(context.id, user.id), null);
+  const personalContext = await copilotContext.create(sessionId);
+  t.truthy(await copilotContext.getAccessInfo(personalContext.id, user.id));
+  await db.aiSession.update({
+    where: { id: sessionId },
+    data: { deletedAt: new Date() },
+  });
+  t.is(await copilotContext.getAccessInfo(personalContext.id, user.id), null);
+});
+
+test('session source projection distinguishes empty, private, and invalid attachment configuration', async t => {
+  const { copilotContext, db } = t.context;
+  t.deepEqual(await copilotContext.getSessionSources(sessionId), {
+    docIds: [],
+    documentRefs: [],
+    hasPrivateAttachments: false,
+    valid: true,
+  });
+  const context = await copilotContext.create(sessionId);
+  const config = (await copilotContext.getConfig(context.id))!;
+  config.docs.push({ id: 'attached-doc', createdAt: Date.now() });
+  config.blobs.push({ id: 'private-blob', createdAt: Date.now() });
+  await copilotContext.update(context.id, { config });
+  t.deepEqual(await copilotContext.getSessionSources(sessionId), {
+    docIds: ['attached-doc'],
+    documentRefs: [{ workspaceId: workspace.id, docId: 'attached-doc' }],
+    hasPrivateAttachments: true,
+    valid: true,
+  });
+  config.blobs = [];
+  config.files.push({
+    id: 'private-file',
+    name: 'private.txt',
+    blobId: 'private-blob',
+    chunkSize: 0,
+    status: ContextEmbedStatus.processing,
+    error: null,
+    createdAt: Date.now(),
+  });
+  await copilotContext.update(context.id, { config });
+  t.true(
+    (await copilotContext.getSessionSources(sessionId)).hasPrivateAttachments
+  );
+  await db.aiContext.update({
+    where: { id: context.id },
+    data: { config: { files: 'invalid' } },
+  });
+  t.deepEqual(await copilotContext.getSessionSources(sessionId), {
+    docIds: ['attached-doc'],
+    documentRefs: [{ workspaceId: workspace.id, docId: 'attached-doc' }],
+    hasPrivateAttachments: true,
+    valid: false,
+  });
+  await copilotContext.update(context.id, {
+    config: {
+      workspaceId: workspace.id,
+      docs: [],
+      files: [],
+      blobs: [],
+      categories: [],
+    },
+  });
+  t.false((await copilotContext.getSessionSources(sessionId)).valid);
+});
+
+test('context source evidence is bounded without treating overflow as empty history', async t => {
+  const { db, copilotContext } = t.context;
+  await db.$executeRaw`
+    INSERT INTO ai_session_context_sources(session_id, workspace_id, kind, source_id)
+    SELECT ${sessionId}, ${workspace.id}, 'document', 'bounded-source-' || source
+    FROM generate_series(1, 4097) source
+  `;
+  const sources = await copilotContext.getSessionSources(sessionId);
+  t.is(sources.docIds.length, 4096);
+  t.false(sources.valid);
+  t.is(await db.aiSessionContextSource.count({ where: { sessionId } }), 4097);
+});
+
+test('shared writes audit input history, survive rollback, and reject removed attachments', async t => {
+  const { db, copilotContext, copilotSession } = t.context;
+  const project = await db.aiContextProject.create({
+    data: {
+      name: 'Shared source isolation',
+      createdByUserId: user.id,
+      members: { create: { userId: user.id, role: 'owner' } },
+    },
+  });
+  const id = await copilotSession.create({
+    sessionId: randomUUID(),
+    workspaceId: workspace.id,
+    userId: user.id,
+    selectedContextProjectId: project.id,
+    title: null,
+    promptName: 'prompt-name',
+    promptAction: null,
+  });
+  const identity = { sessionId: id, actorId: user.id, projectId: project.id };
+  const sink = {
+    type: 'document_update' as const,
+    id: 'isolated-sink',
+    workspaceId: workspace.id,
+    phase: 'execute' as const,
+  };
+  await db.aiSessionMessage.create({
+    data: { sessionId: id, role: 'user', content: 'Shared project request.' },
+  });
+  await copilotContext.assertProjectSourcesShared({ ...identity, sink });
+  const message = await db.aiSessionMessage.create({
+    data: {
+      sessionId: id,
+      role: 'user',
+      content: 'Attachment input.',
+      attachments: [{ id: 'private' }],
+    },
+  });
+  await db.aiSessionMessage.update({
+    where: { id: message.id },
+    data: { attachments: [] },
+  });
+  await t.throwsAsync(
+    copilotContext.assertProjectSourcesShared({ ...identity, sink })
+  );
+  const audits = await db.aiSharedWriteSourceCheck.findMany({
+    where: { sessionId: id },
+    orderBy: { createdAt: 'asc' },
+  });
+  t.deepEqual(
+    audits.map(audit => audit.allowed),
+    [true, false]
+  );
+  t.true(JSON.stringify(audits[1].sources).includes('private_attachment'));
+  await t.throwsAsync(
+    db.aiSharedWriteSourceCheck.delete({ where: { id: audits[1].id } })
+  );
+  const fork = await copilotSession.create({
+    sessionId: randomUUID(),
+    parentSessionId: id,
+    workspaceId: workspace.id,
+    userId: user.id,
+    selectedContextProjectId: project.id,
+    title: null,
+    promptName: 'prompt-name',
+    promptAction: null,
+  });
+  await t.throwsAsync(
+    copilotContext.assertProjectSourcesShared({
+      ...identity,
+      sessionId: fork,
+      sink,
+    })
+  );
+});
+
+test('shared source audience rejects Workspace expansion, public exposure and other Project readers', async t => {
+  const { db, copilotContext, copilotSession } = t.context;
+  const outsider = await t.context.user.create({
+    email: 'audience-outsider@example.com',
+  });
+  const project = await db.aiContextProject.create({
+    data: {
+      name: 'Audience source Project',
+      createdByUserId: user.id,
+      members: { create: { userId: user.id, role: 'owner' } },
+    },
+  });
+  const id = await copilotSession.create({
+    sessionId: randomUUID(),
+    workspaceId: workspace.id,
+    userId: user.id,
+    selectedContextProjectId: project.id,
+    title: null,
+    promptName: 'prompt-name',
+    promptAction: null,
+  });
+  await db.aiSessionMessage.create({
+    data: { sessionId: id, role: 'user', content: 'Project-only brief' },
+  });
+  const identity = {
+    actorId: user.id,
+    sessionId: id,
+    sink: {
+      type: 'document_update' as const,
+      id: 'audience-sink',
+      documentId: 'audience-sink',
+      workspaceId: workspace.id,
+      phase: 'execute' as const,
+    },
+  };
+  await copilotContext.assertDocumentSourcesShared(identity);
+  await db.workspaceMember.create({
+    data: {
+      workspaceId: workspace.id,
+      userId: outsider.id,
+      role: 'member',
+      state: 'active',
+    },
+  });
+  await t.throwsAsync(copilotContext.assertDocumentSourcesShared(identity));
+  await db.aiContextProjectMember.create({
+    data: { projectId: project.id, userId: outsider.id, role: 'member' },
+  });
+  await copilotContext.assertDocumentSourcesShared(identity);
+  await db.docAccessPolicy.create({
+    data: {
+      workspaceId: workspace.id,
+      docId: 'audience-sink',
+      visibility: 'public',
+      publicRole: 'external',
+    },
+  });
+  await t.throwsAsync(copilotContext.assertDocumentSourcesShared(identity));
+  await db.docAccessPolicy.update({
+    where: {
+      workspaceId_docId: { workspaceId: workspace.id, docId: 'audience-sink' },
+    },
+    data: { visibility: 'private', publicRole: null },
+  });
+  const otherUser = await t.context.user.create({
+    email: 'other-project-reader@example.com',
+  });
+  await db.aiContextProject.create({
+    data: {
+      name: 'Other readers',
+      createdByUserId: otherUser.id,
+      members: { create: { userId: otherUser.id, role: 'owner' } },
+      documents: {
+        create: {
+          workspaceId: workspace.id,
+          docId: 'audience-sink',
+          status: 'granted',
+        },
+      },
+      grants: {
+        create: {
+          workspaceId: workspace.id,
+          docId: 'audience-sink',
+          level: 'read',
+          status: 'active',
+          source: 'direct',
+          grantedByUserId: user.id,
+          grantorUserIdSnapshot: user.id,
+        },
+      },
+    },
+  });
+  await t.throwsAsync(copilotContext.assertDocumentSourcesShared(identity));
+  const audits = await db.aiSharedWriteSourceCheck.findMany({
+    where: { sessionId: id },
+    orderBy: { createdAt: 'asc' },
+  });
+  t.deepEqual(
+    audits.map(audit => audit.allowed),
+    [true, false, true, false, false]
+  );
+  t.like(audits[1].audienceEvidence, {
+    workspaceId: workspace.id,
+    documentId: 'audience-sink',
+    known: true,
+  });
+  await t.throwsAsync(
+    db.aiSharedWriteSourceCheck.update({
+      where: { id: audits[0].id },
+      data: { audienceEvidence: {} },
+    })
+  );
+});
+
+test('personal and unknown lineage cannot enter a shared document, including a completed noop', async t => {
+  const { db, copilotContext } = t.context;
+  await db.aiSessionMessage.create({
+    data: { sessionId, role: 'user', content: 'Private brief' },
+  });
+  await copilotContext.recordInputSources({
+    sessionId,
+    actorId: user.id,
+    projectId: null,
+    sources: [
+      {
+        workspaceId: workspace.id,
+        kind: 'unknown',
+        sourceId: 'external-unverified-result',
+      },
+    ],
+  });
+  const identity = {
+    actorId: user.id,
+    sessionId,
+    sink: {
+      type: 'document_update' as const,
+      id: docId,
+      documentId: docId,
+      workspaceId: workspace.id,
+      phase: 'execute' as const,
+    },
+  };
+  await copilotContext.assertDocumentSourcesShared(identity);
+  const outsider = await t.context.user.create({
+    email: 'personal-sink-reader@example.com',
+  });
+  await db.docGrant.create({
+    data: {
+      workspaceId: workspace.id,
+      docId,
+      principalType: 'user',
+      principalId: outsider.id,
+      role: 'reader',
+    },
+  });
+  await t.throwsAsync(copilotContext.assertDocumentSourcesShared(identity));
+  await t.throwsAsync(
+    copilotContext.assertDocumentSourcesShared({
+      ...identity,
+      sink: { ...identity.sink, type: 'conditional_noop', phase: 'noop' },
+    })
+  );
+  const audits = await db.aiSharedWriteSourceCheck.findMany({
+    where: { sessionId },
+    orderBy: { createdAt: 'asc' },
+  });
+  t.deepEqual(
+    audits.map(audit => audit.allowed),
+    [true, false, false]
+  );
+  t.true(
+    JSON.stringify(audits[1].sources).includes('external-unverified-result')
+  );
+  t.true(JSON.stringify(audits[1].sources).includes('private'));
+});
+
+test('context source evidence survives removal and forks and rejects rewrites', async t => {
+  const { copilotContext, copilotSession, db } = t.context;
+  const context = await copilotContext.create(sessionId);
+  const config = (await copilotContext.getConfig(context.id))!;
+  config.docs.push({ id: 'private-doc', createdAt: Date.now() });
+  config.blobs.push({ id: 'private-blob', createdAt: Date.now() });
+  await copilotContext.update(context.id, { config });
+  config.docs = [];
+  config.blobs = [];
+  await copilotContext.update(context.id, { config });
+  t.deepEqual(await copilotContext.getSessionSources(sessionId), {
+    docIds: ['private-doc'],
+    documentRefs: [{ workspaceId: workspace.id, docId: 'private-doc' }],
+    hasPrivateAttachments: true,
+    valid: true,
+  });
+  await t.throwsAsync(
+    db.aiSessionContextSource.updateMany({
+      where: { sessionId },
+      data: { sourceId: 'rewritten' },
+    })
+  );
+  await t.throwsAsync(
+    db.aiSessionContextSource.deleteMany({ where: { sessionId } })
+  );
+  const forkId = await copilotSession.create({
+    sessionId: randomUUID(),
+    parentSessionId: sessionId,
+    userId: user.id,
+    workspaceId: workspace.id,
+    docId,
+    title: null,
+    promptName: 'prompt-name',
+    promptAction: null,
+  });
+  t.deepEqual(await copilotContext.getSessionSources(forkId), {
+    docIds: ['private-doc'],
+    documentRefs: [{ workspaceId: workspace.id, docId: 'private-doc' }],
+    hasPrivateAttachments: true,
+    valid: true,
+  });
+  await db.aiContext.delete({ where: { id: context.id } });
+  t.deepEqual(await copilotContext.getSessionSources(sessionId), {
+    docIds: ['private-doc'],
+    documentRefs: [{ workspaceId: workspace.id, docId: 'private-doc' }],
+    hasPrivateAttachments: true,
+    valid: true,
+  });
+  await db.aiSession.delete({ where: { id: sessionId } });
+  t.is(await db.aiSessionContextSource.count({ where: { sessionId } }), 0);
+  t.is(
+    await db.aiSessionContextSource.count({ where: { sessionId: forkId } }),
+    2
+  );
+});
+
 test('should get null for non-exist job', async t => {
   const job = await t.context.copilotContext.get('non-exist');
   t.snapshot(job, 'should return null for non-exist job');

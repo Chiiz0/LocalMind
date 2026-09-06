@@ -382,17 +382,25 @@ test('should fork session correctly', async t => {
   const sessionId = await createCopilotSession(app, id, docId, textPromptName);
 
   let forkedSessionId: string;
+  let sourceLatestMessageId: string | undefined;
   // should be able to fork session
   {
     for (let i = 0; i < 3; i++) {
-      const messageId = await createCopilotMessage(app, sessionId);
-      await chatWithText(app, sessionId, messageId);
+      await createCopilotMessage(app, sessionId);
+      await app.get(PrismaClient).aiSessionMessage.create({
+        data: {
+          sessionId,
+          role: 'assistant',
+          content: `Stored fork reply ${i}`,
+        },
+      });
     }
     const histories = await getHistories(app, { workspaceId: id, docId });
     const latestMessageId = histories[0].messages.findLast(
       m => m.role === 'assistant'
     )?.id;
     t.truthy(latestMessageId, 'should find last message id');
+    sourceLatestMessageId = latestMessageId;
 
     // should be able to fork session
     forkedSessionId = await assertForkSession(
@@ -435,25 +443,39 @@ test('should fork session correctly', async t => {
 
   {
     const u2 = await app.signupV1();
-    await assertForkSession(id, docId, sessionId, randomUUID(), '', async x => {
-      await t.throwsAsync(
-        x,
-        { instanceOf: Error },
-        'should not able to fork session with cloud workspace that user cannot access'
-      );
-    });
+    await assertForkSession(
+      id,
+      docId,
+      sessionId,
+      sourceLatestMessageId,
+      '',
+      async x => {
+        await t.throwsAsync(
+          x,
+          { instanceOf: Error },
+          'should not able to fork session with cloud workspace that user cannot access'
+        );
+      }
+    );
 
     await app.switchUser(u1);
     const inviteId = await inviteUser(app, id, u2.email);
     await app.switchUser(u2);
     await acceptInviteById(app, id, inviteId, false);
-    await assertForkSession(id, docId, sessionId, randomUUID(), '', async x => {
-      await t.throwsAsync(
-        x,
-        { instanceOf: Error },
-        'should not able to fork a root session from other user'
-      );
-    });
+    await assertForkSession(
+      id,
+      docId,
+      sessionId,
+      sourceLatestMessageId,
+      '',
+      async x => {
+        await t.throwsAsync(
+          x,
+          { instanceOf: Error },
+          'should not able to fork a root session from other user'
+        );
+      }
+    );
 
     await app.switchUser(u1);
     const histories = await getHistories(app, { workspaceId: id, docId });
@@ -1746,6 +1768,83 @@ test('should reject context reads from another user', async t => {
     `)
   );
   await t.throwsAsync(matchFiles(app, contextId, 'test', 1));
+});
+
+test('context GraphQL rejects cached attachments after project departure, archive, and session deletion', async t => {
+  const { app, db, context, jobs, u1 } = t.context;
+  const projectOwner = await app.signupV1();
+  await app.switchUser(u1);
+  const { id: workspaceId } = await createWorkspace(app);
+  const sessionId = await createCopilotSession(
+    app,
+    workspaceId,
+    null,
+    textPromptName
+  );
+  const project = await db.aiContextProject.create({
+    data: {
+      name: 'Context attachment access',
+      createdByUserId: projectOwner.id,
+      members: {
+        create: [
+          { userId: projectOwner.id, role: 'owner' },
+          { userId: u1.id, role: 'member' },
+        ],
+      },
+    },
+  });
+  await db.aiSession.update({
+    where: { id: sessionId },
+    data: { selectedContextProjectId: project.id },
+  });
+  Sinon.stub(context, 'embeddingClient').get(() => new MockEmbeddingClient());
+  Sinon.stub(jobs, 'embeddingClient').get(() => new MockEmbeddingClient());
+  const contextId = await createCopilotContext(app, workspaceId, sessionId);
+  await addContextFile(
+    app,
+    contextId,
+    'sample.txt',
+    Buffer.from('isolated file')
+  );
+  const read = (bySession: boolean) =>
+    app.gql(`query {
+      currentUser { copilot(workspaceId: "${workspaceId}") {
+        contexts(${bySession ? `sessionId: "${sessionId}"` : `contextId: "${contextId}"`}) {
+          id files { id name } blobs { id } docs { id }
+        }
+      } }
+    }`);
+  await read(false);
+  await read(true);
+  await db.aiContextProjectMember.deleteMany({
+    where: { projectId: project.id, userId: u1.id },
+  });
+  await t.throwsAsync(read(false));
+  await t.throwsAsync(read(true));
+  await t.throwsAsync(createCopilotContext(app, workspaceId, sessionId));
+  await t.throwsAsync(
+    addContextFile(app, contextId, 'denied.txt', Buffer.from('denied'))
+  );
+  await db.aiContextProjectMember.create({
+    data: { projectId: project.id, userId: u1.id, role: 'member' },
+  });
+  await read(false);
+  await db.aiContextProject.update({
+    where: { id: project.id },
+    data: { status: 'archived' },
+  });
+  await t.throwsAsync(read(false));
+  await t.throwsAsync(read(true));
+  await db.aiContextProject.update({
+    where: { id: project.id },
+    data: { status: 'active' },
+  });
+  await db.aiSession.update({
+    where: { id: sessionId },
+    data: { deletedAt: new Date() },
+  });
+  await t.throwsAsync(read(false));
+  await t.throwsAsync(read(true));
 });
 
 test('context memory GraphQL enforces workspace, document, and project permissions across users', async t => {

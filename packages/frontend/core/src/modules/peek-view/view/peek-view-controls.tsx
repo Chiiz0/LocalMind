@@ -153,7 +153,7 @@ export const DocPeekViewControls = ({
           workbench.openDoc(docRef, { at: 'beside' });
           peekView.close(false);
         },
-        enabled: BUILD_CONFIG.isElectron,
+        enabled: true,
       },
       {
         nameKey: 'copy-link',
@@ -271,7 +271,7 @@ export const AttachmentPeekViewControls = ({
 
           track.$.attachment.$.openAttachmentInSplitView({ type });
         },
-        enabled: BUILD_CONFIG.isElectron,
+        enabled: true,
       },
     ].filter(filterByEnabled);
   }, [t, peekView, workbench, docId, blockId, type]);

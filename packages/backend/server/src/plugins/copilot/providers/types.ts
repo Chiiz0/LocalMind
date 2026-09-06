@@ -280,6 +280,14 @@ const CopilotProviderOptionsSchema = z.object({
   byokLeaseId: z.string().optional(),
   billingUnitId: z.string().optional(),
   taskId: z.string().optional(),
+  delegatedExecution: z
+    .object({
+      runId: z.string(),
+      workerLeaseId: z.string(),
+      workerAttempt: z.number().int().positive(),
+    })
+    .strict()
+    .optional(),
   actionId: z.string().optional(),
   sparkClawToolNames: z.array(z.string().min(1).max(256)).max(128).optional(),
   allowedToolNames: z.array(z.string().min(1).max(256)).max(256).optional(),

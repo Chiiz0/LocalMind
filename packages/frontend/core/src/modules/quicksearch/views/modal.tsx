@@ -11,6 +11,7 @@ import * as styles from './modal.css';
 export interface QuickSearchModalProps {
   open: boolean;
   onOpenChange?: (open: boolean) => void;
+  onCloseAutoFocus?: (event: Event) => void;
 }
 
 const animationTimeout = 120;
@@ -19,6 +20,7 @@ export const QuickSearchModal = ({
   onOpenChange,
   open,
   children,
+  onCloseAutoFocus,
 }: React.PropsWithChildren<QuickSearchModalProps>) => {
   const [{ status }, toggle] = useTransition({
     timeout: animationTimeout,
@@ -32,6 +34,7 @@ export const QuickSearchModal = ({
         <Dialog.Overlay className={styles.modalOverlay} />
         <div className={styles.modalContentWrapper}>
           <Dialog.Content
+            onCloseAutoFocus={onCloseAutoFocus}
             style={assignInlineVars({
               [styles.animationTimeout]: `${animationTimeout}ms`,
             })}

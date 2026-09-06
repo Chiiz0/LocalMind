@@ -61,6 +61,92 @@ function workbenchModels(
   } as unknown as Models;
 }
 
+test('owned context rechecks live access before using cached configuration', async t => {
+  let allowed = true;
+  const service = new CopilotContextService(
+    {} as never,
+    {} as never,
+    {
+      copilotContext: {
+        getBySessionId: async (sessionId: string) => {
+          t.is(sessionId, 'session-1');
+          return { id: 'context-1' };
+        },
+        getAccessInfo: async (contextId: string, userId: string) => {
+          t.is(contextId, 'context-1');
+          t.is(userId, 'user-1');
+          return allowed
+            ? {
+                sessionId: 'session-1',
+                session: { userId, workspaceId: 'workspace-1' },
+              }
+            : null;
+        },
+      },
+    } as never,
+    {} as never
+  );
+  const cached = Sinon.stub(service, 'get').resolves({} as never);
+  await service.getOwnedContext('user-1', 'context-1', {
+    workspaceId: 'workspace-1',
+    sessionId: 'session-1',
+  });
+  t.is(cached.callCount, 1);
+  await t.throwsAsync(
+    service.getOwnedContext('user-1', 'context-1', {
+      sessionId: 'another-session',
+    })
+  );
+  await t.throwsAsync(
+    service.getOwnedContext('user-1', 'context-1', {
+      workspaceId: 'another-workspace',
+    })
+  );
+  allowed = false;
+  await t.throwsAsync(service.getOwnedContext('user-1', 'context-1'));
+  await t.throwsAsync(
+    service.getOwnedBySessionId('user-1', 'session-1', 'workspace-1')
+  );
+  t.is(cached.callCount, 1);
+});
+
+test('document context checks personal read access before cached attachments', async t => {
+  let readable = true;
+  const service = new CopilotContextService(
+    {} as never,
+    {} as never,
+    {
+      copilotContext: {
+        getAccessInfo: async () => ({
+          sessionId: 'session-1',
+          session: {
+            userId: 'user-1',
+            workspaceId: 'workspace-1',
+            docId: 'doc-1',
+          },
+        }),
+      },
+    } as never,
+    {
+      canDoc: async (input: Record<string, unknown>) => {
+        t.like(input, {
+          userId: 'user-1',
+          workspaceId: 'workspace-1',
+          docId: 'doc-1',
+          projectId: null,
+          action: 'Doc.Read',
+        });
+        return readable;
+      },
+    } as never
+  );
+  const cached = Sinon.stub(service, 'get').resolves({} as never);
+  await service.getOwnedContext('user-1', 'context-1');
+  readable = false;
+  await t.throwsAsync(service.getOwnedContext('user-1', 'context-1'));
+  t.is(cached.callCount, 1);
+});
+
 test('workspace semantic search applies Doc.Read before reranking', async t => {
   const readablePredicate = Prisma.sql`TRUE`;
   const rerankedDocIds: string[] = [];
@@ -78,7 +164,14 @@ test('workspace semantic search applies Doc.Read before reranking', async t => {
     },
   } as unknown as EmbeddingClient;
   const permission = {
-    docReadableSqlPredicate: () => readablePredicate,
+    docReadableSqlPredicate: (input: {
+      userId: string;
+      projectId?: string | null;
+    }) => {
+      t.is(input.userId, 'user-1');
+      t.is(input.projectId, null);
+      return readablePredicate;
+    },
   } as unknown as PermissionService;
   const models = {
     copilotContext: {
@@ -134,6 +227,49 @@ test('workspace semantic search applies Doc.Read before reranking', async t => {
   t.deepEqual(
     result.map(chunk => ('docId' in chunk ? chunk.docId : undefined)),
     ['readable-doc']
+  );
+});
+
+test('project semantic search passes the trusted project scope before reranking', async t => {
+  const predicate = Prisma.sql`TRUE`;
+  const context = new CopilotContextService(
+    {
+      getClient: () => ({ getEmbedding: async () => [1] }),
+    } as never,
+    {} as never,
+    {
+      copilotContext: {
+        matchWorkspaceEmbedding: async (
+          _embedding: number[],
+          _workspaceId: string,
+          _topK: number,
+          _threshold: number,
+          actualPredicate: Prisma.Sql,
+          _matchDocIds: string[],
+          restrictDocIds: string[]
+        ) => {
+          t.is(actualPredicate, predicate);
+          t.deepEqual(restrictDocIds, ['granted-doc']);
+          return [];
+        },
+      },
+    } as never,
+    {
+      docReadableSqlPredicate: (input: { projectId?: string | null }) => {
+        t.is(input.projectId, 'selected-project');
+        return predicate;
+      },
+    } as never
+  );
+  await context.matchWorkspaceProjectDocs(
+    'source-workspace',
+    ['granted-doc'],
+    'query',
+    10,
+    undefined,
+    0.8,
+    { userId: 'user-1' },
+    'selected-project'
   );
 });
 

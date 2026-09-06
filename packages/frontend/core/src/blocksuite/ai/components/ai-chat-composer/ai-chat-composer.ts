@@ -12,6 +12,7 @@ import type {
 } from '@affine/core/modules/cloud';
 import type { WorkspaceDialogService } from '@affine/core/modules/dialogs';
 import type { CopilotChatHistoryFragment } from '@affine/graphql';
+import { I18n } from '@affine/i18n';
 import { SignalWatcher, WithDisposable } from '@blocksuite/affine/global/lit';
 import type { EditorHost } from '@blocksuite/affine/std';
 import { ShadowlessElement } from '@blocksuite/affine/std';
@@ -109,9 +110,10 @@ export function shouldShowContextProjectSelector(
 ) {
   return Boolean(
     scope &&
-    ['ambiguous', 'mixed', 'selected', 'invalid_selection'].includes(
-      scope.projectResolution
-    )
+    (scope.candidates.length > 0 ||
+      ['ambiguous', 'mixed', 'selected', 'invalid_selection'].includes(
+        scope.projectResolution
+      ))
   );
 }
 
@@ -370,17 +372,24 @@ export class AIChatComposer extends SignalWatcher(
     }
     return html`
       <label class="context-project-selector">
-        <span>Memory project</span>
+        <span>${I18n.t('com.affine.localmind.aiContext.currentProject')}</span>
         <select
-          aria-label="Memory project"
+          aria-label=${I18n.t('com.affine.localmind.aiContext.currentProject')}
           .value=${scope.selectedProjectId ?? ''}
-          ?disabled=${scope.loading}
+          ?disabled=${scope.loading || !!scope.selectedProjectId}
           @change=${this.selectContextProject}
         >
-          <option value="">No project</option>
+          <option value="" ?selected=${!scope.selectedProjectId}>
+            ${I18n.t('com.affine.localmind.aiContext.selectProject')}
+          </option>
           ${scope.candidates.map(
             project =>
-              html`<option value=${project.id}>${project.name}</option>`
+              html`<option
+                value=${project.id}
+                ?selected=${project.id === scope.selectedProjectId}
+              >
+                ${project.name}
+              </option>`
           )}
         </select>
       </label>

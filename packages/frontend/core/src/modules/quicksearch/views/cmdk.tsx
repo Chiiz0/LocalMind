@@ -1,5 +1,7 @@
+import { IconButton } from '@affine/component';
 import { Loading } from '@affine/component/ui/loading';
 import { i18nTime, isI18nString, useI18n } from '@affine/i18n';
+import { SplitViewIcon } from '@blocksuite/icons/rc';
 import clsx from 'clsx';
 import { Command } from 'cmdk';
 import {
@@ -33,6 +35,7 @@ export const CMDK = ({
   loadingProgress,
   onQueryChange,
   onSubmit,
+  onOpenBeside,
 }: React.PropsWithChildren<{
   className?: string;
   query: string;
@@ -43,9 +46,11 @@ export const CMDK = ({
   loadingProgress?: number;
   groups?: Groups;
   onSubmit?: (item: QuickSearchItem) => void;
+  onOpenBeside?: (item: QuickSearchItem) => void;
   onQueryChange?: (query: string) => void;
 }>) => {
   const [opening, setOpening] = useState(false);
+  const t = useI18n();
   const [loading, setLoading] = useState(false);
 
   const [{ groups, selectedValue }, dispatch] = useReducer(
@@ -90,7 +95,7 @@ export const CMDK = ({
           };
         }
 
-        const selectedExists = state.groups.some(({ items }) =>
+        const selectedExists = action.payload.some(({ items }) =>
           items.some(item => item.id === prevSelectedValue)
         );
         // if previous selected item exists in the new list, keep it
@@ -106,7 +111,7 @@ export const CMDK = ({
         return {
           ...state,
           groups: action.payload,
-          selectedExists: newFirstItem ?? '',
+          selectedValue: newFirstItem ?? '',
         };
       }
       return state;
@@ -174,6 +179,27 @@ export const CMDK = ({
       value={selectedValue}
       onValueChange={handleSelectChange}
       loop
+      onKeyDownCapture={event => {
+        if (event.nativeEvent.isComposing || event.keyCode === 229) {
+          event.stopPropagation();
+          return;
+        }
+        if (event.key === 'Enter' && event.altKey && onOpenBeside) {
+          const item = groups
+            .flatMap(group => group.items)
+            .find(item => item.id === selectedValue);
+          if (
+            item &&
+            !item.disabled &&
+            ['docs', 'recent-doc', 'link'].includes(item.source) &&
+            item.payload?.docId
+          ) {
+            event.preventDefault();
+            event.stopPropagation();
+            onOpenBeside(item);
+          }
+        }
+      }}
     >
       {inputLabel ? (
         <div className={styles.pageTitleWrapper}>
@@ -204,12 +230,20 @@ export const CMDK = ({
       </div>
 
       <Command.List ref={listRef} data-opening={opening ? true : undefined}>
+        {!newLoading &&
+          !error &&
+          groups.every(group => group.items.length === 0) && (
+            <Command.Empty role="status">
+              {t['com.affine.cmdk.no-results']()}
+            </Command.Empty>
+          )}
         {error && <p className={styles.errorMessage}>{error}</p>}
         {groups.map(({ group, items }) => {
           return (
             <CMDKGroup
               key={group?.id ?? ''}
               onSubmit={onSubmit}
+              onOpenBeside={onOpenBeside}
               query={query}
               group={{ group, items }}
             />
@@ -223,10 +257,12 @@ export const CMDK = ({
 export const CMDKGroup = ({
   group: { group, items },
   onSubmit,
+  onOpenBeside,
   query,
 }: {
   group: { group?: QuickSearchGroup; items: QuickSearchItem[] };
   onSubmit?: (item: QuickSearchItem) => void;
+  onOpenBeside?: (item: QuickSearchItem) => void;
   query: string;
 }) => {
   const i18n = useI18n();
@@ -281,6 +317,23 @@ export const CMDKGroup = ({
             {item.keyBinding ? (
               <CMDKKeyBinding keyBinding={item.keyBinding} />
             ) : null}
+            {onOpenBeside &&
+              ['docs', 'recent-doc', 'link'].includes(item.source) &&
+              item.payload?.docId && (
+                <IconButton
+                  size="24"
+                  tooltip={i18n[
+                    'com.affine.peek-view-controls.open-doc-in-split-view'
+                  ]()}
+                  onClick={event => {
+                    event.stopPropagation();
+                    onOpenBeside(item);
+                  }}
+                  onPointerDown={event => event.stopPropagation()}
+                >
+                  <SplitViewIcon />
+                </IconButton>
+              )}
           </Command.Item>
         );
       })}

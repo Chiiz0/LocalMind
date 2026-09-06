@@ -3,6 +3,7 @@
  */
 
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -19,6 +20,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
+  openConfirmModal: vi.fn(),
   gql: vi.fn(),
   hostMetadata: { id: 'host-workspace' } as { id: string } | null,
   hostWorkspace: {
@@ -263,6 +265,8 @@ const tasks = [
 ];
 
 vi.mock('@affine/component', () => ({
+  useConfirmModal: () => ({ openConfirmModal: state.openConfirmModal }),
+  Input: () => <input />,
   Button: ({
     children,
     loading: _loading,
@@ -472,6 +476,7 @@ const LocationProbe = () => {
 
 describe('Global Tasks page', () => {
   beforeEach(() => {
+    state.openConfirmModal.mockReset();
     state.gql.mockReset();
     state.hostMetadata = { id: 'host-workspace' };
     state.hostWorkspace = {
@@ -525,6 +530,22 @@ describe('Global Tasks page', () => {
         name: 'com.affine.localmind.workbench.action.approveAccess',
       })
     );
+    expect(state.gql).not.toHaveBeenCalled();
+    expect(state.openConfirmModal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        description:
+          'com.affine.localmind.accessNotification.projectConfirmation',
+        autoFocusConfirm: false,
+      })
+    );
+    await act(async () => state.openConfirmModal.mock.calls[0][0].onCancel());
+    expect(state.gql).not.toHaveBeenCalled();
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'com.affine.localmind.workbench.action.approveAccess',
+      })
+    );
+    await act(async () => state.openConfirmModal.mock.calls[1][0].onConfirm());
     await waitFor(() => {
       expect(state.gql).toHaveBeenCalledWith({
         query: tokens.approveAccessMutation,
@@ -694,6 +715,8 @@ describe('Global Tasks page', () => {
       name: 'com.affine.localmind.workbench.action.approveAccess',
     });
     fireEvent.click(approve);
+    expect(state.gql).not.toHaveBeenCalled();
+    await act(async () => state.openConfirmModal.mock.calls[0][0].onConfirm());
 
     await waitFor(() => {
       expect(state.notifyError).toHaveBeenCalledWith(

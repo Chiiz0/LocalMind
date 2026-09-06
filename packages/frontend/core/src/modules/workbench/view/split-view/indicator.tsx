@@ -21,6 +21,7 @@ export const SplitViewDragHandle = memo(
       { className, active, open, onOpenMenu, dragging, onClick, ...attrs },
       ref
     ) {
+      const t = useI18n();
       const handleOnClick: MouseEventHandler<HTMLDivElement> = useCallback(
         e => {
           !open && onOpenMenu?.();
@@ -35,6 +36,15 @@ export const SplitViewDragHandle = memo(
           data-active={active}
           data-dragging={dragging}
           data-testid="split-view-indicator"
+          role="button"
+          tabIndex={0}
+          aria-label={t['com.affine.split-view-drag-handle.tooltip']()}
+          onKeyDown={event => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              onOpenMenu?.();
+            }
+          }}
           className={clsx(className, styles.indicator)}
           onClick={handleOnClick}
           {...attrs}

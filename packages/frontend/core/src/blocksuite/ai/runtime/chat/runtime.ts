@@ -21,6 +21,7 @@ type RuntimeOptions = {
   scope: AIChatScope;
   strategy: AIChatSessionStrategy;
   chatSurface?: 'intelligence_workbench';
+  projectId?: string | null;
 };
 
 type ContextStatus = 'finished' | 'processing' | 'failed';
@@ -84,6 +85,15 @@ export class AIChatRuntime {
   }
 
   getSnapshot = () => this.snapshot;
+
+  private acceptsSession(session: CopilotChatHistoryFragment) {
+    return (
+      this.options.chatSurface !== 'intelligence_workbench' ||
+      (!!this.options.projectId &&
+        !session.docId &&
+        session.selectedContextProjectId === this.options.projectId)
+    );
+  }
 
   subscribe = (listener: () => void) => {
     this.listeners.add(listener);
@@ -211,7 +221,10 @@ export class AIChatRuntime {
         await this.loadProjectScope();
         return;
       case 'setSelectedContextProject':
-        await this.setSelectedContextProject(action.projectId);
+        await this.setSelectedContextProject(
+          action.projectId,
+          action.projectName
+        );
         return;
     }
   }
@@ -245,6 +258,15 @@ export class AIChatRuntime {
       ...this.snapshot,
       ...patch,
     };
+    if (this.options.chatSurface === 'intelligence_workbench') {
+      next.composer = {
+        ...next.composer,
+        projectScope: {
+          ...next.composer.projectScope,
+          selectedProjectId: this.options.projectId ?? null,
+        },
+      };
+    }
     this.snapshot = {
       ...next,
       uiPolicy: this.createUiPolicy(next.status, next.tabs, next.activeTabId),
@@ -264,7 +286,10 @@ export class AIChatRuntime {
       canCreateNewSession: activeTab?.kind === 'session' && !isGenerating,
       canCloseActiveTab: activeTab?.kind === 'session' && tabs.length > 1,
       canPinActiveSession: activeTab?.kind === 'session',
-      canSend: !isGenerating,
+      canSend:
+        !isGenerating &&
+        (this.options.chatSurface !== 'intelligence_workbench' ||
+          !!this.options.projectId),
     };
   }
 
@@ -306,7 +331,7 @@ export class AIChatRuntime {
       this.options.request
     );
     if (seq !== this.requestSeq) return;
-    if (!session) {
+    if (!session || !this.acceptsSession(session)) {
       const draft = this.options.strategy.createDraftSession(scope);
       this.commit({
         readiness: 'ready',
@@ -544,7 +569,7 @@ export class AIChatRuntime {
       this.commit({
         history: {
           currentDoc,
-          recent,
+          recent: recent.filter(session => this.acceptsSession(session)),
           loading: false,
           error: null,
         },
@@ -632,7 +657,24 @@ export class AIChatRuntime {
     }
   }
 
-  private async setSelectedContextProject(projectId: string | null) {
+  private async setSelectedContextProject(
+    projectId: string | null,
+    projectName?: string
+  ) {
+    if (this.options.chatSurface === 'intelligence_workbench') {
+      if (projectId !== (this.options.projectId ?? null)) return;
+      this.updateProjectScopeState({
+        loading: false,
+        error: null,
+        projectResolution: projectId ? 'selected' : 'none',
+        selectedProjectId: projectId,
+        candidates:
+          projectId && projectName
+            ? [{ id: projectId, name: projectName }]
+            : [],
+      });
+      return;
+    }
     const sessionId = this.snapshot.activeSessionId;
     if (!sessionId) {
       this.updateProjectScopeState({
@@ -640,6 +682,9 @@ export class AIChatRuntime {
         error: null,
         projectResolution: projectId ? 'selected' : 'none',
         selectedProjectId: projectId,
+        ...(projectName !== undefined && projectId
+          ? { candidates: [{ id: projectId, name: projectName }] }
+          : {}),
       });
       return;
     }
@@ -1299,6 +1344,7 @@ export class AIChatRuntime {
     session: CopilotChatHistoryFragment,
     preserveMessages = false
   ) {
+    if (!this.acceptsSession(session)) return;
     const result = this.options.strategy.openSession(
       session,
       this.snapshot.scope

@@ -477,6 +477,18 @@ export class CopilotContextMemoryModel extends BaseModel {
 
   @Transactional()
   async put(input: CopilotContextMemoryInput) {
+    if (input.scope === 'project' && input.sourceSessionId && input.projectId) {
+      await this.models.copilotContext.assertProjectSourcesShared({
+        sessionId: input.sourceSessionId,
+        actorId: input.ownerUserId,
+        projectId: input.projectId,
+        sink: {
+          type: 'project_memory',
+          id: input.sourceSessionId,
+          phase: 'execute',
+        },
+      });
+    }
     const projectSource = this.projectMemorySourceDocuments(input);
     const content = normalizeMemoryContent(input.content);
     const identity = memoryIdentityWhere({ ...input, content });
@@ -597,6 +609,30 @@ export class CopilotContextMemoryModel extends BaseModel {
 
   @Transactional()
   async applyWriterDecision(input: CopilotContextMemoryWriterInput) {
+    if (input.scope === 'project' && !input.sourceSessionId)
+      throw new BadRequest(
+        'Project memory writer requires a source conversation'
+      );
+    let sessionDocuments: CopilotContextMemorySourceDocumentInput[] = [];
+    if (input.scope === 'project' && input.sourceSessionId) {
+      if (!input.projectId)
+        throw new BadRequest('Project memory requires a project');
+      await this.models.copilotContext.assertProjectSourcesShared({
+        sessionId: input.sourceSessionId,
+        actorId: input.ownerUserId,
+        projectId: input.projectId,
+        sink: {
+          type: 'project_memory',
+          id: input.decisionFingerprint,
+          phase: input.decision.operation === 'NOOP' ? 'noop' : 'execute',
+        },
+      });
+      sessionDocuments = (
+        await this.models.copilotContext.getSessionSources(
+          input.sourceSessionId
+        )
+      ).documentRefs;
+    }
     await this.lockWriterKey(
       memoryWriterLockKey({
         ownerUserId: input.ownerUserId,
@@ -613,7 +649,10 @@ export class CopilotContextMemoryModel extends BaseModel {
       include: { memory: true, previousMemory: true },
     });
     if (replay) return replay;
-    const projectSource = this.projectMemorySourceDocuments(input);
+    const projectSource = this.projectMemorySourceDocuments({
+      ...input,
+      sourceDocuments: [...(input.sourceDocuments ?? []), ...sessionDocuments],
+    });
 
     const factKey = normalizeFactKey(input.decision.factKey);
     const scopeWorkspaceId = memoryScopeWorkspaceId(input);

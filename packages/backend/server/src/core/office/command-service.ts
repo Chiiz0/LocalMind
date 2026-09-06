@@ -35,12 +35,14 @@ type PreparedOfficeCommandResult = {
 export type ExecuteOfficeCommandInput = {
   workspaceId: string;
   actorId: string;
+  sourceSessionId?: string | null;
   command: unknown;
 };
 
 export type ExecuteOfficeCommandBatchInput = {
   workspaceId: string;
   actorId: string;
+  sourceSessionId?: string | null;
   batch: unknown;
 };
 
@@ -451,6 +453,7 @@ export class OfficeCommandService {
       idempotencyKey: command.idempotencyKey,
       idempotencyFingerprint,
       operationSummary,
+      sourceSessionId: input.sourceSessionId,
     });
   }
 
@@ -483,6 +486,7 @@ export class OfficeCommandService {
       idempotencyKey: batch.idempotencyKey,
       idempotencyFingerprint,
       operationSummary,
+      sourceSessionId: input.sourceSessionId,
     });
   }
 
@@ -496,10 +500,32 @@ export class OfficeCommandService {
     policy: ReturnType<typeof officeFormatForCommand>;
     result: PreparedOfficeCommandResult;
     source: 'user' | 'ai' | 'system';
+    sourceSessionId?: string | null;
     idempotencyKey: string;
     idempotencyFingerprint: string;
     operationSummary: Prisma.InputJsonObject;
   }) {
+    if (input.source === 'ai')
+      return await this.models.copilotContext.withDocumentSourcesShared(
+        {
+          sessionId: input.sourceSessionId,
+          actorId: input.actorId,
+          sink: {
+            type: 'tool_write',
+            id: input.artifact.id,
+            documentId: input.artifact.id,
+            workspaceId: input.workspaceId,
+            phase: 'execute',
+          },
+        },
+        () => this.persistAuthorized(input)
+      );
+    return await this.persistAuthorized(input);
+  }
+
+  private async persistAuthorized(
+    input: Parameters<OfficeCommandService['persistPrepared']>[0]
+  ) {
     const {
       workspaceId,
       actorId,

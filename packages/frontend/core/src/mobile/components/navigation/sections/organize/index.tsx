@@ -1,4 +1,4 @@
-import { Skeleton } from '@affine/component';
+import { Button, Skeleton, toast } from '@affine/component';
 import { NavigationPanelTreeRoot } from '@affine/core/desktop/components/navigation-panel';
 import { NavigationPanelService } from '@affine/core/modules/navigation-panel';
 import { OrganizeService } from '@affine/core/modules/organize';
@@ -28,16 +28,25 @@ export const NavigationPanelOrganize = () => {
 
   const folders = useLiveData(rootFolder.sortedChildren$);
   const isLoading = useLiveData(folderTree.isLoading$);
+  const canMutate = useLiveData(folderTree.canMutate$);
+  const error = useLiveData(folderTree.error$);
 
   const handleCreateFolder = useCallback(
-    (name: string) => {
-      const newFolderId = rootFolder.createFolder(
-        name,
-        rootFolder.indexAt('before')
-      );
-      track.$.navigationPanel.organize.createOrganizeItem({ type: 'folder' });
-      navigationPanelService.setCollapsed(path, false);
-      return newFolderId;
+    async (name: string) => {
+      try {
+        const newFolderId = await rootFolder.createFolder(
+          name,
+          rootFolder.indexAt('before')
+        );
+        track.$.navigationPanel.organize.createOrganizeItem({ type: 'folder' });
+        navigationPanelService.setCollapsed(path, false);
+        return newFolderId;
+      } catch (error) {
+        toast(
+          error instanceof Error ? error.message : 'Directory operation failed'
+        );
+        return undefined;
+      }
     },
     [navigationPanelService, path, rootFolder]
   );
@@ -48,6 +57,18 @@ export const NavigationPanelOrganize = () => {
       title={t['com.affine.rootAppSidebar.organize']()}
     >
       {/* TODO(@CatsJuice): Organize loading UI */}
+      {error ? (
+        <div role="alert">
+          <span>{error}</span>
+          <Button
+            onClick={() => {
+              folderTree.refresh().catch(console.error);
+            }}
+          >
+            {t['com.affine.error.refetch']()}
+          </Button>
+        </div>
+      ) : null}
       <NavigationPanelTreeRoot placeholder={isLoading ? <Skeleton /> : null}>
         {folders.map(child => (
           <NavigationPanelFolderNode
@@ -56,16 +77,20 @@ export const NavigationPanelOrganize = () => {
             parentPath={path}
           />
         ))}
-        <AddItemPlaceholder
-          icon={<AddOrganizeIcon />}
-          data-testid="navigation-panel-bar-add-organize-button"
-          label={t['com.affine.rootAppSidebar.organize.add-folder']()}
-          onClick={() => setOpenNewFolderDialog(true)}
-        />
+        {canMutate ? (
+          <AddItemPlaceholder
+            icon={<AddOrganizeIcon />}
+            data-testid="navigation-panel-bar-add-organize-button"
+            label={t['com.affine.rootAppSidebar.organize.add-folder']()}
+            onClick={() => setOpenNewFolderDialog(true)}
+          />
+        ) : null}
       </NavigationPanelTreeRoot>
       <FolderRenameDialog
-        open={openNewFolderDialog}
-        onConfirm={handleCreateFolder}
+        open={openNewFolderDialog && canMutate}
+        onConfirm={(...args) => {
+          handleCreateFolder(...args).catch(console.error);
+        }}
         onOpenChange={setOpenNewFolderDialog}
         descRenderer={FolderCreateTip}
       />

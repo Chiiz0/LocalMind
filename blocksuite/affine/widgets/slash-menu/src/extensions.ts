@@ -9,7 +9,7 @@ import { literal, unsafeStatic } from 'lit/static-html.js';
 
 import { defaultSlashMenuConfig } from './config';
 import { AFFINE_SLASH_MENU_WIDGET } from './consts';
-import type { SlashMenuConfig } from './types';
+import type { SlashMenuConfig, SlashMenuItem } from './types';
 import { mergeSlashMenuConfigs } from './utils';
 
 export class SlashMenuExtension extends Extension {
@@ -38,6 +38,12 @@ export class SlashMenuExtension extends Extension {
 export const SlashMenuConfigIdentifier = createIdentifier<SlashMenuConfig>(
   `${AFFINE_SLASH_MENU_WIDGET}-config`
 );
+
+export const SlashMenuDisplayOptionsIdentifier = createIdentifier<{
+  transform: (item: SlashMenuItem) => SlashMenuItem;
+  groupLabel: (name: string) => string;
+  noResults: () => string;
+}>('affine-slash-menu-display-options');
 
 export function SlashMenuConfigExtension(
   id: string,

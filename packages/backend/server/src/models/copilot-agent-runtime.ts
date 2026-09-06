@@ -11,6 +11,7 @@ export type CopilotAgentRunStatus =
   | 'queued'
   | 'running'
   | 'waiting_approval'
+  | 'waiting_for_location'
   | 'completed'
   | 'failed'
   | 'cancelled';
@@ -300,6 +301,7 @@ const AGENT_RUNTIME_RUN_STATUSES = new Set<CopilotAgentRunStatus>([
   'queued',
   'running',
   'waiting_approval',
+  'waiting_for_location',
   'completed',
   'failed',
   'cancelled',
@@ -2914,7 +2916,7 @@ export class CopilotAgentRuntimeModel extends BaseModel {
       this.listWorkbenchTaskSegment({
         actorId,
         projectId,
-        statuses: ['waiting_approval', 'failed'],
+        statuses: ['waiting_approval', 'waiting_for_location', 'failed'],
         limit: WORKBENCH_TODO_LIMIT,
         ordering: 'todo',
       }),
@@ -3775,6 +3777,187 @@ export class CopilotAgentRuntimeModel extends BaseModel {
       );
     }
     return updated;
+  }
+
+  @Transactional()
+  async waitForDocumentLocation(input: {
+    workspaceId: string;
+    id: string;
+    workerLeaseId: string;
+    workerAttempt: number;
+    operationId: string;
+  }) {
+    const existing =
+      await this.currentLeasedStandaloneRunBeforeAdapterExecution(input);
+    if (
+      !existing ||
+      !existing.sessionId ||
+      existing.sourceType !== 'mcp_ai_delegation' ||
+      existing.workflow !== 'agent_runtime_localmind_tool_agent'
+    )
+      throw new Error(
+        'Document location wait requires the current delegated execution lease'
+      );
+    const operation = await this.db.copilotDocumentOperation.findFirst({
+      where: {
+        id: input.operationId,
+        sessionId: existing.sessionId,
+        actorId: existing.actorId,
+      },
+    });
+    if (!operation || operation.status === 'complete')
+      throw new Error('The pending document operation is unavailable');
+    const now = nextAgentRuntimeTransitionTimestamp(existing);
+    const event: AgentRuntimeTimelineEventInput = {
+      eventType: 'run_status',
+      status: 'waiting_for_location',
+      stepId: null,
+      ordinal:
+        Math.max(-1, ...existing.timelineEvents.map(item => item.ordinal)) + 1,
+      summary: 'Waiting for the user to confirm a document destination',
+      payload: {
+        version: 'delegated-document-location/v1',
+        workflow: existing.workflow,
+        sourceType: existing.sourceType,
+        sourceId: existing.sourceId,
+        operationId: operation.id,
+        destinationRevision: operation.destinationRevision,
+        expiresAt: operation.locationExpiresAt.toISOString(),
+      },
+    };
+    const events: AgentRuntimeTimelineEventInput[] = [
+      event,
+      ...existing.steps
+        .filter(step => step.status === 'running')
+        .map((step, index) => ({
+          eventType: 'tool_step' as const,
+          status: 'pending' as const,
+          ordinal: event.ordinal + index + 1,
+          stepId: step.id,
+          summary: 'Tool execution paused for location confirmation',
+          payload: {
+            version: 'delegated-document-location/v1',
+            stepKey: step.stepKey,
+            stepType: step.stepType,
+          },
+        })),
+    ];
+    const changed = await this.db.aiAgentRun.updateMany({
+      where: {
+        id: existing.id,
+        status: 'running',
+        workerLeaseId: input.workerLeaseId,
+        workerAttempt: input.workerAttempt,
+        timelineFingerprint: existing.timelineFingerprint,
+      },
+      data: {
+        status: 'waiting_for_location',
+        queuedAt: null,
+        workerLeaseId: null,
+        workerLeaseExpiresAt: null,
+        timelineFingerprint: timelineFingerprintWithEvents(existing, events),
+        workerMaxAttempts: Math.max(
+          existing.workerMaxAttempts,
+          existing.workerAttempt + 1
+        ),
+        updatedAt: now,
+      },
+    });
+    if (changed.count !== 1)
+      throw new Error('Delegated execution changed before location wait');
+    await this.db.aiAgentStep.updateMany({
+      where: { runId: existing.id, status: 'running' },
+      data: { status: 'pending', completedAt: null, updatedAt: now },
+    });
+    for (const event of events)
+      await this.insertTimelineEvent({
+        actorId: existing.actorId,
+        event,
+        runId: existing.id,
+        workspaceId: existing.workspaceId,
+        createdAt: now,
+      });
+    return await this.get(input.workspaceId, input.id);
+  }
+
+  @Transactional()
+  async resumeAfterDocumentLocation(input: {
+    workspaceId: string;
+    id: string;
+    actorId: string;
+    operationId: string;
+  }) {
+    await this.db
+      .$queryRaw`SELECT id FROM ai_agent_runs WHERE id = ${input.id} AND workspace_id = ${input.workspaceId} FOR UPDATE`;
+    const existing = await this.get(input.workspaceId, input.id);
+    if (
+      !existing ||
+      existing.actorId !== input.actorId ||
+      existing.sourceType !== 'mcp_ai_delegation' ||
+      existing.workflow !== 'agent_runtime_localmind_tool_agent'
+    )
+      throw new Error('Delegated execution is unavailable');
+    if (
+      existing.status === 'queued' ||
+      existing.status === 'running' ||
+      existing.status === 'completed'
+    )
+      return existing;
+    if (existing.status !== 'waiting_for_location' || !existing.sessionId)
+      throw new Error('Delegated execution is not waiting for a location');
+    const operation = await this.db.copilotDocumentOperation.findFirst({
+      where: {
+        id: input.operationId,
+        sessionId: existing.sessionId,
+        actorId: input.actorId,
+        status: 'complete',
+        destinationConfirmedBy: input.actorId,
+      },
+    });
+    if (!operation)
+      throw new Error('The confirmed document operation has not completed');
+    const now = nextAgentRuntimeTransitionTimestamp(existing);
+    const event: AgentRuntimeTimelineEventInput = {
+      eventType: 'run_status',
+      status: 'queued',
+      stepId: null,
+      ordinal:
+        Math.max(-1, ...existing.timelineEvents.map(item => item.ordinal)) + 1,
+      summary:
+        'Document location confirmed; delegated execution queued to continue',
+      payload: {
+        version: 'delegated-document-location/v1',
+        workflow: existing.workflow,
+        sourceType: existing.sourceType,
+        sourceId: existing.sourceId,
+        operationId: operation.id,
+        destinationRevision: operation.destinationRevision,
+        confirmedBy: operation.destinationConfirmedBy,
+      },
+    };
+    const changed = await this.db.aiAgentRun.updateMany({
+      where: {
+        id: existing.id,
+        status: 'waiting_for_location',
+        timelineFingerprint: existing.timelineFingerprint,
+      },
+      data: {
+        status: 'queued',
+        queuedAt: now,
+        updatedAt: now,
+        timelineFingerprint: timelineFingerprintWithEvents(existing, [event]),
+      },
+    });
+    if (changed.count !== 1)
+      throw new Error('Delegated execution changed while resuming');
+    await this.insertTimelineEvent({
+      actorId: input.actorId,
+      event,
+      runId: existing.id,
+      workspaceId: existing.workspaceId,
+      createdAt: now,
+    });
+    return await this.get(input.workspaceId, input.id);
   }
 
   @Transactional()
@@ -5156,6 +5339,16 @@ export class CopilotAgentRuntimeModel extends BaseModel {
       throw new Error(
         `Agent runtime run cannot be resumed from status: ${existing.status}`
       );
+    }
+
+    if (existing.sourceType === 'mcp_ai_delegation') {
+      await this.models.copilotMcpDelegation.resumeExecutionRequest({
+        requestId: existing.sourceId,
+        runId: existing.id,
+        actorId: input.actorId,
+        workspaceId: existing.workspaceId,
+        sessionId: existing.sessionId ?? null,
+      });
     }
 
     const now = nextAgentRuntimeTransitionTimestamp(existing);

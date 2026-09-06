@@ -22,10 +22,17 @@ const runActions = new Set<WorkbenchPanelTaskAction>([
   'abandon',
 ]);
 
+export type AccessRequestConfirmation = {
+  requestId: string;
+  action: 'approve_access_request' | 'reject_access_request';
+  reason?: string;
+};
+
 export async function executeWorkbenchTaskAction(
   graphqlService: GraphQLService,
   task: WorkbenchTask,
-  action: WorkbenchPanelTaskAction
+  action: WorkbenchPanelTaskAction,
+  confirmation?: AccessRequestConfirmation | null
 ) {
   if (!task.availableActions.includes(action)) {
     throw new Error('Task action is no longer available');
@@ -53,6 +60,15 @@ export async function executeWorkbenchTaskAction(
     return;
   }
   if (task.kind === 'access_request') {
+    const requiresConfirmation =
+      action === 'approve_access_request' || action === 'reject_access_request';
+    if (
+      requiresConfirmation &&
+      (confirmation?.requestId !== task.entityId ||
+        confirmation.action !== action)
+    ) {
+      throw new Error('Access request decisions require human confirmation');
+    }
     const query =
       action === 'approve_access_request'
         ? approveCopilotAccessRequestMutation
@@ -64,7 +80,14 @@ export async function executeWorkbenchTaskAction(
     if (query) {
       await graphqlService.gql({
         query,
-        variables: { input: { requestId: task.entityId } },
+        variables: {
+          input: {
+            requestId: task.entityId,
+            ...(action === 'reject_access_request' && confirmation?.reason
+              ? { reason: confirmation.reason }
+              : {}),
+          },
+        },
       });
       return;
     }

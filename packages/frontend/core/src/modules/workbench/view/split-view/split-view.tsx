@@ -1,14 +1,21 @@
-import { Checkbox, notify, useDndMonitor } from '@affine/component';
+import { Checkbox, IconButton, notify, useDndMonitor } from '@affine/component';
 import { useAppSettingHelper } from '@affine/core/components/hooks/affine/use-app-setting-helper';
 import type { AffineDNDData } from '@affine/core/types/dnd';
 import { useI18n } from '@affine/i18n';
 import track from '@affine/track';
-import { useService } from '@toeverything/infra';
+import { CloseIcon } from '@blocksuite/icons/rc';
+import { useLiveData, useService } from '@toeverything/infra';
 import clsx from 'clsx';
 import { useSetAtom } from 'jotai';
 import { nanoid } from 'nanoid';
 import type { HTMLAttributes } from 'react';
-import { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 
 import type { View } from '../../entities/view';
 import { WorkbenchService } from '../../services/workbench';
@@ -39,6 +46,17 @@ export const SplitView = ({
   const rootRef = useRef<HTMLDivElement>(null);
   const { appSettings } = useAppSettingHelper();
   const workbench = useService(WorkbenchService).workbench;
+  const activeView = useLiveData(workbench.activeView$);
+  const [compact, setCompact] = useState(false);
+  useEffect(() => {
+    const element = rootRef.current;
+    if (!element) return;
+    const observer = new ResizeObserver(([entry]) =>
+      setCompact(entry.contentRect.width < 900)
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
 
   // workaround: blocksuite's lit host element has an issue on remounting.
   // we do not want the view to change its render ordering here after reordering
@@ -92,7 +110,7 @@ export const SplitView = ({
   useDndMonitor<AffineDNDData>(() => {
     return {
       canMonitor(data) {
-        if (!BUILD_CONFIG.isElectron) {
+        if (compact) {
           return false;
         }
         // allow dropping doc && tab view to split view panel
@@ -222,7 +240,7 @@ export const SplitView = ({
         });
       },
     };
-  }, []);
+  }, [compact]);
 
   return (
     <div
@@ -230,8 +248,22 @@ export const SplitView = ({
       className={clsx(styles.splitViewRoot, className)}
       data-orientation={orientation}
       data-client-border={appSettings.clientBorder}
+      data-compact={compact && views.length > 1}
       {...attrs}
     >
+      {compact && views.length > 1 && (
+        <div className={styles.compactTabs} role="tablist">
+          {views.map(view => (
+            <CompactViewTab
+              key={view.id}
+              view={view}
+              active={view === activeView}
+              onSelect={() => workbench.active(view)}
+              onClose={() => workbench.close(view)}
+            />
+          ))}
+        </div>
+      )}
       {localViewsState.map(view => {
         const order = views.indexOf(view);
         return (
@@ -242,6 +274,7 @@ export const SplitView = ({
             onMove={handleOnMove}
             onResizing={dxy => onResizing(order, dxy)}
             draggingEntity={draggingEntity}
+            compact={compact && views.length > 1}
           >
             {renderer(view)}
           </SplitViewPanel>
@@ -250,3 +283,37 @@ export const SplitView = ({
     </div>
   );
 };
+
+function CompactViewTab({
+  view,
+  active,
+  onSelect,
+  onClose,
+}: {
+  view: View;
+  active: boolean;
+  onSelect: () => void;
+  onClose: () => void;
+}) {
+  const title = useLiveData(view.title$);
+  const t = useI18n();
+  return (
+    <div className={styles.compactTab} data-active={active}>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={active}
+        onClick={onSelect}
+      >
+        {title || t['Untitled']()}
+      </button>
+      <IconButton
+        size="20"
+        tooltip={t['com.affine.workbench.split-view-menu.close']()}
+        onClick={onClose}
+      >
+        <CloseIcon />
+      </IconButton>
+    </div>
+  );
+}

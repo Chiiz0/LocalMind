@@ -39,6 +39,7 @@ export const buildDocContentGetter = (
       .user(options.user)
       .workspace(options.workspace)
       .doc(docId)
+      .projectScope(null)
       .can('Doc.Read');
     if (!canAccess) {
       logger.warn(

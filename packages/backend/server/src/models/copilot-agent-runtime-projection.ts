@@ -50,6 +50,7 @@ export const AGENT_RUNTIME_TARGET_RUN_STATUSES = [
   'queued',
   'running',
   'waiting_approval',
+  'waiting_for_location',
   'completed',
   'failed',
   'cancelled',

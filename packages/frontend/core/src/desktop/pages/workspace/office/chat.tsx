@@ -20,6 +20,7 @@ import {
 } from '@affine/core/blocksuite/ai/components/ai-chat-toolbar';
 import { registerAIAppEffects } from '@affine/core/blocksuite/ai/effects/app';
 import { NotificationServiceImpl } from '@affine/core/blocksuite/view-extensions/editor-view/notification-service';
+import { DocumentCreationPanel } from '@affine/core/components/ai-document-creation/document-creation-panel';
 import { useAIChatConfig } from '@affine/core/components/hooks/affine/use-ai-chat-config';
 import { useAISpecs } from '@affine/core/components/hooks/affine/use-ai-specs';
 import { useAISubscribe } from '@affine/core/components/hooks/affine/use-ai-subscribe';
@@ -664,6 +665,7 @@ export function OfficeChatPanel({
           </div>
         ) : null}
       </section>
+      <DocumentCreationPanel sessionId={snapshot?.activeSessionId} />
       <OfficeTaskPanel
         workspaceId={workspaceId}
         artifactId={artifact.id}

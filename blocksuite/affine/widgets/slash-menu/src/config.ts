@@ -1,9 +1,6 @@
 import { toast } from '@blocksuite/affine-components/toast';
-import type {
-  ListBlockModel,
-  ParagraphBlockModel,
-} from '@blocksuite/affine-model';
 import { insertContent } from '@blocksuite/affine-rich-text';
+import { duplicateSelectedModelsCommand } from '@blocksuite/affine-shared/commands';
 import {
   ArrowDownBigIcon,
   ArrowUpBigIcon,
@@ -15,7 +12,7 @@ import {
   TomorrowIcon,
   YesterdayIcon,
 } from '@blocksuite/icons/lit';
-import { type DeltaInsert, Slice, Text } from '@blocksuite/store';
+import { Slice } from '@blocksuite/store';
 
 import { slashMenuToolTips } from './tooltips';
 import type { SlashMenuConfig } from './types';
@@ -139,38 +136,14 @@ export const defaultSlashMenuConfig: SlashMenuConfig = {
         tooltip: slashMenuToolTips['Copy'],
         group: '8_Actions@3',
         action: ({ std, model }) => {
-          if (!model.text || !(model.text instanceof Text)) {
-            console.error("Can't duplicate a block without text");
-            return;
-          }
-          const { host } = std;
-          const parent = host.store.getParent(model);
-          if (!parent) {
-            console.error(
-              'Failed to duplicate block! Parent not found: ' +
-                model.id +
-                '|' +
-                model.flavour
-            );
-            return;
-          }
-          const index = parent.children.indexOf(model);
-
-          // FIXME: this clone is not correct
-          host.store.addBlock(
-            model.flavour,
-            {
-              type: (model as ParagraphBlockModel).props.type,
-              text: new Text(
-                (
-                  model as ParagraphBlockModel
-                ).props.text.toDelta() as DeltaInsert[]
-              ),
-              checked: (model as ListBlockModel).props.checked,
-            },
-            host.store.getParent(model),
-            index
-          );
+          if (std.store.readonly) return;
+          const parent = std.store.getParent(model);
+          if (!parent) return;
+          std.command.exec(duplicateSelectedModelsCommand, {
+            selectedModels: [model],
+            parentModel: parent,
+            index: parent.children.indexOf(model) + 1,
+          });
         },
       },
       {

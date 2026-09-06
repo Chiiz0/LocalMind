@@ -2467,12 +2467,38 @@ test('context memory quota keeps the most recently used automatic memories', asy
     name: 'Cross-host quota project',
     documents: [],
   });
+  const source = { workspaceId: targetWorkspace.id, docId: 'quota-source' };
+  await models.doc.upsertMeta(source.workspaceId, source.docId);
+  await db.effectiveWorkspaceQuotaState.upsert({
+    where: { workspaceId: source.workspaceId },
+    create: {
+      workspaceId: source.workspaceId,
+      ownerUserId: userId,
+      plan: 'free',
+      seatLimit: 100,
+      blobLimit: 0,
+      storageQuota: 0,
+      historyPeriodSeconds: 0,
+      known: true,
+      stale: false,
+    },
+    update: { known: true, stale: false, staleAfter: null },
+  });
+  const granted =
+    await models.intelligenceWorkbenchAuthorization.addProjectDocument({
+      ...source,
+      projectId: project.id,
+      requesterUserId: userId,
+      requestedLevel: 'read',
+    });
+  t.is(granted.kind, 'granted');
   const projectMemories = [];
   for (const index of [0, 1, 2]) {
     const row = await memory.put({
       ownerUserId: userId,
       workspaceId: index % 2 === 0 ? targetWorkspace.id : secondaryWorkspace.id,
       projectId: project.id,
+      sourceDocuments: [source],
       scope: 'project',
       kind: 'auto_memory',
       visibility: 'private',
@@ -3036,10 +3062,17 @@ test('should be able to fork chat session', async t => {
   t.not(sessionId, forkedSessionId1, 'should fork a new session');
 
   const newUser = await auth.signUp('darksky.1@affine.pro', '123456');
+  await t.throwsAsync(
+    session.fork({
+      userId: newUser.id,
+      sessionId,
+      latestMessageId: latestMessageId!,
+      ...commonParams,
+    })
+  );
   const forkedSessionId2 = await session.fork({
     userId: newUser.id,
-    sessionId,
-    latestMessageId: latestMessageId!,
+    sessionId: forkedSessionId1,
     ...commonParams,
   });
   t.not(

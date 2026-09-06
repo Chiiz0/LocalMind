@@ -4,6 +4,9 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { nanoid } from 'nanoid';
 import * as Y from 'yjs';
 
+import { BadRequest, NotFound } from '../../base';
+import { Models } from '../../models';
+import type { DirectoryRights } from '../../models/workspace-directory-grant';
 import { DocReader } from './reader';
 import { DocWriter } from './writer';
 
@@ -136,7 +139,16 @@ export function resolveWorkspaceDataDocId(
 type LoadedDoc = {
   doc: Y.Doc;
   stateVector: Uint8Array;
+  sourceRevision: string;
 };
+
+function directorySnapshotRevision(bin?: Uint8Array) {
+  // Hash the complete merged snapshot, including delete sets. A state vector
+  // alone cannot identify deletions; re-encoding thousands of roots is costly.
+  return createHash('sha256')
+    .update(bin ?? new Uint8Array([0, 0]))
+    .digest('hex');
+}
 
 function assertJsonValue(value: unknown, path = 'value', seen = new Set()) {
   if (
@@ -634,10 +646,154 @@ function validateFolderGraph(doc: Y.Doc) {
 
 @Injectable()
 export class WorkspaceOrganizationService {
+  private readonly directorySnapshots = new Map<
+    string,
+    {
+      revision: string;
+      rows: JsonObject[];
+      bytes: number;
+      expiresAt: number;
+    }
+  >();
+  private directorySnapshotBytes = 0;
+
   constructor(
     private readonly reader: DocReader,
-    private readonly writer: DocWriter
+    private readonly writer: DocWriter,
+    private readonly models: Models
   ) {}
+
+  async withAiSourceCheck<T>(
+    input: { workspaceId: string; actorId: string; sessionId?: string | null },
+    operation: () => Promise<T>
+  ) {
+    return await this.writer.withDeferredBroadcasts(() =>
+      this.models.copilotContext.withDocumentSourcesShared(
+        {
+          ...input,
+          sink: {
+            type: 'tool_write',
+            id: input.workspaceId,
+            documentId: input.workspaceId,
+            workspaceId: input.workspaceId,
+            phase: 'execute',
+          },
+        },
+        operation
+      )
+    );
+  }
+
+  private async assertFolderMutation(
+    workspaceId: string,
+    actorId: string,
+    before: JsonObject[],
+    after: JsonObject[],
+    changedIds: Set<string>
+  ) {
+    const previous = new Map(before.map(row => [String(row.id), row]));
+    for (const rows of [before, after]) {
+      const records = new Map(rows.map(row => [String(row.id), row]));
+      for (const row of rows) {
+        const path: string[] = [];
+        let current: JsonObject | undefined = row;
+        const seen = new Set<string>();
+        while (current) {
+          const id = String(current.id);
+          if (seen.has(id) || seen.size >= 64)
+            throw new Error('Directory path is invalid or too deeply nested');
+          seen.add(id);
+          if (current.type === 'folder') path.push(id);
+          current =
+            typeof current.parentId === 'string'
+              ? records.get(current.parentId)
+              : undefined;
+        }
+        if (
+          !changedIds.has(String(row.id)) &&
+          !path.some(id => changedIds.has(id))
+        )
+          continue;
+        const rights = await this.models.workspaceDirectoryGrant.rights({
+          workspaceId,
+          actorId,
+          directoryIds: path,
+        });
+        const createsFolder =
+          rows === after &&
+          row.type === 'folder' &&
+          previous.get(String(row.id))?.type !== 'folder';
+        if (
+          !rights.canRead ||
+          !rights.canWrite ||
+          !rights.canOrganize ||
+          (createsFolder && !rights.canCreateFolder)
+        )
+          throw new NotFound(
+            'The selected directory does not allow this operation'
+          );
+      }
+    }
+  }
+
+  async acceptFolderSync<T>(input: {
+    workspaceId: string;
+    actorId: string;
+    updates: Uint8Array[];
+    persist: () => Promise<T>;
+  }) {
+    return await this.models.workspaceDirectoryGrant.withMutationLock(
+      input.workspaceId,
+      async () => {
+        const loaded = await this.load(
+          input.workspaceId,
+          resolveWorkspaceDataDocId(
+            'folders',
+            input.workspaceId,
+            input.actorId
+          ),
+          true
+        );
+        try {
+          const before = tableRecords(loaded.doc, true);
+          for (const update of input.updates) Y.applyUpdate(loaded.doc, update);
+          if (loaded.doc.store.pendingStructs || loaded.doc.store.pendingDs)
+            throw new Error(
+              'Directory sync requires all update dependencies before authorization'
+            );
+          for (const [id, type] of loaded.doc.share) {
+            if (tableField(type, 'id') !== id)
+              throw new Error(
+                'Directory sync contains an invalid record identity'
+              );
+          }
+          validateFolderGraph(loaded.doc);
+          const after = tableRecords(loaded.doc, true);
+          const previous = new Map(
+            before.map(row => [String(row.id), JSON.stringify(row)])
+          );
+          const next = new Map(
+            after.map(row => [String(row.id), JSON.stringify(row)])
+          );
+          const changed = new Set(
+            [...previous.keys(), ...next.keys()].filter(
+              id => previous.get(id) !== next.get(id)
+            )
+          );
+          await this.assertFolderMutation(
+            input.workspaceId,
+            input.actorId,
+            before,
+            after,
+            changed
+          );
+          return await input.persist();
+        } finally {
+          loaded.doc.destroy();
+        }
+      }
+    );
+  }
 
   private async load(
     workspaceId: string,
@@ -650,7 +806,11 @@ export class WorkspaceOrganizationService {
     }
     const doc = new Y.Doc({ guid: docId });
     if (record?.bin) Y.applyUpdate(doc, record.bin);
-    return { doc, stateVector: Y.encodeStateVector(doc) };
+    return {
+      doc,
+      stateVector: Y.encodeStateVector(doc),
+      sourceRevision: directorySnapshotRevision(record?.bin),
+    };
   }
 
   private async save(
@@ -690,6 +850,193 @@ export class WorkspaceOrganizationService {
     }
   }
 
+  async readFolders(workspaceId: string, userId: string) {
+    return (await this.readDirectory(workspaceId, userId)).entries.map(
+      entry => entry.row
+    );
+  }
+
+  private async readDirectorySnapshot(workspaceId: string, userId: string) {
+    // Storage is read on every request, so missed realtime/Redis invalidation
+    // cannot reuse a stale tree. Only parsing is cached, never actor rights.
+    const record = await this.reader.getDoc(
+      workspaceId,
+      resolveWorkspaceDataDocId('folders', workspaceId, userId)
+    );
+    const revision = directorySnapshotRevision(record?.bin);
+    const now = Date.now();
+    for (const [key, entry] of this.directorySnapshots) {
+      if (entry.expiresAt <= now) {
+        this.directorySnapshots.delete(key);
+        this.directorySnapshotBytes -= entry.bytes;
+      }
+    }
+    const cached = this.directorySnapshots.get(workspaceId);
+    if (cached?.revision === revision) {
+      this.directorySnapshots.delete(workspaceId);
+      this.directorySnapshots.set(workspaceId, cached);
+      return { revision, rows: structuredClone(cached.rows) };
+    }
+    if (cached) {
+      this.directorySnapshots.delete(workspaceId);
+      this.directorySnapshotBytes -= cached.bytes;
+    }
+    const doc = new Y.Doc();
+    let rows: JsonObject[];
+    try {
+      if (record?.bin) Y.applyUpdate(doc, record.bin);
+      rows = tableRecords(doc);
+      if (rows.length > 10_000)
+        throw new BadRequest('Directory listing exceeds the supported limit');
+    } finally {
+      doc.destroy();
+    }
+    const bytes = Buffer.byteLength(JSON.stringify(rows));
+    if (bytes <= 4 * 1024 * 1024) {
+      while (
+        this.directorySnapshots.size >= 8 ||
+        this.directorySnapshotBytes + bytes > 16 * 1024 * 1024
+      ) {
+        const oldest = this.directorySnapshots.entries().next().value;
+        if (!oldest) break;
+        this.directorySnapshots.delete(oldest[0]);
+        this.directorySnapshotBytes -= oldest[1].bytes;
+      }
+      this.directorySnapshots.set(workspaceId, {
+        revision,
+        rows: structuredClone(rows),
+        bytes,
+        expiresAt: now + 30_000,
+      });
+      this.directorySnapshotBytes += bytes;
+    }
+    return { revision, rows };
+  }
+
+  async readDirectory(workspaceId: string, userId: string) {
+    const { rows, revision } = await this.readDirectorySnapshot(
+      workspaceId,
+      userId
+    );
+    const policies = await this.models.workspaceDirectoryGrant.snapshot(
+      workspaceId,
+      userId
+    );
+    const records = new Map(rows.map(row => [String(row.id), row]));
+    const byPath = new Map<string, DirectoryRights>();
+    const entries: { row: JsonObject; rights: DirectoryRights }[] = [];
+    for (const row of rows) {
+      const path: string[] = [];
+      const seen = new Set<string>();
+      let current: JsonObject | undefined = row;
+      let valid = true;
+      while (current) {
+        const id = String(current.id);
+        if (seen.has(id) || seen.size >= 64) {
+          valid = false;
+          break;
+        }
+        seen.add(id);
+        if (current.type === 'folder') path.push(id);
+        if (typeof current.parentId !== 'string') break;
+        current = records.get(current.parentId);
+        if (!current || current.type !== 'folder') {
+          valid = false;
+          break;
+        }
+      }
+      if (!valid) continue;
+      const key = JSON.stringify(path);
+      let rights = byPath.get(key);
+      if (!rights) {
+        rights = policies.rights(path);
+        byPath.set(key, rights);
+      }
+      if (rights.canRead) entries.push({ row, rights });
+    }
+    return {
+      entries,
+      revision,
+      fullSyncAllowed: policies.fullSyncAllowed,
+      rootRights: policies.rights([]),
+    };
+  }
+
+  async readFoldersForAdministration(workspaceId: string, actorId: string) {
+    await this.models.workspaceDirectoryGrant.assertAdministrator(
+      workspaceId,
+      actorId
+    );
+    return (await this.readDirectorySnapshot(workspaceId, actorId)).rows;
+  }
+
+  async directoryRevision(workspaceId: string, userId: string) {
+    const record = await this.reader.getDoc(
+      workspaceId,
+      resolveWorkspaceDataDocId('folders', workspaceId, userId)
+    );
+    return directorySnapshotRevision(record?.bin);
+  }
+
+  async applyConditionalFolderOperations(input: {
+    workspaceId: string;
+    actorId: string;
+    expectedRevision: string;
+    operations: WorkspaceDataOperation[];
+    authorizeDocument: (docId: string) => Promise<void>;
+  }) {
+    return await this.models.workspaceDirectoryGrant.withMutationLock(
+      input.workspaceId,
+      async () => {
+        const loaded = await this.load(
+          input.workspaceId,
+          resolveWorkspaceDataDocId(
+            'folders',
+            input.workspaceId,
+            input.actorId
+          ),
+          true
+        );
+        try {
+          const revision = loaded.sourceRevision;
+          if (revision !== input.expectedRevision)
+            throw new Error('Directory changed; refresh before editing');
+          const records = new Map(
+            tableRecords(loaded.doc, true).map(row => [String(row.id), row])
+          );
+          const docs = new Set<string>();
+          for (const operation of input.operations) {
+            const current = records.get(operation.key);
+            if (current?.type === 'doc' && typeof current.data === 'string')
+              docs.add(current.data);
+            if (
+              operation.op === 'upsert' &&
+              operation.values.type === 'doc' &&
+              typeof operation.values.data === 'string'
+            )
+              docs.add(operation.values.data);
+          }
+          for (const docId of docs) await input.authorizeDocument(docId);
+          await this.applyDataOperations(
+            input.workspaceId,
+            input.actorId,
+            input.actorId,
+            'folders',
+            input.operations
+          );
+          return {
+            revision: await this.directoryRevision(
+              input.workspaceId,
+              input.actorId
+            ),
+          };
+        } finally {
+          loaded.doc.destroy();
+        }
+      }
+    );
+  }
+
   async readOrganization(workspaceId: string, userId: string) {
     const root = await this.load(workspaceId, workspaceId);
     try {
@@ -702,7 +1049,7 @@ export class WorkspaceOrganizationService {
         favorites,
         userSettings,
       ] = await Promise.all([
-        this.readTable(workspaceId, userId, 'folders'),
+        this.readFolders(workspaceId, userId),
         this.readTable(workspaceId, userId, 'document_properties'),
         this.readTable(workspaceId, userId, 'workspace_properties'),
         this.readTable(workspaceId, userId, 'pinned_collections'),
@@ -920,6 +1267,15 @@ export class WorkspaceOrganizationService {
     recursive: boolean;
     authorizeDocument: (documentId: string) => Promise<void>;
   }) {
+    return await this.models.workspaceDirectoryGrant.withMutationLock(
+      input.workspaceId,
+      () => this.trashFolderTreeInternal(input)
+    );
+  }
+
+  private async trashFolderTreeInternal(
+    input: Parameters<WorkspaceOrganizationService['trashFolderTree']>[0]
+  ) {
     const folderDocId = resolveWorkspaceDataDocId(
       'folders',
       input.workspaceId,
@@ -928,6 +1284,14 @@ export class WorkspaceOrganizationService {
     const folders = await this.load(input.workspaceId, folderDocId, true);
     const root = await this.load(input.workspaceId, input.workspaceId);
     try {
+      const authorizationRecords = tableRecords(folders.doc, true);
+      await this.assertFolderMutation(
+        input.workspaceId,
+        input.editorId,
+        authorizationRecords,
+        authorizationRecords,
+        new Set([input.folderId])
+      );
       const activeRecords = tableRecords(folders.doc);
       const target = activeRecords.find(
         record => record.id === input.folderId && record.type === 'folder'
@@ -1147,6 +1511,15 @@ export class WorkspaceOrganizationService {
     expectedName: string;
     authorizeDocument: (documentId: string) => Promise<void>;
   }) {
+    return await this.models.workspaceDirectoryGrant.withMutationLock(
+      input.workspaceId,
+      () => this.restoreFolderTreeInternal(input)
+    );
+  }
+
+  private async restoreFolderTreeInternal(
+    input: Parameters<WorkspaceOrganizationService['restoreFolderTree']>[0]
+  ) {
     const folderDocId = resolveWorkspaceDataDocId(
       'folders',
       input.workspaceId,
@@ -1156,6 +1529,13 @@ export class WorkspaceOrganizationService {
     const root = await this.load(input.workspaceId, input.workspaceId);
     try {
       const allRecords = tableRecords(folders.doc, true);
+      await this.assertFolderMutation(
+        input.workspaceId,
+        input.editorId,
+        allRecords,
+        allRecords,
+        new Set([input.folderId])
+      );
       const activeTarget = allRecords.find(
         record =>
           record.id === input.folderId &&
@@ -1301,6 +1681,17 @@ export class WorkspaceOrganizationService {
     expectedName: string;
     authorizeDocument: (documentId: string) => Promise<void>;
   }) {
+    return await this.models.workspaceDirectoryGrant.withMutationLock(
+      input.workspaceId,
+      () => this.deleteFolderTreePermanentlyInternal(input)
+    );
+  }
+
+  private async deleteFolderTreePermanentlyInternal(
+    input: Parameters<
+      WorkspaceOrganizationService['deleteFolderTreePermanently']
+    >[0]
+  ) {
     const folderDocId = resolveWorkspaceDataDocId(
       'folders',
       input.workspaceId,
@@ -1310,6 +1701,13 @@ export class WorkspaceOrganizationService {
     const root = await this.load(input.workspaceId, input.workspaceId);
     try {
       const allRecords = tableRecords(folders.doc, true);
+      await this.assertFolderMutation(
+        input.workspaceId,
+        input.editorId,
+        allRecords,
+        allRecords,
+        new Set([input.folderId])
+      );
       const activeTarget = allRecords.find(
         record =>
           record.id === input.folderId &&
@@ -1628,11 +2026,36 @@ export class WorkspaceOrganizationService {
     table: WorkspaceDataTable,
     operations: WorkspaceDataOperation[]
   ) {
+    const apply = () =>
+      this.applyDataOperationsInternal(
+        workspaceId,
+        userId,
+        editorId,
+        table,
+        operations
+      );
+    return table === 'folders'
+      ? await this.models.workspaceDirectoryGrant.withMutationLock(
+          workspaceId,
+          apply
+        )
+      : await apply();
+  }
+
+  private async applyDataOperationsInternal(
+    workspaceId: string,
+    userId: string,
+    editorId: string,
+    table: WorkspaceDataTable,
+    operations: WorkspaceDataOperation[]
+  ) {
     assertOperations(operations);
     const descriptor = TABLES[table];
     const docId = resolveWorkspaceDataDocId(table, workspaceId, userId);
     const loaded = await this.load(workspaceId, docId, true);
     try {
+      const previousFolders =
+        table === 'folders' ? tableRecords(loaded.doc) : [];
       loaded.doc.transact(() => {
         for (const operation of operations) {
           const existed = loaded.doc.share.has(operation.key);
@@ -1668,7 +2091,16 @@ export class WorkspaceOrganizationService {
           record.delete('$$DELETED');
         }
       });
-      if (table === 'folders') validateFolderGraph(loaded.doc);
+      if (table === 'folders') {
+        validateFolderGraph(loaded.doc);
+        await this.assertFolderMutation(
+          workspaceId,
+          editorId,
+          previousFolders,
+          tableRecords(loaded.doc),
+          new Set(operations.map(operation => operation.key))
+        );
+      }
       const saved = await this.save(workspaceId, docId, editorId, loaded);
       return { workspaceId, table, storageDocId: docId, ...saved };
     } finally {

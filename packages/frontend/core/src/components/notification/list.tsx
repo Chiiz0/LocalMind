@@ -51,6 +51,7 @@ import {
 } from 'react';
 
 import { useNavigateHelper } from '../hooks/use-navigate-helper';
+import { AccessRequestNotificationItem } from './access-request';
 import * as styles from './list.style.css';
 
 export const NotificationList = () => {
@@ -324,7 +325,10 @@ const NotificationItem = ({ notification }: { notification: Notification }) => {
   const t = useI18n();
   const type = notification.type;
 
-  return type === NotificationType.Mention ? (
+  return type === NotificationType.AccessRequest ||
+    type === NotificationType.AccessRequestResolved ? (
+    <AccessRequestNotificationItem notification={notification} />
+  ) : type === NotificationType.Mention ? (
     <MentionNotificationItem notification={notification} />
   ) : type === NotificationType.Comment ? (
     <CommentNotificationItem notification={notification} />

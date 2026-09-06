@@ -37,6 +37,24 @@ export interface Scalars {
   Upload: { input: File; output: File };
 }
 
+export interface AccessRequestNotificationBodyType {
+  __typename?: 'AccessRequestNotificationBodyType';
+  canDecide: Scalars['Boolean']['output'];
+  /** The user who created the notification, maybe null when user is deleted or sent by system */
+  createdByUser: Maybe<PublicUserType>;
+  docId: Maybe<Scalars['String']['output']>;
+  docTitle: Maybe<Scalars['String']['output']>;
+  projectId: Maybe<Scalars['ID']['output']>;
+  projectName: Maybe<Scalars['String']['output']>;
+  requestId: Scalars['ID']['output'];
+  requestedLevel: Maybe<Scalars['String']['output']>;
+  resolutionReason: Maybe<Scalars['String']['output']>;
+  status: Scalars['String']['output'];
+  /** The type of the notification */
+  type: NotificationType;
+  workspace: Maybe<NotificationWorkspaceType>;
+}
+
 export interface AddContextBlobInput {
   blobId: Scalars['String']['input'];
   contextId: Scalars['String']['input'];
@@ -631,6 +649,14 @@ export interface ConfirmCopilotBlockerSuggestionInput {
   suggestion: CopilotBlockerSuggestionInput;
 }
 
+export interface ConfirmCopilotDocumentDestinationInput {
+  expectedRevision: Scalars['Int']['input'];
+  folderId?: InputMaybe<Scalars['ID']['input']>;
+  operationId: Scalars['ID']['input'];
+  root: Scalars['Boolean']['input'];
+  workspaceId: Scalars['ID']['input'];
+}
+
 export interface ConnectExternalMcpInput {
   accessTicket: Scalars['String']['input'];
   name?: Scalars['String']['input'];
@@ -710,6 +736,9 @@ export interface Copilot {
   copilotTask: Maybe<CopilotTaskType>;
   /** List standalone Copilot tasks owned by the current user in one workspace or across all accessible workspaces. */
   copilotTasks: Array<CopilotTaskType>;
+  documentDestinationFolders: CopilotDocumentFoldersType;
+  documentDestinationWorkspaces: Array<CopilotDocumentWorkspaceType>;
+  documentOperations: Array<CopilotDocumentOperationType>;
   /** @deprecated use `chats` instead */
   histories: Array<CopilotHistories>;
   /** List available models for a prompt, with human-readable names */
@@ -819,6 +848,16 @@ export interface CopilotCopilotTaskArgs {
 export interface CopilotCopilotTasksArgs {
   filter?: InputMaybe<CopilotTaskListFilterInput>;
   limit?: InputMaybe<Scalars['SafeInt']['input']>;
+}
+
+export interface CopilotDocumentDestinationFoldersArgs {
+  after?: InputMaybe<Scalars['String']['input']>;
+  workspaceId: Scalars['ID']['input'];
+}
+
+export interface CopilotDocumentOperationsArgs {
+  after?: InputMaybe<Scalars['ID']['input']>;
+  sessionId: Scalars['ID']['input'];
 }
 
 export interface CopilotHistoriesArgs {
@@ -1657,6 +1696,44 @@ export interface CopilotContextStrategyType {
 export interface CopilotDocNotFoundDataType {
   __typename?: 'CopilotDocNotFoundDataType';
   docId: Scalars['String']['output'];
+}
+
+export interface CopilotDocumentFolderType {
+  __typename?: 'CopilotDocumentFolderType';
+  id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
+}
+
+export interface CopilotDocumentFoldersType {
+  __typename?: 'CopilotDocumentFoldersType';
+  items: Array<CopilotDocumentFolderType>;
+  nextCursor: Maybe<Scalars['String']['output']>;
+}
+
+export interface CopilotDocumentOperationType {
+  __typename?: 'CopilotDocumentOperationType';
+  accessRequestId: Maybe<Scalars['ID']['output']>;
+  createdDocumentAt: Maybe<Scalars['DateTime']['output']>;
+  destinationFolderId: Maybe<Scalars['ID']['output']>;
+  destinationRevision: Scalars['Int']['output'];
+  destinationWorkspaceId: Maybe<Scalars['ID']['output']>;
+  documentId: Scalars['ID']['output'];
+  failureCode: Maybe<Scalars['String']['output']>;
+  id: Scalars['ID']['output'];
+  kind: Scalars['String']['output'];
+  locationExpiresAt: Scalars['DateTime']['output'];
+  placedDocumentAt: Maybe<Scalars['DateTime']['output']>;
+  projectStatus: Scalars['String']['output'];
+  sourceDocumentId: Maybe<Scalars['ID']['output']>;
+  sourceWorkspaceId: Maybe<Scalars['ID']['output']>;
+  status: Scalars['String']['output'];
+  title: Scalars['String']['output'];
+}
+
+export interface CopilotDocumentWorkspaceType {
+  __typename?: 'CopilotDocumentWorkspaceType';
+  id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
 }
 
 export interface CopilotFailedToAddWorkspaceFileEmbeddingDataType {
@@ -4423,6 +4500,7 @@ export interface CopilotTaskType {
   projectId: Maybe<Scalars['String']['output']>;
   resultEvidence: Maybe<Scalars['JSON']['output']>;
   resultSummary: Maybe<Scalars['String']['output']>;
+  sessionId: Maybe<Scalars['String']['output']>;
   startedAt: Maybe<Scalars['DateTime']['output']>;
   status: Scalars['String']['output'];
   steps: Array<CopilotTaskStepType>;
@@ -5717,6 +5795,7 @@ export interface Mutation {
   cancelSubscription: SubscriptionType;
   changeEmail: UserType;
   changePassword: Scalars['Boolean']['output'];
+  changeWorkspaceDirectoryPolicy: WorkspaceDirectoryPolicyMutationType;
   /** Cleanup sessions */
   cleanupCopilotSession: Array<Scalars['String']['output']>;
   /** Expire DB-backed support bundles whose retention window has elapsed and retry failed archive object cleanup. */
@@ -5724,6 +5803,7 @@ export interface Mutation {
   clearWorkspaceByokConfigs: Scalars['Boolean']['output'];
   completeBlobUpload: Scalars['String']['output'];
   confirmCopilotBlockerSuggestion: CopilotBlockerType;
+  confirmCopilotDocumentDestination: CopilotDocumentOperationType;
   connectExternalMcp: ExternalMcpConnectionType;
   /** Control a standalone persisted Agent Runtime run outside repair execution. */
   controlCopilotAgentRuntimeRun: CopilotAgentRunType;
@@ -5826,6 +5906,7 @@ export interface Mutation {
   linkCalendarAccount: Scalars['String']['output'];
   /** mention user in a doc */
   mentionUser: Scalars['ID']['output'];
+  mutateWorkspaceDirectory: WorkspaceDirectoryMutationType;
   /** Preview a Prompt Registry message body edit and return a publishable diff fingerprint before writing. */
   previewCopilotPromptRegistryBodyEdit: CopilotPromptRegistryBodyEditPreviewType;
   previewLicense: AdminLicensePreview;
@@ -5887,6 +5968,7 @@ export interface Mutation {
   resolveCopilotBlocker: CopilotBlockerType;
   resolveOfficeComment: OfficeCommentType;
   resumeSubscription: SubscriptionType;
+  retryCopilotDocumentOperation: CopilotDocumentOperationType;
   /** Queue a fresh Provider Health probe attempt for a dead-lettered workspace attempt without mutating terminal evidence. */
   retryCopilotProviderHealthProbeAttempt: CopilotProviderHealthProbeAttemptType;
   retryTranscriptTask: Maybe<TranscriptionResultType>;
@@ -5960,6 +6042,7 @@ export interface Mutation {
   upsertWorkspaceByokConfig: WorkspaceByokKeyConfigType;
   verifyEmail: Scalars['Boolean']['output'];
   withdrawCopilotAccessRequest: CopilotAccessRequestType;
+  withdrawCopilotDocumentOperation: CopilotDocumentOperationType;
   withdrawCopilotProjectInvitation: CopilotProjectInvitationType;
 }
 
@@ -6067,6 +6150,14 @@ export interface MutationChangePasswordArgs {
   userId?: InputMaybe<Scalars['String']['input']>;
 }
 
+export interface MutationChangeWorkspaceDirectoryPolicyArgs {
+  directoryId: Scalars['ID']['input'];
+  expectedRevision: Scalars['String']['input'];
+  principalId: Scalars['ID']['input'];
+  rights?: InputMaybe<WorkspaceDirectoryRightsInput>;
+  workspaceId: Scalars['ID']['input'];
+}
+
 export interface MutationCleanupCopilotSessionArgs {
   options: DeleteSessionInput;
 }
@@ -6090,6 +6181,10 @@ export interface MutationCompleteBlobUploadArgs {
 
 export interface MutationConfirmCopilotBlockerSuggestionArgs {
   input: ConfirmCopilotBlockerSuggestionInput;
+}
+
+export interface MutationConfirmCopilotDocumentDestinationArgs {
+  input: ConfirmCopilotDocumentDestinationInput;
 }
 
 export interface MutationConnectExternalMcpArgs {
@@ -6388,6 +6483,12 @@ export interface MutationMentionUserArgs {
   input: MentionInput;
 }
 
+export interface MutationMutateWorkspaceDirectoryArgs {
+  changes: Array<WorkspaceDirectoryChangeInput>;
+  expectedRevision: Scalars['String']['input'];
+  workspaceId: Scalars['ID']['input'];
+}
+
 export interface MutationPreviewCopilotPromptRegistryBodyEditArgs {
   input: CopilotPromptRegistryBodyEditPreviewInput;
 }
@@ -6535,6 +6636,11 @@ export interface MutationResumeSubscriptionArgs {
   idempotencyKey?: InputMaybe<Scalars['String']['input']>;
   plan?: InputMaybe<SubscriptionPlan>;
   workspaceId?: InputMaybe<Scalars['String']['input']>;
+}
+
+export interface MutationRetryCopilotDocumentOperationArgs {
+  expectedRevision: Scalars['Int']['input'];
+  operationId: Scalars['ID']['input'];
 }
 
 export interface MutationRetryCopilotProviderHealthProbeAttemptArgs {
@@ -6818,6 +6924,11 @@ export interface MutationWithdrawCopilotAccessRequestArgs {
   input: ResolveCopilotAccessRequestInput;
 }
 
+export interface MutationWithdrawCopilotDocumentOperationArgs {
+  expectedRevision: Scalars['Int']['input'];
+  operationId: Scalars['ID']['input'];
+}
+
 export interface MutationWithdrawCopilotProjectInvitationArgs {
   invitationId: Scalars['ID']['input'];
 }
@@ -6883,6 +6994,8 @@ export interface NotificationObjectTypeEdge {
 
 /** Notification type */
 export enum NotificationType {
+  AccessRequest = 'AccessRequest',
+  AccessRequestResolved = 'AccessRequestResolved',
   Comment = 'Comment',
   CommentMention = 'CommentMention',
   Invitation = 'Invitation',
@@ -7246,6 +7359,8 @@ export interface Query {
   validateAppConfig: Array<AppConfigValidateResult>;
   /** Get workspace by id */
   workspace: WorkspaceType;
+  workspaceDirectory: WorkspaceDirectoryPageType;
+  workspaceDirectoryAdministration: WorkspaceDirectoryAdministrationType;
   /**
    * Get workspace role permissions
    * @deprecated use WorkspaceType[permissions] instead
@@ -7413,6 +7528,16 @@ export interface QueryValidateAppConfigArgs {
 
 export interface QueryWorkspaceArgs {
   id: Scalars['String']['input'];
+}
+
+export interface QueryWorkspaceDirectoryArgs {
+  after?: InputMaybe<Scalars['String']['input']>;
+  workspaceId: Scalars['ID']['input'];
+}
+
+export interface QueryWorkspaceDirectoryAdministrationArgs {
+  auditAfter?: InputMaybe<Scalars['String']['input']>;
+  workspaceId: Scalars['ID']['input'];
 }
 
 export interface QueryWorkspaceRolePermissionsArgs {
@@ -7963,6 +8088,7 @@ export interface TransferCopilotProjectOwnershipInput {
 }
 
 export type UnionNotificationBodyType =
+  | AccessRequestNotificationBodyType
   | InvitationAcceptedNotificationBodyType
   | InvitationBlockedNotificationBodyType
   | InvitationNotificationBodyType
@@ -8330,6 +8456,110 @@ export interface WorkspaceCalendarObjectType {
 export interface WorkspaceCalendarObjectTypeEventsArgs {
   from: Scalars['DateTime']['input'];
   to: Scalars['DateTime']['input'];
+}
+
+export interface WorkspaceDirectoryAdministrationType {
+  __typename?: 'WorkspaceDirectoryAdministrationType';
+  auditEvents: Array<WorkspaceDirectoryPolicyAuditType>;
+  auditNextCursor: Maybe<Scalars['String']['output']>;
+  directories: Array<WorkspaceDirectoryPolicyDirectoryType>;
+  policies: Array<WorkspaceDirectoryPolicyType>;
+  principals: Array<WorkspaceDirectoryPolicyPrincipalType>;
+  revision: Scalars['String']['output'];
+}
+
+export interface WorkspaceDirectoryChangeInput {
+  key: Scalars['ID']['input'];
+  op: Scalars['String']['input'];
+  values?: InputMaybe<WorkspaceDirectoryValuesInput>;
+}
+
+export interface WorkspaceDirectoryEntryType {
+  __typename?: 'WorkspaceDirectoryEntryType';
+  data: Scalars['String']['output'];
+  id: Scalars['ID']['output'];
+  index: Scalars['String']['output'];
+  parentId: Maybe<Scalars['ID']['output']>;
+  rights: WorkspaceDirectoryRightsType;
+  type: Scalars['String']['output'];
+}
+
+export interface WorkspaceDirectoryMutationType {
+  __typename?: 'WorkspaceDirectoryMutationType';
+  revision: Scalars['String']['output'];
+}
+
+export interface WorkspaceDirectoryPageType {
+  __typename?: 'WorkspaceDirectoryPageType';
+  authorizationRevision: Scalars['String']['output'];
+  fullSyncAllowed: Scalars['Boolean']['output'];
+  items: Array<WorkspaceDirectoryEntryType>;
+  nextCursor: Maybe<Scalars['String']['output']>;
+  revision: Scalars['String']['output'];
+  rootRights: WorkspaceDirectoryRightsType;
+}
+
+export interface WorkspaceDirectoryPolicyAuditType {
+  __typename?: 'WorkspaceDirectoryPolicyAuditType';
+  action: Scalars['String']['output'];
+  actorId: Scalars['ID']['output'];
+  after: Maybe<WorkspaceDirectoryRightsType>;
+  before: Maybe<WorkspaceDirectoryRightsType>;
+  createdAt: Scalars['DateTime']['output'];
+  directoryId: Scalars['ID']['output'];
+  id: Scalars['ID']['output'];
+  principalId: Scalars['ID']['output'];
+}
+
+export interface WorkspaceDirectoryPolicyDirectoryType {
+  __typename?: 'WorkspaceDirectoryPolicyDirectoryType';
+  id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
+  parentId: Maybe<Scalars['ID']['output']>;
+}
+
+export interface WorkspaceDirectoryPolicyMutationType {
+  __typename?: 'WorkspaceDirectoryPolicyMutationType';
+  policy: Maybe<WorkspaceDirectoryPolicyType>;
+  revision: Scalars['String']['output'];
+}
+
+export interface WorkspaceDirectoryPolicyPrincipalType {
+  __typename?: 'WorkspaceDirectoryPolicyPrincipalType';
+  allMembers: Scalars['Boolean']['output'];
+  email: Maybe<Scalars['String']['output']>;
+  id: Scalars['ID']['output'];
+  name: Maybe<Scalars['String']['output']>;
+}
+
+export interface WorkspaceDirectoryPolicyType {
+  __typename?: 'WorkspaceDirectoryPolicyType';
+  directoryId: Scalars['ID']['output'];
+  principalId: Scalars['ID']['output'];
+  rights: WorkspaceDirectoryRightsType;
+  updatedAt: Scalars['DateTime']['output'];
+}
+
+export interface WorkspaceDirectoryRightsInput {
+  canCreateFolder: Scalars['Boolean']['input'];
+  canOrganize: Scalars['Boolean']['input'];
+  canRead: Scalars['Boolean']['input'];
+  canWrite: Scalars['Boolean']['input'];
+}
+
+export interface WorkspaceDirectoryRightsType {
+  __typename?: 'WorkspaceDirectoryRightsType';
+  canCreateFolder: Scalars['Boolean']['output'];
+  canOrganize: Scalars['Boolean']['output'];
+  canRead: Scalars['Boolean']['output'];
+  canWrite: Scalars['Boolean']['output'];
+}
+
+export interface WorkspaceDirectoryValuesInput {
+  data: Scalars['String']['input'];
+  index: Scalars['String']['input'];
+  parentId?: InputMaybe<Scalars['ID']['input']>;
+  type: Scalars['String']['input'];
 }
 
 export interface WorkspaceDocMeta {
@@ -11652,6 +11882,166 @@ export type RequestCopilotDocumentAccessMutation = {
     expiresAt: string | null;
     createdAt: string;
     updatedAt: string;
+  };
+};
+
+export type CopilotDocumentDestinationWorkspacesQueryVariables = Exact<{
+  [key: string]: never;
+}>;
+
+export type CopilotDocumentDestinationWorkspacesQuery = {
+  __typename?: 'Query';
+  currentUser: {
+    __typename?: 'UserType';
+    copilot: {
+      __typename?: 'Copilot';
+      documentDestinationWorkspaces: Array<{
+        __typename?: 'CopilotDocumentWorkspaceType';
+        id: string;
+        name: string;
+      }>;
+    };
+  } | null;
+};
+
+export type CopilotDocumentDestinationFoldersQueryVariables = Exact<{
+  workspaceId: Scalars['ID']['input'];
+  after?: InputMaybe<Scalars['String']['input']>;
+}>;
+
+export type CopilotDocumentDestinationFoldersQuery = {
+  __typename?: 'Query';
+  currentUser: {
+    __typename?: 'UserType';
+    copilot: {
+      __typename?: 'Copilot';
+      documentDestinationFolders: {
+        __typename?: 'CopilotDocumentFoldersType';
+        nextCursor: string | null;
+        items: Array<{
+          __typename?: 'CopilotDocumentFolderType';
+          id: string;
+          name: string;
+        }>;
+      };
+    };
+  } | null;
+};
+
+export type CopilotDocumentOperationsQueryVariables = Exact<{
+  sessionId: Scalars['ID']['input'];
+  after?: InputMaybe<Scalars['ID']['input']>;
+}>;
+
+export type CopilotDocumentOperationsQuery = {
+  __typename?: 'Query';
+  currentUser: {
+    __typename?: 'UserType';
+    copilot: {
+      __typename?: 'Copilot';
+      documentOperations: Array<{
+        __typename?: 'CopilotDocumentOperationType';
+        id: string;
+        kind: string;
+        sourceWorkspaceId: string | null;
+        sourceDocumentId: string | null;
+        title: string;
+        status: string;
+        projectStatus: string;
+        documentId: string;
+        destinationWorkspaceId: string | null;
+        destinationFolderId: string | null;
+        destinationRevision: number;
+        locationExpiresAt: string;
+        createdDocumentAt: string | null;
+        placedDocumentAt: string | null;
+        failureCode: string | null;
+        accessRequestId: string | null;
+      }>;
+    };
+  } | null;
+};
+
+export type ConfirmCopilotDocumentDestinationMutationVariables = Exact<{
+  input: ConfirmCopilotDocumentDestinationInput;
+}>;
+
+export type ConfirmCopilotDocumentDestinationMutation = {
+  __typename?: 'Mutation';
+  confirmCopilotDocumentDestination: {
+    __typename?: 'CopilotDocumentOperationType';
+    id: string;
+    kind: string;
+    sourceWorkspaceId: string | null;
+    sourceDocumentId: string | null;
+    title: string;
+    status: string;
+    projectStatus: string;
+    documentId: string;
+    destinationWorkspaceId: string | null;
+    destinationFolderId: string | null;
+    destinationRevision: number;
+    locationExpiresAt: string;
+    createdDocumentAt: string | null;
+    placedDocumentAt: string | null;
+    failureCode: string | null;
+    accessRequestId: string | null;
+  };
+};
+
+export type RetryCopilotDocumentOperationMutationVariables = Exact<{
+  operationId: Scalars['ID']['input'];
+  expectedRevision: Scalars['Int']['input'];
+}>;
+
+export type RetryCopilotDocumentOperationMutation = {
+  __typename?: 'Mutation';
+  retryCopilotDocumentOperation: {
+    __typename?: 'CopilotDocumentOperationType';
+    id: string;
+    kind: string;
+    sourceWorkspaceId: string | null;
+    sourceDocumentId: string | null;
+    title: string;
+    status: string;
+    projectStatus: string;
+    documentId: string;
+    destinationWorkspaceId: string | null;
+    destinationFolderId: string | null;
+    destinationRevision: number;
+    locationExpiresAt: string;
+    createdDocumentAt: string | null;
+    placedDocumentAt: string | null;
+    failureCode: string | null;
+    accessRequestId: string | null;
+  };
+};
+
+export type WithdrawCopilotDocumentOperationMutationVariables = Exact<{
+  operationId: Scalars['ID']['input'];
+  expectedRevision: Scalars['Int']['input'];
+}>;
+
+export type WithdrawCopilotDocumentOperationMutation = {
+  __typename?: 'Mutation';
+  withdrawCopilotDocumentOperation: {
+    __typename?: 'CopilotDocumentOperationType';
+    id: string;
+    kind: string;
+    sourceWorkspaceId: string | null;
+    sourceDocumentId: string | null;
+    title: string;
+    status: string;
+    projectStatus: string;
+    documentId: string;
+    destinationWorkspaceId: string | null;
+    destinationFolderId: string | null;
+    destinationRevision: number;
+    locationExpiresAt: string;
+    createdDocumentAt: string | null;
+    placedDocumentAt: string | null;
+    failureCode: string | null;
+    accessRequestId: string | null;
   };
 };
 
@@ -17321,6 +17711,7 @@ export type CopilotWorkbenchTaskGetQuery = {
         run: {
           __typename?: 'CopilotTaskType';
           id: string;
+          sessionId: string | null;
           workspaceId: string;
           projectId: string | null;
           title: string | null;
@@ -17435,6 +17826,7 @@ export type CopilotWorkbenchTaskPanelGetQuery = {
             run: {
               __typename?: 'CopilotTaskType';
               id: string;
+              sessionId: string | null;
               workspaceId: string;
               projectId: string | null;
               title: string | null;
@@ -17515,6 +17907,7 @@ export type CopilotWorkbenchTaskPanelGetQuery = {
             run: {
               __typename?: 'CopilotTaskType';
               id: string;
+              sessionId: string | null;
               workspaceId: string;
               projectId: string | null;
               title: string | null;
@@ -17595,6 +17988,7 @@ export type CopilotWorkbenchTaskPanelGetQuery = {
             run: {
               __typename?: 'CopilotTaskType';
               id: string;
+              sessionId: string | null;
               workspaceId: string;
               projectId: string | null;
               title: string | null;
@@ -17694,6 +18088,7 @@ export type CopilotWorkbenchTasksGetQuery = {
           run: {
             __typename?: 'CopilotTaskType';
             id: string;
+            sessionId: string | null;
             workspaceId: string;
             projectId: string | null;
             title: string | null;
@@ -18402,6 +18797,26 @@ export type CopilotChatHistoryFragment = {
   }>;
 };
 
+export type CopilotDocumentOperationFieldsFragment = {
+  __typename?: 'CopilotDocumentOperationType';
+  id: string;
+  kind: string;
+  sourceWorkspaceId: string | null;
+  sourceDocumentId: string | null;
+  title: string;
+  status: string;
+  projectStatus: string;
+  documentId: string;
+  destinationWorkspaceId: string | null;
+  destinationFolderId: string | null;
+  destinationRevision: number;
+  locationExpiresAt: string;
+  createdDocumentAt: string | null;
+  placedDocumentAt: string | null;
+  failureCode: string | null;
+  accessRequestId: string | null;
+};
+
 export type CopilotWorkbenchTaskItemFieldsFragment = {
   __typename?: 'CopilotWorkbenchTaskItemType';
   id: string;
@@ -18434,6 +18849,7 @@ export type CopilotWorkbenchTaskItemFieldsFragment = {
   run: {
     __typename?: 'CopilotTaskType';
     id: string;
+    sessionId: string | null;
     workspaceId: string;
     projectId: string | null;
     title: string | null;
@@ -20616,6 +21032,150 @@ export type WorkspaceByokSettingsQuery = {
   };
 };
 
+export type WorkspaceDirectoryQueryVariables = Exact<{
+  workspaceId: Scalars['ID']['input'];
+  after?: InputMaybe<Scalars['String']['input']>;
+}>;
+
+export type WorkspaceDirectoryQuery = {
+  __typename?: 'Query';
+  workspaceDirectory: {
+    __typename?: 'WorkspaceDirectoryPageType';
+    revision: string;
+    authorizationRevision: string;
+    fullSyncAllowed: boolean;
+    nextCursor: string | null;
+    rootRights: {
+      __typename?: 'WorkspaceDirectoryRightsType';
+      canRead: boolean;
+      canWrite: boolean;
+      canOrganize: boolean;
+      canCreateFolder: boolean;
+    };
+    items: Array<{
+      __typename?: 'WorkspaceDirectoryEntryType';
+      id: string;
+      parentId: string | null;
+      type: string;
+      data: string;
+      index: string;
+      rights: {
+        __typename?: 'WorkspaceDirectoryRightsType';
+        canRead: boolean;
+        canWrite: boolean;
+        canOrganize: boolean;
+        canCreateFolder: boolean;
+      };
+    }>;
+  };
+};
+
+export type MutateWorkspaceDirectoryMutationVariables = Exact<{
+  workspaceId: Scalars['ID']['input'];
+  expectedRevision: Scalars['String']['input'];
+  changes: Array<WorkspaceDirectoryChangeInput> | WorkspaceDirectoryChangeInput;
+}>;
+
+export type MutateWorkspaceDirectoryMutation = {
+  __typename?: 'Mutation';
+  mutateWorkspaceDirectory: {
+    __typename?: 'WorkspaceDirectoryMutationType';
+    revision: string;
+  };
+};
+
+export type WorkspaceDirectoryAdministrationQueryVariables = Exact<{
+  workspaceId: Scalars['ID']['input'];
+  auditAfter?: InputMaybe<Scalars['String']['input']>;
+}>;
+
+export type WorkspaceDirectoryAdministrationQuery = {
+  __typename?: 'Query';
+  workspaceDirectoryAdministration: {
+    __typename?: 'WorkspaceDirectoryAdministrationType';
+    revision: string;
+    auditNextCursor: string | null;
+    directories: Array<{
+      __typename?: 'WorkspaceDirectoryPolicyDirectoryType';
+      id: string;
+      parentId: string | null;
+      name: string;
+    }>;
+    principals: Array<{
+      __typename?: 'WorkspaceDirectoryPolicyPrincipalType';
+      id: string;
+      name: string | null;
+      email: string | null;
+      allMembers: boolean;
+    }>;
+    policies: Array<{
+      __typename?: 'WorkspaceDirectoryPolicyType';
+      directoryId: string;
+      principalId: string;
+      updatedAt: string;
+      rights: {
+        __typename?: 'WorkspaceDirectoryRightsType';
+        canRead: boolean;
+        canWrite: boolean;
+        canOrganize: boolean;
+        canCreateFolder: boolean;
+      };
+    }>;
+    auditEvents: Array<{
+      __typename?: 'WorkspaceDirectoryPolicyAuditType';
+      id: string;
+      actorId: string;
+      directoryId: string;
+      principalId: string;
+      action: string;
+      createdAt: string;
+      before: {
+        __typename?: 'WorkspaceDirectoryRightsType';
+        canRead: boolean;
+        canWrite: boolean;
+        canOrganize: boolean;
+        canCreateFolder: boolean;
+      } | null;
+      after: {
+        __typename?: 'WorkspaceDirectoryRightsType';
+        canRead: boolean;
+        canWrite: boolean;
+        canOrganize: boolean;
+        canCreateFolder: boolean;
+      } | null;
+    }>;
+  };
+};
+
+export type ChangeWorkspaceDirectoryPolicyMutationVariables = Exact<{
+  workspaceId: Scalars['ID']['input'];
+  expectedRevision: Scalars['String']['input'];
+  directoryId: Scalars['ID']['input'];
+  principalId: Scalars['ID']['input'];
+  rights?: InputMaybe<WorkspaceDirectoryRightsInput>;
+}>;
+
+export type ChangeWorkspaceDirectoryPolicyMutation = {
+  __typename?: 'Mutation';
+  changeWorkspaceDirectoryPolicy: {
+    __typename?: 'WorkspaceDirectoryPolicyMutationType';
+    revision: string;
+    policy: {
+      __typename?: 'WorkspaceDirectoryPolicyType';
+      directoryId: string;
+      principalId: string;
+      updatedAt: string;
+      rights: {
+        __typename?: 'WorkspaceDirectoryRightsType';
+        canRead: boolean;
+        canWrite: boolean;
+        canOrganize: boolean;
+        canCreateFolder: boolean;
+      };
+    } | null;
+  };
+};
+
 export type SetEnableAiMutationVariables = Exact<{
   id: Scalars['ID']['input'];
   enableAi: Scalars['Boolean']['input'];
@@ -20962,6 +21522,21 @@ export type Queries =
       name: 'copilotContextSessionScopeQuery';
       variables: CopilotContextSessionScopeQueryVariables;
       response: CopilotContextSessionScopeQuery;
+    }
+  | {
+      name: 'copilotDocumentDestinationWorkspacesQuery';
+      variables: CopilotDocumentDestinationWorkspacesQueryVariables;
+      response: CopilotDocumentDestinationWorkspacesQuery;
+    }
+  | {
+      name: 'copilotDocumentDestinationFoldersQuery';
+      variables: CopilotDocumentDestinationFoldersQueryVariables;
+      response: CopilotDocumentDestinationFoldersQuery;
+    }
+  | {
+      name: 'copilotDocumentOperationsQuery';
+      variables: CopilotDocumentOperationsQueryVariables;
+      response: CopilotDocumentOperationsQuery;
     }
   | {
       name: 'getCopilotHistoryIdsQuery';
@@ -21362,6 +21937,16 @@ export type Queries =
       name: 'workspaceByokSettingsQuery';
       variables: WorkspaceByokSettingsQueryVariables;
       response: WorkspaceByokSettingsQuery;
+    }
+  | {
+      name: 'workspaceDirectoryQuery';
+      variables: WorkspaceDirectoryQueryVariables;
+      response: WorkspaceDirectoryQuery;
+    }
+  | {
+      name: 'workspaceDirectoryAdministrationQuery';
+      variables: WorkspaceDirectoryAdministrationQueryVariables;
+      response: WorkspaceDirectoryAdministrationQuery;
     }
   | {
       name: 'workspaceInvoicesQuery';
@@ -21784,6 +22369,21 @@ export type Mutations =
       name: 'requestCopilotDocumentAccessMutation';
       variables: RequestCopilotDocumentAccessMutationVariables;
       response: RequestCopilotDocumentAccessMutation;
+    }
+  | {
+      name: 'confirmCopilotDocumentDestinationMutation';
+      variables: ConfirmCopilotDocumentDestinationMutationVariables;
+      response: ConfirmCopilotDocumentDestinationMutation;
+    }
+  | {
+      name: 'retryCopilotDocumentOperationMutation';
+      variables: RetryCopilotDocumentOperationMutationVariables;
+      response: RetryCopilotDocumentOperationMutation;
+    }
+  | {
+      name: 'withdrawCopilotDocumentOperationMutation';
+      variables: WithdrawCopilotDocumentOperationMutationVariables;
+      response: WithdrawCopilotDocumentOperationMutation;
     }
   | {
       name: 'createCopilotMessageMutation';
@@ -22299,6 +22899,16 @@ export type Mutations =
       name: 'upsertWorkspaceByokConfigMutation';
       variables: UpsertWorkspaceByokConfigMutationVariables;
       response: UpsertWorkspaceByokConfigMutation;
+    }
+  | {
+      name: 'mutateWorkspaceDirectoryMutation';
+      variables: MutateWorkspaceDirectoryMutationVariables;
+      response: MutateWorkspaceDirectoryMutation;
+    }
+  | {
+      name: 'changeWorkspaceDirectoryPolicyMutation';
+      variables: ChangeWorkspaceDirectoryPolicyMutationVariables;
+      response: ChangeWorkspaceDirectoryPolicyMutation;
     }
   | {
       name: 'setEnableAiMutation';

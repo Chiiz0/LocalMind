@@ -49,12 +49,15 @@ export class CMDKQuickSearchService extends Service {
 
           if (result.source === 'link') {
             const { docId, blockIds, elementIds, mode } = result.payload;
-            this.workbenchService.workbench.openDoc({
-              docId,
-              blockIds,
-              elementIds,
-              mode,
-            });
+            this.workbenchService.workbench.openDoc(
+              {
+                docId,
+                blockIds,
+                elementIds,
+                mode,
+              },
+              { at: result.openMode }
+            );
             return;
           }
 
@@ -80,7 +83,9 @@ export class CMDKQuickSearchService extends Service {
               options.blockIds = [doc.blockId];
             }
 
-            this.workbenchService.workbench.openDoc(options);
+            this.workbenchService.workbench.openDoc(options, {
+              at: result.openMode,
+            });
             return;
           }
 
@@ -115,6 +120,16 @@ export class CMDKQuickSearchService extends Service {
           }
         },
         {
+          searchModes: true,
+          openBeside: true,
+          focusOpenedDocument: () => {
+            const id = this.workbenchService.workbench.activeView$.value.id;
+            document
+              .querySelector<HTMLElement>(
+                `[data-workbench-view-id="${CSS.escape(id)}"]`
+              )
+              ?.focus({ preventScroll: true });
+          },
           placeholder: {
             i18nKey: 'com.affine.cmdk.docs.placeholder',
           },

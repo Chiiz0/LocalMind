@@ -14,8 +14,8 @@ export function isSubMenuItem(item: SlashMenuItem): item is SlashMenuSubMenu {
   return 'subMenu' in item;
 }
 
-export function slashItemClassName({ name }: SlashMenuItem) {
-  return name.split(' ').join('-').toLocaleLowerCase();
+export function slashItemClassName({ id, name }: SlashMenuItem) {
+  return (id ?? name).split(' ').join('-').toLowerCase();
 }
 
 export function parseGroup(group: NonNullable<SlashMenuItem['group']>) {
@@ -51,7 +51,10 @@ export function buildSlashMenuItems(
   context: SlashMenuContext,
   transform?: (item: SlashMenuItem) => SlashMenuItem
 ): SlashMenuItem[] {
-  if (transform) items = items.map(transform);
+  items = items.map(item => {
+    const identified = { ...item, id: item.id ?? item.name };
+    return transform ? transform(identified) : identified;
+  });
 
   const result = items
     .filter(item => (item.when ? item.when(context) : true))
@@ -60,7 +63,7 @@ export function buildSlashMenuItems(
       if (isSubMenuItem(item)) {
         return {
           ...item,
-          subMenu: buildSlashMenuItems(item.subMenu, context),
+          subMenu: buildSlashMenuItems(item.subMenu, context, transform),
         };
       } else {
         return { ...item };

@@ -7,7 +7,8 @@ import type { EmbeddingRouteContext } from '../embedding/types';
 export function readableContextDocPredicate(
   permission: PermissionService,
   workspaceId: string,
-  routeContext?: EmbeddingRouteContext
+  routeContext?: EmbeddingRouteContext,
+  projectId: string | null = null
 ) {
   if (!routeContext?.userId) {
     throw new BadRequest('Document embedding search requires a user id.');
@@ -16,6 +17,7 @@ export function readableContextDocPredicate(
     userId: routeContext.userId,
     workspaceId,
     action: 'Doc.Read',
+    projectId,
     docIdColumn: Prisma.raw('w."doc_id"'),
   });
 }

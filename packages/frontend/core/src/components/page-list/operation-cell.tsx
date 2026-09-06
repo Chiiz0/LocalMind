@@ -193,11 +193,9 @@ const PageOperationCellMenuItem = ({
       <MenuItem onClick={onOpenInNewTab} prefixIcon={<OpenInNewIcon />}>
         {t['com.affine.workbench.tab.page-menu-open']()}
       </MenuItem>
-      {BUILD_CONFIG.isElectron ? (
-        <MenuItem onClick={onOpenInSplitView} prefixIcon={<SplitViewIcon />}>
-          {t['com.affine.workbench.split-view.page-menu-open']()}
-        </MenuItem>
-      ) : null}
+      <MenuItem onClick={onOpenInSplitView} prefixIcon={<SplitViewIcon />}>
+        {t['com.affine.workbench.split-view.page-menu-open']()}
+      </MenuItem>
 
       <MenuItem prefixIcon={<DuplicateIcon />} onSelect={onDuplicate}>
         {t['com.affine.header.option.duplicate']()}

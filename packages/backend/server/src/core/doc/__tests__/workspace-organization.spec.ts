@@ -1,6 +1,7 @@
 import test from 'ava';
 import * as Y from 'yjs';
 
+import { directoryPolicySnapshot } from '../../../models/workspace-directory-grant';
 import {
   resolveWorkspaceDataDocId,
   WorkspaceOrganizationService,
@@ -65,13 +66,114 @@ function createServiceFixture() {
   };
   return {
     docs,
-    service: new WorkspaceOrganizationService(reader as never, writer as never),
+    reader,
+    service: new WorkspaceOrganizationService(
+      reader as never,
+      writer as never,
+      {
+        workspaceDirectoryGrant: {
+          snapshot: async () => directoryPolicySnapshot('actor', []),
+          withMutationLock: async (
+            _workspaceId: string,
+            operation: () => Promise<unknown>
+          ) => await operation(),
+          rights: async () => ({
+            canRead: true,
+            canWrite: true,
+            canOrganize: true,
+            canCreateFolder: true,
+          }),
+        },
+      } as never
+    ),
   };
 }
 
 function createService() {
   return createServiceFixture().service;
 }
+
+test('directory snapshots reject cycles, missing parents and paths beyond 64 nodes', async t => {
+  const { docs, service } = createServiceFixture();
+  const doc = new Y.Doc();
+  const add = (id: string, parentId: string | null, type = 'folder') => {
+    const record = doc.getMap(id);
+    for (const [key, value] of Object.entries({
+      id,
+      parentId,
+      type,
+      data: id,
+      index: 'a0',
+    }))
+      record.set(key, value);
+  };
+  for (let depth = 0; depth < 65; depth++)
+    add(`depth-${depth}`, depth === 0 ? null : `depth-${depth - 1}`);
+  add('cycle-a', 'cycle-b');
+  add('cycle-b', 'cycle-a');
+  add('orphan', 'absent');
+  add('document-parent', null, 'doc');
+  add('invalid-parent', 'document-parent');
+  docs.set('db$workspace-1$folders', doc);
+  const snapshot = await service.readDirectory('workspace-1', 'actor');
+  const ids = new Set(snapshot.entries.map(entry => entry.row.id));
+  t.true(ids.has('depth-63'));
+  for (const id of [
+    'depth-64',
+    'cycle-a',
+    'cycle-b',
+    'orphan',
+    'invalid-parent',
+  ])
+    t.false(ids.has(id));
+  t.is(
+    snapshot.revision,
+    await service.directoryRevision('workspace-1', 'actor')
+  );
+  doc.destroy();
+});
+
+test('directory parse cache revalidates bytes and does not reuse data after storage failure', async t => {
+  const { docs, reader, service } = createServiceFixture();
+  const doc = new Y.Doc();
+  const record = doc.getMap('folder');
+  for (const [key, value] of Object.entries({
+    id: 'folder',
+    type: 'folder',
+    parentId: null,
+    data: 'Original',
+    index: 'a0',
+  }))
+    record.set(key, value);
+  docs.set('db$workspace-1$folders', doc);
+  const first = await service.readDirectory('workspace-1', 'actor');
+  first.entries[0].row.data = 'Caller mutation';
+  const second = await service.readDirectory('workspace-1', 'actor');
+  t.is(second.entries[0].row.data, 'Original');
+  const state = Y.encodeStateVector(doc);
+  record.delete('data');
+  t.deepEqual(Y.encodeStateVector(doc), state);
+  const deleted = await service.readDirectory('workspace-1', 'actor');
+  t.not(deleted.revision, first.revision);
+  t.is(deleted.entries[0].row.data, undefined);
+  await t.throwsAsync(
+    service.applyConditionalFolderOperations({
+      workspaceId: 'workspace-1',
+      actorId: 'actor',
+      expectedRevision: first.revision,
+      operations: [{ op: 'delete', key: 'folder' }],
+      authorizeDocument: async () => {},
+    }),
+    { message: /Directory changed/ }
+  );
+  reader.getDoc = async () => {
+    throw new Error('Storage unavailable');
+  };
+  await t.throwsAsync(service.readDirectory('workspace-1', 'actor'), {
+    message: 'Storage unavailable',
+  });
+  doc.destroy();
+});
 
 function removeTrashClaims(doc: Y.Doc, documentId: string) {
   const pages = doc.getMap<unknown>('meta').get('pages');

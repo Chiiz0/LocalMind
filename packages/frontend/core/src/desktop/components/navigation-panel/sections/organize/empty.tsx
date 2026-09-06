@@ -12,6 +12,7 @@ import { DropEffect } from '../../tree';
 import { organizeEmptyDropEffect, organizeEmptyRootCanDrop } from './dnd';
 
 interface RootEmptyProps {
+  readOnly?: boolean;
   onClickCreate?: () => void;
   isLoading?: boolean;
   onDrop?: (data: DropTargetDropEvent<AffineDNDData>) => void;
@@ -24,6 +25,7 @@ export const RootEmptyLoading = () => {
 export const RootEmptyReady = ({
   onClickCreate,
   onDrop,
+  readOnly,
 }: Omit<RootEmptyProps, 'isLoading'>) => {
   const t = useI18n();
 
@@ -32,9 +34,9 @@ export const RootEmptyReady = ({
       () => ({
         data: { at: 'navigation-panel:organize:root' },
         onDrop,
-        canDrop: organizeEmptyRootCanDrop,
+        canDrop: readOnly ? false : organizeEmptyRootCanDrop,
       }),
-      [onDrop]
+      [onDrop, readOnly]
     );
 
   return (
@@ -43,9 +45,11 @@ export const RootEmptyReady = ({
       icon={<AnimatedFolderIcon open={!!draggedOverDraggable} />}
       message={t['com.affine.rootAppSidebar.organize.empty']()}
       messageTestId="slider-bar-organize-empty-message"
-      actionText={t[
-        'com.affine.rootAppSidebar.organize.empty.new-folders-button'
-      ]()}
+      actionText={
+        readOnly
+          ? undefined
+          : t['com.affine.rootAppSidebar.organize.empty.new-folders-button']()
+      }
       onActionClick={onClickCreate}
     >
       {draggedOverDraggable && (

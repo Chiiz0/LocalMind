@@ -489,6 +489,11 @@ export class CopilotCronJobs {
   async enqueueQueuedAgentRuntimeRuns(
     params: Jobs['copilot.agentRuntime.enqueueQueued']
   ) {
+    const expired =
+      await this.models.copilotDocumentOperation.expireLocations();
+    const recovered =
+      await this.models.copilotMcpDelegation.recoverConfirmedLocations(50);
+    const moreLocations = expired.count >= 50 || recovered >= 50;
     const limit = Math.min(
       Math.max(params.limit ?? ENQUEUE_QUEUED_AGENT_RUNTIME_JOB_BATCH_SIZE, 1),
       100
@@ -498,7 +503,7 @@ export class CopilotCronJobs {
         limit,
       });
     if (!queued.length) {
-      return JOB_SIGNAL.Done;
+      return moreLocations ? JOB_SIGNAL.Repeat : JOB_SIGNAL.Done;
     }
 
     for (const run of queued) {
@@ -518,7 +523,9 @@ export class CopilotCronJobs {
       `Enqueued ${queued.length} queued standalone Agent Runtime runs`
     );
 
-    return queued.length >= limit ? JOB_SIGNAL.Repeat : JOB_SIGNAL.Done;
+    return queued.length >= limit || moreLocations
+      ? JOB_SIGNAL.Repeat
+      : JOB_SIGNAL.Done;
   }
 
   @OnJob('copilot.agentRuntime.recoverExpiredLeases')

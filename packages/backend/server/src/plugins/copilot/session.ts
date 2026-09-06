@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 import { Injectable, Logger } from '@nestjs/common';
 import { Transactional } from '@nestjs-cls/transactional';
@@ -324,6 +324,29 @@ export class ChatSessionService {
           return [];
         }),
     ]);
+    {
+      const identity = {
+        actorId: scope.userId,
+        sessionId: scope.sessionId,
+        projectId: scope.selectedProjectId,
+        workspaceId: scope.workspaceId,
+      };
+      await this.models.copilotContext.recordRecalledMemorySources({
+        ...identity,
+        memories: memories.map(memory => ({
+          id: memory.id,
+          content: memory.content,
+        })),
+      });
+      await this.models.copilotContext.recordInputSources({
+        ...identity,
+        sources: directives.map(directive => ({
+          workspaceId: scope.workspaceId,
+          kind: directive.sourceType === 'policy' ? 'workspace' : 'private',
+          sourceId: `${directive.sourceType === 'policy' ? 'workspace-policy' : 'private-rule'}:${directive.revisionId}`,
+        })),
+      });
+    }
     return [
       ...directives.map(directive => ({
         id: directive.id,
@@ -542,6 +565,13 @@ export class ChatSessionService {
 
   @Transactional()
   async fork(options: ChatSessionForkOptions): Promise<string> {
+    await this.models.copilotSession.assertForkParent({
+      parentSessionId: options.sessionId,
+      userId: options.userId,
+      workspaceId: options.workspaceId,
+      docId: options.docId,
+      selectedContextProjectId: null,
+    });
     const state = await this.getState(options.sessionId);
     if (!state) {
       throw new CopilotSessionNotFound();
@@ -639,6 +669,20 @@ export class ChatSessionService {
   async get(sessionId: string): Promise<ChatSession | null> {
     const state = await this.getState(sessionId);
     if (state) {
+      {
+        await this.models.copilotContext.recordInputSources({
+          sessionId,
+          actorId: state.conversation.userId,
+          projectId: state.conversation.selectedContextProjectId,
+          sources: [
+            {
+              workspaceId: state.conversation.workspaceId,
+              kind: 'workspace',
+              sourceId: `system-prompt:${createHash('sha256').update(JSON.stringify(state.prompt)).digest('hex')}`,
+            },
+          ],
+        });
+      }
       const contextEnabled = state.prompt.category === 'text';
       const contextScope = contextEnabled
         ? await this.contextScopeResolver.resolve({

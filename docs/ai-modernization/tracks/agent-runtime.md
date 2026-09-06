@@ -9,6 +9,37 @@ system with runs, steps, approvals, resumability, tools, evidence, and audit.
 
 ## Current Problem
 
+The [stage-two acceptance](project-ai-boundaries.md#stage-two-progress-on-2026-09-06)
+adds immutable source checks to Project document workers, approval preparation,
+creation/copy confirmation, retries and no-op paths. Checks retain original
+document-grant identity and survive a rejected write transaction. Destination
+audience evidence rejects broader sharing. External `waiting_for_location`,
+session/operation bindings, immutable tool checkpoints and periodic recovery
+are implemented with Linux lifecycle and queue-outage tests. Human confirmation
+stores the selected revision, actor, permission evidence and expiry; MCP cannot
+submit it. Automatic recovery skips cancelled runs and isolates per-request
+conflicts; manual resume updates the external request in the run transaction
+and rejects withdrawn operations or inactive credentials. Office and directory
+AI writes now check cumulative sources through persistence, with document
+broadcasts deferred until successful transaction commit. The business runtime
+has been backed up and synchronized to 335 migrations. Encrypted-BYOK task
+`fc65e3e2-005e-499d-bd05-340add3cf842` retained waiting/zero creation over a
+backend restart and completed after explicit browser Workspace/root selection.
+Revision advanced once, only one document was created, and MCP returned its
+actual destination Workspace. Recovered tool receipts use structured nonempty
+message content so native prompt projection retains prior execution results.
+The real Redis and browser notification fault matrix also passed.
+
+The [Project AI Boundaries](project-ai-boundaries.md) contract adds
+durable document creation/copy operations with explicit storage destinations,
+stable destination IDs, conditional leases and separate creation/project-add
+receipts. Pending location selection is not an applied side effect or successful
+task completion. Storage callbacks hold authorization through the actual update
+insertion; completed creations and placement recover independently. Waiting
+operations release worker leases and resume from durable tool-call identities.
+These operations do not
+grant AI authority to create Projects, manage membership or approve requests.
+
 Action run diagnostics and prepared-route traces are available, but they are not
 a general Agent Runtime. The first durable slice now adds real run/step/timeline
 persistence for prompt registry repair execution. Later slices add a generic run

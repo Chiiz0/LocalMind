@@ -391,6 +391,22 @@ export class CopilotSessionModel extends BaseModel {
 
   @Transactional()
   async create(state: ChatSession, reuseChat = false): Promise<string> {
+    await this.assertForkParent(state);
+    if (state.selectedContextProjectId) {
+      const membership = await this.db.aiContextProjectMember.findFirst({
+        where: {
+          projectId: state.selectedContextProjectId,
+          userId: state.userId,
+          project: { status: 'active' },
+        },
+        select: { projectId: true },
+      });
+      if (!membership || state.docId) {
+        throw new CopilotSessionInvalidInput(
+          'Select an active project you belong to in a project conversation.'
+        );
+      }
+    }
     // find and return existing session if session is chat session
     if (reuseChat && !state.promptAction) {
       const sessionId = await this.find(state);
@@ -434,6 +450,10 @@ export class CopilotSessionModel extends BaseModel {
 
   @Transactional()
   async fork(options: ForkSessionOptions): Promise<string> {
+    if (!options.parentSessionId)
+      throw new CopilotSessionInvalidInput(
+        'A fork requires its source conversation.'
+      );
     if (options.pinned) {
       await this.unpin(options.workspaceId, options.userId);
     }
@@ -454,6 +474,50 @@ export class CopilotSessionModel extends BaseModel {
     }
 
     return sessionId;
+  }
+
+  async assertForkParent(
+    state: Pick<
+      PureChatSession,
+      | 'parentSessionId'
+      | 'userId'
+      | 'workspaceId'
+      | 'docId'
+      | 'selectedContextProjectId'
+    >
+  ) {
+    if (!state.parentSessionId) return;
+    const parent = await this.getMeta(state.parentSessionId);
+    if (
+      !parent ||
+      parent.workspaceId !== state.workspaceId ||
+      parent.selectedContextProjectId !==
+        (state.selectedContextProjectId ?? null) ||
+      (parent.selectedContextProjectId && state.docId) ||
+      (parent.userId !== state.userId &&
+        (parent.selectedContextProjectId ||
+          !parent.parentSessionId ||
+          !parent.docId ||
+          parent.docId !== state.docId))
+    ) {
+      throw new CopilotSessionInvalidInput(
+        'The source conversation is unavailable in this user, document, or project scope.'
+      );
+    }
+    if (parent.selectedContextProjectId) {
+      const member = await this.db.aiContextProjectMember.findFirst({
+        where: {
+          projectId: parent.selectedContextProjectId,
+          userId: state.userId,
+          project: { status: 'active' },
+        },
+        select: { projectId: true },
+      });
+      if (!member)
+        throw new CopilotSessionInvalidInput(
+          'The source project conversation is unavailable.'
+        );
+    }
   }
 
   @Transactional()
@@ -482,6 +546,7 @@ export class CopilotSessionModel extends BaseModel {
         workspaceId: state.workspaceId,
         docId: state.docId,
         parentSessionId: null,
+        selectedContextProjectId: state.selectedContextProjectId ?? null,
         ...this.noActionPromptCondition(),
         ...extraCondition,
       },
@@ -568,6 +633,19 @@ export class CopilotSessionModel extends BaseModel {
         id: getEqCond(sessionId),
         deletedAt: null,
         pinned: getEqCond(options.pinned),
+        AND: [
+          {
+            OR: [
+              { selectedContextProjectId: null },
+              {
+                selectedContextProject: {
+                  status: 'active',
+                  members: { some: { userId } },
+                },
+              },
+            ],
+          },
+        ],
         ...(action === false ? this.noActionPromptCondition() : {}),
         ...(action === true ? { NOT: this.noActionPromptCondition() } : {}),
         ...(fork === true
@@ -578,7 +656,7 @@ export class CopilotSessionModel extends BaseModel {
       },
     ];
 
-    if (!action && fork) {
+    if (!action && fork && docId) {
       // query forked sessions from other users
       // only query forked session if fork == true and action == false
       conditions.push({
@@ -589,6 +667,7 @@ export class CopilotSessionModel extends BaseModel {
         ...this.noActionPromptCondition(),
         // should only find forked session
         parentSessionId: { not: null },
+        selectedContextProjectId: null,
         deletedAt: null,
       });
     }
@@ -678,11 +757,48 @@ export class CopilotSessionModel extends BaseModel {
         parentSessionId: true,
         pinned: true,
         promptAction: true,
+        selectedContextProjectId: true,
+        messages: { select: { id: true }, take: 1 },
       },
       { userId }
     );
     if (!session) {
       throw new CopilotSessionNotFound();
+    }
+
+    if (
+      docId &&
+      (session.selectedContextProjectId || selectedContextProjectId)
+    ) {
+      throw new CopilotSessionInvalidInput(
+        'A project conversation cannot become a document-side conversation.'
+      );
+    }
+
+    if (
+      selectedContextProjectId !== undefined &&
+      selectedContextProjectId !== session.selectedContextProjectId
+    ) {
+      if (session.selectedContextProjectId || session.messages.length) {
+        throw new CopilotSessionInvalidInput(
+          'This conversation cannot change projects. Start a new conversation in the selected project.'
+        );
+      }
+      if (selectedContextProjectId) {
+        const membership = await this.db.aiContextProjectMember.findFirst({
+          where: {
+            projectId: selectedContextProjectId,
+            userId,
+            project: { status: 'active' },
+          },
+          select: { projectId: true },
+        });
+        if (!membership || session.docId || docId) {
+          throw new CopilotSessionInvalidInput(
+            'Select an active project you belong to in a project conversation.'
+          );
+        }
+      }
     }
 
     // not allow to update action session
@@ -731,8 +847,17 @@ export class CopilotSessionModel extends BaseModel {
       await this.unpin(session.workspaceId, userId);
     }
 
-    await this.db.aiSession.update({
-      where: { id: sessionId },
+    const updated = await this.db.aiSession.updateMany({
+      where: {
+        id: sessionId,
+        ...(selectedContextProjectId !== undefined &&
+        selectedContextProjectId !== session.selectedContextProjectId
+          ? {
+              selectedContextProjectId: session.selectedContextProjectId,
+              messages: { none: {} },
+            }
+          : {}),
+      },
       data: {
         docId,
         selectedContextProjectId,
@@ -742,6 +867,11 @@ export class CopilotSessionModel extends BaseModel {
         title: sanitizedTitle,
       },
     });
+    if (updated.count !== 1) {
+      throw new CopilotSessionInvalidInput(
+        'Conversation changed while selecting its project. Start a new conversation.'
+      );
+    }
 
     return sessionId;
   }

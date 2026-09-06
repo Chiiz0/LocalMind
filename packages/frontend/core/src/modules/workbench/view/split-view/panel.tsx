@@ -41,6 +41,7 @@ export interface SplitViewPanelProps extends PropsWithChildren<
   onMove: (from: number, to: number) => void;
   onResizing: (dxy: { x: number; y: number }) => void;
   draggingEntity: boolean;
+  compact?: boolean;
 }
 
 export const SplitViewPanelContainer = ({
@@ -100,6 +101,7 @@ export const SplitViewPanel = memo(function SplitViewPanel({
   onResizing,
   draggingEntity,
   index,
+  compact = false,
 }: SplitViewPanelProps) {
   const size = useLiveData(view.size$);
   const workbench = useService(WorkbenchService).workbench;
@@ -235,8 +237,10 @@ export const SplitViewPanel = memo(function SplitViewPanel({
       data-is-first={isFirst}
       data-is-last={isLast}
       data-testid="split-view-panel"
+      data-compact={compact}
+      hidden={compact && !isActive}
     >
-      {isFirst ? (
+      {isFirst && !compact ? (
         <ResizeHandle
           edge="left"
           view={view}
@@ -255,7 +259,7 @@ export const SplitViewPanel = memo(function SplitViewPanel({
         <div draggable={false} className={styles.splitViewPanelContent}>
           {children}
         </div>
-        {views.length > 1 && onMove ? (
+        {views.length > 1 && !compact ? (
           <SplitViewIndicator
             view={view}
             isActive={isActive}
@@ -265,7 +269,7 @@ export const SplitViewPanel = memo(function SplitViewPanel({
           />
         ) : null}
       </div>
-      {!draggingView ? (
+      {!draggingView && !compact ? (
         <ResizeHandle
           edge="right"
           view={view}

@@ -37,6 +37,7 @@ export {
   realtimeUserSettingsRoom,
   realtimeWorkspaceAccessRoom,
   realtimeWorkspaceConfigRoom,
+  realtimeWorkspaceDirectoryPolicyRoom,
   realtimeWorkspaceDocRoom,
   realtimeWorkspaceEmbeddingProgressRoom,
   realtimeWorkspaceInviteLinkRoom,

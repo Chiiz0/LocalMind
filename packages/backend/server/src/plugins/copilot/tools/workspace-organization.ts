@@ -223,7 +223,16 @@ export function createWorkspaceOrganizationTools(
 
   const execute = async <T>(name: string, operation: () => Promise<T>) => {
     try {
-      return await operation();
+      return name === 'list'
+        ? await operation()
+        : await organization.withAiSourceCheck(
+            {
+              workspaceId: context().workspaceId,
+              actorId: context().userId,
+              sessionId: options.session,
+            },
+            operation
+          );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       logger.warn(`${name} rejected: ${message}`);
@@ -383,8 +392,22 @@ export function createWorkspaceOrganizationTools(
             .describe('Parent folder ID, or null for a root folder'),
         })
         .strict(),
-      execute: async ({ name, parent_folder_id }) =>
+      execute: async ({ name, parent_folder_id }, context) =>
         execute('create', async () => {
+          const latestUser = context.messages?.findLast(
+            message => message.role === 'user'
+          )?.content;
+          if (
+            typeof latestUser === 'string' &&
+            /(?:创建|新建|建立|create|start|set\s*up)[\s\S]{0,80}(?:项目|\bproject\b)/i.test(
+              latestUser
+            ) &&
+            !/(?:文件夹|目录|\bfolder\b|\bdirectory\b)/i.test(latestUser)
+          ) {
+            throw new Error(
+              'Projects must be created by the user in Intelligence. A folder cannot substitute for a Project.'
+            );
+          }
           await assertWrite();
           const { nodes } = await readOrganization();
           const parentId = parent_folder_id ?? null;

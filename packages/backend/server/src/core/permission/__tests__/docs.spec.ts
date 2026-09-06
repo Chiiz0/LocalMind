@@ -27,22 +27,35 @@ async function sqlReadableDocIds(input: {
   userId?: string;
   action?: DocAction;
   docIds: string[];
+  projectId?: string | null;
+  rawPredicate?: boolean;
 }) {
   const values = Prisma.join(
     input.docIds.map((docId, index) => Prisma.sql`(${docId}, ${index})`)
   );
-  const predicate = sqlPredicate.docReadableSql({
+  let predicate = sqlPredicate.docReadableSql({
     workspaceId: input.workspaceId,
     userId: input.userId,
     action: input.action ?? 'Doc.Read',
-    docIdColumn: Prisma.raw('c.doc_id'),
+    docIdColumn: Prisma.raw('docs.id'),
+    projectId: input.projectId,
   });
+  if (input.rawPredicate) {
+    const raw = sqlPredicate.docReadable({
+      workspaceId: input.workspaceId,
+      userId: input.userId,
+      action: input.action ?? 'Doc.Read',
+      projectId: input.projectId,
+      docIdColumn: 'docs.id',
+    });
+    predicate = Prisma.sql(raw.sql.split('?'), ...raw.params);
+  }
   const rows = await db.$queryRaw<{ docId: string }[]>`
-    WITH candidates(doc_id, ord) AS (VALUES ${values})
-    SELECT c.doc_id AS "docId"
-    FROM candidates c
+    WITH docs(id, ord) AS (VALUES ${values})
+    SELECT docs.id AS "docId"
+    FROM docs
     WHERE ${predicate}
-    ORDER BY c.ord ASC
+    ORDER BY docs.ord ASC
   `;
   return rows.map(row => row.docId);
 }
@@ -387,6 +400,7 @@ test('project grants authorize active members without granting document manageme
     for (const [docId, level] of [
       ['project-read', 'read'],
       ['project-write', 'write'],
+      ['project-only', 'read'],
     ] as const) {
       await tx.aiContextProjectDoc.create({
         data: {
@@ -429,6 +443,23 @@ test('project grants authorize active members without granting document manageme
       ],
     });
   });
+
+  for (const rawPredicate of [false, true]) {
+    for (const projectId of [undefined, null, project.id, 'another-project']) {
+      t.deepEqual(
+        await sqlReadableDocIds({
+          workspaceId: workspace.id,
+          userId: projectMember.id,
+          docIds: ['project-read', 'project-write', 'project-only'],
+          projectId,
+          rawPredicate,
+        }),
+        projectId === undefined || projectId === project.id
+          ? ['project-read', 'project-write', 'project-only']
+          : []
+      );
+    }
+  }
 
   const readPermissions = await builder
     .user(projectMember.id)
@@ -531,6 +562,36 @@ test('project grants authorize active members without granting document manageme
       .doc(workspace.id, 'project-read')
       .can('Doc.Read')
   );
+});
+
+test('SQL personal scope retains direct ACL while excluding project-only documents', async t => {
+  const owner = await module.create(Mockers.User);
+  const reader = await module.create(Mockers.User);
+  const workspace = await module.create(Mockers.Workspace, { owner });
+  await resetProjection(workspace.id);
+  await db.docGrant.create({
+    data: {
+      workspaceId: workspace.id,
+      docId: 'personal',
+      principalType: 'user',
+      principalId: reader.id,
+      role: 'reader',
+    },
+  });
+  for (const rawPredicate of [false, true]) {
+    for (const projectId of [undefined, null, 'unrelated-project']) {
+      t.deepEqual(
+        await sqlReadableDocIds({
+          workspaceId: workspace.id,
+          userId: reader.id,
+          docIds: ['personal', 'hidden'],
+          projectId,
+          rawPredicate,
+        }),
+        ['personal']
+      );
+    }
+  }
 });
 
 test('should filter docs by Doc.Publish', async t => {

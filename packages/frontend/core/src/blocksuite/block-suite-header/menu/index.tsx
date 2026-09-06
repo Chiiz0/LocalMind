@@ -386,15 +386,13 @@ const PageHeaderMenuItem = ({
       >
         {t['com.affine.workbench.tab.page-menu-open']()}
       </MenuItem>
-      {BUILD_CONFIG.isElectron && (
-        <MenuItem
-          prefixIcon={<SplitViewIcon />}
-          data-testid="editor-option-menu-open-in-split-new"
-          onSelect={handleOpenInSplitView}
-        >
-          {t['com.affine.workbench.split-view.page-menu-open']()}
-        </MenuItem>
-      )}
+      <MenuItem
+        prefixIcon={<SplitViewIcon />}
+        data-testid="editor-option-menu-open-in-split-new"
+        onSelect={handleOpenInSplitView}
+      >
+        {t['com.affine.workbench.split-view.page-menu-open']()}
+      </MenuItem>
 
       <MenuSeparator />
       <MenuItem

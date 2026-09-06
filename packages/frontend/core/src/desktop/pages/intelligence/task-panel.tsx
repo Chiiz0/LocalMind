@@ -140,6 +140,14 @@ export const TaskPanel = ({
       ),
     [panel.todo.items]
   );
+  const empty =
+    !panel.todo.items.length &&
+    !panel.inProgress.items.length &&
+    !panel.done.items.length &&
+    !panel.todo.capped &&
+    !panel.inProgress.capped &&
+    !panel.done.capped;
+  const compact = loading || !!error || (empty && !showBlockerForm);
 
   useEffect(() => {
     setShowBlockerForm(false);
@@ -255,6 +263,8 @@ export const TaskPanel = ({
         return t['com.affine.localmind.tasks.status.running']();
       case 'waiting_approval':
         return t['com.affine.localmind.tasks.status.waiting_approval']();
+      case 'waiting_for_location':
+        return t['com.affine.localmind.documentCreation.waiting']();
       case 'completed':
         return t['com.affine.localmind.tasks.status.completed']();
       case 'failed':
@@ -467,21 +477,48 @@ export const TaskPanel = ({
         >
           <ArrowDownSmallIcon data-expanded={expanded} />
           <strong>{t['com.affine.localmind.workbench.tasks']()}</strong>
-          <span className={styles.summarySegment}>
-            {t['com.affine.localmind.workbench.tasks.todo']()}
-            <span className={styles.attentionCount}>{needsAction.length}</span>
-          </span>
-          <span className={styles.summarySegment}>
-            {t['com.affine.localmind.workbench.tasks.inProgress']()}
-            <span className={styles.count}>
-              {panel.inProgress.items.length}
-            </span>
-          </span>
-          <span className={styles.summarySegment}>
-            {t['com.affine.localmind.workbench.tasks.done']()}
-            <span className={styles.count}>{panel.done.items.length}</span>
-          </span>
+          {!loading && !error ? (
+            <>
+              <span className={styles.summarySegment}>
+                {t['com.affine.localmind.workbench.tasks.todo']()}
+                <span
+                  className={
+                    needsAction.length ? styles.attentionCount : styles.count
+                  }
+                >
+                  {needsAction.length}
+                </span>
+              </span>
+              <span className={styles.summarySegment}>
+                {t['com.affine.localmind.workbench.tasks.inProgress']()}
+                <span className={styles.count}>
+                  {panel.inProgress.items.length}
+                </span>
+              </span>
+              <span className={styles.summarySegment}>
+                {t['com.affine.localmind.workbench.tasks.done']()}
+                <span className={styles.count}>{panel.done.items.length}</span>
+              </span>
+            </>
+          ) : null}
         </button>
+        {selectedProjectId ? (
+          <IconButton
+            ref={blockerToggleRef}
+            size="20"
+            icon={showBlockerForm ? <CloseIcon /> : <PlusIcon />}
+            tooltip={t['com.affine.localmind.workbench.blocker.add']()}
+            aria-label={t['com.affine.localmind.workbench.blocker.add']()}
+            aria-expanded={expanded && showBlockerForm}
+            aria-controls="workbench-blocker-create-form"
+            disabled={blockerCreating || loading || !!error}
+            onClick={() => {
+              setExpanded(true);
+              setShowBlockerForm(value => !value || !expanded);
+              setBlockerCreateError(null);
+            }}
+          />
+        ) : null}
         <IconButton
           size="16"
           tooltip={t['com.affine.localmind.tasks.refresh']()}
@@ -492,8 +529,8 @@ export const TaskPanel = ({
         />
       </header>
 
-      {expanded ? (
-        <div className={styles.expandedContent}>
+      {expanded || error ? (
+        <div className={styles.expandedContent} data-compact={compact}>
           {loading ? (
             <div className={styles.centerState}>
               <Loading size={22} />
@@ -506,30 +543,24 @@ export const TaskPanel = ({
                 {t['com.affine.localmind.workbench.retry']()}
               </Button>
             </div>
+          ) : empty && !showBlockerForm ? (
+            <div className={styles.emptyState} role="status">
+              <CheckBoxCheckLinearIcon aria-hidden />
+              {t['com.affine.localmind.tasks.empty.all']()}
+            </div>
           ) : (
             <div className={styles.board}>
               <section className={styles.column} data-segment="todo">
                 <header className={styles.columnHeader}>
                   <h3>{t['com.affine.localmind.workbench.tasks.todo']()}</h3>
                   <span className={styles.todoHeaderActions}>
-                    {selectedProjectId ? (
-                      <Button
-                        ref={blockerToggleRef}
-                        size="custom"
-                        variant="plain"
-                        prefix={showBlockerForm ? <CloseIcon /> : <PlusIcon />}
-                        aria-expanded={showBlockerForm}
-                        aria-controls="workbench-blocker-create-form"
-                        disabled={blockerCreating}
-                        onClick={() => {
-                          setShowBlockerForm(value => !value);
-                          setBlockerCreateError(null);
-                        }}
-                      >
-                        {t['com.affine.localmind.workbench.blocker.add']()}
-                      </Button>
-                    ) : null}
-                    <span className={styles.attentionCount}>
+                    <span
+                      className={
+                        needsAction.length
+                          ? styles.attentionCount
+                          : styles.count
+                      }
+                    >
                       {needsAction.length}
                     </span>
                   </span>

@@ -70,7 +70,7 @@ describe('AIChatComposer', () => {
     expect(hasActiveComposerContextOperation(runtime, 'session-2')).toBe(false);
   });
 
-  test('shows project selection only for explicit or unresolved project scope', () => {
+  test('keeps available projects selectable after clearing the selection', () => {
     const scope = (projectResolution: string, candidates: unknown[] = []) =>
       ({
         loading: false,
@@ -81,6 +81,11 @@ describe('AIChatComposer', () => {
       }) as AIChatSnapshot['composer']['projectScope'];
 
     expect(shouldShowContextProjectSelector(scope('none'))).toBe(false);
+    expect(
+      shouldShowContextProjectSelector(
+        scope('none', [{ id: 'project-1', name: 'One' }])
+      )
+    ).toBe(true);
     expect(shouldShowContextProjectSelector(scope('single'))).toBe(false);
     expect(
       shouldShowContextProjectSelector(

@@ -8,6 +8,8 @@ import { QuotaModule } from '../quota';
 import { StorageModule } from '../storage';
 import { PgUserspaceDocStorageAdapter } from './adapters/userspace';
 import { PgWorkspaceDocStorageAdapter } from './adapters/workspace';
+import { WorkspaceDirectoryResolver } from './directory-resolver';
+import { DocumentDestinationService } from './document-destination';
 import { DocEventsListener } from './event';
 import { DocStorageCronJob } from './job';
 import { DocStorageOptions } from './options';
@@ -29,6 +31,8 @@ import { DocWriter, type WorkspaceDocUpdatesPushedPayload } from './writer';
     DocWriter,
     StructuredDocService,
     WorkspaceOrganizationService,
+    WorkspaceDirectoryResolver,
+    DocumentDestinationService,
   ],
   exports: [
     DatabaseDocReader,
@@ -36,6 +40,7 @@ import { DocWriter, type WorkspaceDocUpdatesPushedPayload } from './writer';
     DocWriter,
     StructuredDocService,
     WorkspaceOrganizationService,
+    DocumentDestinationService,
     PgWorkspaceDocStorageAdapter,
     PgUserspaceDocStorageAdapter,
   ],
@@ -45,6 +50,7 @@ export {
   // only for doc-service
   DatabaseDocReader,
   DocReader,
+  DocumentDestinationService,
   DocWriter,
   PgUserspaceDocStorageAdapter,
   PgWorkspaceDocStorageAdapter,
@@ -52,7 +58,7 @@ export {
   WorkspaceOrganizationService,
 };
 export type { WorkspaceDocUpdatesPushedPayload };
-
+export { readRootDocPageIdsWithYjs } from './root-doc-registration';
 export { DocStorageAdapter, type Editor } from './storage';
 export {
   WORKSPACE_DATA_TABLES,

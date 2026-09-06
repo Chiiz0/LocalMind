@@ -12,6 +12,8 @@ export type BasicViewDataType<
   id: string;
   name: string;
   mode: Type;
+  /** Per-mode presentation settings retained when changing this view's type. */
+  modeConfigs?: Record<string, Record<string, unknown>>;
 } & T;
 
 export type DefaultViewDataType = BasicViewDataType & {

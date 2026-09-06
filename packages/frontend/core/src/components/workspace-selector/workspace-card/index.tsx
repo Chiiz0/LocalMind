@@ -276,7 +276,7 @@ const WorkspaceSyncInfo = ({
               options={{ className: styles.workspaceInfoTooltip }}
             >
               <div className={styles.workspaceActiveStatus}>
-                <SyncingWorkspaceStatus progress={syncStatus.progress} />
+                {syncStatus.icon}
               </div>
             </Tooltip>
           </div>

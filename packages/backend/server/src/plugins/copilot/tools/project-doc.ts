@@ -18,6 +18,96 @@ import type { CopilotChatOptions } from './types';
 
 const logger = new Logger('ProjectDocTool');
 
+export const createProjectDocAddTool = (input: {
+  ac: PermissionAccess;
+  models: Models;
+  options: CopilotChatOptions;
+}) =>
+  defineTool({
+    description:
+      'Add a document to the current Project only when the user explicitly requests it. A Project Owner with source sharing rights may grant access directly; otherwise this submits an access request. Pending means no authorization has been granted. You cannot approve or reject requests.',
+    inputSchema: z
+      .object({
+        source_workspace_id: z.string().trim().min(1).max(256),
+        doc_id: z.string().trim().min(1).max(256),
+        requested_level: z.enum(['read', 'write']),
+      })
+      .strict(),
+    execute: async (request, execution) => {
+      try {
+        const latestUser = execution.messages?.findLast(
+          message => message.role === 'user'
+        )?.content;
+        if (
+          typeof latestUser !== 'string' ||
+          /(?:不要|别|禁止|无需|不允许|不必|取消|\bdo\s+not\b|\bdon['’]t\b|\bnever\b|\bcancel\b)/i.test(
+            latestUser
+          ) ||
+          !/(?:加入|添加|申请|授权|\badd\b|\brequest\b|\bshare\b)/i.test(
+            latestUser
+          ) ||
+          !/(?:项目|\bproject\b)/i.test(latestUser)
+        ) {
+          throw new Error(
+            'Adding a document or requesting project access requires an explicit user request.'
+          );
+        }
+        const { user, workspace, session: sessionId } = input.options ?? {};
+        const session = sessionId
+          ? await input.models.copilotSession.getMeta(sessionId)
+          : null;
+        if (
+          !user ||
+          !workspace ||
+          !session ||
+          session.userId !== user ||
+          session.workspaceId !== workspace ||
+          session.docId ||
+          !session.selectedContextProjectId
+        ) {
+          throw new Error(
+            'Select an active project conversation before adding a document.'
+          );
+        }
+        await input.ac
+          .user(user)
+          .workspace(workspace)
+          .assert('Workspace.Copilot');
+        const result =
+          await input.models.intelligenceWorkbenchAuthorization.addProjectDocument(
+            {
+              projectId: session.selectedContextProjectId,
+              workspaceId: request.source_workspace_id,
+              docId: request.doc_id,
+              requesterUserId: user,
+              requestedLevel: request.requested_level,
+            }
+          );
+        return {
+          success: true,
+          projectId: session.selectedContextProjectId,
+          sourceWorkspaceId: request.source_workspace_id,
+          docId: request.doc_id,
+          status: result.kind === 'granted' ? 'granted' : result.request.status,
+          accessRequestId:
+            result.kind === 'requested' ? result.request.id : null,
+          grantedLevel: result.kind === 'granted' ? result.grant.level : null,
+          message:
+            result.kind === 'granted'
+              ? 'Document is authorized for the Project.'
+              : 'Project access request submitted. Access is not granted until the source owner or workspace administrator approves.',
+        };
+      } catch (error) {
+        return toolError(
+          'Project Document Add Failed',
+          error instanceof Error
+            ? error.message
+            : 'Project document addition failed.'
+        );
+      }
+    },
+  });
+
 const isToolError = (result: ToolError | object): result is ToolError =>
   'type' in result && result.type === 'error';
 
@@ -45,6 +135,7 @@ export async function resolveAuthorizedProjectDocuments(input: {
     !session ||
     session.userId !== actorId ||
     session.workspaceId !== hostWorkspaceId ||
+    session.docId ||
     !session.selectedContextProjectId
   ) {
     throw new Error('Project document session is not active for this user');
@@ -74,9 +165,23 @@ export async function resolveAuthorizedProjectDocuments(input: {
     string,
     AuthorizedProjectDocumentRef[]
   >();
+  const personalWorkspaces = await input.ac.user(actorId).documentWorkspaces();
+  for (const workspaceId of personalWorkspaces) {
+    const docIds = await input.ac
+      .user(actorId)
+      .workspace(workspaceId)
+      .projectScope(null)
+      .readableDocIds();
+    documentsByWorkspace.set(
+      workspaceId,
+      docIds.map(docId => ({ workspaceId, docId }))
+    );
+  }
   for (const grant of grants) {
     const documents = documentsByWorkspace.get(grant.workspaceId) ?? [];
-    documents.push({ workspaceId: grant.workspaceId, docId: grant.docId });
+    if (!documents.some(document => document.docId === grant.docId)) {
+      documents.push({ workspaceId: grant.workspaceId, docId: grant.docId });
+    }
     documentsByWorkspace.set(grant.workspaceId, documents);
   }
 
@@ -85,6 +190,7 @@ export async function resolveAuthorizedProjectDocuments(input: {
       input.ac
         .user(actorId)
         .workspace(workspaceId)
+        .projectScope(project.id)
         .allowLocal()
         .docs(documents, 'Doc.Read')
     )
@@ -167,7 +273,7 @@ export const createProjectDocReadTool = (
 ) =>
   defineTool({
     description:
-      'Read one document granted to the selected global Project. Always pass the source workspace and document id from the Project reference. Permission is checked against the current Project membership, grant, and AI policy at execution time.',
+      'Read a document using your personal access or a valid grant to the current Project. Pass its actual source workspace and document id. Current membership and document access are checked on every call; grants to other Projects do not apply.',
     inputSchema: z
       .object({
         source_workspace_id: z

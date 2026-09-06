@@ -36,6 +36,142 @@ function createProxy(initValue: (key: string) => any) {
 }
 export function useAFFiNEI18N(): {
     /**
+      * `Storage workspace`
+      */
+    ["com.affine.localmind.documentCreation.workspace"](): string;
+    /**
+      * `Location`
+      */
+    ["com.affine.localmind.documentCreation.location"](): string;
+    /**
+      * `Select workspace`
+      */
+    ["com.affine.localmind.documentCreation.chooseWorkspace"](): string;
+    /**
+      * `Select location`
+      */
+    ["com.affine.localmind.documentCreation.chooseLocation"](): string;
+    /**
+      * `Workspace root`
+      */
+    ["com.affine.localmind.documentCreation.root"](): string;
+    /**
+      * `Create document here`
+      */
+    ["com.affine.localmind.documentCreation.confirm"](): string;
+    /**
+      * `Confirm location and continue`
+      */
+    ["com.affine.localmind.documentCreation.reconfirm"](): string;
+    /**
+      * `Retry`
+      */
+    ["com.affine.localmind.documentCreation.retry"](): string;
+    /**
+      * `Document created`
+      */
+    ["com.affine.localmind.documentCreation.created"](): string;
+    /**
+      * `Awaiting location selection`
+      */
+    ["com.affine.localmind.documentCreation.waiting"](): string;
+    /**
+      * `Creating document`
+      */
+    ["com.affine.localmind.documentCreation.running"](): string;
+    /**
+      * `Creation needs attention`
+      */
+    ["com.affine.localmind.documentCreation.failed"](): string;
+    /**
+      * `Directory placement pending`
+      */
+    ["com.affine.localmind.documentCreation.placementPending"](): string;
+    /**
+      * `Added to project`
+      */
+    ["com.affine.localmind.documentCreation.added"](): string;
+    /**
+      * `Project access awaiting approval`
+      */
+    ["com.affine.localmind.documentCreation.accessPending"](): string;
+    /**
+      * `Project addition needs attention`
+      */
+    ["com.affine.localmind.documentCreation.addFailed"](): string;
+    /**
+      * `Document copy`
+      */
+    ["com.affine.localmind.documentCreation.copy"](): string;
+    /**
+      * `Source document`
+      */
+    ["com.affine.localmind.documentCreation.source"](): string;
+    /**
+      * `Previous page`
+      */
+    ["com.affine.localmind.documentCreation.previous"](): string;
+    /**
+      * `Project access revoked`
+      */
+    ["com.affine.localmind.documentCreation.revoked"](): string;
+    /**
+      * `Project access request rejected`
+      */
+    ["com.affine.localmind.documentCreation.rejected"](): string;
+    /**
+      * `Project access request withdrawn`
+      */
+    ["com.affine.localmind.documentCreation.withdrawn"](): string;
+    /**
+      * `Project access request expired`
+      */
+    ["com.affine.localmind.documentCreation.expired"](): string;
+    /**
+      * `Project addition requested`
+      */
+    ["com.affine.localmind.documentCreation.addRequested"](): string;
+    /**
+      * `Could not load document creation requests`
+      */
+    ["com.affine.localmind.documentCreation.loadFailed"](): string;
+    /**
+      * `No workspace permits document creation`
+      */
+    ["com.affine.localmind.documentCreation.noWorkspaces"](): string;
+    /**
+      * `Loading locations`
+      */
+    ["com.affine.localmind.documentCreation.loading"](): string;
+    /**
+      * `More directories`
+      */
+    ["com.affine.localmind.documentCreation.more"](): string;
+    /**
+      * `Loading document`
+      */
+    ["com.affine.doc-save.loading"](): string;
+    /**
+      * `Saving to this device`
+      */
+    ["com.affine.doc-save.saving"](): string;
+    /**
+      * `Saved in this browser or device`
+      */
+    ["com.affine.doc-save.local"](): string;
+    /**
+      * `Saved locally, waiting to sync`
+      */
+    ["com.affine.doc-save.pending"](): string;
+    /**
+      * `Saved locally, sync interrupted and retrying`
+      */
+    ["com.affine.doc-save.retrying"](): string;
+    /**
+      * `Saved locally and synced`
+      */
+    ["com.affine.doc-save.synced"](): string;
+    /**
       * `Back to my Content`
       */
     ["404.back"](): string;
@@ -4822,6 +4958,18 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.quicksearch.search-locally"](): string;
     /**
+      * `Documents`
+      */
+    ["com.affine.quicksearch.mode.documents"](): string;
+    /**
+      * `Commands`
+      */
+    ["com.affine.quicksearch.mode.commands"](): string;
+    /**
+      * `Load more results`
+      */
+    ["com.affine.quicksearch.load-more"](): string;
+    /**
       * `Search for "{{query}}"`
       */
     ["com.affine.quicksearch.group.searchfor"](options: {
@@ -4968,6 +5116,14 @@ export function useAFFiNEI18N(): {
       * `Delete`
       */
     ["com.affine.rootAppSidebar.organize.delete"](): string;
+    /**
+      * `Only empty folders can be deleted. Move out the contents or delete subfolders first.`
+      */
+    ["com.affine.rootAppSidebar.organize.delete.not-empty"](): string;
+    /**
+      * `Delete (empty folders only)`
+      */
+    ["com.affine.rootAppSidebar.organize.delete.empty-only"](): string;
     /**
       * `Remove from folder`
       */
@@ -10944,6 +11100,71 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.aiContext.selectProject"](): string;
     /**
+      * `Current project`
+      */
+    ["com.affine.localmind.aiContext.currentProject"](): string;
+    /**
+      * `Approve access`
+      */
+    ["com.affine.localmind.accessNotification.approve"](): string;
+    /**
+      * `Reject request`
+      */
+    ["com.affine.localmind.accessNotification.reject"](): string;
+    /**
+      * `Read`
+      */
+    ["com.affine.localmind.accessNotification.read"](): string;
+    /**
+      * `Read and write`
+      */
+    ["com.affine.localmind.accessNotification.write"](): string;
+    /**
+      * `Awaiting decision`
+      */
+    ["com.affine.localmind.accessNotification.pending"](): string;
+    /**
+      * `Approved`
+      */
+    ["com.affine.localmind.accessNotification.approved"](): string;
+    /**
+      * `Rejected`
+      */
+    ["com.affine.localmind.accessNotification.rejected"](): string;
+    /**
+      * `Withdrawn`
+      */
+    ["com.affine.localmind.accessNotification.withdrawn"](): string;
+    /**
+      * `Expired`
+      */
+    ["com.affine.localmind.accessNotification.expired"](): string;
+    /**
+      * `No longer accessible`
+      */
+    ["com.affine.localmind.accessNotification.unavailable"](): string;
+    /**
+      * `Personal access request`
+      */
+    ["com.affine.localmind.accessNotification.personal"](): string;
+    /**
+      * `Requested permission: {{level}}. Approving grants access to the entire Project {{project}}, including all its members.`
+      */
+    ["com.affine.localmind.accessNotification.projectConfirmation"](options: Readonly<{
+        level: string;
+        project: string;
+    }>): string;
+    /**
+      * `Requested personal permission: {{level}}. Confirm your decision for this applicant.`
+      */
+    ["com.affine.localmind.accessNotification.personalConfirmation"](options: {
+        readonly level: string;
+    }): string;
+    /**
+      * `Reason for rejection (optional)`
+      */
+    ["com.affine.localmind.accessNotification.reason"](): string;
+    /**
       * `Rule instruction`
       */
     ["com.affine.localmind.aiContext.ruleInstruction"](): string;
@@ -11524,6 +11745,122 @@ export function useAFFiNEI18N(): {
       * `Check permission, the Embedding switch, indexing progress, the ignore list, and the current query scope.`
       */
     ["com.affine.localmind.help.faq.search.answer"](): string;
+    /**
+      * `Directory permissions`
+      */
+    ["com.affine.localmind.directoryPermissions.title"](): string;
+    /**
+      * `Control who may read, write, organize, or create folders at each workspace location.`
+      */
+    ["com.affine.localmind.directoryPermissions.subtitle"](): string;
+    /**
+      * `Permission override`
+      */
+    ["com.affine.localmind.directoryPermissions.overrideTitle"](): string;
+    /**
+      * `Directory`
+      */
+    ["com.affine.localmind.directoryPermissions.directory"](): string;
+    /**
+      * `Applies to`
+      */
+    ["com.affine.localmind.directoryPermissions.principal"](): string;
+    /**
+      * `Workspace root`
+      */
+    ["com.affine.localmind.directoryPermissions.root"](): string;
+    /**
+      * `All workspace members`
+      */
+    ["com.affine.localmind.directoryPermissions.allMembers"](): string;
+    /**
+      * `Read`
+      */
+    ["com.affine.localmind.directoryPermissions.read"](): string;
+    /**
+      * `Write`
+      */
+    ["com.affine.localmind.directoryPermissions.write"](): string;
+    /**
+      * `Organize`
+      */
+    ["com.affine.localmind.directoryPermissions.organize"](): string;
+    /**
+      * `Create folders`
+      */
+    ["com.affine.localmind.directoryPermissions.createFolder"](): string;
+    /**
+      * `This explicit override is evaluated with its ancestor policies. A member-specific override takes precedence over the all-members override at the same directory.`
+      */
+    ["com.affine.localmind.directoryPermissions.overrideHint"](): string;
+    /**
+      * `No explicit override exists for this selection. Saving creates one; until then, ancestor and all-members policies apply.`
+      */
+    ["com.affine.localmind.directoryPermissions.inheritedHint"](): string;
+    /**
+      * `Save override`
+      */
+    ["com.affine.localmind.directoryPermissions.save"](): string;
+    /**
+      * `Clear override`
+      */
+    ["com.affine.localmind.directoryPermissions.clear"](): string;
+    /**
+      * `Directory permission saved`
+      */
+    ["com.affine.localmind.directoryPermissions.saved"](): string;
+    /**
+      * `Directory permission cleared`
+      */
+    ["com.affine.localmind.directoryPermissions.cleared"](): string;
+    /**
+      * `Directory permission was not changed`
+      */
+    ["com.affine.localmind.directoryPermissions.saveFailed"](): string;
+    /**
+      * `Current overrides`
+      */
+    ["com.affine.localmind.directoryPermissions.currentTitle"](): string;
+    /**
+      * `No directory overrides have been configured.`
+      */
+    ["com.affine.localmind.directoryPermissions.emptyPolicies"](): string;
+    /**
+      * `No rights`
+      */
+    ["com.affine.localmind.directoryPermissions.noRights"](): string;
+    /**
+      * `Audit history`
+      */
+    ["com.affine.localmind.directoryPermissions.auditTitle"](): string;
+    /**
+      * `No directory permission changes have been recorded.`
+      */
+    ["com.affine.localmind.directoryPermissions.emptyAudit"](): string;
+    /**
+      * `Set override for`
+      */
+    ["com.affine.localmind.directoryPermissions.auditSet"](): string;
+    /**
+      * `Cleared override for`
+      */
+    ["com.affine.localmind.directoryPermissions.auditClear"](): string;
+    /**
+      * `Load more`
+      */
+    ["com.affine.localmind.directoryPermissions.loadMore"](): string;
+    /**
+      * `Loading directory permissions…`
+      */
+    ["com.affine.localmind.directoryPermissions.loading"](): string;
+    /**
+      * `Retry`
+      */
+    ["com.affine.localmind.directoryPermissions.retry"](): string;
+    /**
+      * `Directory permissions are available to active workspace owners and administrators in synced workspaces.`
+      */
+    ["com.affine.localmind.directoryPermissions.unavailable"](): string;
     /**
       * `An internal error occurred.`
       */

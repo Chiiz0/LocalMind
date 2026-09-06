@@ -29,8 +29,7 @@ export const databasePropertyConverts = [
       };
       return {
         cells: cells.map(v => {
-          const tags = v?.toString().split(',');
-          const value = tags?.[0]?.trim();
+          const value = v?.toString();
           if (value) {
             return getTag(value).id;
           }
@@ -86,8 +85,9 @@ export const databasePropertyConverts = [
           format: 'number' as const,
         },
         cells: cells.map(v => {
-          const num = v ? parseFloat(v.toString()) : NaN;
-          return isNaN(num) ? undefined : num;
+          const text = v?.toString().trim();
+          const num = text ? Number(text) : NaN;
+          return Number.isFinite(num) ? num : undefined;
         }),
       };
     }
@@ -99,8 +99,11 @@ export const databasePropertyConverts = [
       return {
         property: {},
         cells: cells.map(v => {
-          const progress = v ? parseInt(v.toString()) : NaN;
-          return !isNaN(progress) ? clamp(progress, 0, 100) : undefined;
+          const text = v?.toString().trim();
+          const progress = text ? Number(text) : NaN;
+          return Number.isFinite(progress)
+            ? clamp(progress, 0, 100)
+            : undefined;
         }),
       };
     }
@@ -109,12 +112,18 @@ export const databasePropertyConverts = [
     richTextPropertyModelConfig,
     propertyModelPresets.checkboxPropertyModelConfig,
     (_property, cells) => {
-      const truthyValues = new Set(['yes', 'true']);
+      const truthyValues = new Set(['yes', 'true', '是']);
+      const falsyValues = new Set(['no', 'false', '否']);
       return {
         property: {},
-        cells: cells.map(v =>
-          v && truthyValues.has(v.toString().toLowerCase()) ? true : undefined
-        ),
+        cells: cells.map(v => {
+          const text = v?.toString().trim().toLowerCase();
+          return text && truthyValues.has(text)
+            ? true
+            : text && falsyValues.has(text)
+              ? false
+              : undefined;
+        }),
       };
     }
   ),

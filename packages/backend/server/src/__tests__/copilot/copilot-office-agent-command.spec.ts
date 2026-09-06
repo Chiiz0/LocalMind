@@ -109,6 +109,7 @@ test('creates an approval-gated Agent Runtime run without applying the Office co
   }));
   const models = {
     officeCommandRequest: { createOrReuse },
+    copilotContext: { assertDocumentSourcesShared: Sinon.stub().resolves() },
     copilotAgentRuntime: { createRun },
   } as unknown as Models;
   const storage = {
@@ -211,6 +212,7 @@ test('accepts approval-gated AI commands for every native Office engine', async 
   }));
   const models = {
     officeCommandRequest: { createOrReuse },
+    copilotContext: { assertDocumentSourcesShared: Sinon.stub().resolves() },
     copilotAgentRuntime: { createRun },
   } as unknown as Models;
   const storage = {

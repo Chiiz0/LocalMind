@@ -2,12 +2,14 @@ import { cssVarV2 } from '@toeverything/theme/v2';
 import { style } from '@vanilla-extract/css';
 
 export const workbenchRootContainer = style({
+  minWidth: 0,
   display: 'flex',
   height: '100%',
   flex: 1,
 });
 
 export const workbenchViewContainer = style({
+  minWidth: 0,
   flex: 1,
   overflow: 'hidden',
   height: '100%',

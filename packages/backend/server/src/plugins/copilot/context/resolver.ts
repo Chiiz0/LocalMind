@@ -51,7 +51,6 @@ import {
 } from '../../../models';
 import { CopilotEmbeddingJob } from '../embedding/job';
 import { COPILOT_LOCKER, CopilotType } from '../resolver';
-import { ChatSessionService } from '../session';
 import { CopilotStorage } from '../storage';
 import { getSignal, MAX_EMBEDDABLE_SIZE, readStream } from '../utils';
 import { CopilotContextService } from './service';
@@ -304,7 +303,6 @@ export class CopilotContextRootResolver {
     private readonly ac: PermissionAccess,
     private readonly event: EventBus,
     private readonly mutex: RequestMutex,
-    private readonly chatSession: ChatSessionService,
     private readonly context: CopilotContextService,
     private readonly models: Models
   ) {}
@@ -314,13 +312,36 @@ export class CopilotContextRootResolver {
     sessionId: string,
     workspaceId?: string
   ): Promise<void> {
-    const session = await this.chatSession.get(sessionId);
-    if (
-      !session ||
-      session.config.workspaceId !== workspaceId ||
-      session.config.userId !== user.id
-    ) {
+    const session = await this.models.copilotSession.getExists(
+      sessionId,
+      { id: true, workspaceId: true, docId: true },
+      {
+        userId: user.id,
+        workspaceId,
+        OR: [
+          { selectedContextProjectId: null },
+          {
+            docId: null,
+            selectedContextProject: {
+              status: 'active',
+              members: { some: { userId: user.id } },
+            },
+          },
+        ],
+      }
+    );
+    if (!session) {
       throw new CopilotSessionNotFound();
+    }
+    await assertAccess(this.ac, user.id, session.workspaceId);
+    if (session.docId) {
+      await this.ac
+        .user(user.id)
+        .workspace(session.workspaceId)
+        .projectScope(null)
+        .allowLocal()
+        .doc(session.docId)
+        .assert('Doc.Read');
     }
   }
 
@@ -356,7 +377,13 @@ export class CopilotContextRootResolver {
           copilot.workspaceId || undefined
         );
         const context = await this.context.getBySessionId(sessionId);
-        if (context) return [context];
+        if (context)
+          return [
+            await getSession(this.context, this.ac, user.id, context.id, {
+              sessionId,
+              workspaceId: copilot.workspaceId || undefined,
+            }),
+          ];
       }
     }
 
@@ -531,7 +558,12 @@ export class CopilotContextResolver {
     if (!context.id) {
       return [];
     }
-    const session = await this.context.get(context.id);
+    const session = await getSession(
+      this.context,
+      this.ac,
+      user.id,
+      context.id
+    );
     const collections = session.collections;
     await this.models.copilotContext.mergeDocStatus(
       session.workspaceId,
@@ -556,7 +588,12 @@ export class CopilotContextResolver {
     if (!context.id) {
       return [];
     }
-    const session = await this.context.get(context.id);
+    const session = await getSession(
+      this.context,
+      this.ac,
+      user.id,
+      context.id
+    );
     const tags = session.tags;
     await this.models.copilotContext.mergeDocStatus(
       session.workspaceId,
@@ -575,12 +612,18 @@ export class CopilotContextResolver {
   })
   @CallMetric('ai', 'context_blob_list')
   async blobs(
+    @CurrentUser() user: CurrentUser,
     @Parent() context: CopilotContextType
   ): Promise<CopilotContextBlob[]> {
     if (!context.id) {
       return [];
     }
-    const session = await this.context.get(context.id);
+    const session = await getSession(
+      this.context,
+      this.ac,
+      user.id,
+      context.id
+    );
     const blobs = session.blobs;
     await this.models.copilotContext.mergeBlobStatus(
       session.workspaceId,
@@ -601,7 +644,12 @@ export class CopilotContextResolver {
     if (!context.id) {
       return [];
     }
-    const session = await this.context.get(context.id);
+    const session = await getSession(
+      this.context,
+      this.ac,
+      user.id,
+      context.id
+    );
     const docs = session.docs;
     await this.models.copilotContext.mergeDocStatus(session.workspaceId, docs);
 
@@ -613,12 +661,18 @@ export class CopilotContextResolver {
   })
   @CallMetric('ai', 'context_file_list')
   async files(
+    @CurrentUser() user: CurrentUser,
     @Parent() context: CopilotContextType
   ): Promise<CopilotContextFile[]> {
     if (!context.id) {
       return [];
     }
-    const session = await this.context.get(context.id);
+    const session = await getSession(
+      this.context,
+      this.ac,
+      user.id,
+      context.id
+    );
     const files = session.files;
     await this.models.copilotContext.mergeFileStatus(session.id, files);
     return files;

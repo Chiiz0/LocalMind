@@ -76,6 +76,8 @@ export class PermissionContextLoader {
     userId?: string;
     workspaceId: string;
     allowLocal?: boolean;
+    // Undefined preserves product ACL; null uses personal ACL only.
+    projectId?: string | null;
     workspaceActions?: PermissionWorkspaceAction[];
     docs?: Array<{ docId: string; actions: PermissionDocAction[] }>;
   }): Promise<PermissionEvaluationInputV1> {
@@ -98,7 +100,7 @@ export class PermissionContextLoader {
       input.userId
         ? this.docGrants(input.workspaceId, docIds, input.userId)
         : Promise.resolve([]),
-      input.userId
+      input.userId && input.projectId !== null
         ? this.projectDocGrants(input.workspaceId, docIds, input.userId)
         : Promise.resolve([]),
     ]);
@@ -108,12 +110,20 @@ export class PermissionContextLoader {
     const docGrantMap = new Map(docGrants.map(grant => [grant.docId, grant]));
     const projectGrantsByDoc = new Map<string, ProjectDocGrantRow[]>();
     for (const grant of projectDocGrants) {
+      if (
+        input.projectId !== undefined &&
+        grant.projectId !== input.projectId
+      ) {
+        continue;
+      }
       const grants = projectGrantsByDoc.get(grant.docId) ?? [];
       grants.push(grant);
       projectGrantsByDoc.set(grant.docId, grants);
     }
     const projectIds = Array.from(
-      new Set(projectDocGrants.map(grant => grant.projectId))
+      new Set(
+        [...projectGrantsByDoc.values()].flat().map(grant => grant.projectId)
+      )
     );
     const local =
       !workspacePolicy &&
@@ -303,6 +313,20 @@ export class PermissionContextLoader {
       WHERE ${predicate}
     `;
     return rows.map(row => row.docId);
+  }
+
+  async listPersonalDocumentWorkspaces(userId: string) {
+    const rows = await this.db.$queryRaw<{ workspaceId: string }[]>`
+      SELECT workspace_id AS "workspaceId" FROM workspace_members
+      WHERE user_id = ${userId} AND state = 'active'
+      UNION
+      SELECT workspace_id AS "workspaceId" FROM doc_grants
+      WHERE principal_type = 'user' AND principal_id = ${userId}
+      UNION
+      SELECT workspace_id AS "workspaceId" FROM doc_access_policies
+      WHERE visibility = 'public'
+    `;
+    return rows.map(row => row.workspaceId);
   }
 
   private async docPolicies(workspaceId: string, docIds: string[]) {
