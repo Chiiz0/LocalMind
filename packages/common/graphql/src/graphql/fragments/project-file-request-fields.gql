@@ -1,0 +1,14 @@
+fragment ProjectFileRequestFields on ProjectFileRequestType {
+  id
+  projectId
+  projectName
+  title
+  requesterName
+  recipientName
+  status
+  version
+  isRecipient
+  fileName
+  resourceId
+  updatedAt
+}

@@ -184,6 +184,18 @@ export class CopilotCronJobs {
     );
     await this.jobs.add('copilot.agentRuntime.run', {});
     await this.jobs.add(
+      'indexer.projectResources.index',
+      {},
+      { jobId: 'minute-project-resource-index' }
+    );
+    await this.jobs.add(
+      'copilot.projectAgentRuntime.run',
+      {},
+      {
+        jobId: 'minute-copilot-project-agent-runtime',
+      }
+    );
+    await this.jobs.add(
       'copilot.mcpDelegation.deliverCallback',
       {},
       { jobId: 'minute-copilot-mcp-delegation-deliver-callback' }

@@ -27,6 +27,7 @@ type WorkspaceOptions = {
   id?: string;
   rootDoc: YDoc;
   blobSource?: BlobSource;
+  blobEngine?: BlobEngine;
   onLoadDoc?: (doc: YDoc) => void;
   onLoadAwareness?: (awareness: Awareness) => void;
   onCreateDoc?: (docId?: string) => string;
@@ -65,6 +66,7 @@ export class WorkspaceImpl implements Workspace {
     id,
     rootDoc,
     blobSource,
+    blobEngine,
     onLoadDoc,
     onLoadAwareness,
     onCreateDoc,
@@ -81,7 +83,7 @@ export class WorkspaceImpl implements Workspace {
     blobSource = blobSource ?? new MemoryBlobSource();
     const logger = new NoopLogger();
 
-    this.blobSync = new BlobEngine(blobSource, [], logger);
+    this.blobSync = blobEngine ?? new BlobEngine(blobSource, [], logger);
 
     this.idGenerator = nanoid;
 

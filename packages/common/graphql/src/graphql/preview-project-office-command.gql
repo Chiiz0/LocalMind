@@ -1,0 +1,10 @@
+query previewProjectOfficeCommand($input: ProjectOfficeCommandInput!) {
+  previewProjectOfficeCommand(input: $input) {
+    artifactId
+    expectedRevisionId
+    packageFingerprint
+    stateFingerprint
+    stats
+    summary
+  }
+}

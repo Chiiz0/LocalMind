@@ -1,0 +1,3 @@
+query projectFileRequestRecipients($projectId: String!, $query: String!) {
+  projectFileRequestRecipients(projectId: $projectId, query: $query) { id name }
+}

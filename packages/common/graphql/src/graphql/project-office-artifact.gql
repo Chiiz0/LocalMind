@@ -1,0 +1,7 @@
+#import './fragments/project-office-artifact-fields.gql'
+
+query projectOfficeArtifact($projectId: String!, $artifactId: String!) {
+  projectOfficeArtifact(projectId: $projectId, artifactId: $artifactId) {
+    ...ProjectOfficeArtifactFields
+  }
+}

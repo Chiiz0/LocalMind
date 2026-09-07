@@ -21,6 +21,7 @@ export enum ByokKeyTestStatus {
 }
 
 export enum ByokProviderSource {
+  ProjectGlobal = 'byok_project_global',
   Server = 'byok_server',
   Local = 'byok_local',
   AffinePlan = 'affine_plan',

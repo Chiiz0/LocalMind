@@ -1,4 +1,5 @@
 import {
+  dismissAllNotificationsMutation,
   dismissNotificationMutation,
   dismissReadNotificationsMutation,
   type DocMode,
@@ -97,6 +98,12 @@ export class NotificationStore extends Store {
   dismissReadNotifications() {
     return this.gqlService.gql({
       query: dismissReadNotificationsMutation,
+    });
+  }
+
+  dismissAllNotifications() {
+    return this.gqlService.gql({
+      query: dismissAllNotificationsMutation,
     });
   }
 

@@ -149,6 +149,14 @@ export function officeToolResultView(
     };
   }
   if (toolName === 'office_read') {
+    if (
+      typeof value.revisionId !== 'string' ||
+      !value.revisionId ||
+      typeof value.sequence !== 'number' ||
+      !Number.isInteger(value.sequence) ||
+      value.sequence < 1
+    )
+      return { status: 'error', name: 'Office read failed' };
     const revision =
       typeof value.sequence === 'number'
         ? `Revision ${value.sequence}`

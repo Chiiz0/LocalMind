@@ -267,6 +267,9 @@ export function providerProfileConfigPathHint(
   if (profile.source === 'byok_server') {
     return 'workspace.byok.server';
   }
+  if (profile.source === 'byok_project_global') {
+    return 'project.byok.global';
+  }
   return undefined;
 }
 

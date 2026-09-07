@@ -286,6 +286,7 @@ export class CopilotAgentRuntimeModelCompletionAdapter {
             signal: abortController.signal,
             user: run.actorId,
             workspace: run.workspaceId,
+            session: run.sessionId ?? undefined,
           },
         }
       );

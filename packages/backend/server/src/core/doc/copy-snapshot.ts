@@ -1,10 +1,101 @@
 import * as Y from 'yjs';
 
-import { updateDocTitle } from '../../native';
+import { createDocWithMarkdown, updateDocTitle } from '../../native';
 
 const MAX_SNAPSHOT_BYTES = 16 * 1024 * 1024;
 const MAX_BLOBS = 256;
 const BLOB_REFERENCE_KEY = /^(?:prop:)?(?:sourceId|blobId)$/;
+
+export function createFileCopySnapshot(input: {
+  documentId: string;
+  title: string;
+  key: string;
+  mimeType: string;
+  byteSize: number;
+}) {
+  const document = new Y.Doc();
+  try {
+    Y.applyUpdate(
+      document,
+      createDocWithMarkdown(input.title, '', input.documentId)
+    );
+    const blocks = document.getMap<Y.Map<unknown>>('blocks');
+    const note = [...blocks.values()].find(
+      block => block.get('sys:flavour') === 'affine:note'
+    );
+    if (!note) throw new Error('File attachment requires a document note');
+    const attachmentId = `${input.documentId}-attachment`;
+    const attachment = new Y.Map<unknown>();
+    attachment.set('sys:id', attachmentId);
+    attachment.set('sys:flavour', 'affine:attachment');
+    attachment.set('sys:version', 1);
+    attachment.set('sys:children', new Y.Array());
+    attachment.set('prop:name', input.title);
+    attachment.set('prop:sourceId', input.key);
+    attachment.set('prop:size', input.byteSize);
+    attachment.set('prop:type', input.mimeType);
+    attachment.set('prop:embed', false);
+    attachment.set('prop:caption', '');
+    blocks.set(attachmentId, attachment);
+    const children = new Y.Array<string>();
+    children.push([attachmentId]);
+    note.set('sys:children', children);
+    return Buffer.from(Y.encodeStateAsUpdate(document));
+  } finally {
+    document.destroy();
+  }
+}
+
+export function readFileCopySnapshot(bytes: Uint8Array) {
+  const document = new Y.Doc();
+  try {
+    Y.applyUpdate(document, inspectDocumentCopySnapshot(bytes).binary);
+    let attachment: {
+      key: string;
+      title: string;
+      mimeType: string;
+      byteSize: number;
+    } | null = null;
+    for (const block of document.getMap<Y.Map<unknown>>('blocks').values()) {
+      const flavour = block.get('sys:flavour');
+      if (flavour === 'affine:attachment') {
+        const key = block.get('prop:sourceId');
+        const title = block.get('prop:name');
+        const mimeType = block.get('prop:type');
+        const byteSize = block.get('prop:size');
+        if (
+          attachment ||
+          typeof key !== 'string' ||
+          typeof title !== 'string' ||
+          typeof mimeType !== 'string' ||
+          typeof byteSize !== 'number'
+        )
+          return null;
+        attachment = { key, title, mimeType, byteSize };
+      } else if (flavour === 'affine:paragraph') {
+        const text = block.get('prop:text');
+        if (text instanceof Y.Text ? text.length : !!text) return null;
+      } else if (flavour === 'affine:surface') {
+        const stored = block.get('prop:elements');
+        const elements =
+          stored instanceof Y.Map &&
+          stored.get('type') === '$blocksuite:internal:native$'
+            ? stored.get('value')
+            : stored;
+        if (elements instanceof Y.Map ? elements.size > 0 : elements != null)
+          return null;
+      } else if (
+        !['affine:page', 'affine:note', 'affine:surface'].includes(
+          String(flavour)
+        )
+      )
+        return null;
+    }
+    return attachment;
+  } finally {
+    document.destroy();
+  }
+}
 
 export function inspectDocumentCopySnapshot(snapshot: Uint8Array) {
   if (!snapshot.byteLength || snapshot.byteLength > MAX_SNAPSHOT_BYTES)
@@ -132,5 +223,49 @@ export function remapDocumentCopyBlobs(
     return inspectDocumentCopySnapshot(Y.encodeStateAsUpdate(document)).binary;
   } finally {
     document.destroy();
+  }
+}
+
+export function replaceDocumentCopySnapshot(
+  current: Uint8Array,
+  incoming: Uint8Array,
+  title: string,
+  documentId: string
+) {
+  const source = new Y.Doc();
+  const target = new Y.Doc();
+  try {
+    Y.applyUpdate(
+      source,
+      retitleDocumentCopySnapshot(incoming, title, documentId)
+    );
+    Y.applyUpdate(target, inspectDocumentCopySnapshot(current).binary);
+    const vector = Y.encodeStateVector(target);
+    target.transact(() => {
+      for (const name of new Set([
+        ...target.share.keys(),
+        ...source.share.keys(),
+      ])) {
+        const root = target.getMap(name);
+        root.clear();
+        for (const [key, value] of source.getMap(name).entries()) {
+          if (
+            value instanceof Y.Map ||
+            value instanceof Y.Array ||
+            value instanceof Y.Text
+          ) {
+            root.set(key, value.clone());
+          } else if (value instanceof Y.AbstractType) {
+            throw new Error('Document contains an unsupported shared type');
+          } else {
+            root.set(key, structuredClone(value));
+          }
+        }
+      }
+    });
+    return Y.encodeStateAsUpdate(target, vector);
+  } finally {
+    source.destroy();
+    target.destroy();
   }
 }

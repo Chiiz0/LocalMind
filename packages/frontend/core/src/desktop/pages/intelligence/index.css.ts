@@ -142,7 +142,7 @@ export const conversationAndPeek = style({
   gridTemplateColumns: 'minmax(0, 1fr)',
   overflow: 'hidden',
   selectors: {
-    '&[data-peek="true"]': {
+    '&[data-peek="true"][data-resource-open="false"]': {
       gridTemplateColumns: 'minmax(360px, 3fr) minmax(320px, 2fr)',
     },
   },
@@ -155,6 +155,12 @@ export const conversationAndPeek = style({
       },
     },
   },
+});
+
+export const conversationPane = style({
+  minWidth: 0,
+  minHeight: 0,
+  height: '100%',
 });
 
 export const peekPane = style({

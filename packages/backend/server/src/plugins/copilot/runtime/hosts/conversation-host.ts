@@ -118,7 +118,9 @@ export class ConversationHost {
     const resolveChatRouteAccess = () =>
       this.access.resolveTurnRouteAccess({
         userId,
-        workspaceId: session.config.workspaceId,
+        sessionId,
+        workspaceId: session.config.workspaceId ?? undefined,
+        projectId: session.config.selectedContextProjectId ?? undefined,
         byokLeaseId,
         featureKind: 'chat',
       });
@@ -227,6 +229,7 @@ export class ConversationHost {
   ): Promise<PreparedConversationTurn> {
     const { messageId, retry, params, byokLeaseId, chatSurface } =
       ChatQuerySchema.parse(query);
+    await this.sessions.assertOwnedSession(userId, sessionId);
     const session = await this.sessions.get(sessionId);
     if (!session || session.config.userId !== userId) {
       throw new CopilotSessionNotFound();

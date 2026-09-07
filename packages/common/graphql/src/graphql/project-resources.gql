@@ -1,0 +1,8 @@
+#import './fragments/project-resource.gql'
+
+query projectResources($projectId: String!, $parentId: String, $cursor: String, $limit: Int, $trash: Boolean, $search: String) {
+  projectResources(projectId: $projectId, parentId: $parentId, cursor: $cursor, limit: $limit, trash: $trash, search: $search) {
+    items { ...ProjectResourceFields }
+    nextCursor
+  }
+}

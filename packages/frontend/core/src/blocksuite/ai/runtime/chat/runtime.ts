@@ -1,5 +1,11 @@
-import type { CopilotChatHistoryFragment } from '@affine/graphql';
+import type {
+  CopilotChatHistoryFragment,
+  ProjectChatContextFieldsFragment,
+  ProjectChatContextItemInput,
+} from '@affine/graphql';
+import { I18n } from '@affine/i18n';
 
+import { ByokNotConfiguredError } from '../../provider/error';
 import type { AIRequestService } from '../request';
 import type { AIChatAction, AIChatSendOptions } from './actions';
 import type { AIChatSessionStrategy } from './session-strategy';
@@ -25,6 +31,20 @@ type RuntimeOptions = {
 };
 
 type ContextStatus = 'finished' | 'processing' | 'failed';
+
+function projectContextInput(
+  item: ProjectChatContextFieldsFragment['items'][number]
+): ProjectChatContextItemInput {
+  if (item.kind === 'resource' && item.resourceId && item.sequence)
+    return {
+      kind: 'resource',
+      resourceId: item.resourceId,
+      sequence: item.sequence,
+    };
+  if (item.kind === 'blob' && item.blobKey && item.name)
+    return { kind: 'blob', blobKey: item.blobKey, name: item.name };
+  throw new Error('Project context item is invalid');
+}
 
 type ContextObject = {
   id?: string;
@@ -87,6 +107,8 @@ export class AIChatRuntime {
   getSnapshot = () => this.snapshot;
 
   private acceptsSession(session: CopilotChatHistoryFragment) {
+    if (this.snapshot.scope.kind === 'project')
+      return this.options.strategy.canOpenAsTab(session, this.snapshot.scope);
     return (
       this.options.chatSurface !== 'intelligence_workbench' ||
       (!!this.options.projectId &&
@@ -297,6 +319,8 @@ export class AIChatRuntime {
     const promptScope = normalizePromptScope(promptName);
     const promptKey = promptScope ? `:prompt:${promptScope}` : '';
     switch (scope.kind) {
+      case 'project':
+        return `${scope.kind}:${scope.projectId}${promptKey}`;
       case 'doc':
         return `${scope.kind}:${scope.workspaceId}:${scope.docId}${promptKey}`;
       case 'workspace':
@@ -360,11 +384,7 @@ export class AIChatRuntime {
       return (
         this.snapshot.sessions.find(
           session => session.sessionId === activeSessionId
-        ) ??
-        this.options.request.getSession(
-          this.snapshot.scope.workspaceId,
-          activeSessionId
-        )
+        ) ?? this.getSession(activeSessionId)
       );
     }
     const promptName = normalizePromptScope(options.promptName);
@@ -374,22 +394,29 @@ export class AIChatRuntime {
       this.createSessionPromiseKey !== scopeKey
     ) {
       this.createSessionPromiseKey = scopeKey;
+      const scope = this.snapshot.scope;
       const createSession = this.options.strategy.createSession(
         this.snapshot.scope,
         this.options.request,
         { promptName }
       );
-      this.createSessionPromise = createSession
+      const pending = createSession
         .then(session =>
-          this.persistDraftProjectSelection(
-            session,
-            this.snapshot.composer.projectScope.selectedProjectId
-          )
+          scope.kind === 'project' ||
+          this.getScopeKey(this.snapshot.scope, promptName) !== scopeKey
+            ? session
+            : this.persistDraftProjectSelection(
+                session,
+                this.snapshot.composer.projectScope.selectedProjectId
+              )
         )
         .finally(() => {
-          this.createSessionPromise = null;
-          this.createSessionPromiseKey = null;
+          if (this.createSessionPromise === pending) {
+            this.createSessionPromise = null;
+            this.createSessionPromiseKey = null;
+          }
         });
+      this.createSessionPromise = pending;
     }
     return this.createSessionPromise;
   }
@@ -441,6 +468,10 @@ export class AIChatRuntime {
 
       const stream = (await this.options.request.executeAction('chat', {
         workspaceId: this.snapshot.scope.workspaceId,
+        projectId:
+          this.snapshot.scope.kind === 'project'
+            ? this.snapshot.scope.projectId
+            : undefined,
         docId:
           'docId' in this.snapshot.scope
             ? this.snapshot.scope.docId
@@ -509,6 +540,10 @@ export class AIChatRuntime {
     try {
       const stream = (await this.options.request.executeAction('chat', {
         workspaceId: this.snapshot.scope.workspaceId,
+        projectId:
+          this.snapshot.scope.kind === 'project'
+            ? this.snapshot.scope.projectId
+            : undefined,
         sessionId: this.snapshot.activeSessionId,
         retry: true,
         ...(this.options.chatSurface
@@ -562,9 +597,13 @@ export class AIChatRuntime {
             )) ?? [])
           : [];
       const recent =
-        (await this.options.request.getRecentSessions(
-          this.snapshot.scope.workspaceId
-        )) ?? [];
+        (this.snapshot.scope.kind === 'project'
+          ? await this.options.request.getProjectSessions(
+              this.snapshot.scope.projectId
+            )
+          : await this.options.request.getRecentSessions(
+              this.snapshot.scope.workspaceId
+            )) ?? [];
       if (seq !== this.historyRequestSeq) return;
       this.commit({
         history: {
@@ -618,6 +657,15 @@ export class AIChatRuntime {
   }
 
   private async loadProjectScope() {
+    if (this.snapshot.scope.kind === 'project') {
+      this.updateProjectScopeState({
+        loading: false,
+        error: null,
+        projectResolution: 'selected',
+        selectedProjectId: this.snapshot.scope.projectId,
+      });
+      return;
+    }
     const seq = ++this.projectScopeRequestSeq;
     const sessionId = this.snapshot.activeSessionId;
     if (!sessionId) {
@@ -728,6 +776,7 @@ export class AIChatRuntime {
   }
 
   private async getContextId(options: { promptName?: string } = {}) {
+    if (this.snapshot.scope.kind === 'project') return null;
     const createdSession = this.snapshot.activeSessionId
       ? null
       : await this.ensureSession(options);
@@ -757,6 +806,64 @@ export class AIChatRuntime {
   }
 
   private async addContextItem(item: AIChatContextItem, promptName?: string) {
+    if (this.snapshot.scope.kind === 'project') {
+      const seq = ++this.contextRequestSeq;
+      const projectId = this.snapshot.scope.projectId;
+      this.updateContextState({ loading: true, error: null });
+      try {
+        if (
+          (item.kind !== 'file' && item.kind !== 'doc') ||
+          (item.kind === 'file' && item.file.size > 50 * 1024 * 1024)
+        )
+          throw new Error('Unsupported Project context item');
+        const session = await this.ensureSession({ promptName });
+        if (
+          !session ||
+          seq !== this.contextRequestSeq ||
+          this.snapshot.scope.kind !== 'project' ||
+          this.snapshot.scope.projectId !== projectId
+        )
+          return;
+        if (!this.snapshot.activeSessionId)
+          this.openSessionObject(session, true);
+        const context = await this.options.request.projectContext.get(
+          projectId,
+          session.sessionId
+        );
+        if (seq !== this.contextRequestSeq) return;
+        if (item.kind === 'file')
+          await this.options.request.projectContext.upload(
+            projectId,
+            session.sessionId,
+            context.version,
+            item.file
+          );
+        else {
+          const selected = await this.options.request.projectContext.resource(
+            projectId,
+            item.docId
+          );
+          if (seq !== this.contextRequestSeq) return;
+          const items = context.items
+            .filter(value => value.resourceId !== item.docId)
+            .map(projectContextInput);
+          await this.options.request.projectContext.set(
+            projectId,
+            session.sessionId,
+            context.version,
+            [...items, selected]
+          );
+        }
+        if (seq === this.contextRequestSeq) await this.loadContext();
+      } catch (error) {
+        if (seq === this.contextRequestSeq)
+          this.updateContextState({
+            loading: false,
+            error: this.toError(error),
+          });
+      }
+      return;
+    }
     const seq = ++this.contextRequestSeq;
     this.updateContextState({ loading: true, error: null });
     try {
@@ -777,6 +884,45 @@ export class AIChatRuntime {
   }
 
   private async removeContextItem(item: AIChatContextItem) {
+    if (this.snapshot.scope.kind === 'project') {
+      const seq = ++this.contextRequestSeq;
+      const projectId = this.snapshot.scope.projectId;
+      const sessionId = this.snapshot.activeSessionId;
+      if (!sessionId) return;
+      this.updateContextState({ loading: true, error: null });
+      try {
+        const context = await this.options.request.projectContext.get(
+          projectId,
+          sessionId
+        );
+        if (seq !== this.contextRequestSeq) return;
+        const items = context.items
+          .filter(value =>
+            item.kind === 'doc'
+              ? value.resourceId !== item.docId
+              : item.kind === 'file'
+                ? value.blobKey !== item.fileId
+                : item.kind === 'blob'
+                  ? value.blobKey !== item.blobId
+                  : true
+          )
+          .map(projectContextInput);
+        await this.options.request.projectContext.set(
+          projectId,
+          sessionId,
+          context.version,
+          items
+        );
+        if (seq === this.contextRequestSeq) await this.loadContext();
+      } catch (error) {
+        if (seq === this.contextRequestSeq)
+          this.updateContextState({
+            loading: false,
+            error: this.toError(error),
+          });
+      }
+      return;
+    }
     const seq = ++this.contextRequestSeq;
     this.updateContextState({ loading: true, error: null });
     try {
@@ -812,6 +958,7 @@ export class AIChatRuntime {
   }
 
   private async pollContext() {
+    if (this.snapshot.scope.kind === 'project') return false;
     const seq = this.contextPollingSeq;
     const sessionId = this.snapshot.activeSessionId;
     const contextId = this.snapshot.composer.context.contextId;
@@ -952,6 +1099,71 @@ export class AIChatRuntime {
   }
 
   private async loadContext() {
+    if (this.snapshot.scope.kind === 'project') {
+      const projectId = this.snapshot.scope.projectId;
+      const sessionId = this.snapshot.activeSessionId;
+      const seq = ++this.contextRequestSeq;
+      await this.loadProjectScope();
+      if (seq !== this.contextRequestSeq || !sessionId) return;
+      this.updateContextState({ loading: true, error: null });
+      try {
+        const context = await this.options.request.projectContext.get(
+          projectId,
+          sessionId
+        );
+        if (
+          seq !== this.contextRequestSeq ||
+          this.snapshot.activeSessionId !== sessionId ||
+          this.snapshot.scope.kind !== 'project' ||
+          this.snapshot.scope.projectId !== projectId
+        )
+          return;
+        const items: AIChatContextItem[] =
+          context.items.flatMap<AIChatContextItem>(item =>
+            item.kind === 'resource' && item.resourceId
+              ? [
+                  {
+                    kind: 'doc',
+                    docId: item.resourceId,
+                    state: item.available ? 'finished' : 'failed',
+                  },
+                ]
+              : item.kind === 'blob' && item.blobKey
+                ? [
+                    {
+                      kind: 'file',
+                      file: new File([], item.title, {
+                        type: item.mimeType ?? '',
+                      }),
+                      fileId: item.blobKey,
+                      blobId: item.blobKey,
+                      state: item.available ? 'finished' : 'failed',
+                    },
+                  ]
+                : []
+          );
+        this.updateContextState({
+          contextId: sessionId,
+          loading: false,
+          error: null,
+          items,
+          embeddingCompleted: true,
+          embeddingCount: {
+            finished: items.filter(item => item.state === 'finished').length,
+            failed: items.filter(item => item.state === 'failed').length,
+            processing: 0,
+          },
+        });
+      } catch (error) {
+        if (seq === this.contextRequestSeq)
+          this.updateContextState({
+            loading: false,
+            items: [],
+            error: this.toError(error),
+          });
+      }
+      return;
+    }
     const seq = ++this.contextRequestSeq;
     const sessionId = this.snapshot.activeSessionId;
     if (!sessionId) return;
@@ -996,6 +1208,7 @@ export class AIChatRuntime {
   }
 
   private pollEmbeddingStatus() {
+    if (this.snapshot.scope.kind === 'project') return;
     this.embeddingStatusAbortController?.abort();
     this.embeddingStatusAbortController = new AbortController();
     const signal = this.embeddingStatusAbortController.signal;
@@ -1316,13 +1529,17 @@ export class AIChatRuntime {
     }
   }
 
+  private getSession(sessionId: string) {
+    const scope = this.snapshot.scope;
+    return scope.kind === 'project'
+      ? this.options.request.getProjectSession(scope.projectId, sessionId)
+      : this.options.request.getSession(scope.workspaceId, sessionId);
+  }
+
   private async openSession(sessionId: string) {
     const seq = ++this.requestSeq;
     this.streamAbortController?.abort();
-    const session = await this.options.request.getSession(
-      this.snapshot.scope.workspaceId,
-      sessionId
-    );
+    const session = await this.getSession(sessionId);
     if (seq !== this.requestSeq) return;
     if (session) {
       this.openSessionObject(session);
@@ -1419,10 +1636,7 @@ export class AIChatRuntime {
       this.options.strategy.createDraftSession(this.snapshot.scope);
     const seq = ++this.requestSeq;
     if (fallback.kind === 'session') {
-      const session = await this.options.request.getSession(
-        this.snapshot.scope.workspaceId,
-        fallback.sessionId
-      );
+      const session = await this.getSession(fallback.sessionId);
       if (seq !== this.requestSeq) return;
       if (session) {
         this.commit({ tabs: tabs.length ? tabs : [fallback], sessions });
@@ -1502,12 +1716,20 @@ export class AIChatRuntime {
   }
 
   private async deleteSession(sessionId: string) {
-    await this.options.request.cleanupSessions({
-      workspaceId: this.snapshot.scope.workspaceId,
-      docId:
-        'docId' in this.snapshot.scope ? this.snapshot.scope.docId : undefined,
-      sessionIds: [sessionId],
-    });
+    if (this.snapshot.scope.kind === 'project') {
+      await this.options.request.cleanupProjectSessions(
+        this.snapshot.scope.projectId,
+        [sessionId]
+      );
+    } else
+      await this.options.request.cleanupSessions({
+        workspaceId: this.snapshot.scope.workspaceId,
+        docId:
+          'docId' in this.snapshot.scope
+            ? this.snapshot.scope.docId
+            : undefined,
+        sessionIds: [sessionId],
+      });
     await this.closeTab(sessionId);
   }
 
@@ -1640,11 +1862,16 @@ export class AIChatRuntime {
     if (!sessionId) return;
     const last = this.snapshot.messages.at(-1);
     if (!last || last.id) return;
-    const historyIds = await this.options.request.histories.ids(
-      this.snapshot.scope.workspaceId,
-      'docId' in this.snapshot.scope ? this.snapshot.scope.docId : undefined,
-      { sessionId, withMessages: true }
-    );
+    const historyIds =
+      this.snapshot.scope.kind === 'project'
+        ? [await this.getSession(sessionId)]
+        : await this.options.request.histories.ids(
+            this.snapshot.scope.workspaceId,
+            'docId' in this.snapshot.scope
+              ? this.snapshot.scope.docId
+              : undefined,
+            { sessionId, withMessages: true }
+          );
     const lastId = historyIds?.[0]?.messages?.at(-1)?.id;
     if (!lastId) return;
     const messages = this.snapshot.messages.slice();
@@ -1656,6 +1883,14 @@ export class AIChatRuntime {
   }
 
   private toError(error: unknown) {
+    if (
+      this.snapshot.scope.kind === 'project' &&
+      error instanceof ByokNotConfiguredError
+    ) {
+      return new ByokNotConfiguredError(
+        I18n.t('com.affine.localmind.project.aiNotConfigured')
+      );
+    }
     return error instanceof Error ? error : new Error(String(error));
   }
 }

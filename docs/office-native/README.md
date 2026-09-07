@@ -11,11 +11,21 @@ not become a second document service or source of truth.
 
 ## Product Boundary
 
+The settled [Project Native Resources design](../ai-modernization/tracks/project-native-resources.md)
+extends resource ownership to Projects, including native Office files,
+with independent Workspace copies and explicit publication. This ownership
+extension is implemented with an exclusive Project/Workspace owner, independent
+Blob keys and revision chains, Project API authorization, and native Office
+approval tasks. Existing Workspace-specific descriptions below record that
+foundation. [Project execution evidence](../ai-modernization/project-native-resources.execution.md)
+covers all four formats, saved edits, AI approval/cancellation and publication.
+The engine boundaries and Artifact/Revision integrity remain unchanged.
+
 Native Office resources are peers of the existing BlockSuite page and edgeless
 document, not new BlockSuite view modes:
 
 ```text
-LocalMind Workspace
+LocalMind Project / Workspace
 |- BlockSuite Page / Edgeless
 |- LocalMind Docs
 |- LocalMind Sheets
@@ -41,7 +51,7 @@ separate action.
 The engines are isolated from BlockSuite's document schema but reuse LocalMind
 platform services:
 
-- workspace membership, ACL, sharing, approval, and audit;
+- resource-owner membership, Workspace ACL, sharing, approval, and audit;
 - blob storage, immutable source evidence, revisions, and retention;
 - realtime transport and CRDT collaboration;
 - search, indexing, previews, comments, and notifications;
@@ -57,7 +67,7 @@ The first foundation slice introduces two durable records:
 
 ### `OfficeArtifact`
 
-The artifact owns stable workspace identity and immutable import evidence:
+The artifact owns stable Project or Workspace identity and immutable import evidence:
 
 - artifact kind and title;
 - original filename, MIME type, blob key, byte size, and fingerprint;

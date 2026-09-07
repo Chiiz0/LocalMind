@@ -29,6 +29,11 @@ an AI operations layer with:
 - fixed Docker image roles for validation instead of milestone-specific build
   tags.
 
+Projects own native resources and file trees, with independent internal copies,
+explicit Workspace publication, member authorization and recoverable migration;
+see
+[Project Native Resources](./tracks/project-native-resources.md).
+
 ## What This Branch Is Not
 
 This branch is not just a rebranded upstream checkout. The LocalMind work should

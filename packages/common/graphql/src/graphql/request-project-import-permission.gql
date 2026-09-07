@@ -1,0 +1,12 @@
+mutation requestProjectImportPermission($projectId: String!, $workspaceId: String!, $resourceId: String!, $requestKey: String!) {
+  requestProjectImportPermission(
+    projectId: $projectId
+    workspaceId: $workspaceId
+    resourceId: $resourceId
+    requestKey: $requestKey
+  ) {
+    id
+    status
+    purpose
+  }
+}

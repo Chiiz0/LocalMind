@@ -134,7 +134,7 @@ export function SpreadsheetEditor({
   state,
   revision,
   artifactId,
-  workspaceId,
+  owner,
   graphql,
   readOnly,
   onRevision,
@@ -300,7 +300,7 @@ export function SpreadsheetEditor({
       try {
         const result = await executeAndReloadOfficeCommand<XlsxSemanticState>({
           graphql,
-          workspaceId,
+          owner,
           kind: 'workbook',
           command,
         });
@@ -313,7 +313,7 @@ export function SpreadsheetEditor({
         setSaving(false);
       }
     },
-    [graphql, onRevision, readOnly, saving, workspaceId]
+    [graphql, onRevision, owner, readOnly, saving]
   );
 
   const save = useCallback(async () => {

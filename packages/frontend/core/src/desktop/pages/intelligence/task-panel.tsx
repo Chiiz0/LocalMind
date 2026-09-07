@@ -1,4 +1,6 @@
 import { Button, IconButton, Loading } from '@affine/component';
+import { CreateProjectFileRequest } from '@affine/core/components/project-file-request/create';
+import { useFileRequestStatus } from '@affine/core/components/project-file-request/detail';
 import { useI18n } from '@affine/i18n';
 import {
   ArrowDownSmallIcon,
@@ -6,6 +8,7 @@ import {
   CloseIcon,
   PlusIcon,
   ResetIcon,
+  UploadIcon,
   WarningIcon,
 } from '@blocksuite/icons/rc';
 import {
@@ -105,6 +108,8 @@ export const TaskPanel = ({
   onCreateBlocker,
 }: TaskPanelProps) => {
   const t = useI18n();
+  const fileRequestStatus = useFileRequestStatus();
+  const [showFileRequest, setShowFileRequest] = useState(false);
   const [expanded, setExpanded] = useState(true);
   const [showBlockerForm, setShowBlockerForm] = useState(false);
   const [blockerTitle, setBlockerTitle] = useState('');
@@ -150,6 +155,7 @@ export const TaskPanel = ({
   const compact = loading || !!error || (empty && !showBlockerForm);
 
   useEffect(() => {
+    setShowFileRequest(false);
     setShowBlockerForm(false);
     setBlockerTitle('');
     setBlockerType('wait_reply');
@@ -243,6 +249,7 @@ export const TaskPanel = ({
   };
 
   const statusLabel = (task: WorkbenchTask) => {
+    if (task.kind === 'file_request') return fileRequestStatus(task.status);
     if (isBlocker(task)) {
       switch (task.status) {
         case 'waiting':
@@ -527,7 +534,28 @@ export const TaskPanel = ({
           disabled={loading}
           onClick={onRefresh}
         />
+        {selectedProjectId ? (
+          <IconButton
+            size="20"
+            icon={<UploadIcon />}
+            tooltip={t['com.affine.localmind.fileRequest.request']()}
+            aria-label={t['com.affine.localmind.fileRequest.request']()}
+            onClick={() => setShowFileRequest(true)}
+          />
+        ) : null}
       </header>
+      {showFileRequest && selectedProjectId ? (
+        <CreateProjectFileRequest
+          key={selectedProjectId}
+          projectId={selectedProjectId}
+          onClose={() => setShowFileRequest(false)}
+          onCreated={() => {
+            setShowFileRequest(false);
+            setExpanded(true);
+            onRefresh();
+          }}
+        />
+      ) : null}
 
       {expanded || error ? (
         <div className={styles.expandedContent} data-compact={compact}>
@@ -700,7 +728,7 @@ export const TaskPanel = ({
                       </div>
                       {blockers.map(renderTask)}
                     </>
-                  ) : selectedProjectId ? (
+                  ) : selectedProjectId && !waitingOnOthers.length ? (
                     <div className={styles.emptyGroup}>
                       {t['com.affine.localmind.workbench.blocker.empty']()}
                     </div>

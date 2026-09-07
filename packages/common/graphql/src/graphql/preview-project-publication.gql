@@ -1,0 +1,4 @@
+mutation previewProjectPublication($projectId: String!, $publicationId: String!, $expectedRevision: Int!, $workspaceId: String!, $folderId: String, $targetResourceId: String) {
+  previewProjectPublication(projectId: $projectId, publicationId: $publicationId, expectedRevision: $expectedRevision, workspaceId: $workspaceId, folderId: $folderId, targetResourceId: $targetResourceId) { ...ProjectPublicationFields }
+}
+#import './fragments/project-publication-fields.gql'

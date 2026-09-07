@@ -119,6 +119,14 @@ export class UserNotificationResolver {
     await this.service.dismissRead(me.id);
     return true;
   }
+
+  @Mutation(() => Boolean, {
+    description: 'delete all notifications from the current user inbox',
+  })
+  async dismissAllNotifications(@CurrentUser() me: UserType) {
+    await this.service.dismissAll(me.id);
+    return true;
+  }
 }
 
 @Resolver(() => NotificationObjectType)

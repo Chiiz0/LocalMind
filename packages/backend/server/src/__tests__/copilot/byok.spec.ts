@@ -1491,8 +1491,8 @@ test('effective profiles use local lease before server keys and skip disabled ke
     ['byok_local', 'byok_server']
   );
 
-  const serverOnlyFeatureKinds: ByokFeatureKind[] = [
-    'transcript',
+  const serverOnlyFeatureKinds: ByokFeatureKind[] = ['transcript'];
+  const instanceManagedFeatureKinds: ByokFeatureKind[] = [
     'embedding',
     'workspace_indexing',
     'rerank',
@@ -1507,6 +1507,17 @@ test('effective profiles use local lease before server keys and skip disabled ke
     t.deepEqual(
       featureProfiles.map(profile => profile.type),
       ['gemini']
+    );
+  }
+  for (const featureKind of instanceManagedFeatureKinds) {
+    t.deepEqual(
+      await t.context.access.getByokProfiles({
+        workspaceId: workspace.id,
+        userId: user.id,
+        byokLeaseId: lease.leaseId,
+        featureKind,
+      }),
+      []
     );
   }
 });

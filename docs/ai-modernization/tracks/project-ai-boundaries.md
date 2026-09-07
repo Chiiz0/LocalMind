@@ -2,12 +2,31 @@
 
 ## Authority
 
+The 2026-09-06 [Project Native Resources](project-native-resources.md) contract
+now owns resource identity, internal file trees, member content permissions,
+source-copy authorization, explicit Workspace publication, and migration.
+It supersedes conflicting rules below, including mandatory Workspace placement
+before internal creation, direct edits to shared source documents, and an
+additional Project/Owner gate for publishing. The native resource model,
+internal editors, explicit publication and resumable migration are implemented;
+current acceptance evidence is in the
+[execution report](../project-native-resources.execution.md). Global Project BYOK, conversation
+isolation and the prohibition on AI Project administration remain applicable.
+
 The user-confirmed rules of 2026-09-05 supersede conflicting historical
 Workbench, Context Memory, and user-guide descriptions. This document tracks
 implementation separately from the product contract; a design is not evidence
 that a capability is implemented.
 
-## Product Contract
+## Earlier Product Contract
+
+Resource creation, shared references and write-grant rules in this historical
+section are superseded by Project Native Resources. Native internal operations
+check active Project membership. Imports check source read/copy/share authority;
+explicit publication checks target ACL and approval without an Owner gate.
+Native sessions have `workspaceId = null` and use global Project BYOK. Old
+sessions remain readable within their original actor scope but cannot resume
+with their former Workspace write semantics.
 
 - Only people create Projects, manage membership, change project policies, or
   approve/reject access requests. AI must explain that creating a Project
@@ -18,8 +37,14 @@ that a capability is implemented.
   cannot change projects after its first message. Project changes select a
   corresponding conversation or a clean draft, including separate attachments,
   history, retrieval caches, and memory.
-- The session workspace is the execution/BYOK host. Every document reference
-  independently identifies its storage workspace.
+- All Project conversations use the single global Project BYOK configuration
+  managed by instance administrators in `/admin`. Provider, endpoint, model and
+  encrypted credentials are independent of Workspace and user AI Profiles.
+  Missing or disabled global configuration fails closed without Workspace,
+  local-lease or quota-backed fallback. The session Workspace remains execution,
+  permission and audit context; every document reference independently identifies
+  its storage Workspace. This 2026-09-06 decision supersedes historical references
+  to the Project session Workspace as a BYOK host.
 - Project reads use personal ACL union current-project grants. Document-side
   AI uses personal ACL only. Grants from other projects never contribute.
 - Existing-document project writes require a current-project write grant,
@@ -54,6 +79,71 @@ that a capability is implemented.
 - Decisions recheck authority and conditionally transition pending requests,
   handling duplicates, expiry, withdrawal, and concurrency. Notifications,
   applicant results, sidebar refresh, and audit follow the durable outcome.
+
+## Global Project BYOK Validation On 2026-09-06
+
+The global configuration and audit tables are introduced by migration
+`20260906040000_project_global_byok`. The Admin form, member-only Project model
+query, persisted session resolution, stream preparation and auxiliary prompt
+calls use the same global provider configuration. Workspace route policies and
+stale client model preferences cannot select a different Project provider.
+
+Validation reused `localmind-affine:test` in the isolated
+`localmind_project_byok_runner` container. No image was rebuilt and no business
+runtime synchronization was performed. The following backend regression run
+passed 117 tests:
+
+```sh
+docker exec -e NODE_OPTIONS=--import=/workspace/tools/cli/register.js -w /workspace localmind_project_byok_runner yarn workspace @affine/server test src/__tests__/copilot/project-global-byok.spec.ts src/__tests__/copilot/byok.spec.ts src/__tests__/copilot/host-services.spec.ts
+```
+
+The final Project suite rerun passed all 9 tests after extending coverage to
+generated GraphQL requests and auxiliary prompt selection. Coverage includes
+administrator restrictions, encryption, immutable audit, concurrent revision
+updates, failed probes, missing/disabled config, key rotation, late failures,
+multiple Projects/Workspaces, revoked membership and forged session context.
+The generated connection-test operation is separate from the settings fragment
+so it cannot contain an unused fragment rejected by GraphQL validation.
+
+Frontend verification passed 9 focused tests and 3 configuration-page
+integration tests:
+
+```sh
+docker exec -w /workspace localmind_project_byok_runner yarn vitest run packages/frontend/admin/src/modules/ai/project-byok.spec.tsx packages/frontend/admin/src/modules/ai/workspace-byok.spec.tsx packages/frontend/core/src/modules/ai-button/entities/project-model.spec.ts
+docker exec -w /workspace localmind_project_byok_runner yarn vitest run packages/frontend/admin/src/modules/ai/index.spec.tsx -t 'renders complete AI configuration|saves administrator-owned Enterprise CLI|saves private endpoint policy'
+```
+
+The upgrade smoke script
+`packages/backend/server/src/__tests__/copilot/project-global-byok-upgrade.smoke.ts`
+passed against the isolated `localmind_project_byok_upgrade_20260906_v2`
+database. It applied the 335 existing migrations, inserted old Workspace
+credentials and a Project session, then applied migration 336 and verified that
+both records were unchanged and global BYOK remained unconfigured. Its database
+URL is supplied through `PROJECT_BYOK_UPGRADE_DATABASE_URL`:
+
+```sh
+docker exec -e PROJECT_BYOK_UPGRADE_DATABASE_URL -w /workspace localmind_project_byok_runner yarn r packages/backend/server/src/__tests__/copilot/project-global-byok-upgrade.smoke.ts
+```
+
+Backend TypeScript validation in the Linux container and direct Admin/Core
+TypeScript checks passed. Scoped oxlint, ESLint, Prettier and `git diff --check`
+passed. Prisma Client, server GraphQL schema, shared GraphQL operations and i18n
+were generated through the existing tooling. The combined frontend reference
+build remains blocked by pre-existing `DefaultViewDataType` column/sort errors
+in `blocksuite/affine/all/src/__tests__/database/conversion-preservation.unit.spec.ts`;
+that unrelated file was not changed.
+
+Real Chrome acceptance used the isolated API on port 3012 and Admin preview on
+port 8080. Invalid-key rejection, valid-key testing, save, reload persistence,
+disable confirmation and re-enable passed. Screenshots at 1440x1000 and 390x844,
+each in light/dark mode, showed no blank content or horizontal overflow. Provider
+responses and credentials were synthetic; this does not establish connectivity
+to a real provider. Existing Workspace credentials were not copied into the
+global record and business credentials were not modified.
+
+At verification, `docker system df` reported images 53.71 GB, containers 9.062 GB,
+volumes 1.15 GB and build cache 2.913 GB; the host had 167 GiB available. No images,
+volumes or existing data were deleted.
 
 ## Stage Two Progress On 2026-09-06
 

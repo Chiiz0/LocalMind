@@ -1,0 +1,4 @@
+mutation changeProjectPublication($projectId: String!, $publicationId: String!, $expectedRevision: Int!, $action: String!) {
+  changeProjectPublication(projectId: $projectId, publicationId: $publicationId, expectedRevision: $expectedRevision, action: $action) { ...ProjectPublicationFields }
+}
+#import './fragments/project-publication-fields.gql'

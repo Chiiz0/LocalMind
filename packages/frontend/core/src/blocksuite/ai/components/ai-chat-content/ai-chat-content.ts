@@ -3,7 +3,7 @@ import type {
   AIToolsConfigService,
 } from '@affine/core/modules/ai-button';
 import type { AIDraftState } from '@affine/core/modules/ai-button/services/ai-draft';
-import type { AIModelService } from '@affine/core/modules/ai-button/services/models';
+import type { AIModelSelection } from '@affine/core/modules/ai-button/services/models';
 import type {
   ServerService,
   SubscriptionService,
@@ -131,7 +131,7 @@ export class AIChatContent extends SignalWatcher(
   accessor runtimeSnapshot: AIChatSnapshot | null | undefined;
 
   @property({ attribute: false })
-  accessor workspaceId!: string;
+  accessor workspaceId: string | undefined;
 
   @property({ attribute: false })
   accessor docId: string | undefined;
@@ -173,7 +173,7 @@ export class AIChatContent extends SignalWatcher(
   accessor aiToolsConfigService!: AIToolsConfigService;
 
   @property({ attribute: false })
-  accessor aiModelService!: AIModelService;
+  accessor aiModelService!: AIModelSelection;
 
   @property({ attribute: false })
   accessor onOpenDoc!: (docId: string, sessionId?: string) => void;

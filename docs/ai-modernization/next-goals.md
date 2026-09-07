@@ -96,31 +96,33 @@ See `tracks/context-memory.md`.
 
 ## P1: Intelligence Workbench
 
-Status: designed and settled; not yet implemented.
+Status: the global workbench and Project boundary stages have implementation
+and acceptance records. Native Project resources and independent copies are
+implemented and P1-P6 / A01-A22 accepted; validation and runtime status are maintained in the
+[execution report](project-native-resources.execution.md).
 
-Turn the Intelligence page into a global, Codex-style AI workbench:
+Implemented [Project Native Resources](tracks/project-native-resources.md):
 
-- move the workbench onto a true top-level global route outside the workspace
-  shell, re-hosting the shell affordances it still needs and keeping in-page
-  document opening;
-- evolve `AiContextProject` into a global, user-owned Project with
-  owner/member roles and cross-workspace `(workspaceId, docId)` references;
-- add a top task panel (To do / In progress / Done) projecting existing
-  copilot task, run, and approval state through a new user-level
-  cross-workspace aggregation query;
-- make the project a permission principal: audited, revocable project grants,
-  an add-document two-branch rule gated on sharing rights, server-side
-  per-viewer redaction of pending placeholders, and one generic
-  access-request state machine with user and project beneficiaries;
-- enforce the three-layer AI permission intersection with per-document write
-  serialization and re-confirmation on drift;
-- add the reminder-only Blocker entity with AI-suggested,
-  user-confirmed creation.
+- real Project-owned storage and persistent file trees, without hidden or
+  mandatory Workspaces;
+- default internal member read/write access and independent document copies,
+  preserving source copy/share checks during import;
+- internal creation before optional explicit Workspace publication, target-ACL
+  authorization without an Owner-only publication gate, and version-safe
+  updates to exactly the requested external document;
+- hierarchical destination browsing, pagination, search and folder creation;
+- resumable migration of authorized old references, old operation handling,
+  immutable provenance and no unintended Workspace writes;
+- Linux, upgrade, permission, retry/conflict and real browser acceptance.
 
-All product decisions, phases, and acceptance criteria are in the track
-document. Executing agents must not re-litigate settled decisions there.
+The [goal instruction](project-native-resources.goal.md) refers to the complete
+P1-P6 implementation and A01-A22 acceptance matrix. Preserve global Project
+BYOK, Office resource kinds, the existing workbench and ordinary Workspace
+copy behavior. The execution report distinguishes completed checks from
+baseline errors and recoverable authorization exceptions.
 
-See `tracks/intelligence-workbench.md`.
+Earlier workbench implementation evidence remains in
+`tracks/intelligence-workbench.md` and `tracks/project-ai-boundaries.md`.
 
 ## P1: Support Bundle Persistence
 

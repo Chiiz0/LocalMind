@@ -248,6 +248,7 @@ test('ConversationHost should delegate empty no-message stream access', async t 
   const host = new ConversationHost(
     {
       get: Sinon.stub().resolves(session),
+      assertOwnedSession: Sinon.stub().resolves(),
       revertLatestMessage: Sinon.stub().resolves(undefined),
     } as any,
     {} as any,
@@ -273,6 +274,7 @@ test('ConversationHost should return access decision for empty no-message stream
   const host = new ConversationHost(
     {
       get: Sinon.stub().resolves(session),
+      assertOwnedSession: Sinon.stub().resolves(),
       revertLatestMessage: Sinon.stub().resolves(undefined),
     } as any,
     {} as any,
@@ -309,6 +311,7 @@ test('ConversationHost should replay accepted tokens without enabling quota-back
   const host = new ConversationHost(
     {
       get: Sinon.stub().resolves(session),
+      assertOwnedSession: Sinon.stub().resolves(),
       revertLatestMessage: Sinon.stub().resolves(undefined),
     } as any,
     {
@@ -354,6 +357,7 @@ test('ConversationHost should replay durable tokens without enabling quota-backe
   const host = new ConversationHost(
     {
       get: Sinon.stub().resolves(session),
+      assertOwnedSession: Sinon.stub().resolves(),
       findTurnByCompatSubmissionId: Sinon.stub().resolves(durableTurn),
       revertLatestMessage: Sinon.stub().resolves(undefined),
     } as any,
@@ -2771,6 +2775,7 @@ test('ActionStreamHost should cap session-backed action prompt by selected model
     {},
     {
       userId: 'user-1',
+      sessionId: 'session-1',
       workspaceId: 'workspace-1',
       byokLeaseId: 'lease-1',
       featureKind: 'action',

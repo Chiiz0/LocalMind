@@ -22,14 +22,16 @@ function createService(notifications: Notification[] = []) {
     listNotification: vi.fn(
       async (
         _pagination: unknown,
-        _includeRead: boolean,
+        includeRead: boolean,
         _signal?: AbortSignal
       ) => ({
-        totalCount: notifications.length,
-        edges: notifications.map(notification => ({
-          cursor: notification.createdAt,
-          node: notification,
-        })),
+        totalCount: notifications.filter(n => includeRead || !n.read).length,
+        edges: notifications
+          .filter(n => includeRead || !n.read)
+          .map(notification => ({
+            cursor: notification.createdAt,
+            node: notification,
+          })),
         pageInfo: {
           startCursor: null,
           endCursor: null,
@@ -38,15 +40,34 @@ function createService(notifications: Notification[] = []) {
         },
       })
     ),
-    readNotification: vi.fn(async () => true),
-    readAllNotifications: vi.fn(async () => true),
-    dismissNotification: vi.fn(async () => true),
-    dismissReadNotifications: vi.fn(async () => true),
+    readNotification: vi.fn(async (id: string) => {
+      notifications = notifications.map(n =>
+        n.id === id ? { ...n, read: true } : n
+      );
+      return true;
+    }),
+    readAllNotifications: vi.fn(async () => {
+      notifications = notifications.map(n => ({ ...n, read: true }));
+      return true;
+    }),
+    dismissNotification: vi.fn(async (id: string) => {
+      notifications = notifications.filter(n => n.id !== id);
+      return true;
+    }),
+    dismissReadNotifications: vi.fn(async () => {
+      notifications = notifications.filter(n => !n.read);
+      return true;
+    }),
+    dismissAllNotifications: vi.fn(async () => {
+      notifications = [];
+      return true;
+    }),
   };
   const count = {
     revision$: new LiveData(0),
     count$: new LiveData(1),
     setCount: vi.fn((value: number) => count.count$.setValue(value)),
+    revalidate: vi.fn(),
   };
   const framework = new Framework();
   framework.service(
@@ -62,7 +83,12 @@ function createService(notifications: Notification[] = []) {
       )
   );
   const service = framework.provider().get(NotificationListService);
-  return { count, service, store };
+  return {
+    count,
+    service,
+    store,
+    add: (n: Notification) => notifications.push(n),
+  };
 }
 
 describe('NotificationListService', () => {
@@ -105,9 +131,11 @@ describe('NotificationListService', () => {
     service.notifications$.setValue([notification]);
 
     await service.readNotification(notification.id);
-    expect(service.notifications$.value).toEqual([
-      { ...notification, read: true },
-    ]);
+    await vi.waitFor(() =>
+      expect(service.notifications$.value).toEqual([
+        { ...notification, read: true },
+      ])
+    );
     expect(count.setCount).toHaveBeenCalledWith(0);
 
     await service.dismissNotification(notification.id);
@@ -124,7 +152,9 @@ describe('NotificationListService', () => {
 
     await service.dismissReadNotifications();
 
-    expect(service.notifications$.value).toEqual([unread]);
+    await vi.waitFor(() =>
+      expect(service.notifications$.value).toEqual([unread])
+    );
     expect(store.dismissReadNotifications).toHaveBeenCalledOnce();
   });
 
@@ -139,5 +169,80 @@ describe('NotificationListService', () => {
     );
 
     expect(count.count$.value).toBe(1);
+    await vi.waitFor(() =>
+      expect(service.notifications$.value).toEqual([notification])
+    );
+  });
+
+  test('clears beyond the loaded page, prevents repeated submissions and reloads from the first page', async () => {
+    const notifications = Array.from({ length: 120 }, (_, i) =>
+      makeNotification(String(i))
+    );
+    const { count, service, store } = createService(notifications);
+    service.notifications$.setValue(notifications.slice(0, 8));
+    service.nextCursor$.setValue('old-cursor');
+    count.count$.setValue(120);
+    let finish!: () => void;
+    const clear = store.dismissAllNotifications.getMockImplementation()!;
+    store.dismissAllNotifications.mockImplementationOnce(async () => {
+      await new Promise<void>(resolve => {
+        finish = resolve;
+      });
+      return clear();
+    });
+    const pending = service.dismissAllNotifications();
+    await service.dismissAllNotifications();
+    expect(service.isMutating$.value).toBe(true);
+    expect(count.count$.value).toBe(0);
+    expect(service.notifications$.value).toEqual([]);
+    count.revision$.setValue(1);
+    expect(store.listNotification).not.toHaveBeenCalled();
+    finish();
+    await pending;
+    expect(store.dismissAllNotifications).toHaveBeenCalledOnce();
+    await vi.waitFor(() => expect(service.hasMore$.value).toBe(false));
+    expect(store.listNotification.mock.lastCall?.[0]).toEqual({
+      first: 8,
+      after: undefined,
+    });
+    expect(count.revalidate).toHaveBeenCalledOnce();
+    expect(service.isMutating$.value).toBe(false);
+  });
+
+  test('preserves a newer unread count received before a read mutation responds', async () => {
+    const one = makeNotification('one');
+    const two = makeNotification('two');
+    const { count, service, store, add } = createService([one, two]);
+    count.count$.setValue(2);
+    service.notifications$.setValue([one, two]);
+    const read = store.readNotification.getMockImplementation()!;
+    store.readNotification.mockImplementationOnce(async id => {
+      await read(id);
+      add(makeNotification('new'));
+      count.count$.setValue(2);
+      count.revision$.setValue(1);
+      return true;
+    });
+    await service.readNotification('one');
+    await vi.waitFor(() =>
+      expect(service.notifications$.value.map(n => n.id)).toEqual([
+        'two',
+        'new',
+      ])
+    );
+    expect(count.count$.value).toBe(2);
+  });
+
+  test('failed clear restores notifications and permits retry', async () => {
+    const one = makeNotification('one');
+    const { service, store, count } = createService([one]);
+    service.notifications$.setValue([one]);
+    store.dismissAllNotifications.mockRejectedValueOnce(new Error('offline'));
+    await expect(service.dismissAllNotifications()).rejects.toThrow('offline');
+    await vi.waitFor(() => expect(service.notifications$.value).toEqual([one]));
+    expect(count.count$.value).toBe(1);
+    expect(service.isMutating$.value).toBe(false);
+    await service.dismissAllNotifications();
+    expect(service.notifications$.value).toEqual([]);
   });
 });

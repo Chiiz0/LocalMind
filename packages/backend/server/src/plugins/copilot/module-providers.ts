@@ -9,6 +9,8 @@ import {
   AiProfileService,
   ByokEntitlementPolicy,
   ByokService,
+  ProjectAiModelResolver,
+  ProjectByokResolver,
   WorkspaceByokResolver,
 } from './byok';
 import { HistoryAttachmentUrlProjector } from './compat/history-attachment-url-projector';
@@ -65,6 +67,14 @@ import {
   CopilotAgentRuntimeOfficeCommandAdapter,
   OfficeAgentCommandService,
 } from './office-agent-command';
+import { ProjectAgentRuntimeResolver } from './project-agent-runtime-resolver';
+import { CopilotProjectAgentRuntimeWorker } from './project-agent-runtime-worker';
+import { ProjectContextResolver } from './project-context-resolver';
+import { ProjectContextService } from './project-context-service';
+import {
+  ProjectOfficeAgentCommandAdapter,
+  ProjectOfficeAgentCommandService,
+} from './project-office-agent-command';
 import { PromptService } from './prompt';
 import { CopilotProviderHealthWorker } from './provider-health-worker';
 import {
@@ -150,6 +160,8 @@ export const COPILOT_RUNTIME_PROVIDERS = [
   ExternalMcpConnectionService,
   ExternalMcpToolRegistry,
   OfficeAgentCommandService,
+  ProjectOfficeAgentCommandService,
+  ProjectContextService,
   ModelSelectionPolicy,
   ActionRuntimeBridge,
   CopilotExecutionMetrics,
@@ -209,6 +221,9 @@ export const COPILOT_RESOLVER_PROVIDERS = [
   CopilotContextRootResolver,
   AiProfileResolver,
   WorkspaceByokResolver,
+  ProjectByokResolver,
+  ProjectAiModelResolver,
+  ProjectContextResolver,
 ];
 
 export const COPILOT_JOB_PROVIDERS = [
@@ -221,6 +236,9 @@ export const COPILOT_JOB_PROVIDERS = [
   CopilotAgentRuntimeOfficeCommandAdapter,
   CopilotAgentRuntimeLocalMindToolAgentAdapter,
   CopilotAgentRuntimeWorker,
+  CopilotProjectAgentRuntimeWorker,
+  ProjectAgentRuntimeResolver,
+  ProjectOfficeAgentCommandAdapter,
   CopilotProviderHealthWorker,
   CopilotRepairExecutionWorker,
   McpAttachmentService,

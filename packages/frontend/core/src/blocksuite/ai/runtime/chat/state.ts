@@ -3,6 +3,11 @@ import type { CopilotChatHistoryFragment } from '@affine/graphql';
 
 export type AIChatScope =
   | {
+      kind: 'project';
+      projectId: string;
+      workspaceId?: never;
+    }
+  | {
       kind: 'doc';
       workspaceId: string;
       docId: string;
@@ -227,7 +232,7 @@ export function sessionToTab(session: CopilotChatHistoryFragment): AIChatTab {
 export function createDraftTab(scope: AIChatScope): AIChatTab {
   return {
     kind: 'draft',
-    id: `draft:${scope.kind}:${'docId' in scope ? (scope.docId ?? '') : ''}`,
+    id: `draft:${scope.kind}:${scope.kind === 'project' ? scope.projectId : 'docId' in scope ? (scope.docId ?? '') : ''}`,
     title: 'New chat',
     scope,
     hasMessages: false,

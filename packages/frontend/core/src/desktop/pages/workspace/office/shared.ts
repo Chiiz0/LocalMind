@@ -1,5 +1,8 @@
 import type { GraphQLService } from '@affine/core/modules/cloud';
-import type { OfficeArtifactQuery } from '@affine/graphql';
+import type {
+  OfficeArtifactQuery,
+  ProjectOfficeArtifactQuery,
+} from '@affine/graphql';
 import type { OfficeCommand, OfficeSelection } from '@localmind/office';
 import type { DocxBlock, DocxParagraph } from '@localmind/office/docx';
 import type { PptxShape } from '@localmind/office/pptx';
@@ -10,10 +13,13 @@ import {
   type NativeOfficeState,
   type OfficeArtifactKindValue,
   type OfficeCommentAnchor,
+  type OfficeResourceOwner,
   previewOfficeCommand,
 } from '../../../../modules/office';
 
-export type OfficeArtifact = NonNullable<OfficeArtifactQuery['officeArtifact']>;
+export type OfficeArtifact =
+  | NonNullable<OfficeArtifactQuery['officeArtifact']>
+  | ProjectOfficeArtifactQuery['projectOfficeArtifact'];
 export type OfficeRevision = OfficeArtifact['currentRevision'];
 
 export function isHistoricalOfficeRevision(
@@ -153,7 +159,7 @@ export type NativeOfficeEditorProps<TState extends NativeOfficeState> = {
   state: TState;
   revision: OfficeRevision;
   artifactId: string;
-  workspaceId: string;
+  owner: OfficeResourceOwner;
   graphql: GraphQLService;
   readOnly: boolean;
   onRevision: (revision: OfficeRevision, state: TState) => void;
@@ -165,18 +171,18 @@ export async function executeAndReloadOfficeCommand<
   TState extends NativeOfficeState,
 >(input: {
   graphql: GraphQLService;
-  workspaceId: string;
+  owner: OfficeResourceOwner;
   kind: OfficeArtifactKindValue;
   command: OfficeCommand;
 }) {
   const preview = await previewOfficeCommand(
     input.graphql,
-    input.workspaceId,
+    input.owner,
     input.command
   );
   const execution = await executeOfficeCommand(
     input.graphql,
-    input.workspaceId,
+    input.owner,
     input.command
   );
   const revision = execution.executeOfficeCommand.artifact.currentRevision;

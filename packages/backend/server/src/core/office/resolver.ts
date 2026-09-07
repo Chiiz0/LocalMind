@@ -325,14 +325,23 @@ export class OfficeResolver {
   }
 
   private projectArtifact(record: ArtifactWithRevision): OfficeArtifactType {
+    if (!record.artifact.workspaceId || record.artifact.projectId)
+      throw new Error(
+        'This Office endpoint requires a Workspace-owned artifact'
+      );
     return {
       ...record.artifact,
+      workspaceId: record.artifact.workspaceId,
       compatibility: record.artifact.compatibility as Record<string, unknown>,
       currentRevision: this.projectRevision(record.revision),
     };
   }
 
   private projectRevision(revision: OfficeRevision): OfficeRevisionType {
+    if (!revision.workspaceId || revision.projectId)
+      throw new Error(
+        'This Office endpoint requires a Workspace-owned revision'
+      );
     const root = `/api/workspaces/${encodeURIComponent(
       revision.workspaceId
     )}/office/artifacts/${encodeURIComponent(
@@ -340,6 +349,7 @@ export class OfficeResolver {
     )}/revisions/${encodeURIComponent(revision.id)}`;
     return {
       ...revision,
+      workspaceId: revision.workspaceId,
       operationSummary: revision.operationSummary as Record<string, unknown>,
       packageUrl: this.url.link(`${root}/package`),
       stateUrl: revision.stateBlobKey ? this.url.link(`${root}/state`) : null,

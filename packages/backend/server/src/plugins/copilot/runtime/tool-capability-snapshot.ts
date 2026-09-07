@@ -7,6 +7,7 @@ export const TOOL_CAPABILITY_SNAPSHOT_VERSION =
 export type ToolSideEffectType =
   | 'read'
   | 'workspace_write'
+  | 'project_write'
   | 'external_dynamic';
 
 export type ToolCapabilitySnapshot = {
@@ -68,7 +69,7 @@ export function toolCapability(name: string, tool: CopilotTool) {
   return {
     name,
     schemaFingerprint: toolSchemaFingerprint(tool.jsonSchema),
-    sideEffectType: toolSideEffectType(name),
+    sideEffectType: tool.sideEffectType ?? toolSideEffectType(name),
   } satisfies ToolCapabilitySnapshot;
 }
 

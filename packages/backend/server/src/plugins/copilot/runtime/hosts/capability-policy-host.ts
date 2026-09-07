@@ -97,6 +97,9 @@ export class CapabilityPolicyHost {
     const modelSelectionScope = await this.resolveModelSelectionScope(
       input.routeContext
     );
+    if (modelSelectionScope.projectModelId) {
+      return modelSelectionScope.projectModelId;
+    }
     const resolved = this.modelSelection.resolveRequestedModel({
       ...input,
       extraModels: modelSelectionScope.configuredModelIds,
@@ -146,6 +149,7 @@ export class CapabilityPolicyHost {
     }
 
     return {
+      projectModelId: undefined,
       providerIds: undefined,
       configuredModelIds:
         this.providerFactory.getConfiguredModelIds(routeContext),
@@ -169,7 +173,9 @@ export class CapabilityPolicyHost {
       : options.quotaBackedRoutesAllowed;
     const routeContext = {
       userId: session.config.userId,
-      workspaceId: session.config.workspaceId,
+      sessionId: session.config.sessionId,
+      workspaceId: session.config.workspaceId ?? undefined,
+      projectId: session.config.selectedContextProjectId ?? undefined,
       byokLeaseId: options.byokLeaseId,
       featureKind:
         options.featureKind ??
@@ -196,9 +202,17 @@ export class CapabilityPolicyHost {
       {},
       routeContext
     );
-    const tools = options.officeContext
-      ? (['office'] as const)
-      : getTools(session.config.promptConfig?.tools, options.toolsConfig);
+    const promptTools = getTools(
+      session.config.promptConfig?.tools,
+      options.toolsConfig
+    );
+    // Native Project collaboration is a product capability, including for legacy prompts without tools.
+    const projectTools =
+      session.config.workspaceId === null &&
+      session.config.selectedContextProjectId
+        ? [...new Set([...(promptTools ?? []), 'blocker' as const])]
+        : promptTools;
+    const tools = options.officeContext ? (['office'] as const) : projectTools;
     return {
       model,
       contextWindow,
@@ -206,7 +220,7 @@ export class CapabilityPolicyHost {
         ...session.config.promptConfig,
         user: session.config.userId,
         session: session.config.sessionId,
-        workspace: session.config.workspaceId,
+        workspace: session.config.workspaceId ?? undefined,
         byokLeaseId: options.byokLeaseId,
         billingUnitId: options.billingUnitId,
         featureKind: routeContext.featureKind,

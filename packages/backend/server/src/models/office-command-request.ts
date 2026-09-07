@@ -3,6 +3,13 @@ import { Transactional } from '@nestjs-cls/transactional';
 import { type OfficeCommandRequest, Prisma } from '@prisma/client';
 
 import { BaseModel } from './base';
+import {
+  type OfficeOwner,
+  officeOwnerColumns,
+  officeOwnerFromInput,
+  type OfficeOwnerInput,
+  officeWriterLock,
+} from './office-owner';
 
 export const OFFICE_COMMAND_BLOB_MIME =
   'application/vnd.localmind.office-command+json';
@@ -14,8 +21,7 @@ const MAX_FINGERPRINT_LENGTH = 128;
 export const OFFICE_COMMAND_MAX_BYTES = 32 * 1024 * 1024;
 const MAX_PREVIEW_SUMMARY_BYTES = 32 * 1024;
 
-export type CreateOfficeCommandRequestInput = {
-  workspaceId: string;
+export type CreateOfficeCommandRequestInput = OfficeOwnerInput & {
   artifactId: string;
   expectedRevisionId: string;
   actorId: string;
@@ -30,8 +36,10 @@ export type CreateOfficeCommandRequestInput = {
 
 type ReusableOfficeCommandRequestEvidence = Omit<
   CreateOfficeCommandRequestInput,
-  'actorId'
+  'actorId' | 'workspaceId' | 'projectId'
 > & {
+  workspaceId: string | null;
+  projectId: string | null;
   requestedBy: string;
 };
 
@@ -85,11 +93,13 @@ function normalizePreviewSummary(value: Prisma.InputJsonObject) {
 export class OfficeCommandRequestModel extends BaseModel {
   @Transactional()
   async createOrReuse(input: CreateOfficeCommandRequestInput) {
-    const workspaceId = requireString(
-      input.workspaceId,
-      'workspace id',
-      MAX_ID_LENGTH
-    );
+    const owner = officeOwnerFromInput(input);
+    const ownership = officeOwnerColumns(owner);
+    if (ownership.projectId)
+      await this.models.projectResource.assertMember({
+        projectId: ownership.projectId,
+        actorId: input.actorId,
+      });
     const artifactId = requireString(
       input.artifactId,
       'artifact id',
@@ -137,7 +147,7 @@ export class OfficeCommandRequestModel extends BaseModel {
     });
     if (existing) {
       return this.reuse(existing, {
-        workspaceId,
+        ...ownership,
         artifactId,
         expectedRevisionId,
         requestedBy,
@@ -152,10 +162,10 @@ export class OfficeCommandRequestModel extends BaseModel {
     }
 
     await this.db
-      .$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`office-artifact:${workspaceId}:${artifactId}`}, 0))`;
+      .$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${officeWriterLock(owner, artifactId)}, 0))`;
 
     const artifact = await this.db.officeArtifact.findFirst({
-      where: { id: artifactId, workspaceId },
+      where: { id: artifactId, ...ownership },
     });
     if (!artifact) {
       throw new Error(`Office artifact not found: ${artifactId}`);
@@ -173,8 +183,7 @@ export class OfficeCommandRequestModel extends BaseModel {
         `Office artifact revision conflict: expected ${expectedRevisionId}`
       );
     }
-    await this.requireCommandBlob({
-      workspaceId,
+    await this.requireCommandBlob(owner, {
       key: commandBlobKey,
       byteSize: commandByteSize,
     });
@@ -182,7 +191,7 @@ export class OfficeCommandRequestModel extends BaseModel {
     const inserted = await this.db.officeCommandRequest.createMany({
       data: [
         {
-          workspaceId,
+          ...ownership,
           artifactId,
           expectedRevisionId,
           requestedBy,
@@ -209,7 +218,7 @@ export class OfficeCommandRequestModel extends BaseModel {
     }
     if (!inserted.count) {
       return this.reuse(request, {
-        workspaceId,
+        ...ownership,
         artifactId,
         expectedRevisionId,
         requestedBy,
@@ -225,9 +234,19 @@ export class OfficeCommandRequestModel extends BaseModel {
     return { created: true, request };
   }
 
-  async get(workspaceId: string, id: string) {
+  async get(owner: OfficeOwner, id: string) {
     return await this.db.officeCommandRequest.findFirst({
-      where: { id, workspaceId },
+      where: { id, ...officeOwnerColumns(owner) },
+    });
+  }
+
+  async getByKey(
+    owner: OfficeOwner,
+    artifactId: string,
+    idempotencyKey: string
+  ) {
+    return this.db.officeCommandRequest.findFirst({
+      where: { ...officeOwnerColumns(owner), artifactId, idempotencyKey },
     });
   }
 
@@ -237,6 +256,7 @@ export class OfficeCommandRequestModel extends BaseModel {
   ) {
     const comparable = [
       'workspaceId',
+      'projectId',
       'artifactId',
       'expectedRevisionId',
       'requestedBy',
@@ -260,11 +280,27 @@ export class OfficeCommandRequestModel extends BaseModel {
     return { created: false, request: existing };
   }
 
-  private async requireCommandBlob(input: {
-    workspaceId: string;
-    key: string;
-    byteSize: number;
-  }) {
+  private async requireCommandBlob(
+    owner: OfficeOwner,
+    input: {
+      key: string;
+      byteSize: number;
+    }
+  ) {
+    if (typeof owner !== 'string') {
+      const blob = await this.db.projectBlob.findUnique({
+        where: {
+          projectId_key: { projectId: owner.projectId, key: input.key },
+        },
+      });
+      if (
+        !blob ||
+        blob.mimeType !== OFFICE_COMMAND_BLOB_MIME ||
+        blob.byteSize !== input.byteSize
+      )
+        throw new Error('Office command Project Blob does not match');
+      return;
+    }
     const [blob] = await this.db.$queryRaw<
       Array<{
         mime: string;
@@ -279,7 +315,7 @@ export class OfficeCommandRequestModel extends BaseModel {
         "status"::text AS "status",
         "deleted_at" AS "deletedAt"
       FROM "blobs"
-      WHERE "workspace_id" = ${input.workspaceId}
+      WHERE "workspace_id" = ${owner}
         AND "key" = ${input.key}
       FOR UPDATE
     `;

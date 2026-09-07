@@ -80,6 +80,7 @@ export class CopilotDocumentOperationService {
     );
     if (
       !session ||
+      !session.workspaceId ||
       session.userId !== operation.actorId ||
       session.selectedContextProjectId !== operation.projectId
     )
@@ -109,6 +110,10 @@ export class CopilotDocumentOperationService {
       });
     }
     if (operation.projectId) {
+      if (operation.status !== 'complete')
+        throw new BadRequest(
+          'This legacy Project operation requires migration. Its draft is retained; use the Project resource publication workflow.'
+        );
       const access =
         await this.models.intelligenceWorkbenchAuthorization.getProjectDocumentAccess(
           {

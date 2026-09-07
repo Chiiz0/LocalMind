@@ -101,7 +101,11 @@ export class WorkspaceBlobStorage {
     workspaceId: string,
     key: string,
     blob: Buffer,
-    input: { uploadId: string; contentType: string },
+    input: {
+      uploadId: string;
+      contentType: string;
+      deferQuotaInvalidation?: boolean;
+    },
     authorize: () => Promise<void>
   ) {
     if (
@@ -135,7 +139,11 @@ export class WorkspaceBlobStorage {
         );
     }
     // Uploaded bytes stay unreadable until this authorization transaction commits.
-    await this.models.blob.publishCopyUpload(reservation, authorize);
+    await this.models.blob.publishCopyUpload(
+      reservation,
+      authorize,
+      !input.deferQuotaInvalidation
+    );
   }
 
   async capabilities(): Promise<StorageProviderCapabilities> {

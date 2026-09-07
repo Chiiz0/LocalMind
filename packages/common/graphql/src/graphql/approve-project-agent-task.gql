@@ -1,0 +1,4 @@
+mutation approveProjectAgentTask($projectId: String!, $runId: String!, $targetFingerprint: String!) {
+  approveProjectAgentTask(projectId: $projectId, runId: $runId, targetFingerprint: $targetFingerprint) { ...ProjectAgentTaskFields }
+}
+#import './fragments/project-agent-task-fields.gql'

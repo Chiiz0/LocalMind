@@ -1,6 +1,10 @@
 import { Button, IconButton, Loading, notify, Tabs } from '@affine/component';
 import { DocumentCreationPanel } from '@affine/core/components/ai-document-creation/document-creation-panel';
 import { useQuery } from '@affine/core/components/hooks/use-query';
+import {
+  ProjectFileRequestDetail,
+  useFileRequestStatus,
+} from '@affine/core/components/project-file-request/detail';
 import { getWorkspaceDocPath } from '@affine/core/desktop/route-paths';
 import { GraphQLService, ServerService } from '@affine/core/modules/cloud';
 import { UserFriendlyError } from '@affine/error';
@@ -85,6 +89,7 @@ const filterForTask = (task: WorkbenchTask): WorkbenchTaskFilter => {
 
 export const GlobalWorkbenchTasks = () => {
   const t = useI18n();
+  const fileRequestStatus = useFileRequestStatus();
   const navigate = useNavigate();
   const graphqlService = useService(GraphQLService);
   const server = useService(ServerService).server;
@@ -199,6 +204,7 @@ export const GlobalWorkbenchTasks = () => {
 
   const statusFor = useCallback(
     (task: WorkbenchTask) => {
+      if (task.kind === 'file_request') return fileRequestStatus(task.status);
       if (task.status === 'waiting_for_location')
         return t['com.affine.localmind.documentCreation.waiting']();
       if (task.run?.abandoned) {
@@ -222,12 +228,14 @@ export const GlobalWorkbenchTasks = () => {
       const translated = t[key];
       return typeof translated === 'function' ? translated() : task.status;
     },
-    [t]
+    [t, fileRequestStatus]
   );
 
   const kindFor = useCallback(
     (task: WorkbenchTask) => {
       switch (task.kind) {
+        case 'file_request':
+          return t['com.affine.localmind.fileRequest.title']();
         case 'run':
           return t['com.affine.localmind.tasks.authorization.kind.run']();
         case 'access_request':
@@ -578,6 +586,12 @@ const GlobalTaskDetail = ({
         </div>
       </header>
 
+      {task.kind === 'file_request' ? (
+        <ProjectFileRequestDetail
+          requestId={task.entityId}
+          onChanged={onChanged}
+        />
+      ) : null}
       {task.run?.sessionId &&
       task.run.workflow === 'agent_runtime_localmind_tool_agent' ? (
         <DocumentCreationPanel

@@ -28,6 +28,9 @@ const state = vi.hoisted(() => ({
   notifyError: vi.fn(),
   openWorkspaceDialog: vi.fn(),
   projectDocumentGranted: true,
+  projectAvailable: true,
+  projectsLoading: false,
+  projectsResolved: true,
   quickSearchToggle: vi.fn(),
   project: {
     id: 'project-1',
@@ -95,6 +98,8 @@ const state = vi.hoisted(() => ({
 
 const tokens = vi.hoisted(() => ({
   GraphQLService: class GraphQLService {},
+  DefaultServerService: class DefaultServerService {},
+  NotificationCountService: class NotificationCountService {},
   WorkspaceServerService: class WorkspaceServerService {},
   QuickSearchService: class QuickSearchService {},
   WorkspaceDialogService: class WorkspaceDialogService {},
@@ -138,32 +143,42 @@ vi.mock('@affine/core/components/hooks/use-query', () => ({
   ) => {
     state.query(request, config);
     if (request.query === tokens.projectsQuery) {
+      if (!state.projectsResolved) {
+        return {
+          data: undefined,
+          error: undefined,
+          isLoading: false,
+          mutate: state.refreshProjects,
+        };
+      }
       return {
         data: {
           currentUser: {
             copilot: {
-              contextProjects: [
-                state.projectDocumentGranted
-                  ? state.project
-                  : {
-                      ...state.project,
-                      documents: state.project.documents.map(document =>
-                        document.docId === 'doc-1'
-                          ? {
-                              ...document,
-                              docId: null,
-                              title: null,
-                              status: 'revoked',
-                            }
-                          : document
-                      ),
-                    },
-              ],
+              contextProjects: state.projectAvailable
+                ? [
+                    state.projectDocumentGranted
+                      ? state.project
+                      : {
+                          ...state.project,
+                          documents: state.project.documents.map(document =>
+                            document.docId === 'doc-1'
+                              ? {
+                                  ...document,
+                                  docId: null,
+                                  title: null,
+                                  status: 'revoked',
+                                }
+                              : document
+                          ),
+                        },
+                  ]
+                : [],
             },
           },
         },
         error: undefined,
-        isLoading: false,
+        isLoading: state.projectsLoading,
         mutate: state.refreshProjects,
       };
     }
@@ -228,6 +243,10 @@ vi.mock('@affine/core/components/root-app-sidebar/notification-button', () => ({
   NotificationButton: () => <button type="button">Notifications</button>,
 }));
 
+vi.mock('@affine/core/modules/notification', () => ({
+  NotificationCountService: tokens.NotificationCountService,
+}));
+
 vi.mock('@affine/core/components/root-app-sidebar/user-info', () => ({
   default: () => <div>User</div>,
 }));
@@ -256,6 +275,7 @@ vi.mock('@affine/core/modules/app-sidebar/views', () => ({
 
 vi.mock('@affine/core/modules/cloud', () => ({
   GraphQLService: tokens.GraphQLService,
+  DefaultServerService: tokens.DefaultServerService,
   WorkspaceServerService: tokens.WorkspaceServerService,
 }));
 
@@ -352,23 +372,56 @@ vi.mock('@toeverything/infra', () => ({
       };
     }
     if (token === tokens.GraphQLService) return { gql: state.gql };
+    if (token === tokens.DefaultServerService) {
+      return { server: { scope: 'default-server-scope' } };
+    }
+    if (token === tokens.NotificationCountService) {
+      return {
+        // eslint-disable-next-line rxjs/finnish -- Mock key mirrors the NotificationCountService API.
+        revision$: { subscribe: () => ({ unsubscribe: vi.fn() }) },
+      };
+    }
     if (token === tokens.WorkspaceDialogService) {
       return { open: state.openWorkspaceDialog };
     }
     throw new Error('Unexpected service token');
   },
-  useServiceOptional: () => ({ toggle: state.quickSearchToggle }),
+  useServiceOptional: (token: unknown) => {
+    if (token === tokens.QuickSearchService) {
+      return state.workspaces.length
+        ? { toggle: state.quickSearchToggle }
+        : null;
+    }
+    if (token === tokens.WorkspaceDialogService) {
+      return state.workspaces.length
+        ? { open: state.openWorkspaceDialog }
+        : null;
+    }
+    return null;
+  },
+}));
+
+vi.mock('./project-resource-preview', () => ({
+  ProjectResourcePreview: () => <div data-testid="project-resource-preview" />,
 }));
 
 vi.mock('./project-tree', () => ({
   ProjectTree: ({
     onAddDocuments,
     onSelectDocument,
+    onSelectProject,
   }: {
     onAddDocuments: (project: object, level: 'read' | 'write') => void;
     onSelectDocument: (projectId: string, document: object) => void;
+    onSelectProject: (projectId: string | null) => void;
   }) => (
     <>
+      <button type="button" onClick={() => onSelectProject(null)}>
+        All projects
+      </button>
+      <button type="button" onClick={() => onSelectProject('project-1')}>
+        Select project
+      </button>
       <button
         type="button"
         onClick={() =>
@@ -564,9 +617,9 @@ const LocationProbe = () => {
   );
 };
 
-const renderWorkbench = () =>
+const renderWorkbench = (route = '/intelligence?project=project-1') =>
   render(
-    <MemoryRouter initialEntries={['/intelligence?project=project-1']}>
+    <MemoryRouter initialEntries={[route]}>
       <Component />
       <LocationProbe />
     </MemoryRouter>
@@ -585,6 +638,9 @@ describe('Intelligence workbench shell', () => {
     state.notifyError.mockReset();
     state.openWorkspaceDialog.mockReset();
     state.projectDocumentGranted = true;
+    state.projectAvailable = true;
+    state.projectsLoading = false;
+    state.projectsResolved = true;
     state.openWorkspaceDialog.mockImplementation(
       (_name, _options, onSelect: (ids: string[]) => void) => {
         onSelect?.(['doc-new']);
@@ -615,6 +671,103 @@ describe('Intelligence workbench shell', () => {
 
   afterEach(cleanup);
 
+  test('shows aggregate tasks without mounting chat in All projects', () => {
+    renderWorkbench('/intelligence');
+
+    expect(screen.queryByTestId('conversation')).toBeNull();
+    expect(state.conversationMounts).toBe(0);
+    expect(state.query).toHaveBeenCalledWith(
+      {
+        query: tokens.tasksQuery,
+        variables: { projectId: undefined },
+      },
+      expect.anything()
+    );
+    expect(
+      screen.getByRole('button', { name: 'View all Todo' })
+    ).not.toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select project' }));
+    expect(screen.queryByTestId('conversation')).not.toBeNull();
+    expect(state.conversationMounts).toBe(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'All projects' }));
+    expect(screen.queryByTestId('conversation')).toBeNull();
+    expect(state.conversationUnmounts).toBe(1);
+    expect(screen.getByTestId('location').textContent).toBe('/intelligence');
+  });
+
+  test('does not mount chat before the selected project is available', () => {
+    state.projectAvailable = false;
+    state.projectsLoading = true;
+    const view = renderWorkbench();
+
+    expect(screen.queryByTestId('conversation')).toBeNull();
+    expect(state.conversationMounts).toBe(0);
+
+    state.projectAvailable = true;
+    state.projectsLoading = false;
+    view.rerender(
+      <MemoryRouter initialEntries={['/intelligence?project=project-1']}>
+        <Component />
+        <LocationProbe />
+      </MemoryRouter>
+    );
+    expect(screen.queryByTestId('conversation')).not.toBeNull();
+  });
+
+  test('preserves the Project and resource URL while a suspended query has no resolved data', () => {
+    state.projectsResolved = false;
+    const view = renderWorkbench(
+      '/intelligence?project=project-1&resource=native-doc'
+    );
+    expect(screen.getByTestId('location').textContent).toBe(
+      '/intelligence?project=project-1&resource=native-doc'
+    );
+    state.projectsResolved = true;
+    view.rerender(
+      <MemoryRouter
+        initialEntries={['/intelligence?project=project-1&resource=native-doc']}
+      >
+        <Component />
+        <LocationProbe />
+      </MemoryRouter>
+    );
+    expect(screen.queryByTestId('conversation')).not.toBeNull();
+    expect(screen.getByTestId('location').textContent).toBe(
+      '/intelligence?project=project-1&resource=native-doc'
+    );
+  });
+
+  test('does not mount chat for an unavailable project in the URL', async () => {
+    renderWorkbench('/intelligence?project=unavailable-project');
+
+    expect(state.conversationMounts).toBe(0);
+    await waitFor(() => {
+      expect(screen.getByTestId('location').textContent).toBe('/intelligence');
+    });
+    expect(screen.queryByTestId('conversation')).toBeNull();
+  });
+
+  test('unmounts chat when the selected project is no longer accessible', async () => {
+    const view = renderWorkbench();
+    expect(state.conversationMounts).toBe(1);
+
+    state.projectAvailable = false;
+    view.rerender(
+      <MemoryRouter initialEntries={['/intelligence?project=project-1']}>
+        <Component />
+        <LocationProbe />
+      </MemoryRouter>
+    );
+
+    expect(screen.queryByTestId('conversation')).toBeNull();
+    expect(state.conversationUnmounts).toBe(1);
+    await waitFor(() => {
+      expect(screen.getByTestId('location').textContent).toBe('/intelligence');
+    });
+  });
+
   test('falls back to an accessible execution host and sends project filtering to the server', async () => {
     localStorage.setItem('last_workspace_id', 'missing-workspace');
     renderWorkbench();
@@ -641,22 +794,26 @@ describe('Intelligence workbench shell', () => {
     );
   });
 
-  test('marks the unavailable shell ready while workspace discovery is empty', () => {
+  test('loads project navigation through the server without a workspace', () => {
     state.workspaces = [];
     renderWorkbench();
 
     expect(
-      screen.getByText('com.affine.localmind.workbench.noHost')
+      screen.getByRole('button', { name: 'Select project' })
     ).not.toBeNull();
+    expect(screen.queryByTestId('host-workspace')).toBeNull();
+    expect(state.frameworkScopes).toContain('default-server-scope');
     expect(state.layoutReady).toHaveBeenCalled();
   });
 
-  test('marks the loading shell ready before the host workspace resolves', () => {
+  test('keeps project navigation available during workspace discovery', () => {
     state.workspaces = [];
     state.workspacesRevalidating = true;
     renderWorkbench();
 
-    expect(screen.getByTestId('loading')).not.toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'Select project' })
+    ).not.toBeNull();
     expect(state.layoutReady).toHaveBeenCalled();
   });
 
@@ -728,6 +885,16 @@ describe('Intelligence workbench shell', () => {
     expect(state.conversationUnmounts).toBe(0);
 
     fireEvent.click(toggle);
+    for (const role of ['dialog', 'menu']) {
+      const overlay = document.createElement('div');
+      overlay.setAttribute('role', role);
+      const control = document.createElement('button');
+      overlay.append(control);
+      document.body.append(overlay);
+      fireEvent.keyDown(control, { key: 'Escape' });
+      expect(navigation.dataset.mobileOpen).toBe('true');
+      overlay.remove();
+    }
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(navigation.dataset.mobileOpen).toBe('false');
   });

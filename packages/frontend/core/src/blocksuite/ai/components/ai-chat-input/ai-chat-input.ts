@@ -2,7 +2,7 @@ import type {
   AIDraftService,
   AIToolsConfigService,
 } from '@affine/core/modules/ai-button';
-import type { AIModelService } from '@affine/core/modules/ai-button/services/models';
+import type { AIModelSelection } from '@affine/core/modules/ai-button/services/models';
 import type {
   ServerService,
   SubscriptionService,
@@ -416,7 +416,7 @@ export class AIChatInput extends SignalWatcher(
   accessor subscriptionService!: SubscriptionService;
 
   @property({ attribute: false })
-  accessor aiModelService!: AIModelService;
+  accessor aiModelService!: AIModelSelection;
 
   @property({ attribute: false })
   accessor onAISubscribe!: () => Promise<void>;
@@ -626,6 +626,8 @@ export class AIChatInput extends SignalWatcher(
       <div class="chat-panel-input-actions">
         <div class="chat-input-icon">
           <ai-chat-add-context
+            .attachmentsOnly=${this.runtimeSnapshot?.scope.kind === 'project' &&
+            !this.searchMenuConfig}
             .docId=${this.docId}
             .independentMode=${this.independentMode}
             .addChip=${this.addChip}
@@ -867,7 +869,10 @@ export class AIChatInput extends SignalWatcher(
             : undefined,
         html: html || undefined,
       },
-      attachments: images,
+      attachments:
+        this.runtimeSnapshot?.scope.kind === 'project'
+          ? (images ?? [])
+          : images,
       attachmentPreviews: imageAttachments,
       isRootSession: this.isRootSession,
       where: this.trackOptions?.where,

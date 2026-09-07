@@ -2,8 +2,10 @@ import type { GraphQLService } from '@affine/core/modules/cloud';
 import type { Workspace } from '@affine/core/modules/workspace';
 import {
   executeOfficeCommandMutation,
+  executeProjectOfficeCommandMutation,
   importOfficeArtifactMutation,
   previewOfficeCommandQuery,
+  previewProjectOfficeCommandQuery,
 } from '@affine/graphql';
 import { sha } from '@blocksuite/global/utils';
 import type { OfficeCommand } from '@localmind/office';
@@ -14,6 +16,10 @@ import {
   type OfficeArtifactKindValue,
   type OfficeDocxCommand,
 } from './types';
+
+export type OfficeResourceOwner =
+  | { kind: 'workspace'; workspaceId: string }
+  | { kind: 'project'; projectId: string };
 
 export const DOCX_MIME =
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
@@ -94,41 +100,65 @@ export async function fetchOfficeDocxState(url: string, signal?: AbortSignal) {
 
 export async function previewOfficeCommand(
   graphql: GraphQLService,
-  workspaceId: string,
+  owner: string | OfficeResourceOwner,
   command: OfficeCommand
 ) {
+  if (typeof owner !== 'string' && owner.kind === 'project') {
+    const result = await graphql.gql({
+      query: previewProjectOfficeCommandQuery,
+      variables: { input: { projectId: owner.projectId, command } },
+    });
+    return { previewOfficeCommand: result.previewProjectOfficeCommand };
+  }
   return await graphql.gql({
     query: previewOfficeCommandQuery,
-    variables: { input: { workspaceId, command } },
+    variables: {
+      input: {
+        workspaceId: typeof owner === 'string' ? owner : owner.workspaceId,
+        command,
+      },
+    },
   });
 }
 
 export async function executeOfficeCommand(
   graphql: GraphQLService,
-  workspaceId: string,
+  owner: string | OfficeResourceOwner,
   command: OfficeCommand
 ) {
+  if (typeof owner !== 'string' && owner.kind === 'project') {
+    const result = await graphql.gql({
+      query: executeProjectOfficeCommandMutation,
+      variables: { input: { projectId: owner.projectId, command } },
+    });
+    return { executeOfficeCommand: result.executeProjectOfficeCommand };
+  }
   return await graphql.gql({
     query: executeOfficeCommandMutation,
-    variables: { input: { workspaceId, command } },
+    variables: {
+      input: {
+        workspaceId: typeof owner === 'string' ? owner : owner.workspaceId,
+        command,
+      },
+    },
   });
 }
 
 export async function previewOfficeDocxCommand(
   graphql: GraphQLService,
-  workspaceId: string,
+  owner: string | OfficeResourceOwner,
   command: OfficeDocxCommand
 ) {
-  const result = await previewOfficeCommand(graphql, workspaceId, command);
+  const result = await previewOfficeCommand(graphql, owner, command);
   return { previewOfficeDocxCommand: result.previewOfficeCommand };
 }
 
 export async function executeOfficeDocxCommand(
   graphql: GraphQLService,
-  workspaceId: string,
+  owner: string | OfficeResourceOwner,
   command: OfficeDocxCommand
 ) {
-  const result = await executeOfficeCommand(graphql, workspaceId, command);
+  const result = await executeOfficeCommand(graphql, owner, command);
   return { executeOfficeDocxCommand: result.executeOfficeCommand };
 }
 

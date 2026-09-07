@@ -1,0 +1,4 @@
+query projectFileRequest($requestId: String!) {
+  projectFileRequest(requestId: $requestId) { ...ProjectFileRequestFields }
+}
+#import './fragments/project-file-request-fields.gql'

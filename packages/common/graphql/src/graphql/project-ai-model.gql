@@ -1,0 +1,7 @@
+query projectAiModel($projectId: String!) {
+  projectAiModel(projectId: $projectId) {
+    configured
+    modelId
+    provider
+  }
+}

@@ -71,7 +71,8 @@ export class BlobModel extends BaseModel {
       size: number;
       mime: string;
     },
-    authorize: () => Promise<void>
+    authorize: () => Promise<void>,
+    invalidateQuota = true
   ) {
     await authorize();
     const updated = await this.db.blob.updateMany({
@@ -99,7 +100,7 @@ export class BlobModel extends BaseModel {
           'Copy attachment reservation is no longer active'
         );
     }
-    await this.markQuotaStateStale(input.workspaceId);
+    if (invalidateQuota) await this.markQuotaStateStale(input.workspaceId);
   }
 
   async upsert(blob: CreateBlobInput) {
@@ -254,7 +255,7 @@ export class BlobModel extends BaseModel {
     return sum._sum.size ?? 0;
   }
 
-  private async markQuotaStateStale(workspaceId: string) {
+  async markQuotaStateStale(workspaceId: string) {
     await this.db.effectiveWorkspaceQuotaState.updateMany({
       where: { workspaceId },
       data: { stale: true },

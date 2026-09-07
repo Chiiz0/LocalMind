@@ -1,6 +1,6 @@
 import type { AIToolsConfigService } from '@affine/core/modules/ai-button';
 import {
-  type AIModelService,
+  type AIModelSelection,
   formatAIModelDiagnosticsLabel,
   formatAIModelMenuLabels,
   resolveAIModelPromptName,
@@ -151,7 +151,7 @@ export class ChatInputPreference extends SignalWatcher(
   accessor subscriptionService!: SubscriptionService;
 
   @property({ attribute: false })
-  accessor aiModelService!: AIModelService;
+  accessor aiModelService!: AIModelSelection;
 
   @property({ attribute: false })
   accessor onAISubscribe!: () => Promise<void>;

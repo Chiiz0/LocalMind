@@ -148,7 +148,7 @@ describe('PresentationEditor', () => {
         packageUrl: '/presentation.pptx',
       } as never,
       artifactId: 'artifact-1',
-      workspaceId: 'workspace-1',
+      owner: { kind: 'workspace' as const, workspaceId: 'workspace-1' },
       graphql: {} as never,
       readOnly: false,
       onRevision: vi.fn(),

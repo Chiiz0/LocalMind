@@ -1,0 +1,8 @@
+query projectDestinationFolders($projectId: String!, $workspaceId: String!, $parentId: String, $query: String, $cursor: String, $limit: Int) {
+  projectDestinationFolders(projectId: $projectId, workspaceId: $workspaceId, parentId: $parentId, query: $query, cursor: $cursor, limit: $limit) {
+    current { workspaceId folderId path { id name } fingerprint canSave canCreateFolder }
+    revision
+    items { workspaceId folderId path { id name } fingerprint canSave canCreateFolder }
+    nextCursor
+  }
+}

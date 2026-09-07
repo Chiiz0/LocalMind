@@ -562,6 +562,17 @@ export interface CalendarSubscriptionObjectType {
   timezone: Maybe<Scalars['String']['output']>;
 }
 
+export interface ChangeProjectResourceInput {
+  beforeId?: InputMaybe<Scalars['ID']['input']>;
+  expectedVersion: Scalars['Int']['input'];
+  parentId?: InputMaybe<Scalars['ID']['input']>;
+  projectId: Scalars['ID']['input'];
+  requestKey: Scalars['String']['input'];
+  resourceId: Scalars['ID']['input'];
+  title?: InputMaybe<Scalars['String']['input']>;
+  trash?: InputMaybe<Scalars['Boolean']['input']>;
+}
+
 export enum ChatHistoryOrder {
   asc = 'asc',
   desc = 'desc',
@@ -743,6 +754,8 @@ export interface Copilot {
   histories: Array<CopilotHistories>;
   /** List available models for a prompt, with human-readable names */
   models: CopilotModelsType;
+  projectChat: CopilotHistories;
+  projectChats: PaginatedCopilotHistoriesType;
   /** Evaluate whether the current prompt registry row can pass the publish gate */
   promptRegistryPublishGate: Maybe<CopilotPromptRegistryPublishGateVerdictType>;
   /** Read-only preflight for a prompt registry repair submission contract */
@@ -869,6 +882,17 @@ export interface CopilotModelsArgs {
   promptName: Scalars['String']['input'];
 }
 
+export interface CopilotProjectChatArgs {
+  projectId: Scalars['String']['input'];
+  sessionId: Scalars['String']['input'];
+}
+
+export interface CopilotProjectChatsArgs {
+  options?: InputMaybe<QueryChatHistoriesInput>;
+  pagination: PaginationInput;
+  projectId: Scalars['String']['input'];
+}
+
 export interface CopilotPromptRegistryPublishGateArgs {
   expectedVersion?: InputMaybe<CopilotPromptRegistryPublishGateExpectedVersionInput>;
   name: Scalars['String']['input'];
@@ -966,6 +990,7 @@ export interface CopilotAccessRequestType {
   docId: Maybe<Scalars['String']['output']>;
   expiresAt: Maybe<Scalars['DateTime']['output']>;
   id: Scalars['ID']['output'];
+  purpose: Scalars['String']['output'];
   requestedLevel: Scalars['String']['output'];
   requestedTitle: Maybe<Scalars['String']['output']>;
   requesterUserId: Scalars['String']['output'];
@@ -1785,7 +1810,7 @@ export interface CopilotHistories {
   /** The number of tokens used in the session */
   tokens: Scalars['Int']['output'];
   updatedAt: Scalars['DateTime']['output'];
-  workspaceId: Scalars['String']['output'];
+  workspaceId: Maybe<Scalars['String']['output']>;
 }
 
 export interface CopilotHistoriesTypeEdge {
@@ -4628,11 +4653,12 @@ export interface CreateChatMessageInput {
 export interface CreateChatSessionInput {
   docId?: InputMaybe<Scalars['String']['input']>;
   pinned?: InputMaybe<Scalars['Boolean']['input']>;
+  projectId?: InputMaybe<Scalars['String']['input']>;
   /** The prompt name to use for the session */
   promptName: Scalars['String']['input'];
   /** true by default, compliant for old version */
   reuseLatestChat?: InputMaybe<Scalars['Boolean']['input']>;
-  workspaceId: Scalars['String']['input'];
+  workspaceId?: InputMaybe<Scalars['String']['input']>;
 }
 
 export interface CreateCheckoutSessionInput {
@@ -4698,6 +4724,13 @@ export interface CreateEnterpriseConnectionInput {
   workspaceId: Scalars['String']['input'];
 }
 
+export interface CreateFileRequestInput {
+  projectId: Scalars['ID']['input'];
+  recipientId: Scalars['ID']['input'];
+  requestKey: Scalars['String']['input'];
+  title: Scalars['String']['input'];
+}
+
 export interface CreateMcpCredentialInput {
   accessMode?: McpAccessMode;
   callbackUrl?: InputMaybe<Scalars['String']['input']>;
@@ -4705,6 +4738,23 @@ export interface CreateMcpCredentialInput {
   expirationDays?: Scalars['Int']['input'];
   name: Scalars['String']['input'];
   workspaceId: Scalars['String']['input'];
+}
+
+export interface CreateProjectFileInput {
+  blobKey: Scalars['String']['input'];
+  parentId?: InputMaybe<Scalars['ID']['input']>;
+  projectId: Scalars['ID']['input'];
+  requestKey: Scalars['String']['input'];
+  title: Scalars['String']['input'];
+}
+
+export interface CreateProjectResourceInput {
+  kind: ProjectResourceKind;
+  markdown?: Scalars['String']['input'];
+  parentId?: InputMaybe<Scalars['ID']['input']>;
+  projectId: Scalars['ID']['input'];
+  requestKey: Scalars['String']['input'];
+  title: Scalars['String']['input'];
 }
 
 export interface CreateUserInput {
@@ -5301,6 +5351,12 @@ export enum FeatureType {
   Admin = 'Admin',
 }
 
+export interface FileRequestRecipientType {
+  __typename?: 'FileRequestRecipientType';
+  id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
+}
+
 export interface ForkChatSessionInput {
   docId: Scalars['String']['input'];
   /** Identify a message in the array and keep it with all previous messages into a forked session. */
@@ -5374,8 +5430,27 @@ export interface ImportOfficeDocxResultType {
   revision: OfficeRevisionType;
 }
 
+export interface ImportProjectOfficeInput {
+  idempotencyKey: Scalars['String']['input'];
+  parentId?: InputMaybe<Scalars['ID']['input']>;
+  projectId: Scalars['ID']['input'];
+  sourceBlobKey: Scalars['String']['input'];
+  sourceFileName: Scalars['String']['input'];
+  title: Scalars['String']['input'];
+}
+
 export interface ImportUsersInput {
   users: Array<CreateUserInput>;
+}
+
+export interface ImportWorkspaceResourceToProjectInput {
+  kind: ProjectResourceKind;
+  parentId?: InputMaybe<Scalars['ID']['input']>;
+  projectId: Scalars['ID']['input'];
+  requestKey: Scalars['String']['input'];
+  sourceResourceId: Scalars['ID']['input'];
+  title?: InputMaybe<Scalars['String']['input']>;
+  workspaceId: Scalars['ID']['input'];
 }
 
 export interface InvalidAppConfigDataType {
@@ -5786,24 +5861,33 @@ export interface Mutation {
   adminUpdateWorkspace: Maybe<AdminWorkspace>;
   approveCopilotAccessRequest: CopilotAccessRequestType;
   approveMember: Scalars['Boolean']['output'];
+  approveProjectAgentTask: ProjectAgentTaskType;
   /** Authorize a short-lived manifest or archive artifact download for a DB-backed support bundle. */
   authorizeCopilotSupportBundleDownload: CopilotSupportBundleDownloadAuthorizationType;
   /** Ban an user */
   banUser: UserType;
   beginEnterpriseAuthorization: EnterpriseAuthorizationSessionType;
   cancelEnterpriseAuthorization: EnterpriseAuthorizationSessionType;
+  cancelProjectAgentTask: ProjectAgentTaskType;
   cancelSubscription: SubscriptionType;
   changeEmail: UserType;
   changePassword: Scalars['Boolean']['output'];
+  changeProjectFileRequest: ProjectFileRequestType;
+  changeProjectLegacyOperation: ProjectLegacyOperationType;
+  changeProjectPublication: ProjectPublicationType;
+  changeProjectResource: ProjectResourceType;
+  changeProjectResourceMigration: ProjectResourceMigrationType;
   changeWorkspaceDirectoryPolicy: WorkspaceDirectoryPolicyMutationType;
   /** Cleanup sessions */
   cleanupCopilotSession: Array<Scalars['String']['output']>;
   /** Expire DB-backed support bundles whose retention window has elapsed and retry failed archive object cleanup. */
   cleanupCopilotSupportBundleRetention: CopilotSupportBundleRetentionCleanupType;
+  cleanupProjectCopilotSessions: Array<Scalars['String']['output']>;
   clearWorkspaceByokConfigs: Scalars['Boolean']['output'];
   completeBlobUpload: Scalars['String']['output'];
   confirmCopilotBlockerSuggestion: CopilotBlockerType;
   confirmCopilotDocumentDestination: CopilotDocumentOperationType;
+  confirmProjectPublication: ProjectPublicationType;
   connectExternalMcp: ExternalMcpConnectionType;
   /** Control a standalone persisted Agent Runtime run outside repair execution. */
   controlCopilotAgentRuntimeRun: CopilotAgentRunType;
@@ -5842,6 +5926,10 @@ export interface Mutation {
   createMcpCredential: RevealedMcpCredentialType;
   createOfficeComment: OfficeCommentType;
   createOfficeCommentReply: OfficeCommentReplyType;
+  createProjectDestinationFolder: ProjectDestinationFolderResultType;
+  createProjectFile: ProjectResourceType;
+  createProjectFileRequest: ProjectFileRequestType;
+  createProjectResource: ProjectResourceType;
   createReply: ReplyObjectType;
   createSelfhostWorkspaceCustomerPortal: Scalars['String']['output'];
   createSparkClawPairing: SparkClawPairingType;
@@ -5876,6 +5964,9 @@ export interface Mutation {
   disableEnterpriseConnection: EnterpriseConnectionType;
   disableExternalMcp: ExternalMcpConnectionType;
   disconnectSparkClawEndpoint: Scalars['Boolean']['output'];
+  discoverProjectResourceMigrations: ProjectResourceMigrationPageType;
+  /** delete all notifications from the current user inbox */
+  dismissAllNotifications: Scalars['Boolean']['output'];
   /** delete a notification from the current user inbox */
   dismissNotification: Scalars['Boolean']['output'];
   /** delete all read notifications from the current user inbox */
@@ -5886,6 +5977,7 @@ export interface Mutation {
   executeOfficeCommand: ExecuteOfficeCommandResultType;
   /** Execute and persist a native DOCX user command */
   executeOfficeDocxCommand: ExecuteOfficeDocxCommandResultType;
+  executeProjectOfficeCommand: ProjectOfficeResultType;
   /** Create a chat session */
   forkCopilotSession: Scalars['String']['output'];
   generateLicenseKey: Scalars['String']['output'];
@@ -5896,8 +5988,10 @@ export interface Mutation {
   importOfficeArtifact: ImportOfficeArtifactResultType;
   /** Import a completed workspace DOCX blob as a native resource */
   importOfficeDocx: ImportOfficeDocxResultType;
+  importProjectOffice: ProjectOfficeResultType;
   /** import users */
   importUsers: Array<UserImportResultType>;
+  importWorkspaceResourceToProject: ProjectResourceType;
   installLicense: License;
   inviteMembers: Array<InviteResult>;
   leaveCopilotContextProject: Scalars['Boolean']['output'];
@@ -5907,9 +6001,11 @@ export interface Mutation {
   /** mention user in a doc */
   mentionUser: Scalars['ID']['output'];
   mutateWorkspaceDirectory: WorkspaceDirectoryMutationType;
+  prepareProjectPublication: ProjectPublicationType;
   /** Preview a Prompt Registry message body edit and return a publishable diff fingerprint before writing. */
   previewCopilotPromptRegistryBodyEdit: CopilotPromptRegistryBodyEditPreviewType;
   previewLicense: AdminLicensePreview;
+  previewProjectPublication: ProjectPublicationType;
   /** Publish a workspace-scoped DB-backed model definition revision for an existing configured provider. */
   publishCopilotModelRegistryRevision: CopilotModelRegistryRevisionType;
   /** Publish a Prompt Registry message body edit after a matching diff preview fingerprint. */
@@ -5933,6 +6029,7 @@ export interface Mutation {
   recoverDoc: Scalars['DateTime']['output'];
   refreshEnterpriseConnection: EnterpriseConnectionType;
   refreshExternalMcpTools: ExternalMcpConnectionType;
+  refreshProjectResourceSource: ProjectResourceType;
   /** Refresh current user subscriptions and return latest. */
   refreshUserSubscriptions: Array<SubscriptionType>;
   rejectCopilotAccessRequest: CopilotAccessRequestType;
@@ -5963,6 +6060,8 @@ export interface Mutation {
   requestCopilotDocumentAccess: CopilotAccessRequestType;
   /** Request prompt registry repair execution. Approval-gated requests can publish a DB-backed workspace prompt registry revision after approval. */
   requestCopilotPromptRegistryRepairExecution: CopilotPromptRegistryRepairExecutionRequestType;
+  requestProjectImportPermission: ProjectImportPermissionRequestType;
+  requestProjectMigrationPermission: ProjectImportPermissionRequestType;
   /** Resolve a comment or not */
   resolveComment: Scalars['Boolean']['output'];
   resolveCopilotBlocker: CopilotBlockerType;
@@ -5983,6 +6082,8 @@ export interface Mutation {
   rollbackCopilotContextRule: CopilotContextRuleType;
   rotateAuthSigningKey: Array<AuthSigningKeyType>;
   rotateMcpCredential: RevealedMcpCredentialType;
+  saveProjectByokConfig: ProjectByokSettingsType;
+  saveProjectDocument: ProjectResourceRevisionType;
   sendChangeEmail: Scalars['Boolean']['output'];
   sendChangePasswordEmail: Scalars['Boolean']['output'];
   sendCopilotProjectInvitation: CopilotProjectInvitationType;
@@ -5993,9 +6094,12 @@ export interface Mutation {
   setAdminUserAiProfileAssignment: Maybe<AdminUserAiProfileAssignmentType>;
   setBlob: Scalars['String']['output'];
   setCopilotContextProjectAiPolicy: CopilotProjectAiPolicyType;
+  setProjectByokEnabled: ProjectByokSettingsType;
   settleTranscriptTask: Maybe<TranscriptionResultType>;
+  submitProjectFileRequest: ProjectFileRequestType;
   submitTranscriptTask: Maybe<TranscriptionResultType>;
   testExternalMcpConversation: ExternalMcpToolCallResultType;
+  testProjectByokConfig: ProjectByokTestResultType;
   testWorkspaceByokConfig: TestWorkspaceByokConfigResultType;
   transferCopilotContextProjectOwnership: Scalars['Boolean']['output'];
   undoCopilotContextMemoryEvent: CopilotContextMemoryEventType;
@@ -6020,6 +6124,7 @@ export interface Mutation {
   updateOfficeComment: OfficeCommentType;
   updateOfficeCommentReply: OfficeCommentReplyType;
   updateProfile: UserType;
+  updateProjectChatContext: ProjectChatContextType;
   /** Update a reply content */
   updateReply: Scalars['Boolean']['output'];
   /** Update user settings */
@@ -6038,6 +6143,8 @@ export interface Mutation {
   uploadAvatar: UserType;
   /** Upload a comment attachment and return the access url */
   uploadCommentAttachment: Scalars['String']['output'];
+  uploadProjectBlob: Scalars['String']['output'];
+  uploadProjectChatContextFile: ProjectChatContextType;
   upsertAdminAiProfile: AdminAiProfileType;
   upsertWorkspaceByokConfig: WorkspaceByokKeyConfigType;
   verifyEmail: Scalars['Boolean']['output'];
@@ -6115,6 +6222,12 @@ export interface MutationApproveMemberArgs {
   workspaceId: Scalars['String']['input'];
 }
 
+export interface MutationApproveProjectAgentTaskArgs {
+  projectId: Scalars['String']['input'];
+  runId: Scalars['String']['input'];
+  targetFingerprint: Scalars['String']['input'];
+}
+
 export interface MutationAuthorizeCopilotSupportBundleDownloadArgs {
   input: CopilotSupportBundleDownloadAuthorizeInput;
 }
@@ -6131,6 +6244,11 @@ export interface MutationBeginEnterpriseAuthorizationArgs {
 export interface MutationCancelEnterpriseAuthorizationArgs {
   sessionId: Scalars['ID']['input'];
   workspaceId: Scalars['String']['input'];
+}
+
+export interface MutationCancelProjectAgentTaskArgs {
+  projectId: Scalars['String']['input'];
+  runId: Scalars['String']['input'];
 }
 
 export interface MutationCancelSubscriptionArgs {
@@ -6150,6 +6268,37 @@ export interface MutationChangePasswordArgs {
   userId?: InputMaybe<Scalars['String']['input']>;
 }
 
+export interface MutationChangeProjectFileRequestArgs {
+  action: Scalars['String']['input'];
+  expectedVersion: Scalars['Int']['input'];
+  requestId: Scalars['String']['input'];
+}
+
+export interface MutationChangeProjectLegacyOperationArgs {
+  action: Scalars['String']['input'];
+  expectedRevision: Scalars['Int']['input'];
+  operationId: Scalars['String']['input'];
+  projectId: Scalars['String']['input'];
+}
+
+export interface MutationChangeProjectPublicationArgs {
+  action: Scalars['String']['input'];
+  expectedRevision: Scalars['Int']['input'];
+  projectId: Scalars['String']['input'];
+  publicationId: Scalars['String']['input'];
+}
+
+export interface MutationChangeProjectResourceArgs {
+  input: ChangeProjectResourceInput;
+}
+
+export interface MutationChangeProjectResourceMigrationArgs {
+  action: Scalars['String']['input'];
+  expectedRevision: Scalars['Int']['input'];
+  migrationId: Scalars['String']['input'];
+  projectId: Scalars['String']['input'];
+}
+
 export interface MutationChangeWorkspaceDirectoryPolicyArgs {
   directoryId: Scalars['ID']['input'];
   expectedRevision: Scalars['String']['input'];
@@ -6164,6 +6313,11 @@ export interface MutationCleanupCopilotSessionArgs {
 
 export interface MutationCleanupCopilotSupportBundleRetentionArgs {
   input: CopilotSupportBundleRetentionCleanupInput;
+}
+
+export interface MutationCleanupProjectCopilotSessionsArgs {
+  projectId: Scalars['String']['input'];
+  sessionIds: Array<Scalars['String']['input']>;
 }
 
 export interface MutationClearWorkspaceByokConfigsArgs {
@@ -6185,6 +6339,13 @@ export interface MutationConfirmCopilotBlockerSuggestionArgs {
 
 export interface MutationConfirmCopilotDocumentDestinationArgs {
   input: ConfirmCopilotDocumentDestinationInput;
+}
+
+export interface MutationConfirmProjectPublicationArgs {
+  expectedRevision: Scalars['Int']['input'];
+  projectId: Scalars['String']['input'];
+  publicationId: Scalars['String']['input'];
+  targetFingerprint: Scalars['String']['input'];
 }
 
 export interface MutationConnectExternalMcpArgs {
@@ -6284,6 +6445,28 @@ export interface MutationCreateOfficeCommentArgs {
 
 export interface MutationCreateOfficeCommentReplyArgs {
   input: OfficeCommentReplyCreateInput;
+}
+
+export interface MutationCreateProjectDestinationFolderArgs {
+  expectedDirectoryRevision: Scalars['String']['input'];
+  parentId?: InputMaybe<Scalars['String']['input']>;
+  projectId: Scalars['String']['input'];
+  publicationId: Scalars['String']['input'];
+  requestKey: Scalars['String']['input'];
+  title: Scalars['String']['input'];
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface MutationCreateProjectFileArgs {
+  input: CreateProjectFileInput;
+}
+
+export interface MutationCreateProjectFileRequestArgs {
+  input: CreateFileRequestInput;
+}
+
+export interface MutationCreateProjectResourceArgs {
+  input: CreateProjectResourceInput;
 }
 
 export interface MutationCreateReplyArgs {
@@ -6398,6 +6581,10 @@ export interface MutationDisconnectSparkClawEndpointArgs {
   endpointId: Scalars['ID']['input'];
 }
 
+export interface MutationDiscoverProjectResourceMigrationsArgs {
+  projectId: Scalars['String']['input'];
+}
+
 export interface MutationDismissNotificationArgs {
   id: Scalars['String']['input'];
 }
@@ -6412,6 +6599,10 @@ export interface MutationExecuteOfficeCommandArgs {
 
 export interface MutationExecuteOfficeDocxCommandArgs {
   input: OfficeDocxCommandInput;
+}
+
+export interface MutationExecuteProjectOfficeCommandArgs {
+  input: ProjectOfficeCommandInput;
 }
 
 export interface MutationForkCopilotSessionArgs {
@@ -6447,8 +6638,16 @@ export interface MutationImportOfficeDocxArgs {
   input: ImportOfficeDocxRequestInput;
 }
 
+export interface MutationImportProjectOfficeArgs {
+  input: ImportProjectOfficeInput;
+}
+
 export interface MutationImportUsersArgs {
   input: ImportUsersInput;
+}
+
+export interface MutationImportWorkspaceResourceToProjectArgs {
+  input: ImportWorkspaceResourceToProjectInput;
 }
 
 export interface MutationInstallLicenseArgs {
@@ -6489,12 +6688,29 @@ export interface MutationMutateWorkspaceDirectoryArgs {
   workspaceId: Scalars['ID']['input'];
 }
 
+export interface MutationPrepareProjectPublicationArgs {
+  kind: Scalars['String']['input'];
+  projectId: Scalars['String']['input'];
+  requestKey: Scalars['String']['input'];
+  resourceId: Scalars['String']['input'];
+  sessionId?: InputMaybe<Scalars['String']['input']>;
+}
+
 export interface MutationPreviewCopilotPromptRegistryBodyEditArgs {
   input: CopilotPromptRegistryBodyEditPreviewInput;
 }
 
 export interface MutationPreviewLicenseArgs {
   license: Scalars['Upload']['input'];
+}
+
+export interface MutationPreviewProjectPublicationArgs {
+  expectedRevision: Scalars['Int']['input'];
+  folderId?: InputMaybe<Scalars['String']['input']>;
+  projectId: Scalars['String']['input'];
+  publicationId: Scalars['String']['input'];
+  targetResourceId?: InputMaybe<Scalars['String']['input']>;
+  workspaceId: Scalars['String']['input'];
 }
 
 export interface MutationPublishCopilotModelRegistryRevisionArgs {
@@ -6552,6 +6768,16 @@ export interface MutationRefreshEnterpriseConnectionArgs {
 }
 
 export interface MutationRefreshExternalMcpToolsArgs {
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface MutationRefreshProjectResourceSourceArgs {
+  expectedContentVersion: Scalars['Int']['input'];
+  expectedSourceVersion: Scalars['String']['input'];
+  projectId: Scalars['String']['input'];
+  requestKey: Scalars['String']['input'];
+  resourceId: Scalars['String']['input'];
+  sourceResourceId: Scalars['String']['input'];
   workspaceId: Scalars['String']['input'];
 }
 
@@ -6618,6 +6844,19 @@ export interface MutationRequestCopilotDocumentAccessArgs {
 
 export interface MutationRequestCopilotPromptRegistryRepairExecutionArgs {
   input: CopilotPromptRegistryRepairExecutionRequestInput;
+}
+
+export interface MutationRequestProjectImportPermissionArgs {
+  projectId: Scalars['String']['input'];
+  requestKey: Scalars['String']['input'];
+  resourceId: Scalars['String']['input'];
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface MutationRequestProjectMigrationPermissionArgs {
+  migrationId: Scalars['String']['input'];
+  projectId: Scalars['String']['input'];
+  requestKey: Scalars['String']['input'];
 }
 
 export interface MutationResolveCommentArgs {
@@ -6705,6 +6944,14 @@ export interface MutationRotateMcpCredentialArgs {
   workspaceId: Scalars['String']['input'];
 }
 
+export interface MutationSaveProjectByokConfigArgs {
+  input: ProjectByokConfigInput;
+}
+
+export interface MutationSaveProjectDocumentArgs {
+  input: SaveProjectDocumentInput;
+}
+
 export interface MutationSendChangeEmailArgs {
   callbackUrl: Scalars['String']['input'];
 }
@@ -6752,9 +6999,21 @@ export interface MutationSetCopilotContextProjectAiPolicyArgs {
   input: SetCopilotProjectAiPolicyInput;
 }
 
+export interface MutationSetProjectByokEnabledArgs {
+  enabled: Scalars['Boolean']['input'];
+  expectedRevision: Scalars['SafeInt']['input'];
+}
+
 export interface MutationSettleTranscriptTaskArgs {
   taskId: Scalars['String']['input'];
   workspaceId: Scalars['String']['input'];
+}
+
+export interface MutationSubmitProjectFileRequestArgs {
+  expectedVersion: Scalars['Int']['input'];
+  file: Scalars['Upload']['input'];
+  requestId: Scalars['String']['input'];
+  shareWithProject: Scalars['Boolean']['input'];
 }
 
 export interface MutationSubmitTranscriptTaskArgs {
@@ -6768,6 +7027,10 @@ export interface MutationSubmitTranscriptTaskArgs {
 export interface MutationTestExternalMcpConversationArgs {
   query: Scalars['String']['input'];
   workspaceId: Scalars['String']['input'];
+}
+
+export interface MutationTestProjectByokConfigArgs {
+  input: ProjectByokConfigInput;
 }
 
 export interface MutationTestWorkspaceByokConfigArgs {
@@ -6859,6 +7122,13 @@ export interface MutationUpdateProfileArgs {
   input: UpdateUserInput;
 }
 
+export interface MutationUpdateProjectChatContextArgs {
+  expectedVersion: Scalars['Int']['input'];
+  items: Array<ProjectChatContextItemInput>;
+  projectId: Scalars['String']['input'];
+  sessionId: Scalars['String']['input'];
+}
+
 export interface MutationUpdateReplyArgs {
   input: ReplyUpdateInput;
 }
@@ -6906,6 +7176,18 @@ export interface MutationUploadCommentAttachmentArgs {
   attachment: Scalars['Upload']['input'];
   docId: Scalars['String']['input'];
   workspaceId: Scalars['String']['input'];
+}
+
+export interface MutationUploadProjectBlobArgs {
+  file: Scalars['Upload']['input'];
+  projectId: Scalars['String']['input'];
+}
+
+export interface MutationUploadProjectChatContextFileArgs {
+  expectedVersion: Scalars['Int']['input'];
+  file: Scalars['Upload']['input'];
+  projectId: Scalars['String']['input'];
+  sessionId: Scalars['String']['input'];
 }
 
 export interface MutationUpsertAdminAiProfileArgs {
@@ -7006,6 +7288,7 @@ export enum NotificationType {
   InvitationReviewDeclined = 'InvitationReviewDeclined',
   InvitationReviewRequest = 'InvitationReviewRequest',
   Mention = 'Mention',
+  ProjectFileRequest = 'ProjectFileRequest',
 }
 
 export interface NotificationWorkspaceType {
@@ -7270,6 +7553,432 @@ export enum Permission {
   Owner = 'Owner',
 }
 
+export interface ProjectAgentTaskPageType {
+  __typename?: 'ProjectAgentTaskPageType';
+  items: Array<ProjectAgentTaskType>;
+  nextCursor: Maybe<Scalars['String']['output']>;
+}
+
+export interface ProjectAgentTaskType {
+  __typename?: 'ProjectAgentTaskType';
+  createdAt: Scalars['DateTime']['output'];
+  failureCode: Maybe<Scalars['String']['output']>;
+  failureMessage: Maybe<Scalars['String']['output']>;
+  id: Scalars['ID']['output'];
+  preview: Maybe<Scalars['JSONObject']['output']>;
+  projectId: Scalars['ID']['output'];
+  receipt: Maybe<Scalars['JSONObject']['output']>;
+  sessionId: Maybe<Scalars['ID']['output']>;
+  status: Scalars['String']['output'];
+  targetFingerprint: Scalars['String']['output'];
+  title: Scalars['String']['output'];
+  updatedAt: Scalars['DateTime']['output'];
+  workerAttempt: Scalars['Int']['output'];
+  workflow: Scalars['String']['output'];
+}
+
+export interface ProjectAiModelType {
+  __typename?: 'ProjectAiModelType';
+  configured: Scalars['Boolean']['output'];
+  modelId: Maybe<Scalars['String']['output']>;
+  provider: Maybe<ByokProvider>;
+}
+
+export interface ProjectByokAuditEventType {
+  __typename?: 'ProjectByokAuditEventType';
+  actorId: Scalars['String']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  credentialChanged: Scalars['Boolean']['output'];
+  enabled: Scalars['Boolean']['output'];
+  endpoint: Maybe<Scalars['String']['output']>;
+  modelId: Scalars['String']['output'];
+  provider: ByokProvider;
+  revision: Scalars['SafeInt']['output'];
+}
+
+export interface ProjectByokConfigInput {
+  apiKey?: InputMaybe<Scalars['String']['input']>;
+  endpoint?: InputMaybe<Scalars['String']['input']>;
+  expectedRevision: Scalars['SafeInt']['input'];
+  modelId: Scalars['String']['input'];
+  provider: ByokProvider;
+}
+
+export interface ProjectByokSettingsType {
+  __typename?: 'ProjectByokSettingsType';
+  allowedProviders: Array<ByokProvider>;
+  auditEvents: Array<ProjectByokAuditEventType>;
+  configured: Scalars['Boolean']['output'];
+  customEndpointSupported: Scalars['Boolean']['output'];
+  enabled: Scalars['Boolean']['output'];
+  endpoint: Maybe<Scalars['String']['output']>;
+  lastError: Maybe<Scalars['String']['output']>;
+  lastUsedAt: Maybe<Scalars['DateTime']['output']>;
+  lastValidatedAt: Maybe<Scalars['DateTime']['output']>;
+  modelId: Maybe<Scalars['String']['output']>;
+  provider: ByokProvider;
+  revision: Scalars['SafeInt']['output'];
+  updatedAt: Maybe<Scalars['DateTime']['output']>;
+  updatedBy: Maybe<Scalars['String']['output']>;
+}
+
+export interface ProjectByokTestResultType {
+  __typename?: 'ProjectByokTestResultType';
+  message: Maybe<Scalars['String']['output']>;
+  ok: Scalars['Boolean']['output'];
+}
+
+export interface ProjectChatContextItemInput {
+  blobKey?: InputMaybe<Scalars['String']['input']>;
+  kind: Scalars['String']['input'];
+  name?: InputMaybe<Scalars['String']['input']>;
+  resourceId?: InputMaybe<Scalars['String']['input']>;
+  sequence?: InputMaybe<Scalars['Int']['input']>;
+}
+
+export interface ProjectChatContextItemType {
+  __typename?: 'ProjectChatContextItemType';
+  available: Scalars['Boolean']['output'];
+  blobKey: Maybe<Scalars['String']['output']>;
+  byteSize: Maybe<Scalars['Int']['output']>;
+  currentSequence: Maybe<Scalars['Int']['output']>;
+  kind: Scalars['String']['output'];
+  mimeType: Maybe<Scalars['String']['output']>;
+  name: Maybe<Scalars['String']['output']>;
+  resourceId: Maybe<Scalars['String']['output']>;
+  resourceKind: Maybe<Scalars['String']['output']>;
+  sequence: Maybe<Scalars['Int']['output']>;
+  title: Scalars['String']['output'];
+}
+
+export interface ProjectChatContextType {
+  __typename?: 'ProjectChatContextType';
+  items: Array<ProjectChatContextItemType>;
+  projectId: Scalars['String']['output'];
+  sessionId: Scalars['String']['output'];
+  version: Scalars['Int']['output'];
+}
+
+export interface ProjectDestinationFolderResultType {
+  __typename?: 'ProjectDestinationFolderResultType';
+  failureCode: Maybe<Scalars['String']['output']>;
+  folderId: Maybe<Scalars['String']['output']>;
+  runId: Scalars['ID']['output'];
+  status: Scalars['String']['output'];
+}
+
+export interface ProjectDestinationFolderType {
+  __typename?: 'ProjectDestinationFolderType';
+  canCreateFolder: Scalars['Boolean']['output'];
+  canSave: Scalars['Boolean']['output'];
+  fingerprint: Scalars['String']['output'];
+  folderId: Maybe<Scalars['ID']['output']>;
+  path: Array<ProjectDestinationWorkspaceType>;
+  workspaceId: Scalars['ID']['output'];
+}
+
+export interface ProjectDestinationPageType {
+  __typename?: 'ProjectDestinationPageType';
+  current: ProjectDestinationFolderType;
+  items: Array<ProjectDestinationFolderType>;
+  nextCursor: Maybe<Scalars['String']['output']>;
+  revision: Scalars['String']['output'];
+}
+
+export interface ProjectDestinationWorkspaceType {
+  __typename?: 'ProjectDestinationWorkspaceType';
+  id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
+}
+
+export interface ProjectFileRequestNotificationBodyType {
+  __typename?: 'ProjectFileRequestNotificationBodyType';
+  /** The user who created the notification, maybe null when user is deleted or sent by system */
+  createdByUser: Maybe<PublicUserType>;
+  isRecipient: Scalars['Boolean']['output'];
+  projectName: Scalars['String']['output'];
+  requestId: Scalars['ID']['output'];
+  status: Scalars['String']['output'];
+  title: Scalars['String']['output'];
+  /** The type of the notification */
+  type: NotificationType;
+  workspace: Maybe<NotificationWorkspaceType>;
+}
+
+export interface ProjectFileRequestType {
+  __typename?: 'ProjectFileRequestType';
+  fileName: Maybe<Scalars['String']['output']>;
+  id: Scalars['ID']['output'];
+  isRecipient: Scalars['Boolean']['output'];
+  projectId: Scalars['ID']['output'];
+  projectName: Scalars['String']['output'];
+  recipientName: Scalars['String']['output'];
+  requesterName: Scalars['String']['output'];
+  resourceId: Maybe<Scalars['ID']['output']>;
+  status: Scalars['String']['output'];
+  title: Scalars['String']['output'];
+  updatedAt: Scalars['DateTime']['output'];
+  version: Scalars['Int']['output'];
+}
+
+export interface ProjectImportPermissionRequestType {
+  __typename?: 'ProjectImportPermissionRequestType';
+  id: Scalars['ID']['output'];
+  purpose: Scalars['String']['output'];
+  status: Scalars['String']['output'];
+}
+
+export interface ProjectLegacyConversationPageType {
+  __typename?: 'ProjectLegacyConversationPageType';
+  items: Array<ProjectLegacyConversationType>;
+  nextCursor: Maybe<Scalars['String']['output']>;
+}
+
+export interface ProjectLegacyConversationType {
+  __typename?: 'ProjectLegacyConversationType';
+  createdAt: Scalars['DateTime']['output'];
+  id: Scalars['ID']['output'];
+  title: Maybe<Scalars['String']['output']>;
+}
+
+export interface ProjectLegacyMessagePageType {
+  __typename?: 'ProjectLegacyMessagePageType';
+  items: Array<ProjectLegacyMessageType>;
+  nextCursor: Maybe<Scalars['String']['output']>;
+}
+
+export interface ProjectLegacyMessageType {
+  __typename?: 'ProjectLegacyMessageType';
+  content: Scalars['String']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  id: Scalars['ID']['output'];
+  role: Scalars['String']['output'];
+  truncated: Scalars['Boolean']['output'];
+}
+
+export interface ProjectLegacyOperationPageType {
+  __typename?: 'ProjectLegacyOperationPageType';
+  items: Array<ProjectLegacyOperationType>;
+  nextCursor: Maybe<Scalars['String']['output']>;
+}
+
+export interface ProjectLegacyOperationType {
+  __typename?: 'ProjectLegacyOperationType';
+  createdAt: Scalars['DateTime']['output'];
+  id: Scalars['ID']['output'];
+  resourceId: Maybe<Scalars['ID']['output']>;
+  revision: Scalars['Int']['output'];
+  status: Scalars['String']['output'];
+  title: Scalars['String']['output'];
+}
+
+export interface ProjectOfficeArtifactType {
+  __typename?: 'ProjectOfficeArtifactType';
+  compatibility: Scalars['JSONObject']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  createdBy: Scalars['ID']['output'];
+  currentRevision: ProjectOfficeRevisionType;
+  id: Scalars['ID']['output'];
+  kind: OfficeArtifactKind;
+  projectId: Scalars['ID']['output'];
+  revisionCounter: Scalars['SafeInt']['output'];
+  sourceByteSize: Scalars['SafeInt']['output'];
+  sourceFileName: Scalars['String']['output'];
+  sourceFingerprint: Scalars['String']['output'];
+  sourceMimeType: Scalars['String']['output'];
+  title: Scalars['String']['output'];
+  updatedAt: Scalars['DateTime']['output'];
+}
+
+export interface ProjectOfficeCommandInput {
+  command: Scalars['JSON']['input'];
+  projectId: Scalars['ID']['input'];
+}
+
+export interface ProjectOfficeCompareType {
+  __typename?: 'ProjectOfficeCompareType';
+  afterRevision: ProjectOfficeRevisionType;
+  artifactId: Scalars['ID']['output'];
+  beforeRevision: ProjectOfficeRevisionType;
+  changed: Scalars['Boolean']['output'];
+  changes: Scalars['JSON']['output'];
+  kind: OfficeArtifactKind;
+  summary: Scalars['JSONObject']['output'];
+  truncated: Scalars['Boolean']['output'];
+}
+
+export interface ProjectOfficeResultType {
+  __typename?: 'ProjectOfficeResultType';
+  artifact: ProjectOfficeArtifactType;
+  created: Scalars['Boolean']['output'];
+  revision: ProjectOfficeRevisionType;
+  summary: Scalars['JSONObject']['output'];
+}
+
+export interface ProjectOfficeRevisionType {
+  __typename?: 'ProjectOfficeRevisionType';
+  artifactId: Scalars['ID']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  createdBy: Scalars['ID']['output'];
+  id: Scalars['ID']['output'];
+  modelVersion: Scalars['String']['output'];
+  operationSummary: Scalars['JSONObject']['output'];
+  origin: OfficeRevisionOrigin;
+  packageByteSize: Scalars['SafeInt']['output'];
+  packageFingerprint: Scalars['String']['output'];
+  packageMimeType: Scalars['String']['output'];
+  packageUrl: Scalars['String']['output'];
+  parentRevisionId: Maybe<Scalars['ID']['output']>;
+  projectId: Scalars['ID']['output'];
+  sequence: Scalars['SafeInt']['output'];
+  stateByteSize: Maybe<Scalars['SafeInt']['output']>;
+  stateFingerprint: Maybe<Scalars['String']['output']>;
+  stateUrl: Maybe<Scalars['String']['output']>;
+}
+
+export interface ProjectPublicationCandidateType {
+  __typename?: 'ProjectPublicationCandidateType';
+  canUpdate: Scalars['Boolean']['output'];
+  folderId: Maybe<Scalars['ID']['output']>;
+  kind: Scalars['String']['output'];
+  path: Array<ProjectPublicationPathType>;
+  resourceId: Scalars['ID']['output'];
+  title: Scalars['String']['output'];
+}
+
+export interface ProjectPublicationCandidatesType {
+  __typename?: 'ProjectPublicationCandidatesType';
+  items: Array<ProjectPublicationCandidateType>;
+  nextCursor: Maybe<Scalars['String']['output']>;
+}
+
+export interface ProjectPublicationPageType {
+  __typename?: 'ProjectPublicationPageType';
+  items: Array<ProjectPublicationType>;
+  nextCursor: Maybe<Scalars['String']['output']>;
+}
+
+export interface ProjectPublicationPathType {
+  __typename?: 'ProjectPublicationPathType';
+  id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
+}
+
+export interface ProjectPublicationType {
+  __typename?: 'ProjectPublicationType';
+  createdAt: Scalars['DateTime']['output'];
+  expiresAt: Scalars['DateTime']['output'];
+  failureCode: Maybe<Scalars['String']['output']>;
+  id: Scalars['ID']['output'];
+  kind: Scalars['String']['output'];
+  preview: Maybe<Scalars['JSONObject']['output']>;
+  projectId: Scalars['ID']['output'];
+  receipt: Maybe<Scalars['JSONObject']['output']>;
+  resourceId: Scalars['ID']['output'];
+  revision: Scalars['Int']['output'];
+  runId: Maybe<Scalars['ID']['output']>;
+  sourceSequence: Scalars['Int']['output'];
+  status: Scalars['String']['output'];
+  target: Maybe<Scalars['JSONObject']['output']>;
+  targetFingerprint: Maybe<Scalars['String']['output']>;
+  title: Scalars['String']['output'];
+}
+
+export enum ProjectResourceKind {
+  document = 'document',
+  edgeless = 'edgeless',
+  file = 'file',
+  folder = 'folder',
+  page = 'page',
+  pdf = 'pdf',
+  presentation = 'presentation',
+  workbook = 'workbook',
+}
+
+export interface ProjectResourceMigrationPageType {
+  __typename?: 'ProjectResourceMigrationPageType';
+  items: Array<ProjectResourceMigrationType>;
+  nextCursor: Maybe<Scalars['String']['output']>;
+}
+
+export interface ProjectResourceMigrationType {
+  __typename?: 'ProjectResourceMigrationType';
+  failureCode: Maybe<Scalars['String']['output']>;
+  id: Scalars['ID']['output'];
+  projectId: Scalars['ID']['output'];
+  resourceId: Maybe<Scalars['ID']['output']>;
+  revision: Scalars['Int']['output'];
+  status: Scalars['String']['output'];
+  title: Maybe<Scalars['String']['output']>;
+}
+
+export interface ProjectResourcePageType {
+  __typename?: 'ProjectResourcePageType';
+  items: Array<ProjectResourceType>;
+  nextCursor: Maybe<Scalars['String']['output']>;
+}
+
+export interface ProjectResourceRevisionType {
+  __typename?: 'ProjectResourceRevisionType';
+  createdAt: Scalars['DateTime']['output'];
+  fingerprint: Scalars['String']['output'];
+  id: Scalars['ID']['output'];
+  origin: Scalars['String']['output'];
+  parentId: Maybe<Scalars['ID']['output']>;
+  projectId: Scalars['ID']['output'];
+  resourceId: Scalars['ID']['output'];
+  sequence: Scalars['Int']['output'];
+}
+
+export interface ProjectResourceSourceType {
+  __typename?: 'ProjectResourceSourceType';
+  projectVersion: Scalars['Int']['output'];
+  sourceResourceId: Scalars['ID']['output'];
+  sourceVersion: Scalars['String']['output'];
+  title: Scalars['String']['output'];
+  workspaceId: Scalars['ID']['output'];
+  workspaceName: Scalars['String']['output'];
+}
+
+export interface ProjectResourceType {
+  __typename?: 'ProjectResourceType';
+  contentVersion: Scalars['Int']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  id: Scalars['ID']['output'];
+  kind: ProjectResourceKind;
+  officeArtifactId: Maybe<Scalars['ID']['output']>;
+  parentId: Maybe<Scalars['ID']['output']>;
+  projectId: Scalars['ID']['output'];
+  sortKey: Scalars['String']['output'];
+  title: Scalars['String']['output'];
+  trashedAt: Maybe<Scalars['DateTime']['output']>;
+  updatedAt: Scalars['DateTime']['output'];
+  version: Scalars['Int']['output'];
+}
+
+export interface ProjectSearchPageType {
+  __typename?: 'ProjectSearchPageType';
+  items: Array<ProjectSearchResultType>;
+  nextCursor: Maybe<Scalars['String']['output']>;
+}
+
+export interface ProjectSearchPathType {
+  __typename?: 'ProjectSearchPathType';
+  id: Scalars['ID']['output'];
+  title: Scalars['String']['output'];
+}
+
+export interface ProjectSearchResultType {
+  __typename?: 'ProjectSearchResultType';
+  contentVersion: Scalars['Int']['output'];
+  id: Scalars['ID']['output'];
+  kind: ProjectResourceKind;
+  path: Array<ProjectSearchPathType>;
+  projectId: Scalars['ID']['output'];
+  snippet: Scalars['String']['output'];
+  title: Scalars['String']['output'];
+}
+
 /** The mode which the public doc default in */
 export enum PublicDocMode {
   Edgeless = 'Edgeless',
@@ -7292,6 +8001,7 @@ export interface Query {
   adminDashboard: AdminDashboard;
   /** Aggregate mail delivery timeline facts for admin panel */
   adminMailDeliveries: AdminMailDeliveryAnalytics;
+  adminProjectByokSettings: ProjectByokSettingsType;
   adminUserAiProfileAssignment: Maybe<AdminUserAiProfileAssignmentType>;
   /** Get workspace detail for admin */
   adminWorkspace: Maybe<AdminWorkspace>;
@@ -7313,7 +8023,6 @@ export interface Query {
   externalMcpSettings: ExternalMcpSettingsType;
   /** get workspace invitation info */
   getInviteInfo: InvitationType;
-  hello: Scalars['String']['output'];
   latestEnterpriseAuthorizationSession: Maybe<EnterpriseAuthorizationSessionType>;
   mcpCredentialReadWriteAvailable: Scalars['Boolean']['output'];
   mcpCredentials: Array<McpCredentialType>;
@@ -7335,7 +8044,31 @@ export interface Query {
   previewOfficeCommand: OfficeCommandPreviewType;
   /** Preview a native DOCX command without persisting changes */
   previewOfficeDocxCommand: OfficeDocxCommandPreviewType;
+  previewProjectOfficeCommand: OfficeCommandPreviewType;
   prices: Array<SubscriptionPrice>;
+  projectAgentTask: ProjectAgentTaskType;
+  projectAgentTasks: ProjectAgentTaskPageType;
+  projectAiModel: ProjectAiModelType;
+  projectChatContext: ProjectChatContextType;
+  projectDestinationFolders: ProjectDestinationPageType;
+  projectDestinationWorkspaces: Array<ProjectDestinationWorkspaceType>;
+  projectFileRequest: ProjectFileRequestType;
+  projectFileRequestRecipients: Array<FileRequestRecipientType>;
+  projectLegacyConversations: ProjectLegacyConversationPageType;
+  projectLegacyMessages: ProjectLegacyMessagePageType;
+  projectLegacyOperations: ProjectLegacyOperationPageType;
+  projectOfficeArtifact: ProjectOfficeArtifactType;
+  projectOfficeRevisionCompare: ProjectOfficeCompareType;
+  projectOfficeRevisions: Array<ProjectOfficeRevisionType>;
+  projectPublication: ProjectPublicationType;
+  projectPublicationCandidates: ProjectPublicationCandidatesType;
+  projectPublications: ProjectPublicationPageType;
+  projectResource: ProjectResourceType;
+  projectResourceMigrations: ProjectResourceMigrationPageType;
+  projectResourcePath: Array<ProjectResourceType>;
+  projectResourceRevision: ProjectResourceRevisionType;
+  projectResourceSources: Array<ProjectResourceSourceType>;
+  projectResources: ProjectResourcePageType;
   /** Get public user by id */
   publicUserById: Maybe<PublicUserType>;
   /**
@@ -7343,6 +8076,7 @@ export interface Query {
    * @deprecated Use realtime subscription "workspace.embedding.progress.changed" instead.
    */
   queryWorkspaceEmbeddingStatus: ContextWorkspaceEmbeddingStatus;
+  searchProjectResources: ProjectSearchPageType;
   /** server config */
   serverConfig: ServerConfigType;
   /** Get user by email */
@@ -7494,12 +8228,156 @@ export interface QueryPreviewOfficeDocxCommandArgs {
   input: OfficeDocxCommandInput;
 }
 
+export interface QueryPreviewProjectOfficeCommandArgs {
+  input: ProjectOfficeCommandInput;
+}
+
+export interface QueryProjectAgentTaskArgs {
+  projectId: Scalars['String']['input'];
+  runId: Scalars['String']['input'];
+}
+
+export interface QueryProjectAgentTasksArgs {
+  cursor?: InputMaybe<Scalars['String']['input']>;
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  projectId: Scalars['String']['input'];
+  sessionId?: InputMaybe<Scalars['String']['input']>;
+}
+
+export interface QueryProjectAiModelArgs {
+  projectId: Scalars['String']['input'];
+}
+
+export interface QueryProjectChatContextArgs {
+  projectId: Scalars['String']['input'];
+  sessionId: Scalars['String']['input'];
+}
+
+export interface QueryProjectDestinationFoldersArgs {
+  cursor?: InputMaybe<Scalars['String']['input']>;
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  parentId?: InputMaybe<Scalars['String']['input']>;
+  projectId: Scalars['String']['input'];
+  query?: InputMaybe<Scalars['String']['input']>;
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface QueryProjectDestinationWorkspacesArgs {
+  projectId: Scalars['String']['input'];
+}
+
+export interface QueryProjectFileRequestArgs {
+  requestId: Scalars['String']['input'];
+}
+
+export interface QueryProjectFileRequestRecipientsArgs {
+  projectId: Scalars['String']['input'];
+  query: Scalars['String']['input'];
+}
+
+export interface QueryProjectLegacyConversationsArgs {
+  cursor?: InputMaybe<Scalars['String']['input']>;
+  projectId: Scalars['String']['input'];
+}
+
+export interface QueryProjectLegacyMessagesArgs {
+  cursor?: InputMaybe<Scalars['String']['input']>;
+  projectId: Scalars['String']['input'];
+  sessionId: Scalars['String']['input'];
+}
+
+export interface QueryProjectLegacyOperationsArgs {
+  cursor?: InputMaybe<Scalars['String']['input']>;
+  projectId: Scalars['String']['input'];
+}
+
+export interface QueryProjectOfficeArtifactArgs {
+  artifactId: Scalars['String']['input'];
+  projectId: Scalars['String']['input'];
+}
+
+export interface QueryProjectOfficeRevisionCompareArgs {
+  afterRevisionId: Scalars['String']['input'];
+  artifactId: Scalars['String']['input'];
+  beforeRevisionId: Scalars['String']['input'];
+  projectId: Scalars['String']['input'];
+}
+
+export interface QueryProjectOfficeRevisionsArgs {
+  artifactId: Scalars['String']['input'];
+  limit?: InputMaybe<Scalars['SafeInt']['input']>;
+  projectId: Scalars['String']['input'];
+}
+
+export interface QueryProjectPublicationArgs {
+  projectId: Scalars['String']['input'];
+  publicationId: Scalars['String']['input'];
+}
+
+export interface QueryProjectPublicationCandidatesArgs {
+  cursor?: InputMaybe<Scalars['String']['input']>;
+  parentId?: InputMaybe<Scalars['String']['input']>;
+  projectId: Scalars['String']['input'];
+  query?: InputMaybe<Scalars['String']['input']>;
+  resourceId: Scalars['String']['input'];
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface QueryProjectPublicationsArgs {
+  cursor?: InputMaybe<Scalars['String']['input']>;
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  projectId: Scalars['String']['input'];
+  resourceId?: InputMaybe<Scalars['String']['input']>;
+}
+
+export interface QueryProjectResourceArgs {
+  projectId: Scalars['String']['input'];
+  resourceId: Scalars['String']['input'];
+}
+
+export interface QueryProjectResourceMigrationsArgs {
+  cursor?: InputMaybe<Scalars['String']['input']>;
+  projectId: Scalars['String']['input'];
+}
+
+export interface QueryProjectResourcePathArgs {
+  projectId: Scalars['String']['input'];
+  resourceId: Scalars['String']['input'];
+}
+
+export interface QueryProjectResourceRevisionArgs {
+  projectId: Scalars['String']['input'];
+  resourceId: Scalars['String']['input'];
+  sequence?: InputMaybe<Scalars['Int']['input']>;
+}
+
+export interface QueryProjectResourceSourcesArgs {
+  projectId: Scalars['String']['input'];
+  resourceId: Scalars['String']['input'];
+}
+
+export interface QueryProjectResourcesArgs {
+  cursor?: InputMaybe<Scalars['String']['input']>;
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  parentId?: InputMaybe<Scalars['String']['input']>;
+  projectId: Scalars['String']['input'];
+  search?: InputMaybe<Scalars['String']['input']>;
+  trash?: InputMaybe<Scalars['Boolean']['input']>;
+}
+
 export interface QueryPublicUserByIdArgs {
   id: Scalars['String']['input'];
 }
 
 export interface QueryQueryWorkspaceEmbeddingStatusArgs {
   workspaceId: Scalars['String']['input'];
+}
+
+export interface QuerySearchProjectResourcesArgs {
+  cursor?: InputMaybe<Scalars['String']['input']>;
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  projectId: Scalars['String']['input'];
+  query: Scalars['String']['input'];
 }
 
 export interface QueryUserArgs {
@@ -7701,6 +8579,14 @@ export interface RuntimeConfigNotFoundDataType {
 export interface SameSubscriptionRecurringDataType {
   __typename?: 'SameSubscriptionRecurringDataType';
   recurring: Scalars['String']['output'];
+}
+
+export interface SaveProjectDocumentInput {
+  expectedContentVersion: Scalars['Int']['input'];
+  projectId: Scalars['ID']['input'];
+  requestKey: Scalars['String']['input'];
+  resourceId: Scalars['ID']['input'];
+  snapshotBase64: Scalars['String']['input'];
 }
 
 export interface SearchDocObjectType {
@@ -8095,7 +8981,8 @@ export type UnionNotificationBodyType =
   | InvitationReviewApprovedNotificationBodyType
   | InvitationReviewDeclinedNotificationBodyType
   | InvitationReviewRequestNotificationBodyType
-  | MentionNotificationBodyType;
+  | MentionNotificationBodyType
+  | ProjectFileRequestNotificationBodyType;
 
 export interface UnknownOauthProviderDataType {
   __typename?: 'UnknownOauthProviderDataType';
@@ -9430,6 +10317,112 @@ export type ListUsersQuery = {
   }>;
 };
 
+export type AdminProjectByokSettingsQueryVariables = Exact<{
+  [key: string]: never;
+}>;
+
+export type AdminProjectByokSettingsQuery = {
+  __typename?: 'Query';
+  adminProjectByokSettings: {
+    __typename?: 'ProjectByokSettingsType';
+    configured: boolean;
+    revision: number;
+    provider: ByokProvider;
+    endpoint: string | null;
+    modelId: string | null;
+    enabled: boolean;
+    lastValidatedAt: string | null;
+    lastUsedAt: string | null;
+    lastError: string | null;
+    updatedAt: string | null;
+    updatedBy: string | null;
+    allowedProviders: Array<ByokProvider>;
+    customEndpointSupported: boolean;
+    auditEvents: Array<{
+      __typename?: 'ProjectByokAuditEventType';
+      revision: number;
+      actorId: string;
+      provider: ByokProvider;
+      endpoint: string | null;
+      modelId: string;
+      enabled: boolean;
+      credentialChanged: boolean;
+      createdAt: string;
+    }>;
+  };
+};
+
+export type SaveProjectByokConfigMutationVariables = Exact<{
+  input: ProjectByokConfigInput;
+}>;
+
+export type SaveProjectByokConfigMutation = {
+  __typename?: 'Mutation';
+  saveProjectByokConfig: {
+    __typename?: 'ProjectByokSettingsType';
+    configured: boolean;
+    revision: number;
+    provider: ByokProvider;
+    endpoint: string | null;
+    modelId: string | null;
+    enabled: boolean;
+    lastValidatedAt: string | null;
+    lastUsedAt: string | null;
+    lastError: string | null;
+    updatedAt: string | null;
+    updatedBy: string | null;
+    allowedProviders: Array<ByokProvider>;
+    customEndpointSupported: boolean;
+    auditEvents: Array<{
+      __typename?: 'ProjectByokAuditEventType';
+      revision: number;
+      actorId: string;
+      provider: ByokProvider;
+      endpoint: string | null;
+      modelId: string;
+      enabled: boolean;
+      credentialChanged: boolean;
+      createdAt: string;
+    }>;
+  };
+};
+
+export type SetProjectByokEnabledMutationVariables = Exact<{
+  expectedRevision: Scalars['SafeInt']['input'];
+  enabled: Scalars['Boolean']['input'];
+}>;
+
+export type SetProjectByokEnabledMutation = {
+  __typename?: 'Mutation';
+  setProjectByokEnabled: {
+    __typename?: 'ProjectByokSettingsType';
+    configured: boolean;
+    revision: number;
+    provider: ByokProvider;
+    endpoint: string | null;
+    modelId: string | null;
+    enabled: boolean;
+    lastValidatedAt: string | null;
+    lastUsedAt: string | null;
+    lastError: string | null;
+    updatedAt: string | null;
+    updatedBy: string | null;
+    allowedProviders: Array<ByokProvider>;
+    customEndpointSupported: boolean;
+    auditEvents: Array<{
+      __typename?: 'ProjectByokAuditEventType';
+      revision: number;
+      actorId: string;
+      provider: ByokProvider;
+      endpoint: string | null;
+      modelId: string;
+      enabled: boolean;
+      credentialChanged: boolean;
+      createdAt: string;
+    }>;
+  };
+};
+
 export type RotateAuthSigningKeyMutationVariables = Exact<{
   expectedActiveKeyId: Scalars['String']['input'];
 }>;
@@ -9486,6 +10479,19 @@ export type SetAdminUserAiProfileAssignmentMutation = {
       isDefault: boolean;
     };
   } | null;
+};
+
+export type TestProjectByokConfigMutationVariables = Exact<{
+  input: ProjectByokConfigInput;
+}>;
+
+export type TestProjectByokConfigMutation = {
+  __typename?: 'Mutation';
+  testProjectByokConfig: {
+    __typename?: 'ProjectByokTestResultType';
+    ok: boolean;
+    message: string | null;
+  };
 };
 
 export type UpdateAccountFeaturesMutationVariables = Exact<{
@@ -9565,6 +10571,33 @@ export type ValidateConfigQuery = {
     valid: boolean;
     error: string | null;
   }>;
+};
+
+export type ApproveProjectAgentTaskMutationVariables = Exact<{
+  projectId: Scalars['String']['input'];
+  runId: Scalars['String']['input'];
+  targetFingerprint: Scalars['String']['input'];
+}>;
+
+export type ApproveProjectAgentTaskMutation = {
+  __typename?: 'Mutation';
+  approveProjectAgentTask: {
+    __typename?: 'ProjectAgentTaskType';
+    id: string;
+    projectId: string;
+    sessionId: string | null;
+    title: string;
+    workflow: string;
+    status: string;
+    targetFingerprint: string;
+    workerAttempt: number;
+    createdAt: string;
+    updatedAt: string;
+    failureCode: string | null;
+    failureMessage: string | null;
+    receipt: any | null;
+    preview: any | null;
+  };
 };
 
 export type DeleteBlobMutationVariables = Exact<{
@@ -9887,6 +10920,32 @@ export type WorkspaceCalendarsQuery = {
   };
 };
 
+export type CancelProjectAgentTaskMutationVariables = Exact<{
+  projectId: Scalars['String']['input'];
+  runId: Scalars['String']['input'];
+}>;
+
+export type CancelProjectAgentTaskMutation = {
+  __typename?: 'Mutation';
+  cancelProjectAgentTask: {
+    __typename?: 'ProjectAgentTaskType';
+    id: string;
+    projectId: string;
+    sessionId: string | null;
+    title: string;
+    workflow: string;
+    status: string;
+    targetFingerprint: string;
+    workerAttempt: number;
+    createdAt: string;
+    updatedAt: string;
+    failureCode: string | null;
+    failureMessage: string | null;
+    receipt: any | null;
+    preview: any | null;
+  };
+};
+
 export type CancelSubscriptionMutationVariables = Exact<{
   plan?: InputMaybe<SubscriptionPlan>;
   workspaceId?: InputMaybe<Scalars['String']['input']>;
@@ -9922,6 +10981,135 @@ export type ChangePasswordMutationVariables = Exact<{
 export type ChangePasswordMutation = {
   __typename?: 'Mutation';
   changePassword: boolean;
+};
+
+export type ChangeProjectFileRequestMutationVariables = Exact<{
+  requestId: Scalars['String']['input'];
+  expectedVersion: Scalars['Int']['input'];
+  action: Scalars['String']['input'];
+}>;
+
+export type ChangeProjectFileRequestMutation = {
+  __typename?: 'Mutation';
+  changeProjectFileRequest: {
+    __typename?: 'ProjectFileRequestType';
+    id: string;
+    projectId: string;
+    projectName: string;
+    title: string;
+    requesterName: string;
+    recipientName: string;
+    status: string;
+    version: number;
+    isRecipient: boolean;
+    fileName: string | null;
+    resourceId: string | null;
+    updatedAt: string;
+  };
+};
+
+export type ChangeProjectLegacyOperationMutationVariables = Exact<{
+  projectId: Scalars['String']['input'];
+  operationId: Scalars['String']['input'];
+  expectedRevision: Scalars['Int']['input'];
+  action: Scalars['String']['input'];
+}>;
+
+export type ChangeProjectLegacyOperationMutation = {
+  __typename?: 'Mutation';
+  changeProjectLegacyOperation: {
+    __typename?: 'ProjectLegacyOperationType';
+    id: string;
+    title: string;
+    status: string;
+    revision: number;
+    resourceId: string | null;
+    createdAt: string;
+  };
+};
+
+export type ChangeProjectPublicationMutationVariables = Exact<{
+  projectId: Scalars['String']['input'];
+  publicationId: Scalars['String']['input'];
+  expectedRevision: Scalars['Int']['input'];
+  action: Scalars['String']['input'];
+}>;
+
+export type ChangeProjectPublicationMutation = {
+  __typename?: 'Mutation';
+  changeProjectPublication: {
+    __typename?: 'ProjectPublicationType';
+    id: string;
+    projectId: string;
+    resourceId: string;
+    runId: string | null;
+    revision: number;
+    kind: string;
+    title: string;
+    status: string;
+    sourceSequence: number;
+    createdAt: string;
+    expiresAt: string;
+    targetFingerprint: string | null;
+    failureCode: string | null;
+    target: any | null;
+    preview: any | null;
+    receipt: any | null;
+  };
+};
+
+export type ChangeProjectResourceMigrationMutationVariables = Exact<{
+  projectId: Scalars['String']['input'];
+  migrationId: Scalars['String']['input'];
+  expectedRevision: Scalars['Int']['input'];
+  action: Scalars['String']['input'];
+}>;
+
+export type ChangeProjectResourceMigrationMutation = {
+  __typename?: 'Mutation';
+  changeProjectResourceMigration: {
+    __typename?: 'ProjectResourceMigrationType';
+    id: string;
+    projectId: string;
+    status: string;
+    revision: number;
+    title: string | null;
+    failureCode: string | null;
+    resourceId: string | null;
+  };
+};
+
+export type ChangeProjectResourceMutationVariables = Exact<{
+  input: ChangeProjectResourceInput;
+}>;
+
+export type ChangeProjectResourceMutation = {
+  __typename?: 'Mutation';
+  changeProjectResource: {
+    __typename?: 'ProjectResourceType';
+    id: string;
+    projectId: string;
+    parentId: string | null;
+    kind: ProjectResourceKind;
+    title: string;
+    sortKey: string;
+    version: number;
+    contentVersion: number;
+    officeArtifactId: string | null;
+    trashedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+  };
+};
+
+export type CleanupProjectCopilotSessionsMutationVariables = Exact<{
+  projectId: Scalars['String']['input'];
+  sessionIds: Array<Scalars['String']['input']> | Scalars['String']['input'];
+}>;
+
+export type CleanupProjectCopilotSessionsMutation = {
+  __typename?: 'Mutation';
+  cleanupProjectCopilotSessions: Array<string>;
 };
 
 export type ListCommentChangesQueryVariables = Exact<{
@@ -10127,6 +11315,36 @@ export type UploadCommentAttachmentMutationVariables = Exact<{
 export type UploadCommentAttachmentMutation = {
   __typename?: 'Mutation';
   uploadCommentAttachment: string;
+};
+
+export type ConfirmProjectPublicationMutationVariables = Exact<{
+  projectId: Scalars['String']['input'];
+  publicationId: Scalars['String']['input'];
+  expectedRevision: Scalars['Int']['input'];
+  targetFingerprint: Scalars['String']['input'];
+}>;
+
+export type ConfirmProjectPublicationMutation = {
+  __typename?: 'Mutation';
+  confirmProjectPublication: {
+    __typename?: 'ProjectPublicationType';
+    id: string;
+    projectId: string;
+    resourceId: string;
+    runId: string | null;
+    revision: number;
+    kind: string;
+    title: string;
+    status: string;
+    sourceSequence: number;
+    createdAt: string;
+    expiresAt: string;
+    targetFingerprint: string | null;
+    failureCode: string | null;
+    target: any | null;
+    preview: any | null;
+    receipt: any | null;
+  };
 };
 
 export type ApproveCopilotAccessRequestMutationVariables = Exact<{
@@ -12115,7 +13333,7 @@ export type GetCopilotDocSessionsQuery = {
           node: {
             __typename?: 'CopilotHistories';
             sessionId: string;
-            workspaceId: string;
+            workspaceId: string | null;
             docId: string | null;
             selectedContextProjectId: string | null;
             parentSessionId: string | null;
@@ -12180,7 +13398,7 @@ export type GetCopilotPinnedSessionsQuery = {
           node: {
             __typename?: 'CopilotHistories';
             sessionId: string;
-            workspaceId: string;
+            workspaceId: string | null;
             docId: string | null;
             selectedContextProjectId: string | null;
             parentSessionId: string | null;
@@ -12244,7 +13462,7 @@ export type GetCopilotWorkspaceSessionsQuery = {
           node: {
             __typename?: 'CopilotHistories';
             sessionId: string;
-            workspaceId: string;
+            workspaceId: string | null;
             docId: string | null;
             selectedContextProjectId: string | null;
             parentSessionId: string | null;
@@ -12309,7 +13527,7 @@ export type GetCopilotHistoriesQuery = {
           node: {
             __typename?: 'CopilotHistories';
             sessionId: string;
-            workspaceId: string;
+            workspaceId: string | null;
             docId: string | null;
             selectedContextProjectId: string | null;
             parentSessionId: string | null;
@@ -16313,7 +17531,7 @@ export type CreateCopilotSessionWithHistoryMutation = {
   createCopilotSessionWithHistory: {
     __typename?: 'CopilotHistories';
     sessionId: string;
-    workspaceId: string;
+    workspaceId: string | null;
     docId: string | null;
     selectedContextProjectId: string | null;
     parentSessionId: string | null;
@@ -16390,7 +17608,7 @@ export type GetCopilotLatestDocSessionQuery = {
           node: {
             __typename?: 'CopilotHistories';
             sessionId: string;
-            workspaceId: string;
+            workspaceId: string | null;
             docId: string | null;
             selectedContextProjectId: string | null;
             parentSessionId: string | null;
@@ -16453,7 +17671,7 @@ export type GetCopilotSessionQuery = {
           node: {
             __typename?: 'CopilotHistories';
             sessionId: string;
-            workspaceId: string;
+            workspaceId: string | null;
             docId: string | null;
             selectedContextProjectId: string | null;
             parentSessionId: string | null;
@@ -16517,7 +17735,7 @@ export type GetCopilotRecentSessionsQuery = {
           node: {
             __typename?: 'CopilotHistories';
             sessionId: string;
-            workspaceId: string;
+            workspaceId: string | null;
             docId: string | null;
             selectedContextProjectId: string | null;
             parentSessionId: string | null;
@@ -16591,7 +17809,7 @@ export type GetCopilotSessionsQuery = {
           node: {
             __typename?: 'CopilotHistories';
             sessionId: string;
-            workspaceId: string;
+            workspaceId: string | null;
             docId: string | null;
             selectedContextProjectId: string | null;
             parentSessionId: string | null;
@@ -18297,6 +19515,96 @@ export type CreateCustomerPortalMutation = {
   createCustomerPortal: string;
 };
 
+export type CreateProjectDestinationFolderMutationVariables = Exact<{
+  projectId: Scalars['String']['input'];
+  publicationId: Scalars['String']['input'];
+  workspaceId: Scalars['String']['input'];
+  parentId?: InputMaybe<Scalars['String']['input']>;
+  title: Scalars['String']['input'];
+  expectedDirectoryRevision: Scalars['String']['input'];
+  requestKey: Scalars['String']['input'];
+}>;
+
+export type CreateProjectDestinationFolderMutation = {
+  __typename?: 'Mutation';
+  createProjectDestinationFolder: {
+    __typename?: 'ProjectDestinationFolderResultType';
+    runId: string;
+    status: string;
+    folderId: string | null;
+    failureCode: string | null;
+  };
+};
+
+export type CreateProjectFileRequestMutationVariables = Exact<{
+  input: CreateFileRequestInput;
+}>;
+
+export type CreateProjectFileRequestMutation = {
+  __typename?: 'Mutation';
+  createProjectFileRequest: {
+    __typename?: 'ProjectFileRequestType';
+    id: string;
+    projectId: string;
+    projectName: string;
+    title: string;
+    requesterName: string;
+    recipientName: string;
+    status: string;
+    version: number;
+    isRecipient: boolean;
+    fileName: string | null;
+    resourceId: string | null;
+    updatedAt: string;
+  };
+};
+
+export type CreateProjectFileMutationVariables = Exact<{
+  input: CreateProjectFileInput;
+}>;
+
+export type CreateProjectFileMutation = {
+  __typename?: 'Mutation';
+  createProjectFile: {
+    __typename?: 'ProjectResourceType';
+    id: string;
+    projectId: string;
+    parentId: string | null;
+    kind: ProjectResourceKind;
+    title: string;
+    sortKey: string;
+    version: number;
+    contentVersion: number;
+    officeArtifactId: string | null;
+    trashedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+  };
+};
+
+export type CreateProjectResourceMutationVariables = Exact<{
+  input: CreateProjectResourceInput;
+}>;
+
+export type CreateProjectResourceMutation = {
+  __typename?: 'Mutation';
+  createProjectResource: {
+    __typename?: 'ProjectResourceType';
+    id: string;
+    projectId: string;
+    parentId: string | null;
+    kind: ProjectResourceKind;
+    title: string;
+    sortKey: string;
+    version: number;
+    contentVersion: number;
+    officeArtifactId: string | null;
+    trashedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+  };
+};
+
 export type CreateSelfhostCustomerPortalMutationVariables = Exact<{
   workspaceId: Scalars['String']['input'];
 }>;
@@ -18332,6 +19640,37 @@ export type DeleteWorkspaceMutationVariables = Exact<{
 export type DeleteWorkspaceMutation = {
   __typename?: 'Mutation';
   deleteWorkspace: boolean;
+};
+
+export type DiscoverProjectResourceMigrationsMutationVariables = Exact<{
+  projectId: Scalars['String']['input'];
+}>;
+
+export type DiscoverProjectResourceMigrationsMutation = {
+  __typename?: 'Mutation';
+  discoverProjectResourceMigrations: {
+    __typename?: 'ProjectResourceMigrationPageType';
+    nextCursor: string | null;
+    items: Array<{
+      __typename?: 'ProjectResourceMigrationType';
+      id: string;
+      projectId: string;
+      status: string;
+      revision: number;
+      title: string | null;
+      failureCode: string | null;
+      resourceId: string | null;
+    }>;
+  };
+};
+
+export type DismissAllNotificationsMutationVariables = Exact<{
+  [key: string]: never;
+}>;
+
+export type DismissAllNotificationsMutation = {
+  __typename?: 'Mutation';
+  dismissAllNotifications: boolean;
 };
 
 export type DismissNotificationMutationVariables = Exact<{
@@ -18615,6 +19954,75 @@ export type UpdateEnterpriseToolAllowlistMutation = {
   };
 };
 
+export type ExecuteProjectOfficeCommandMutationVariables = Exact<{
+  input: ProjectOfficeCommandInput;
+}>;
+
+export type ExecuteProjectOfficeCommandMutation = {
+  __typename?: 'Mutation';
+  executeProjectOfficeCommand: {
+    __typename?: 'ProjectOfficeResultType';
+    created: boolean;
+    summary: any;
+    artifact: {
+      __typename?: 'ProjectOfficeArtifactType';
+      id: string;
+      projectId: string;
+      kind: OfficeArtifactKind;
+      title: string;
+      sourceFileName: string;
+      sourceMimeType: string;
+      sourceByteSize: number;
+      sourceFingerprint: string;
+      revisionCounter: number;
+      compatibility: any;
+      createdBy: string;
+      createdAt: string;
+      updatedAt: string;
+      currentRevision: {
+        __typename?: 'ProjectOfficeRevisionType';
+        id: string;
+        projectId: string;
+        artifactId: string;
+        sequence: number;
+        origin: OfficeRevisionOrigin;
+        parentRevisionId: string | null;
+        packageMimeType: string;
+        packageByteSize: number;
+        packageFingerprint: string;
+        stateByteSize: number | null;
+        stateFingerprint: string | null;
+        modelVersion: string;
+        operationSummary: any;
+        createdBy: string;
+        createdAt: string;
+        packageUrl: string;
+        stateUrl: string | null;
+      };
+    };
+    revision: {
+      __typename?: 'ProjectOfficeRevisionType';
+      id: string;
+      projectId: string;
+      artifactId: string;
+      sequence: number;
+      origin: OfficeRevisionOrigin;
+      parentRevisionId: string | null;
+      packageMimeType: string;
+      packageByteSize: number;
+      packageFingerprint: string;
+      stateByteSize: number | null;
+      stateFingerprint: string | null;
+      modelVersion: string;
+      operationSummary: any;
+      createdBy: string;
+      createdAt: string;
+      packageUrl: string;
+      stateUrl: string | null;
+    };
+  };
+};
+
 export type ConnectExternalMcpMutationVariables = Exact<{
   input: ConnectExternalMcpInput;
 }>;
@@ -18765,7 +20173,7 @@ export type CopilotBlockerFieldsFragment = {
 export type CopilotChatHistoryFragment = {
   __typename?: 'CopilotHistories';
   sessionId: string;
-  workspaceId: string;
+  workspaceId: string | null;
   docId: string | null;
   selectedContextProjectId: string | null;
   parentSessionId: string | null;
@@ -18963,7 +20371,7 @@ export type PaginatedCopilotChatsFragment = {
     node: {
       __typename?: 'CopilotHistories';
       sessionId: string;
-      workspaceId: string;
+      workspaceId: string | null;
       docId: string | null;
       selectedContextProjectId: string | null;
       parentSessionId: string | null;
@@ -19001,6 +20409,194 @@ export type PasswordLimitsFragment = {
   __typename?: 'PasswordLimitsType';
   minLength: number;
   maxLength: number;
+};
+
+export type ProjectAgentTaskFieldsFragment = {
+  __typename?: 'ProjectAgentTaskType';
+  id: string;
+  projectId: string;
+  sessionId: string | null;
+  title: string;
+  workflow: string;
+  status: string;
+  targetFingerprint: string;
+  workerAttempt: number;
+  createdAt: string;
+  updatedAt: string;
+  failureCode: string | null;
+  failureMessage: string | null;
+  receipt: any | null;
+  preview: any | null;
+};
+
+export type ProjectByokSettingsFragment = {
+  __typename?: 'ProjectByokSettingsType';
+  configured: boolean;
+  revision: number;
+  provider: ByokProvider;
+  endpoint: string | null;
+  modelId: string | null;
+  enabled: boolean;
+  lastValidatedAt: string | null;
+  lastUsedAt: string | null;
+  lastError: string | null;
+  updatedAt: string | null;
+  updatedBy: string | null;
+  allowedProviders: Array<ByokProvider>;
+  customEndpointSupported: boolean;
+  auditEvents: Array<{
+    __typename?: 'ProjectByokAuditEventType';
+    revision: number;
+    actorId: string;
+    provider: ByokProvider;
+    endpoint: string | null;
+    modelId: string;
+    enabled: boolean;
+    credentialChanged: boolean;
+    createdAt: string;
+  }>;
+};
+
+export type ProjectChatContextFieldsFragment = {
+  __typename?: 'ProjectChatContextType';
+  projectId: string;
+  sessionId: string;
+  version: number;
+  items: Array<{
+    __typename?: 'ProjectChatContextItemType';
+    kind: string;
+    title: string;
+    available: boolean;
+    resourceId: string | null;
+    sequence: number | null;
+    currentSequence: number | null;
+    resourceKind: string | null;
+    blobKey: string | null;
+    name: string | null;
+    mimeType: string | null;
+    byteSize: number | null;
+  }>;
+};
+
+export type ProjectFileRequestFieldsFragment = {
+  __typename?: 'ProjectFileRequestType';
+  id: string;
+  projectId: string;
+  projectName: string;
+  title: string;
+  requesterName: string;
+  recipientName: string;
+  status: string;
+  version: number;
+  isRecipient: boolean;
+  fileName: string | null;
+  resourceId: string | null;
+  updatedAt: string;
+};
+
+export type ProjectOfficeArtifactFieldsFragment = {
+  __typename?: 'ProjectOfficeArtifactType';
+  id: string;
+  projectId: string;
+  kind: OfficeArtifactKind;
+  title: string;
+  sourceFileName: string;
+  sourceMimeType: string;
+  sourceByteSize: number;
+  sourceFingerprint: string;
+  revisionCounter: number;
+  compatibility: any;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  currentRevision: {
+    __typename?: 'ProjectOfficeRevisionType';
+    id: string;
+    projectId: string;
+    artifactId: string;
+    sequence: number;
+    origin: OfficeRevisionOrigin;
+    parentRevisionId: string | null;
+    packageMimeType: string;
+    packageByteSize: number;
+    packageFingerprint: string;
+    stateByteSize: number | null;
+    stateFingerprint: string | null;
+    modelVersion: string;
+    operationSummary: any;
+    createdBy: string;
+    createdAt: string;
+    packageUrl: string;
+    stateUrl: string | null;
+  };
+};
+
+export type ProjectOfficeRevisionFieldsFragment = {
+  __typename?: 'ProjectOfficeRevisionType';
+  id: string;
+  projectId: string;
+  artifactId: string;
+  sequence: number;
+  origin: OfficeRevisionOrigin;
+  parentRevisionId: string | null;
+  packageMimeType: string;
+  packageByteSize: number;
+  packageFingerprint: string;
+  stateByteSize: number | null;
+  stateFingerprint: string | null;
+  modelVersion: string;
+  operationSummary: any;
+  createdBy: string;
+  createdAt: string;
+  packageUrl: string;
+  stateUrl: string | null;
+};
+
+export type ProjectPublicationFieldsFragment = {
+  __typename?: 'ProjectPublicationType';
+  id: string;
+  projectId: string;
+  resourceId: string;
+  runId: string | null;
+  revision: number;
+  kind: string;
+  title: string;
+  status: string;
+  sourceSequence: number;
+  createdAt: string;
+  expiresAt: string;
+  targetFingerprint: string | null;
+  failureCode: string | null;
+  target: any | null;
+  preview: any | null;
+  receipt: any | null;
+};
+
+export type ProjectResourceMigrationFieldsFragment = {
+  __typename?: 'ProjectResourceMigrationType';
+  id: string;
+  projectId: string;
+  status: string;
+  revision: number;
+  title: string | null;
+  failureCode: string | null;
+  resourceId: string | null;
+};
+
+export type ProjectResourceFieldsFragment = {
+  __typename?: 'ProjectResourceType';
+  id: string;
+  projectId: string;
+  parentId: string | null;
+  kind: ProjectResourceKind;
+  title: string;
+  sortKey: string;
+  version: number;
+  contentVersion: number;
+  officeArtifactId: string | null;
+  trashedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type GenerateLicenseKeyMutationVariables = Exact<{
@@ -19473,6 +21069,98 @@ export type ListHistoryQuery = {
         avatarUrl: string | null;
       } | null;
     }>;
+  };
+};
+
+export type ImportProjectOfficeMutationVariables = Exact<{
+  input: ImportProjectOfficeInput;
+}>;
+
+export type ImportProjectOfficeMutation = {
+  __typename?: 'Mutation';
+  importProjectOffice: {
+    __typename?: 'ProjectOfficeResultType';
+    created: boolean;
+    summary: any;
+    artifact: {
+      __typename?: 'ProjectOfficeArtifactType';
+      id: string;
+      projectId: string;
+      kind: OfficeArtifactKind;
+      title: string;
+      sourceFileName: string;
+      sourceMimeType: string;
+      sourceByteSize: number;
+      sourceFingerprint: string;
+      revisionCounter: number;
+      compatibility: any;
+      createdBy: string;
+      createdAt: string;
+      updatedAt: string;
+      currentRevision: {
+        __typename?: 'ProjectOfficeRevisionType';
+        id: string;
+        projectId: string;
+        artifactId: string;
+        sequence: number;
+        origin: OfficeRevisionOrigin;
+        parentRevisionId: string | null;
+        packageMimeType: string;
+        packageByteSize: number;
+        packageFingerprint: string;
+        stateByteSize: number | null;
+        stateFingerprint: string | null;
+        modelVersion: string;
+        operationSummary: any;
+        createdBy: string;
+        createdAt: string;
+        packageUrl: string;
+        stateUrl: string | null;
+      };
+    };
+    revision: {
+      __typename?: 'ProjectOfficeRevisionType';
+      id: string;
+      projectId: string;
+      artifactId: string;
+      sequence: number;
+      origin: OfficeRevisionOrigin;
+      parentRevisionId: string | null;
+      packageMimeType: string;
+      packageByteSize: number;
+      packageFingerprint: string;
+      stateByteSize: number | null;
+      stateFingerprint: string | null;
+      modelVersion: string;
+      operationSummary: any;
+      createdBy: string;
+      createdAt: string;
+      packageUrl: string;
+      stateUrl: string | null;
+    };
+  };
+};
+
+export type ImportWorkspaceResourceToProjectMutationVariables = Exact<{
+  input: ImportWorkspaceResourceToProjectInput;
+}>;
+
+export type ImportWorkspaceResourceToProjectMutation = {
+  __typename?: 'Mutation';
+  importWorkspaceResourceToProject: {
+    __typename?: 'ProjectResourceType';
+    id: string;
+    projectId: string;
+    parentId: string | null;
+    kind: ProjectResourceKind;
+    title: string;
+    sortKey: string;
+    version: number;
+    contentVersion: number;
+    officeArtifactId: string | null;
+    trashedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
   };
 };
 
@@ -20534,6 +22222,86 @@ export type OfficeRevisionsQuery = {
   }>;
 };
 
+export type PrepareProjectPublicationMutationVariables = Exact<{
+  projectId: Scalars['String']['input'];
+  resourceId: Scalars['String']['input'];
+  kind: Scalars['String']['input'];
+  requestKey: Scalars['String']['input'];
+  sessionId?: InputMaybe<Scalars['String']['input']>;
+}>;
+
+export type PrepareProjectPublicationMutation = {
+  __typename?: 'Mutation';
+  prepareProjectPublication: {
+    __typename?: 'ProjectPublicationType';
+    id: string;
+    projectId: string;
+    resourceId: string;
+    runId: string | null;
+    revision: number;
+    kind: string;
+    title: string;
+    status: string;
+    sourceSequence: number;
+    createdAt: string;
+    expiresAt: string;
+    targetFingerprint: string | null;
+    failureCode: string | null;
+    target: any | null;
+    preview: any | null;
+    receipt: any | null;
+  };
+};
+
+export type PreviewProjectOfficeCommandQueryVariables = Exact<{
+  input: ProjectOfficeCommandInput;
+}>;
+
+export type PreviewProjectOfficeCommandQuery = {
+  __typename?: 'Query';
+  previewProjectOfficeCommand: {
+    __typename?: 'OfficeCommandPreviewType';
+    artifactId: string;
+    expectedRevisionId: string;
+    packageFingerprint: string;
+    stateFingerprint: string;
+    stats: any;
+    summary: any;
+  };
+};
+
+export type PreviewProjectPublicationMutationVariables = Exact<{
+  projectId: Scalars['String']['input'];
+  publicationId: Scalars['String']['input'];
+  expectedRevision: Scalars['Int']['input'];
+  workspaceId: Scalars['String']['input'];
+  folderId?: InputMaybe<Scalars['String']['input']>;
+  targetResourceId?: InputMaybe<Scalars['String']['input']>;
+}>;
+
+export type PreviewProjectPublicationMutation = {
+  __typename?: 'Mutation';
+  previewProjectPublication: {
+    __typename?: 'ProjectPublicationType';
+    id: string;
+    projectId: string;
+    resourceId: string;
+    runId: string | null;
+    revision: number;
+    kind: string;
+    title: string;
+    status: string;
+    sourceSequence: number;
+    createdAt: string;
+    expiresAt: string;
+    targetFingerprint: string | null;
+    failureCode: string | null;
+    target: any | null;
+    preview: any | null;
+    receipt: any | null;
+  };
+};
+
 export type PricesQueryVariables = Exact<{ [key: string]: never }>;
 
 export type PricesQuery = {
@@ -20547,6 +22315,745 @@ export type PricesQuery = {
     yearlyAmount: number | null;
     lifetimeAmount: number | null;
   }>;
+};
+
+export type ProjectAgentTaskQueryVariables = Exact<{
+  projectId: Scalars['String']['input'];
+  runId: Scalars['String']['input'];
+}>;
+
+export type ProjectAgentTaskQuery = {
+  __typename?: 'Query';
+  projectAgentTask: {
+    __typename?: 'ProjectAgentTaskType';
+    id: string;
+    projectId: string;
+    sessionId: string | null;
+    title: string;
+    workflow: string;
+    status: string;
+    targetFingerprint: string;
+    workerAttempt: number;
+    createdAt: string;
+    updatedAt: string;
+    failureCode: string | null;
+    failureMessage: string | null;
+    receipt: any | null;
+    preview: any | null;
+  };
+};
+
+export type ProjectAgentTasksQueryVariables = Exact<{
+  projectId: Scalars['String']['input'];
+  sessionId?: InputMaybe<Scalars['String']['input']>;
+  cursor?: InputMaybe<Scalars['String']['input']>;
+  limit?: InputMaybe<Scalars['Int']['input']>;
+}>;
+
+export type ProjectAgentTasksQuery = {
+  __typename?: 'Query';
+  projectAgentTasks: {
+    __typename?: 'ProjectAgentTaskPageType';
+    nextCursor: string | null;
+    items: Array<{
+      __typename?: 'ProjectAgentTaskType';
+      id: string;
+      projectId: string;
+      sessionId: string | null;
+      title: string;
+      workflow: string;
+      status: string;
+      targetFingerprint: string;
+      workerAttempt: number;
+      createdAt: string;
+      updatedAt: string;
+      failureCode: string | null;
+      failureMessage: string | null;
+      receipt: any | null;
+      preview: any | null;
+    }>;
+  };
+};
+
+export type ProjectAiModelQueryVariables = Exact<{
+  projectId: Scalars['String']['input'];
+}>;
+
+export type ProjectAiModelQuery = {
+  __typename?: 'Query';
+  projectAiModel: {
+    __typename?: 'ProjectAiModelType';
+    configured: boolean;
+    modelId: string | null;
+    provider: ByokProvider | null;
+  };
+};
+
+export type ProjectChatContextQueryVariables = Exact<{
+  projectId: Scalars['String']['input'];
+  sessionId: Scalars['String']['input'];
+}>;
+
+export type ProjectChatContextQuery = {
+  __typename?: 'Query';
+  projectChatContext: {
+    __typename?: 'ProjectChatContextType';
+    projectId: string;
+    sessionId: string;
+    version: number;
+    items: Array<{
+      __typename?: 'ProjectChatContextItemType';
+      kind: string;
+      title: string;
+      available: boolean;
+      resourceId: string | null;
+      sequence: number | null;
+      currentSequence: number | null;
+      resourceKind: string | null;
+      blobKey: string | null;
+      name: string | null;
+      mimeType: string | null;
+      byteSize: number | null;
+    }>;
+  };
+};
+
+export type ProjectCopilotChatQueryVariables = Exact<{
+  projectId: Scalars['String']['input'];
+  sessionId: Scalars['String']['input'];
+}>;
+
+export type ProjectCopilotChatQuery = {
+  __typename?: 'Query';
+  currentUser: {
+    __typename?: 'UserType';
+    copilot: {
+      __typename?: 'Copilot';
+      projectChat: {
+        __typename?: 'CopilotHistories';
+        sessionId: string;
+        workspaceId: string | null;
+        docId: string | null;
+        selectedContextProjectId: string | null;
+        parentSessionId: string | null;
+        promptName: string;
+        model: string;
+        optionalModels: Array<string>;
+        action: string | null;
+        pinned: boolean;
+        title: string | null;
+        tokens: number;
+        createdAt: string;
+        updatedAt: string;
+        messages: Array<{
+          __typename?: 'ChatMessage';
+          id: string | null;
+          role: string;
+          content: string;
+          attachments: Array<string> | null;
+          createdAt: string;
+          streamObjects: Array<{
+            __typename?: 'StreamObject';
+            type: string;
+            textDelta: string | null;
+            toolCallId: string | null;
+            toolName: string | null;
+            args: unknown | null;
+            result: unknown | null;
+          }> | null;
+        }>;
+      };
+    };
+  } | null;
+};
+
+export type ProjectCopilotChatsQueryVariables = Exact<{
+  projectId: Scalars['String']['input'];
+  pagination: PaginationInput;
+  options?: InputMaybe<QueryChatHistoriesInput>;
+}>;
+
+export type ProjectCopilotChatsQuery = {
+  __typename?: 'Query';
+  currentUser: {
+    __typename?: 'UserType';
+    copilot: {
+      __typename?: 'Copilot';
+      projectChats: {
+        __typename?: 'PaginatedCopilotHistoriesType';
+        totalCount: number;
+        edges: Array<{
+          __typename?: 'CopilotHistoriesTypeEdge';
+          cursor: string;
+          node: {
+            __typename?: 'CopilotHistories';
+            sessionId: string;
+            workspaceId: string | null;
+            docId: string | null;
+            selectedContextProjectId: string | null;
+            parentSessionId: string | null;
+            promptName: string;
+            model: string;
+            optionalModels: Array<string>;
+            action: string | null;
+            pinned: boolean;
+            title: string | null;
+            tokens: number;
+            createdAt: string;
+            updatedAt: string;
+            messages: Array<{
+              __typename?: 'ChatMessage';
+              id: string | null;
+              role: string;
+              content: string;
+              attachments: Array<string> | null;
+              createdAt: string;
+              streamObjects: Array<{
+                __typename?: 'StreamObject';
+                type: string;
+                textDelta: string | null;
+                toolCallId: string | null;
+                toolName: string | null;
+                args: unknown | null;
+                result: unknown | null;
+              }> | null;
+            }>;
+          };
+        }>;
+        pageInfo: {
+          __typename?: 'PageInfo';
+          hasNextPage: boolean;
+          endCursor: string | null;
+        };
+      };
+    };
+  } | null;
+};
+
+export type ProjectDestinationFoldersQueryVariables = Exact<{
+  projectId: Scalars['String']['input'];
+  workspaceId: Scalars['String']['input'];
+  parentId?: InputMaybe<Scalars['String']['input']>;
+  query?: InputMaybe<Scalars['String']['input']>;
+  cursor?: InputMaybe<Scalars['String']['input']>;
+  limit?: InputMaybe<Scalars['Int']['input']>;
+}>;
+
+export type ProjectDestinationFoldersQuery = {
+  __typename?: 'Query';
+  projectDestinationFolders: {
+    __typename?: 'ProjectDestinationPageType';
+    revision: string;
+    nextCursor: string | null;
+    current: {
+      __typename?: 'ProjectDestinationFolderType';
+      workspaceId: string;
+      folderId: string | null;
+      fingerprint: string;
+      canSave: boolean;
+      canCreateFolder: boolean;
+      path: Array<{
+        __typename?: 'ProjectDestinationWorkspaceType';
+        id: string;
+        name: string;
+      }>;
+    };
+    items: Array<{
+      __typename?: 'ProjectDestinationFolderType';
+      workspaceId: string;
+      folderId: string | null;
+      fingerprint: string;
+      canSave: boolean;
+      canCreateFolder: boolean;
+      path: Array<{
+        __typename?: 'ProjectDestinationWorkspaceType';
+        id: string;
+        name: string;
+      }>;
+    }>;
+  };
+};
+
+export type ProjectDestinationWorkspacesQueryVariables = Exact<{
+  projectId: Scalars['String']['input'];
+}>;
+
+export type ProjectDestinationWorkspacesQuery = {
+  __typename?: 'Query';
+  projectDestinationWorkspaces: Array<{
+    __typename?: 'ProjectDestinationWorkspaceType';
+    id: string;
+    name: string;
+  }>;
+};
+
+export type ProjectFileRequestRecipientsQueryVariables = Exact<{
+  projectId: Scalars['String']['input'];
+  query: Scalars['String']['input'];
+}>;
+
+export type ProjectFileRequestRecipientsQuery = {
+  __typename?: 'Query';
+  projectFileRequestRecipients: Array<{
+    __typename?: 'FileRequestRecipientType';
+    id: string;
+    name: string;
+  }>;
+};
+
+export type ProjectFileRequestQueryVariables = Exact<{
+  requestId: Scalars['String']['input'];
+}>;
+
+export type ProjectFileRequestQuery = {
+  __typename?: 'Query';
+  projectFileRequest: {
+    __typename?: 'ProjectFileRequestType';
+    id: string;
+    projectId: string;
+    projectName: string;
+    title: string;
+    requesterName: string;
+    recipientName: string;
+    status: string;
+    version: number;
+    isRecipient: boolean;
+    fileName: string | null;
+    resourceId: string | null;
+    updatedAt: string;
+  };
+};
+
+export type ProjectLegacyConversationsQueryVariables = Exact<{
+  projectId: Scalars['String']['input'];
+  cursor?: InputMaybe<Scalars['String']['input']>;
+}>;
+
+export type ProjectLegacyConversationsQuery = {
+  __typename?: 'Query';
+  projectLegacyConversations: {
+    __typename?: 'ProjectLegacyConversationPageType';
+    nextCursor: string | null;
+    items: Array<{
+      __typename?: 'ProjectLegacyConversationType';
+      id: string;
+      title: string | null;
+      createdAt: string;
+    }>;
+  };
+};
+
+export type ProjectLegacyMessagesQueryVariables = Exact<{
+  projectId: Scalars['String']['input'];
+  sessionId: Scalars['String']['input'];
+  cursor?: InputMaybe<Scalars['String']['input']>;
+}>;
+
+export type ProjectLegacyMessagesQuery = {
+  __typename?: 'Query';
+  projectLegacyMessages: {
+    __typename?: 'ProjectLegacyMessagePageType';
+    nextCursor: string | null;
+    items: Array<{
+      __typename?: 'ProjectLegacyMessageType';
+      id: string;
+      role: string;
+      content: string;
+      truncated: boolean;
+      createdAt: string;
+    }>;
+  };
+};
+
+export type ProjectLegacyOperationsQueryVariables = Exact<{
+  projectId: Scalars['String']['input'];
+  cursor?: InputMaybe<Scalars['String']['input']>;
+}>;
+
+export type ProjectLegacyOperationsQuery = {
+  __typename?: 'Query';
+  projectLegacyOperations: {
+    __typename?: 'ProjectLegacyOperationPageType';
+    nextCursor: string | null;
+    items: Array<{
+      __typename?: 'ProjectLegacyOperationType';
+      id: string;
+      title: string;
+      status: string;
+      revision: number;
+      resourceId: string | null;
+      createdAt: string;
+    }>;
+  };
+};
+
+export type ProjectOfficeArtifactQueryVariables = Exact<{
+  projectId: Scalars['String']['input'];
+  artifactId: Scalars['String']['input'];
+}>;
+
+export type ProjectOfficeArtifactQuery = {
+  __typename?: 'Query';
+  projectOfficeArtifact: {
+    __typename?: 'ProjectOfficeArtifactType';
+    id: string;
+    projectId: string;
+    kind: OfficeArtifactKind;
+    title: string;
+    sourceFileName: string;
+    sourceMimeType: string;
+    sourceByteSize: number;
+    sourceFingerprint: string;
+    revisionCounter: number;
+    compatibility: any;
+    createdBy: string;
+    createdAt: string;
+    updatedAt: string;
+    currentRevision: {
+      __typename?: 'ProjectOfficeRevisionType';
+      id: string;
+      projectId: string;
+      artifactId: string;
+      sequence: number;
+      origin: OfficeRevisionOrigin;
+      parentRevisionId: string | null;
+      packageMimeType: string;
+      packageByteSize: number;
+      packageFingerprint: string;
+      stateByteSize: number | null;
+      stateFingerprint: string | null;
+      modelVersion: string;
+      operationSummary: any;
+      createdBy: string;
+      createdAt: string;
+      packageUrl: string;
+      stateUrl: string | null;
+    };
+  };
+};
+
+export type ProjectOfficeRevisionCompareQueryVariables = Exact<{
+  projectId: Scalars['String']['input'];
+  artifactId: Scalars['String']['input'];
+  beforeRevisionId: Scalars['String']['input'];
+  afterRevisionId: Scalars['String']['input'];
+}>;
+
+export type ProjectOfficeRevisionCompareQuery = {
+  __typename?: 'Query';
+  projectOfficeRevisionCompare: {
+    __typename?: 'ProjectOfficeCompareType';
+    artifactId: string;
+    kind: OfficeArtifactKind;
+    changed: boolean;
+    truncated: boolean;
+    summary: any;
+    changes: unknown;
+    beforeRevision: {
+      __typename?: 'ProjectOfficeRevisionType';
+      id: string;
+      projectId: string;
+      artifactId: string;
+      sequence: number;
+      origin: OfficeRevisionOrigin;
+      parentRevisionId: string | null;
+      packageMimeType: string;
+      packageByteSize: number;
+      packageFingerprint: string;
+      stateByteSize: number | null;
+      stateFingerprint: string | null;
+      modelVersion: string;
+      operationSummary: any;
+      createdBy: string;
+      createdAt: string;
+      packageUrl: string;
+      stateUrl: string | null;
+    };
+    afterRevision: {
+      __typename?: 'ProjectOfficeRevisionType';
+      id: string;
+      projectId: string;
+      artifactId: string;
+      sequence: number;
+      origin: OfficeRevisionOrigin;
+      parentRevisionId: string | null;
+      packageMimeType: string;
+      packageByteSize: number;
+      packageFingerprint: string;
+      stateByteSize: number | null;
+      stateFingerprint: string | null;
+      modelVersion: string;
+      operationSummary: any;
+      createdBy: string;
+      createdAt: string;
+      packageUrl: string;
+      stateUrl: string | null;
+    };
+  };
+};
+
+export type ProjectOfficeRevisionsQueryVariables = Exact<{
+  projectId: Scalars['String']['input'];
+  artifactId: Scalars['String']['input'];
+  limit?: InputMaybe<Scalars['SafeInt']['input']>;
+}>;
+
+export type ProjectOfficeRevisionsQuery = {
+  __typename?: 'Query';
+  projectOfficeRevisions: Array<{
+    __typename?: 'ProjectOfficeRevisionType';
+    id: string;
+    projectId: string;
+    artifactId: string;
+    sequence: number;
+    origin: OfficeRevisionOrigin;
+    parentRevisionId: string | null;
+    packageMimeType: string;
+    packageByteSize: number;
+    packageFingerprint: string;
+    stateByteSize: number | null;
+    stateFingerprint: string | null;
+    modelVersion: string;
+    operationSummary: any;
+    createdBy: string;
+    createdAt: string;
+    packageUrl: string;
+    stateUrl: string | null;
+  }>;
+};
+
+export type ProjectPublicationCandidatesQueryVariables = Exact<{
+  projectId: Scalars['String']['input'];
+  resourceId: Scalars['String']['input'];
+  workspaceId: Scalars['String']['input'];
+  parentId?: InputMaybe<Scalars['String']['input']>;
+  query?: InputMaybe<Scalars['String']['input']>;
+  cursor?: InputMaybe<Scalars['String']['input']>;
+}>;
+
+export type ProjectPublicationCandidatesQuery = {
+  __typename?: 'Query';
+  projectPublicationCandidates: {
+    __typename?: 'ProjectPublicationCandidatesType';
+    nextCursor: string | null;
+    items: Array<{
+      __typename?: 'ProjectPublicationCandidateType';
+      resourceId: string;
+      title: string;
+      kind: string;
+      folderId: string | null;
+      canUpdate: boolean;
+      path: Array<{
+        __typename?: 'ProjectPublicationPathType';
+        id: string;
+        name: string;
+      }>;
+    }>;
+  };
+};
+
+export type ProjectPublicationQueryVariables = Exact<{
+  projectId: Scalars['String']['input'];
+  publicationId: Scalars['String']['input'];
+}>;
+
+export type ProjectPublicationQuery = {
+  __typename?: 'Query';
+  projectPublication: {
+    __typename?: 'ProjectPublicationType';
+    id: string;
+    projectId: string;
+    resourceId: string;
+    runId: string | null;
+    revision: number;
+    kind: string;
+    title: string;
+    status: string;
+    sourceSequence: number;
+    createdAt: string;
+    expiresAt: string;
+    targetFingerprint: string | null;
+    failureCode: string | null;
+    target: any | null;
+    preview: any | null;
+    receipt: any | null;
+  };
+};
+
+export type ProjectPublicationsQueryVariables = Exact<{
+  projectId: Scalars['String']['input'];
+  resourceId?: InputMaybe<Scalars['String']['input']>;
+  cursor?: InputMaybe<Scalars['String']['input']>;
+  limit?: InputMaybe<Scalars['Int']['input']>;
+}>;
+
+export type ProjectPublicationsQuery = {
+  __typename?: 'Query';
+  projectPublications: {
+    __typename?: 'ProjectPublicationPageType';
+    nextCursor: string | null;
+    items: Array<{
+      __typename?: 'ProjectPublicationType';
+      id: string;
+      projectId: string;
+      resourceId: string;
+      runId: string | null;
+      revision: number;
+      kind: string;
+      title: string;
+      status: string;
+      sourceSequence: number;
+      createdAt: string;
+      expiresAt: string;
+      targetFingerprint: string | null;
+      failureCode: string | null;
+      target: any | null;
+      preview: any | null;
+      receipt: any | null;
+    }>;
+  };
+};
+
+export type ProjectResourceMigrationsQueryVariables = Exact<{
+  projectId: Scalars['String']['input'];
+  cursor?: InputMaybe<Scalars['String']['input']>;
+}>;
+
+export type ProjectResourceMigrationsQuery = {
+  __typename?: 'Query';
+  projectResourceMigrations: {
+    __typename?: 'ProjectResourceMigrationPageType';
+    nextCursor: string | null;
+    items: Array<{
+      __typename?: 'ProjectResourceMigrationType';
+      id: string;
+      projectId: string;
+      status: string;
+      revision: number;
+      title: string | null;
+      failureCode: string | null;
+      resourceId: string | null;
+    }>;
+  };
+};
+
+export type ProjectResourcePathQueryVariables = Exact<{
+  projectId: Scalars['String']['input'];
+  resourceId: Scalars['String']['input'];
+}>;
+
+export type ProjectResourcePathQuery = {
+  __typename?: 'Query';
+  projectResourcePath: Array<{
+    __typename?: 'ProjectResourceType';
+    id: string;
+    projectId: string;
+    parentId: string | null;
+    kind: ProjectResourceKind;
+    title: string;
+    sortKey: string;
+    version: number;
+    contentVersion: number;
+    officeArtifactId: string | null;
+    trashedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+  }>;
+};
+
+export type ProjectResourceRevisionQueryVariables = Exact<{
+  projectId: Scalars['String']['input'];
+  resourceId: Scalars['String']['input'];
+  sequence?: InputMaybe<Scalars['Int']['input']>;
+}>;
+
+export type ProjectResourceRevisionQuery = {
+  __typename?: 'Query';
+  projectResourceRevision: {
+    __typename?: 'ProjectResourceRevisionType';
+    id: string;
+    projectId: string;
+    resourceId: string;
+    sequence: number;
+    parentId: string | null;
+    fingerprint: string;
+    origin: string;
+    createdAt: string;
+  };
+};
+
+export type ProjectResourceSourcesQueryVariables = Exact<{
+  projectId: Scalars['String']['input'];
+  resourceId: Scalars['String']['input'];
+}>;
+
+export type ProjectResourceSourcesQuery = {
+  __typename?: 'Query';
+  projectResourceSources: Array<{
+    __typename?: 'ProjectResourceSourceType';
+    workspaceId: string;
+    sourceResourceId: string;
+    title: string;
+    workspaceName: string;
+    sourceVersion: string;
+    projectVersion: number;
+  }>;
+};
+
+export type ProjectResourceQueryVariables = Exact<{
+  projectId: Scalars['String']['input'];
+  resourceId: Scalars['String']['input'];
+}>;
+
+export type ProjectResourceQuery = {
+  __typename?: 'Query';
+  projectResource: {
+    __typename?: 'ProjectResourceType';
+    id: string;
+    projectId: string;
+    parentId: string | null;
+    kind: ProjectResourceKind;
+    title: string;
+    sortKey: string;
+    version: number;
+    contentVersion: number;
+    officeArtifactId: string | null;
+    trashedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+  };
+};
+
+export type ProjectResourcesQueryVariables = Exact<{
+  projectId: Scalars['String']['input'];
+  parentId?: InputMaybe<Scalars['String']['input']>;
+  cursor?: InputMaybe<Scalars['String']['input']>;
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  trash?: InputMaybe<Scalars['Boolean']['input']>;
+  search?: InputMaybe<Scalars['String']['input']>;
+}>;
+
+export type ProjectResourcesQuery = {
+  __typename?: 'Query';
+  projectResources: {
+    __typename?: 'ProjectResourcePageType';
+    nextCursor: string | null;
+    items: Array<{
+      __typename?: 'ProjectResourceType';
+      id: string;
+      projectId: string;
+      parentId: string | null;
+      kind: ProjectResourceKind;
+      title: string;
+      sortKey: string;
+      version: number;
+      contentVersion: number;
+      officeArtifactId: string | null;
+      trashedAt: string | null;
+      createdAt: string;
+      updatedAt: string;
+    }>;
+  };
 };
 
 export type PublishPageMutationVariables = Exact<{
@@ -20616,11 +23123,73 @@ export type RecoverDocMutation = {
   recoverDoc: string;
 };
 
+export type RefreshProjectResourceSourceMutationVariables = Exact<{
+  projectId: Scalars['String']['input'];
+  resourceId: Scalars['String']['input'];
+  workspaceId: Scalars['String']['input'];
+  sourceResourceId: Scalars['String']['input'];
+  expectedContentVersion: Scalars['Int']['input'];
+  expectedSourceVersion: Scalars['String']['input'];
+  requestKey: Scalars['String']['input'];
+}>;
+
+export type RefreshProjectResourceSourceMutation = {
+  __typename?: 'Mutation';
+  refreshProjectResourceSource: {
+    __typename?: 'ProjectResourceType';
+    id: string;
+    projectId: string;
+    parentId: string | null;
+    kind: ProjectResourceKind;
+    title: string;
+    sortKey: string;
+    version: number;
+    contentVersion: number;
+    officeArtifactId: string | null;
+    trashedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+  };
+};
+
 export type RemoveAvatarMutationVariables = Exact<{ [key: string]: never }>;
 
 export type RemoveAvatarMutation = {
   __typename?: 'Mutation';
   removeAvatar: { __typename?: 'RemoveAvatar'; success: boolean };
+};
+
+export type RequestProjectImportPermissionMutationVariables = Exact<{
+  projectId: Scalars['String']['input'];
+  workspaceId: Scalars['String']['input'];
+  resourceId: Scalars['String']['input'];
+  requestKey: Scalars['String']['input'];
+}>;
+
+export type RequestProjectImportPermissionMutation = {
+  __typename?: 'Mutation';
+  requestProjectImportPermission: {
+    __typename?: 'ProjectImportPermissionRequestType';
+    id: string;
+    status: string;
+    purpose: string;
+  };
+};
+
+export type RequestProjectMigrationPermissionMutationVariables = Exact<{
+  projectId: Scalars['String']['input'];
+  migrationId: Scalars['String']['input'];
+  requestKey: Scalars['String']['input'];
+}>;
+
+export type RequestProjectMigrationPermissionMutation = {
+  __typename?: 'Mutation';
+  requestProjectMigrationPermission: {
+    __typename?: 'ProjectImportPermissionRequestType';
+    id: string;
+    status: string;
+    purpose: string;
+  };
 };
 
 export type ResumeSubscriptionMutationVariables = Exact<{
@@ -20671,6 +23240,54 @@ export type RevokePublicPageMutation = {
     id: string;
     mode: PublicDocMode;
     public: boolean;
+  };
+};
+
+export type SaveProjectDocumentMutationVariables = Exact<{
+  input: SaveProjectDocumentInput;
+}>;
+
+export type SaveProjectDocumentMutation = {
+  __typename?: 'Mutation';
+  saveProjectDocument: {
+    __typename?: 'ProjectResourceRevisionType';
+    id: string;
+    projectId: string;
+    resourceId: string;
+    sequence: number;
+    parentId: string | null;
+    fingerprint: string;
+    origin: string;
+    createdAt: string;
+  };
+};
+
+export type SearchProjectResourcesQueryVariables = Exact<{
+  projectId: Scalars['String']['input'];
+  query: Scalars['String']['input'];
+  cursor?: InputMaybe<Scalars['String']['input']>;
+  limit?: InputMaybe<Scalars['Int']['input']>;
+}>;
+
+export type SearchProjectResourcesQuery = {
+  __typename?: 'Query';
+  searchProjectResources: {
+    __typename?: 'ProjectSearchPageType';
+    nextCursor: string | null;
+    items: Array<{
+      __typename?: 'ProjectSearchResultType';
+      id: string;
+      projectId: string;
+      title: string;
+      kind: ProjectResourceKind;
+      contentVersion: number;
+      snippet: string;
+      path: Array<{
+        __typename?: 'ProjectSearchPathType';
+        id: string;
+        title: string;
+      }>;
+    }>;
   };
 };
 
@@ -20755,6 +23372,32 @@ export type SetWorkspacePublicByIdMutation = {
   updateWorkspace: { __typename?: 'WorkspaceType'; id: string };
 };
 
+export type SubmitProjectFileRequestMutationVariables = Exact<{
+  requestId: Scalars['String']['input'];
+  expectedVersion: Scalars['Int']['input'];
+  shareWithProject: Scalars['Boolean']['input'];
+  file: Scalars['Upload']['input'];
+}>;
+
+export type SubmitProjectFileRequestMutation = {
+  __typename?: 'Mutation';
+  submitProjectFileRequest: {
+    __typename?: 'ProjectFileRequestType';
+    id: string;
+    projectId: string;
+    projectName: string;
+    title: string;
+    requesterName: string;
+    recipientName: string;
+    status: string;
+    version: number;
+    isRecipient: boolean;
+    fileName: string | null;
+    resourceId: string | null;
+    updatedAt: string;
+  };
+};
+
 export type RefreshSubscriptionMutationVariables = Exact<{
   [key: string]: never;
 }>;
@@ -20835,6 +23478,37 @@ export type UpdateDocUserRoleMutation = {
   updateDocUserRole: boolean;
 };
 
+export type UpdateProjectChatContextMutationVariables = Exact<{
+  projectId: Scalars['String']['input'];
+  sessionId: Scalars['String']['input'];
+  expectedVersion: Scalars['Int']['input'];
+  items: Array<ProjectChatContextItemInput> | ProjectChatContextItemInput;
+}>;
+
+export type UpdateProjectChatContextMutation = {
+  __typename?: 'Mutation';
+  updateProjectChatContext: {
+    __typename?: 'ProjectChatContextType';
+    projectId: string;
+    sessionId: string;
+    version: number;
+    items: Array<{
+      __typename?: 'ProjectChatContextItemType';
+      kind: string;
+      title: string;
+      available: boolean;
+      resourceId: string | null;
+      sequence: number | null;
+      currentSequence: number | null;
+      resourceKind: string | null;
+      blobKey: string | null;
+      name: string | null;
+      mimeType: string | null;
+      byteSize: number | null;
+    }>;
+  };
+};
+
 export type UpdateSubscriptionMutationVariables = Exact<{
   plan?: InputMaybe<SubscriptionPlan>;
   recurring: SubscriptionRecurring;
@@ -20882,6 +23556,47 @@ export type UploadAvatarMutation = {
     name: string;
     avatarUrl: string | null;
     email: string;
+  };
+};
+
+export type UploadProjectBlobMutationVariables = Exact<{
+  projectId: Scalars['String']['input'];
+  file: Scalars['Upload']['input'];
+}>;
+
+export type UploadProjectBlobMutation = {
+  __typename?: 'Mutation';
+  uploadProjectBlob: string;
+};
+
+export type UploadProjectChatContextFileMutationVariables = Exact<{
+  projectId: Scalars['String']['input'];
+  sessionId: Scalars['String']['input'];
+  expectedVersion: Scalars['Int']['input'];
+  file: Scalars['Upload']['input'];
+}>;
+
+export type UploadProjectChatContextFileMutation = {
+  __typename?: 'Mutation';
+  uploadProjectChatContextFile: {
+    __typename?: 'ProjectChatContextType';
+    projectId: string;
+    sessionId: string;
+    version: number;
+    items: Array<{
+      __typename?: 'ProjectChatContextItemType';
+      kind: string;
+      title: string;
+      available: boolean;
+      resourceId: string | null;
+      sequence: number | null;
+      currentSequence: number | null;
+      resourceKind: string | null;
+      blobKey: string | null;
+      name: string | null;
+      mimeType: string | null;
+      byteSize: number | null;
+    }>;
   };
 };
 
@@ -21419,6 +24134,11 @@ export type Queries =
       response: ListUsersQuery;
     }
   | {
+      name: 'adminProjectByokSettingsQuery';
+      variables: AdminProjectByokSettingsQueryVariables;
+      response: AdminProjectByokSettingsQuery;
+    }
+  | {
       name: 'validateConfigQuery';
       variables: ValidateConfigQueryVariables;
       response: ValidateConfigQuery;
@@ -21909,14 +24629,149 @@ export type Queries =
       response: OfficeRevisionsQuery;
     }
   | {
+      name: 'previewProjectOfficeCommandQuery';
+      variables: PreviewProjectOfficeCommandQueryVariables;
+      response: PreviewProjectOfficeCommandQuery;
+    }
+  | {
       name: 'pricesQuery';
       variables: PricesQueryVariables;
       response: PricesQuery;
     }
   | {
+      name: 'projectAgentTaskQuery';
+      variables: ProjectAgentTaskQueryVariables;
+      response: ProjectAgentTaskQuery;
+    }
+  | {
+      name: 'projectAgentTasksQuery';
+      variables: ProjectAgentTasksQueryVariables;
+      response: ProjectAgentTasksQuery;
+    }
+  | {
+      name: 'projectAiModelQuery';
+      variables: ProjectAiModelQueryVariables;
+      response: ProjectAiModelQuery;
+    }
+  | {
+      name: 'projectChatContextQuery';
+      variables: ProjectChatContextQueryVariables;
+      response: ProjectChatContextQuery;
+    }
+  | {
+      name: 'projectCopilotChatQuery';
+      variables: ProjectCopilotChatQueryVariables;
+      response: ProjectCopilotChatQuery;
+    }
+  | {
+      name: 'projectCopilotChatsQuery';
+      variables: ProjectCopilotChatsQueryVariables;
+      response: ProjectCopilotChatsQuery;
+    }
+  | {
+      name: 'projectDestinationFoldersQuery';
+      variables: ProjectDestinationFoldersQueryVariables;
+      response: ProjectDestinationFoldersQuery;
+    }
+  | {
+      name: 'projectDestinationWorkspacesQuery';
+      variables: ProjectDestinationWorkspacesQueryVariables;
+      response: ProjectDestinationWorkspacesQuery;
+    }
+  | {
+      name: 'projectFileRequestRecipientsQuery';
+      variables: ProjectFileRequestRecipientsQueryVariables;
+      response: ProjectFileRequestRecipientsQuery;
+    }
+  | {
+      name: 'projectFileRequestQuery';
+      variables: ProjectFileRequestQueryVariables;
+      response: ProjectFileRequestQuery;
+    }
+  | {
+      name: 'projectLegacyConversationsQuery';
+      variables: ProjectLegacyConversationsQueryVariables;
+      response: ProjectLegacyConversationsQuery;
+    }
+  | {
+      name: 'projectLegacyMessagesQuery';
+      variables: ProjectLegacyMessagesQueryVariables;
+      response: ProjectLegacyMessagesQuery;
+    }
+  | {
+      name: 'projectLegacyOperationsQuery';
+      variables: ProjectLegacyOperationsQueryVariables;
+      response: ProjectLegacyOperationsQuery;
+    }
+  | {
+      name: 'projectOfficeArtifactQuery';
+      variables: ProjectOfficeArtifactQueryVariables;
+      response: ProjectOfficeArtifactQuery;
+    }
+  | {
+      name: 'projectOfficeRevisionCompareQuery';
+      variables: ProjectOfficeRevisionCompareQueryVariables;
+      response: ProjectOfficeRevisionCompareQuery;
+    }
+  | {
+      name: 'projectOfficeRevisionsQuery';
+      variables: ProjectOfficeRevisionsQueryVariables;
+      response: ProjectOfficeRevisionsQuery;
+    }
+  | {
+      name: 'projectPublicationCandidatesQuery';
+      variables: ProjectPublicationCandidatesQueryVariables;
+      response: ProjectPublicationCandidatesQuery;
+    }
+  | {
+      name: 'projectPublicationQuery';
+      variables: ProjectPublicationQueryVariables;
+      response: ProjectPublicationQuery;
+    }
+  | {
+      name: 'projectPublicationsQuery';
+      variables: ProjectPublicationsQueryVariables;
+      response: ProjectPublicationsQuery;
+    }
+  | {
+      name: 'projectResourceMigrationsQuery';
+      variables: ProjectResourceMigrationsQueryVariables;
+      response: ProjectResourceMigrationsQuery;
+    }
+  | {
+      name: 'projectResourcePathQuery';
+      variables: ProjectResourcePathQueryVariables;
+      response: ProjectResourcePathQuery;
+    }
+  | {
+      name: 'projectResourceRevisionQuery';
+      variables: ProjectResourceRevisionQueryVariables;
+      response: ProjectResourceRevisionQuery;
+    }
+  | {
+      name: 'projectResourceSourcesQuery';
+      variables: ProjectResourceSourcesQueryVariables;
+      response: ProjectResourceSourcesQuery;
+    }
+  | {
+      name: 'projectResourceQuery';
+      variables: ProjectResourceQueryVariables;
+      response: ProjectResourceQuery;
+    }
+  | {
+      name: 'projectResourcesQuery';
+      variables: ProjectResourcesQueryVariables;
+      response: ProjectResourcesQuery;
+    }
+  | {
       name: 'quotaQuery';
       variables: QuotaQueryVariables;
       response: QuotaQuery;
+    }
+  | {
+      name: 'searchProjectResourcesQuery';
+      variables: SearchProjectResourcesQueryVariables;
+      response: SearchProjectResourcesQuery;
     }
   | {
       name: 'serverConfigQuery';
@@ -22006,6 +24861,16 @@ export type Mutations =
       response: ImportUsersMutation;
     }
   | {
+      name: 'saveProjectByokConfigMutation';
+      variables: SaveProjectByokConfigMutationVariables;
+      response: SaveProjectByokConfigMutation;
+    }
+  | {
+      name: 'setProjectByokEnabledMutation';
+      variables: SetProjectByokEnabledMutationVariables;
+      response: SetProjectByokEnabledMutation;
+    }
+  | {
       name: 'rotateAuthSigningKeyMutation';
       variables: RotateAuthSigningKeyMutationVariables;
       response: RotateAuthSigningKeyMutation;
@@ -22019,6 +24884,11 @@ export type Mutations =
       name: 'setAdminUserAiProfileAssignmentMutation';
       variables: SetAdminUserAiProfileAssignmentMutationVariables;
       response: SetAdminUserAiProfileAssignmentMutation;
+    }
+  | {
+      name: 'testProjectByokConfigMutation';
+      variables: TestProjectByokConfigMutationVariables;
+      response: TestProjectByokConfigMutation;
     }
   | {
       name: 'updateAccountFeaturesMutation';
@@ -22039,6 +24909,11 @@ export type Mutations =
       name: 'upsertAdminAiProfileMutation';
       variables: UpsertAdminAiProfileMutationVariables;
       response: UpsertAdminAiProfileMutation;
+    }
+  | {
+      name: 'approveProjectAgentTaskMutation';
+      variables: ApproveProjectAgentTaskMutationVariables;
+      response: ApproveProjectAgentTaskMutation;
     }
   | {
       name: 'deleteBlobMutation';
@@ -22096,6 +24971,11 @@ export type Mutations =
       response: UpdateWorkspaceCalendarsMutation;
     }
   | {
+      name: 'cancelProjectAgentTaskMutation';
+      variables: CancelProjectAgentTaskMutationVariables;
+      response: CancelProjectAgentTaskMutation;
+    }
+  | {
       name: 'cancelSubscriptionMutation';
       variables: CancelSubscriptionMutationVariables;
       response: CancelSubscriptionMutation;
@@ -22109,6 +24989,36 @@ export type Mutations =
       name: 'changePasswordMutation';
       variables: ChangePasswordMutationVariables;
       response: ChangePasswordMutation;
+    }
+  | {
+      name: 'changeProjectFileRequestMutation';
+      variables: ChangeProjectFileRequestMutationVariables;
+      response: ChangeProjectFileRequestMutation;
+    }
+  | {
+      name: 'changeProjectLegacyOperationMutation';
+      variables: ChangeProjectLegacyOperationMutationVariables;
+      response: ChangeProjectLegacyOperationMutation;
+    }
+  | {
+      name: 'changeProjectPublicationMutation';
+      variables: ChangeProjectPublicationMutationVariables;
+      response: ChangeProjectPublicationMutation;
+    }
+  | {
+      name: 'changeProjectResourceMigrationMutation';
+      variables: ChangeProjectResourceMigrationMutationVariables;
+      response: ChangeProjectResourceMigrationMutation;
+    }
+  | {
+      name: 'changeProjectResourceMutation';
+      variables: ChangeProjectResourceMutationVariables;
+      response: ChangeProjectResourceMutation;
+    }
+  | {
+      name: 'cleanupProjectCopilotSessionsMutation';
+      variables: CleanupProjectCopilotSessionsMutationVariables;
+      response: CleanupProjectCopilotSessionsMutation;
     }
   | {
       name: 'createCommentMutation';
@@ -22149,6 +25059,11 @@ export type Mutations =
       name: 'uploadCommentAttachmentMutation';
       variables: UploadCommentAttachmentMutationVariables;
       response: UploadCommentAttachmentMutation;
+    }
+  | {
+      name: 'confirmProjectPublicationMutation';
+      variables: ConfirmProjectPublicationMutationVariables;
+      response: ConfirmProjectPublicationMutation;
     }
   | {
       name: 'approveCopilotAccessRequestMutation';
@@ -22541,6 +25456,26 @@ export type Mutations =
       response: CreateCustomerPortalMutation;
     }
   | {
+      name: 'createProjectDestinationFolderMutation';
+      variables: CreateProjectDestinationFolderMutationVariables;
+      response: CreateProjectDestinationFolderMutation;
+    }
+  | {
+      name: 'createProjectFileRequestMutation';
+      variables: CreateProjectFileRequestMutationVariables;
+      response: CreateProjectFileRequestMutation;
+    }
+  | {
+      name: 'createProjectFileMutation';
+      variables: CreateProjectFileMutationVariables;
+      response: CreateProjectFileMutation;
+    }
+  | {
+      name: 'createProjectResourceMutation';
+      variables: CreateProjectResourceMutationVariables;
+      response: CreateProjectResourceMutation;
+    }
+  | {
       name: 'createSelfhostCustomerPortalMutation';
       variables: CreateSelfhostCustomerPortalMutationVariables;
       response: CreateSelfhostCustomerPortalMutation;
@@ -22559,6 +25494,16 @@ export type Mutations =
       name: 'deleteWorkspaceMutation';
       variables: DeleteWorkspaceMutationVariables;
       response: DeleteWorkspaceMutation;
+    }
+  | {
+      name: 'discoverProjectResourceMigrationsMutation';
+      variables: DiscoverProjectResourceMigrationsMutationVariables;
+      response: DiscoverProjectResourceMigrationsMutation;
+    }
+  | {
+      name: 'dismissAllNotificationsMutation';
+      variables: DismissAllNotificationsMutationVariables;
+      response: DismissAllNotificationsMutation;
     }
   | {
       name: 'dismissNotificationMutation';
@@ -22606,6 +25551,11 @@ export type Mutations =
       response: UpdateEnterpriseToolAllowlistMutation;
     }
   | {
+      name: 'executeProjectOfficeCommandMutation';
+      variables: ExecuteProjectOfficeCommandMutationVariables;
+      response: ExecuteProjectOfficeCommandMutation;
+    }
+  | {
       name: 'connectExternalMcpMutation';
       variables: ConnectExternalMcpMutationVariables;
       response: ConnectExternalMcpMutation;
@@ -22644,6 +25594,16 @@ export type Mutations =
       name: 'grantDocUserRolesMutation';
       variables: GrantDocUserRolesMutationVariables;
       response: GrantDocUserRolesMutation;
+    }
+  | {
+      name: 'importProjectOfficeMutation';
+      variables: ImportProjectOfficeMutationVariables;
+      response: ImportProjectOfficeMutation;
+    }
+  | {
+      name: 'importWorkspaceResourceToProjectMutation';
+      variables: ImportWorkspaceResourceToProjectMutationVariables;
+      response: ImportWorkspaceResourceToProjectMutation;
     }
   | {
       name: 'createSparkClawPairingMutation';
@@ -22756,6 +25716,16 @@ export type Mutations =
       response: ImportOfficeArtifactMutation;
     }
   | {
+      name: 'prepareProjectPublicationMutation';
+      variables: PrepareProjectPublicationMutationVariables;
+      response: PrepareProjectPublicationMutation;
+    }
+  | {
+      name: 'previewProjectPublicationMutation';
+      variables: PreviewProjectPublicationMutationVariables;
+      response: PreviewProjectPublicationMutation;
+    }
+  | {
       name: 'publishPageMutation';
       variables: PublishPageMutationVariables;
       response: PublishPageMutation;
@@ -22776,9 +25746,24 @@ export type Mutations =
       response: RecoverDocMutation;
     }
   | {
+      name: 'refreshProjectResourceSourceMutation';
+      variables: RefreshProjectResourceSourceMutationVariables;
+      response: RefreshProjectResourceSourceMutation;
+    }
+  | {
       name: 'removeAvatarMutation';
       variables: RemoveAvatarMutationVariables;
       response: RemoveAvatarMutation;
+    }
+  | {
+      name: 'requestProjectImportPermissionMutation';
+      variables: RequestProjectImportPermissionMutationVariables;
+      response: RequestProjectImportPermissionMutation;
+    }
+  | {
+      name: 'requestProjectMigrationPermissionMutation';
+      variables: RequestProjectMigrationPermissionMutationVariables;
+      response: RequestProjectMigrationPermissionMutation;
     }
   | {
       name: 'resumeSubscriptionMutation';
@@ -22799,6 +25784,11 @@ export type Mutations =
       name: 'revokePublicPageMutation';
       variables: RevokePublicPageMutationVariables;
       response: RevokePublicPageMutation;
+    }
+  | {
+      name: 'saveProjectDocumentMutation';
+      variables: SaveProjectDocumentMutationVariables;
+      response: SaveProjectDocumentMutation;
     }
   | {
       name: 'sendChangeEmailMutation';
@@ -22831,6 +25821,11 @@ export type Mutations =
       response: SetWorkspacePublicByIdMutation;
     }
   | {
+      name: 'submitProjectFileRequestMutation';
+      variables: SubmitProjectFileRequestMutationVariables;
+      response: SubmitProjectFileRequestMutation;
+    }
+  | {
       name: 'refreshSubscriptionMutation';
       variables: RefreshSubscriptionMutationVariables;
       response: RefreshSubscriptionMutation;
@@ -22851,6 +25846,11 @@ export type Mutations =
       response: UpdateDocUserRoleMutation;
     }
   | {
+      name: 'updateProjectChatContextMutation';
+      variables: UpdateProjectChatContextMutationVariables;
+      response: UpdateProjectChatContextMutation;
+    }
+  | {
       name: 'updateSubscriptionMutation';
       variables: UpdateSubscriptionMutationVariables;
       response: UpdateSubscriptionMutation;
@@ -22869,6 +25869,16 @@ export type Mutations =
       name: 'uploadAvatarMutation';
       variables: UploadAvatarMutationVariables;
       response: UploadAvatarMutation;
+    }
+  | {
+      name: 'uploadProjectBlobMutation';
+      variables: UploadProjectBlobMutationVariables;
+      response: UploadProjectBlobMutation;
+    }
+  | {
+      name: 'uploadProjectChatContextFileMutation';
+      variables: UploadProjectChatContextFileMutationVariables;
+      response: UploadProjectChatContextFileMutation;
     }
   | {
       name: 'verifyEmailMutation';

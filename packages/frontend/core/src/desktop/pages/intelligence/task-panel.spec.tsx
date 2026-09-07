@@ -7,6 +7,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
   within,
 } from '@testing-library/react';
 import type {
@@ -68,6 +69,7 @@ vi.mock('@blocksuite/icons/rc', () => ({
   CloseIcon: () => <svg />,
   PlusIcon: () => <svg />,
   ResetIcon: () => <svg />,
+  UploadIcon: () => <svg />,
   WarningIcon: () => <svg />,
 }));
 
@@ -393,13 +395,15 @@ describe('TaskPanel', () => {
       waitingOn: '王小明',
       dueAt: null,
     });
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('form', {
+          name: 'com.affine.localmind.workbench.blocker.create',
+        })
+      ).toBeNull();
+    });
     expect(
-      await screen.findByText('com.affine.localmind.workbench.blocker.empty')
-    ).not.toBeNull();
-    expect(
-      screen.queryByRole('form', {
-        name: 'com.affine.localmind.workbench.blocker.create',
-      })
+      screen.queryByText('com.affine.localmind.workbench.blocker.empty')
     ).toBeNull();
   });
 

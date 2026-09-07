@@ -330,7 +330,7 @@ export class CopilotContextRootResolver {
         ],
       }
     );
-    if (!session) {
+    if (!session || !session.workspaceId) {
       throw new CopilotSessionNotFound();
     }
     await assertAccess(this.ac, user.id, session.workspaceId);

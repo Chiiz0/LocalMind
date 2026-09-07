@@ -5,7 +5,7 @@ import { useI18n } from '@affine/i18n';
 import { track } from '@affine/track';
 import { NotificationIcon } from '@blocksuite/icons/rc';
 import { useLiveData, useService } from '@toeverything/infra';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { NotificationList } from '../notification/list';
 import * as styles from './notification-button.style.css';
@@ -28,6 +28,17 @@ export const NotificationButton = () => {
   const t = useI18n();
 
   const [notificationListOpen, setNotificationListOpen] = useState(false);
+  const [compact, setCompact] = useState(
+    () => window.matchMedia('(max-width: 760px)').matches
+  );
+
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 760px)');
+    const update = () => setCompact(media.matches);
+    update();
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
 
   const handleNotificationListOpenChange = useCallback(
     (open: boolean) => {
@@ -48,8 +59,9 @@ export const NotificationButton = () => {
         onOpenChange: handleNotificationListOpenChange,
       }}
       contentOptions={{
-        side: 'right',
-        sideOffset: -50,
+        side: compact ? 'bottom' : 'right',
+        sideOffset: compact ? 4 : -50,
+        collisionPadding: 8,
       }}
       items={<NotificationList />}
     >

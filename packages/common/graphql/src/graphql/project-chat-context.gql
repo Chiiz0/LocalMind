@@ -1,0 +1,4 @@
+query projectChatContext($projectId: String!, $sessionId: String!) {
+  projectChatContext(projectId: $projectId, sessionId: $sessionId) { ...ProjectChatContextFields }
+}
+#import './fragments/project-chat-context-fields.gql'

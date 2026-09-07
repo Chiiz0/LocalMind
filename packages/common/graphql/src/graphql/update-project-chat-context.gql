@@ -1,0 +1,4 @@
+mutation updateProjectChatContext($projectId: String!, $sessionId: String!, $expectedVersion: Int!, $items: [ProjectChatContextItemInput!]!) {
+  updateProjectChatContext(projectId: $projectId, sessionId: $sessionId, expectedVersion: $expectedVersion, items: $items) { ...ProjectChatContextFields }
+}
+#import './fragments/project-chat-context-fields.gql'

@@ -1,0 +1,14 @@
+query searchProjectResources($projectId: String!, $query: String!, $cursor: String, $limit: Int) {
+  searchProjectResources(projectId: $projectId, query: $query, cursor: $cursor, limit: $limit) {
+    items {
+      id
+      projectId
+      title
+      kind
+      contentVersion
+      snippet
+      path { id title }
+    }
+    nextCursor
+  }
+}

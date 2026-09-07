@@ -5,7 +5,7 @@ import type {
   AIDraftService,
   AIToolsConfigService,
 } from '@affine/core/modules/ai-button';
-import type { AIModelService } from '@affine/core/modules/ai-button/services/models';
+import type { AIModelSelection } from '@affine/core/modules/ai-button/services/models';
 import type {
   ServerService,
   SubscriptionService,
@@ -226,7 +226,7 @@ export class AIChatComposer extends SignalWatcher(
   accessor subscriptionService!: SubscriptionService;
 
   @property({ attribute: false })
-  accessor aiModelService!: AIModelService;
+  accessor aiModelService!: AIModelSelection;
 
   @property({ attribute: false })
   accessor onAISubscribe!: () => Promise<void>;
@@ -369,6 +369,18 @@ export class AIChatComposer extends SignalWatcher(
     const scope = this.runtimeSnapshot?.composer.projectScope;
     if (!scope || !shouldShowContextProjectSelector(scope)) {
       return null;
+    }
+    if (this.runtimeSnapshot?.scope.kind === 'project') {
+      const project = scope.candidates.find(
+        candidate => candidate.id === scope.selectedProjectId
+      );
+      return project
+        ? html`<div class="context-project-selector">
+            <span
+              >${I18n.t('com.affine.localmind.aiContext.currentProject')}</span
+            ><span>${project.name}</span>
+          </div>`
+        : null;
     }
     return html`
       <label class="context-project-selector">

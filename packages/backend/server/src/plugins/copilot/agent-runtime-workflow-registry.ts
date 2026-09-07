@@ -1,10 +1,12 @@
 import { Injectable } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 
 import { Models } from '../../models';
 import type {
   CopilotAgentRunRecord,
   CopilotAgentStepType,
 } from '../../models/copilot-agent-runtime';
+import type { ProjectAgentRun } from '../../models/copilot-project-agent-runtime';
 
 const AGENT_RUNTIME_WORKFLOW_ADAPTER_CAPABILITIES_VERSION =
   'agent-runtime-workflow-adapter-capabilities/v1';
@@ -24,6 +26,7 @@ const AGENT_RUNTIME_ADAPTER_SIDE_EFFECT_MODES =
   new Set<CopilotAgentRuntimeWorkflowAdapterSideEffectMode>([
     'none',
     'workspace_write',
+    'project_write',
     'external_tool',
   ]);
 const AGENT_RUNTIME_WORKFLOW_MAX_LENGTH = 128;
@@ -33,6 +36,7 @@ const AGENT_RUNTIME_ADAPTER_MAX_COUNT = 24;
 export type CopilotAgentRuntimeWorkflowAdapterSideEffectMode =
   | 'none'
   | 'workspace_write'
+  | 'project_write'
   | 'external_tool';
 
 export interface CopilotAgentRuntimeWorkflowAdapterCapabilities {
@@ -53,6 +57,12 @@ export interface CopilotAgentRuntimeWorkflowAdapter {
   readonly workflow: string;
   readonly capabilities: CopilotAgentRuntimeWorkflowAdapterCapabilities;
   execute(input: CopilotAgentRuntimeWorkflowAdapterInput): Promise<void>;
+}
+
+export interface ProjectAgentRuntimeWorkflowAdapter {
+  readonly workflow: string;
+  readonly capabilities: CopilotAgentRuntimeWorkflowAdapterCapabilities;
+  execute(run: ProjectAgentRun): Promise<Prisma.InputJsonObject>;
 }
 
 function requireAdapterString(
@@ -80,6 +90,10 @@ function requireAdapterString(
 
 @Injectable()
 export class CopilotAgentRuntimeWorkflowRegistry {
+  private readonly projectAdapters = new Map<
+    string,
+    ProjectAgentRuntimeWorkflowAdapter
+  >();
   private readonly adapters = new Map<
     string,
     CopilotAgentRuntimeWorkflowAdapter
@@ -271,7 +285,23 @@ export class CopilotAgentRuntimeWorkflowRegistry {
   }
 
   get(workflow: string) {
+    if (this.projectAdapters.has(workflow)) return null;
     return this.adapters.get(workflow) ?? null;
+  }
+
+  registerProject(adapter: ProjectAgentRuntimeWorkflowAdapter) {
+    this.register({
+      workflow: adapter.workflow,
+      capabilities: adapter.capabilities,
+      execute: async () => {
+        throw new Error('Project adapter requires a Project worker lease');
+      },
+    });
+    this.projectAdapters.set(adapter.workflow, Object.freeze(adapter));
+  }
+
+  getProject(workflow: string) {
+    return this.projectAdapters.get(workflow) ?? null;
   }
 
   assertRunSupported(

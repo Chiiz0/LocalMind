@@ -1,5 +1,49 @@
 # Track: Intelligence Workbench
 
+## Project Native Resources Contract
+
+[Project Native Resources](project-native-resources.md) records the newer
+user-confirmed design. Projects own internal resources and file trees;
+Workspace documents are independent imported or published copies, with no
+automatic synchronization. This supersedes reference-only Project definitions,
+mandatory Workspace placement and direct source editing below. The native
+resource implementation includes Project editors/chat, context selection,
+approval tasks, publication, source refresh and historical recovery views.
+[Execution evidence](../project-native-resources.execution.md) records current
+validation and rollout. Existing workbench,
+task-panel, notification and historical acceptance records remain evidence of
+their respective implementation stages.
+
+## Project File Requests
+
+Native Project conversations support a complete in-app file request workflow:
+resolve a real recipient, create the request and notification, receive an
+explicitly shared upload, then update both participants' task projections.
+Recipients are bounded to Project members or active shared Workspace members;
+a file request never grants Project membership. Each operation rechecks the
+frozen relationship and the requester's live Project membership. Uploads are
+limited to 32 MB, retained as independent Project files, and attributed to the
+actual uploader in immutable delivery evidence. The download endpoint exposes
+only the original delivered revision, not later Project edits.
+
+`file_request` is a durable task kind. Pending requests appear under the
+requester's `Waiting on others` and the recipient's `Needs my action`.
+`Start preparing` moves both to `In progress`; submission, refusal or withdrawal
+moves both to `Done`. Existing To do badges still count only `needs_my_action`.
+Creation, delivery, notifications and event evidence share transaction boundaries;
+replayed requests/uploads are idempotent and conflicting payloads are rejected.
+
+Native Project capability selection supplies the collaboration tool group even
+when a legacy compatibility Prompt omits its tool list. Office contexts retain
+their Office-only selection. Project and Office execution policies are merged
+into the first system message because native request construction retains only
+that system message. `blocker_suggest` remains a zero-write reminder proposal,
+with an optional nullable deadline and explicit user confirmation. It does not
+send file requests, and file requests do not create duplicate Blockers.
+
+[File request execution evidence](../project-file-requests.execution.md) records
+the root causes, migration, permissions, browser workflow and runtime rollout.
+
 ## Project AI Stage Two
 
 The stage-two acceptance record is in

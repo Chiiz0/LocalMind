@@ -201,6 +201,173 @@ export const passwordLimitsFragment = `fragment PasswordLimits on PasswordLimits
   minLength
   maxLength
 }`;
+export const projectAgentTaskFieldsFragment = `fragment ProjectAgentTaskFields on ProjectAgentTaskType {
+  id
+  projectId
+  sessionId
+  title
+  workflow
+  status
+  targetFingerprint
+  workerAttempt
+  createdAt
+  updatedAt
+  failureCode
+  failureMessage
+  receipt
+  preview
+}`;
+export const projectByokSettingsFragment = `fragment ProjectByokSettings on ProjectByokSettingsType {
+  configured
+  revision
+  provider
+  endpoint
+  modelId
+  enabled
+  lastValidatedAt
+  lastUsedAt
+  lastError
+  updatedAt
+  updatedBy
+  allowedProviders
+  customEndpointSupported
+  auditEvents {
+    revision
+    actorId
+    provider
+    endpoint
+    modelId
+    enabled
+    credentialChanged
+    createdAt
+  }
+}`;
+export const projectChatContextFieldsFragment = `fragment ProjectChatContextFields on ProjectChatContextType {
+  projectId
+  sessionId
+  version
+  items {
+    kind
+    title
+    available
+    resourceId
+    sequence
+    currentSequence
+    resourceKind
+    blobKey
+    name
+    mimeType
+    byteSize
+  }
+}`;
+export const projectFileRequestFieldsFragment = `fragment ProjectFileRequestFields on ProjectFileRequestType {
+  id
+  projectId
+  projectName
+  title
+  requesterName
+  recipientName
+  status
+  version
+  isRecipient
+  fileName
+  resourceId
+  updatedAt
+}`;
+export const projectOfficeArtifactFieldsFragment = `fragment ProjectOfficeArtifactFields on ProjectOfficeArtifactType {
+  id
+  projectId
+  kind
+  title
+  sourceFileName
+  sourceMimeType
+  sourceByteSize
+  sourceFingerprint
+  revisionCounter
+  compatibility
+  createdBy
+  createdAt
+  updatedAt
+  currentRevision {
+    id
+    projectId
+    artifactId
+    sequence
+    origin
+    parentRevisionId
+    packageMimeType
+    packageByteSize
+    packageFingerprint
+    stateByteSize
+    stateFingerprint
+    modelVersion
+    operationSummary
+    createdBy
+    createdAt
+    packageUrl
+    stateUrl
+  }
+}`;
+export const projectOfficeRevisionFieldsFragment = `fragment ProjectOfficeRevisionFields on ProjectOfficeRevisionType {
+  id
+  projectId
+  artifactId
+  sequence
+  origin
+  parentRevisionId
+  packageMimeType
+  packageByteSize
+  packageFingerprint
+  stateByteSize
+  stateFingerprint
+  modelVersion
+  operationSummary
+  createdBy
+  createdAt
+  packageUrl
+  stateUrl
+}`;
+export const projectPublicationFieldsFragment = `fragment ProjectPublicationFields on ProjectPublicationType {
+  id
+  projectId
+  resourceId
+  runId
+  revision
+  kind
+  title
+  status
+  sourceSequence
+  createdAt
+  expiresAt
+  targetFingerprint
+  failureCode
+  target
+  preview
+  receipt
+}`;
+export const projectResourceMigrationFieldsFragment = `fragment ProjectResourceMigrationFields on ProjectResourceMigrationType {
+  id
+  projectId
+  status
+  revision
+  title
+  failureCode
+  resourceId
+}`;
+export const projectResourceFieldsFragment = `fragment ProjectResourceFields on ProjectResourceType {
+  id
+  projectId
+  parentId
+  kind
+  title
+  sortKey
+  version
+  contentVersion
+  officeArtifactId
+  trashedAt
+  createdAt
+  updatedAt
+}`;
 export const licenseBodyFragment = `fragment licenseBody on License {
   expiredAt
   installedAt
@@ -776,6 +943,39 @@ export const listUsersQuery = {
 }`,
 };
 
+export const adminProjectByokSettingsQuery = {
+  id: 'adminProjectByokSettingsQuery' as const,
+  op: 'adminProjectByokSettings',
+  query: `query adminProjectByokSettings {
+  adminProjectByokSettings {
+    ...ProjectByokSettings
+  }
+}
+${projectByokSettingsFragment}`,
+};
+
+export const saveProjectByokConfigMutation = {
+  id: 'saveProjectByokConfigMutation' as const,
+  op: 'saveProjectByokConfig',
+  query: `mutation saveProjectByokConfig($input: ProjectByokConfigInput!) {
+  saveProjectByokConfig(input: $input) {
+    ...ProjectByokSettings
+  }
+}
+${projectByokSettingsFragment}`,
+};
+
+export const setProjectByokEnabledMutation = {
+  id: 'setProjectByokEnabledMutation' as const,
+  op: 'setProjectByokEnabled',
+  query: `mutation setProjectByokEnabled($expectedRevision: SafeInt!, $enabled: Boolean!) {
+  setProjectByokEnabled(expectedRevision: $expectedRevision, enabled: $enabled) {
+    ...ProjectByokSettings
+  }
+}
+${projectByokSettingsFragment}`,
+};
+
 export const rotateAuthSigningKeyMutation = {
   id: 'rotateAuthSigningKeyMutation' as const,
   op: 'rotateAuthSigningKey',
@@ -819,6 +1019,17 @@ export const setAdminUserAiProfileAssignmentMutation = {
     }
     createdAt
     updatedAt
+  }
+}`,
+};
+
+export const testProjectByokConfigMutation = {
+  id: 'testProjectByokConfigMutation' as const,
+  op: 'testProjectByokConfig',
+  query: `mutation testProjectByokConfig($input: ProjectByokConfigInput!) {
+  testProjectByokConfig(input: $input) {
+    ok
+    message
   }
 }`,
 };
@@ -889,6 +1100,21 @@ export const validateConfigQuery = {
     error
   }
 }`,
+};
+
+export const approveProjectAgentTaskMutation = {
+  id: 'approveProjectAgentTaskMutation' as const,
+  op: 'approveProjectAgentTask',
+  query: `mutation approveProjectAgentTask($projectId: String!, $runId: String!, $targetFingerprint: String!) {
+  approveProjectAgentTask(
+    projectId: $projectId
+    runId: $runId
+    targetFingerprint: $targetFingerprint
+  ) {
+    ...ProjectAgentTaskFields
+  }
+}
+${projectAgentTaskFieldsFragment}`,
 };
 
 export const deleteBlobMutation = {
@@ -1184,6 +1410,17 @@ export const workspaceCalendarsQuery = {
 }`,
 };
 
+export const cancelProjectAgentTaskMutation = {
+  id: 'cancelProjectAgentTaskMutation' as const,
+  op: 'cancelProjectAgentTask',
+  query: `mutation cancelProjectAgentTask($projectId: String!, $runId: String!) {
+  cancelProjectAgentTask(projectId: $projectId, runId: $runId) {
+    ...ProjectAgentTaskFields
+  }
+}
+${projectAgentTaskFieldsFragment}`,
+};
+
 export const cancelSubscriptionMutation = {
   id: 'cancelSubscriptionMutation' as const,
   op: 'cancelSubscription',
@@ -1214,6 +1451,92 @@ export const changePasswordMutation = {
   op: 'changePassword',
   query: `mutation changePassword($token: String!, $userId: String!, $newPassword: String!) {
   changePassword(token: $token, userId: $userId, newPassword: $newPassword)
+}`,
+};
+
+export const changeProjectFileRequestMutation = {
+  id: 'changeProjectFileRequestMutation' as const,
+  op: 'changeProjectFileRequest',
+  query: `mutation changeProjectFileRequest($requestId: String!, $expectedVersion: Int!, $action: String!) {
+  changeProjectFileRequest(
+    requestId: $requestId
+    expectedVersion: $expectedVersion
+    action: $action
+  ) {
+    ...ProjectFileRequestFields
+  }
+}
+${projectFileRequestFieldsFragment}`,
+};
+
+export const changeProjectLegacyOperationMutation = {
+  id: 'changeProjectLegacyOperationMutation' as const,
+  op: 'changeProjectLegacyOperation',
+  query: `mutation changeProjectLegacyOperation($projectId: String!, $operationId: String!, $expectedRevision: Int!, $action: String!) {
+  changeProjectLegacyOperation(
+    projectId: $projectId
+    operationId: $operationId
+    expectedRevision: $expectedRevision
+    action: $action
+  ) {
+    id
+    title
+    status
+    revision
+    resourceId
+    createdAt
+  }
+}`,
+};
+
+export const changeProjectPublicationMutation = {
+  id: 'changeProjectPublicationMutation' as const,
+  op: 'changeProjectPublication',
+  query: `mutation changeProjectPublication($projectId: String!, $publicationId: String!, $expectedRevision: Int!, $action: String!) {
+  changeProjectPublication(
+    projectId: $projectId
+    publicationId: $publicationId
+    expectedRevision: $expectedRevision
+    action: $action
+  ) {
+    ...ProjectPublicationFields
+  }
+}
+${projectPublicationFieldsFragment}`,
+};
+
+export const changeProjectResourceMigrationMutation = {
+  id: 'changeProjectResourceMigrationMutation' as const,
+  op: 'changeProjectResourceMigration',
+  query: `mutation changeProjectResourceMigration($projectId: String!, $migrationId: String!, $expectedRevision: Int!, $action: String!) {
+  changeProjectResourceMigration(
+    projectId: $projectId
+    migrationId: $migrationId
+    expectedRevision: $expectedRevision
+    action: $action
+  ) {
+    ...ProjectResourceMigrationFields
+  }
+}
+${projectResourceMigrationFieldsFragment}`,
+};
+
+export const changeProjectResourceMutation = {
+  id: 'changeProjectResourceMutation' as const,
+  op: 'changeProjectResource',
+  query: `mutation changeProjectResource($input: ChangeProjectResourceInput!) {
+  changeProjectResource(input: $input) {
+    ...ProjectResourceFields
+  }
+}
+${projectResourceFieldsFragment}`,
+};
+
+export const cleanupProjectCopilotSessionsMutation = {
+  id: 'cleanupProjectCopilotSessionsMutation' as const,
+  op: 'cleanupProjectCopilotSessions',
+  query: `mutation cleanupProjectCopilotSessions($projectId: String!, $sessionIds: [String!]!) {
+  cleanupProjectCopilotSessions(projectId: $projectId, sessionIds: $sessionIds)
 }`,
 };
 
@@ -1390,6 +1713,22 @@ export const uploadCommentAttachmentMutation = {
   )
 }`,
   file: true,
+};
+
+export const confirmProjectPublicationMutation = {
+  id: 'confirmProjectPublicationMutation' as const,
+  op: 'confirmProjectPublication',
+  query: `mutation confirmProjectPublication($projectId: String!, $publicationId: String!, $expectedRevision: Int!, $targetFingerprint: String!) {
+  confirmProjectPublication(
+    projectId: $projectId
+    publicationId: $publicationId
+    expectedRevision: $expectedRevision
+    targetFingerprint: $targetFingerprint
+  ) {
+    ...ProjectPublicationFields
+  }
+}
+${projectPublicationFieldsFragment}`,
 };
 
 export const approveCopilotAccessRequestMutation = {
@@ -8115,6 +8454,60 @@ export const createCustomerPortalMutation = {
 }`,
 };
 
+export const createProjectDestinationFolderMutation = {
+  id: 'createProjectDestinationFolderMutation' as const,
+  op: 'createProjectDestinationFolder',
+  query: `mutation createProjectDestinationFolder($projectId: String!, $publicationId: String!, $workspaceId: String!, $parentId: String, $title: String!, $expectedDirectoryRevision: String!, $requestKey: String!) {
+  createProjectDestinationFolder(
+    projectId: $projectId
+    publicationId: $publicationId
+    workspaceId: $workspaceId
+    parentId: $parentId
+    title: $title
+    expectedDirectoryRevision: $expectedDirectoryRevision
+    requestKey: $requestKey
+  ) {
+    runId
+    status
+    folderId
+    failureCode
+  }
+}`,
+};
+
+export const createProjectFileRequestMutation = {
+  id: 'createProjectFileRequestMutation' as const,
+  op: 'createProjectFileRequest',
+  query: `mutation createProjectFileRequest($input: CreateFileRequestInput!) {
+  createProjectFileRequest(input: $input) {
+    ...ProjectFileRequestFields
+  }
+}
+${projectFileRequestFieldsFragment}`,
+};
+
+export const createProjectFileMutation = {
+  id: 'createProjectFileMutation' as const,
+  op: 'createProjectFile',
+  query: `mutation createProjectFile($input: CreateProjectFileInput!) {
+  createProjectFile(input: $input) {
+    ...ProjectResourceFields
+  }
+}
+${projectResourceFieldsFragment}`,
+};
+
+export const createProjectResourceMutation = {
+  id: 'createProjectResourceMutation' as const,
+  op: 'createProjectResource',
+  query: `mutation createProjectResource($input: CreateProjectResourceInput!) {
+  createProjectResource(input: $input) {
+    ...ProjectResourceFields
+  }
+}
+${projectResourceFieldsFragment}`,
+};
+
 export const createSelfhostCustomerPortalMutation = {
   id: 'createSelfhostCustomerPortalMutation' as const,
   op: 'createSelfhostCustomerPortal',
@@ -8150,6 +8543,28 @@ export const deleteWorkspaceMutation = {
   op: 'deleteWorkspace',
   query: `mutation deleteWorkspace($id: String!) {
   deleteWorkspace(id: $id)
+}`,
+};
+
+export const discoverProjectResourceMigrationsMutation = {
+  id: 'discoverProjectResourceMigrationsMutation' as const,
+  op: 'discoverProjectResourceMigrations',
+  query: `mutation discoverProjectResourceMigrations($projectId: String!) {
+  discoverProjectResourceMigrations(projectId: $projectId) {
+    items {
+      ...ProjectResourceMigrationFields
+    }
+    nextCursor
+  }
+}
+${projectResourceMigrationFieldsFragment}`,
+};
+
+export const dismissAllNotificationsMutation = {
+  id: 'dismissAllNotificationsMutation' as const,
+  op: 'dismissAllNotifications',
+  query: `mutation dismissAllNotifications {
+  dismissAllNotifications
 }`,
 };
 
@@ -8412,6 +8827,25 @@ export const updateEnterpriseToolAllowlistMutation = {
     updatedAt
   }
 }`,
+};
+
+export const executeProjectOfficeCommandMutation = {
+  id: 'executeProjectOfficeCommandMutation' as const,
+  op: 'executeProjectOfficeCommand',
+  query: `mutation executeProjectOfficeCommand($input: ProjectOfficeCommandInput!) {
+  executeProjectOfficeCommand(input: $input) {
+    created
+    artifact {
+      ...ProjectOfficeArtifactFields
+    }
+    revision {
+      ...ProjectOfficeRevisionFields
+    }
+    summary
+  }
+}
+${projectOfficeArtifactFieldsFragment}
+${projectOfficeRevisionFieldsFragment}`,
 };
 
 export const connectExternalMcpMutation = {
@@ -8936,6 +9370,36 @@ export const listHistoryQuery = {
     }
   }
 }`,
+};
+
+export const importProjectOfficeMutation = {
+  id: 'importProjectOfficeMutation' as const,
+  op: 'importProjectOffice',
+  query: `mutation importProjectOffice($input: ImportProjectOfficeInput!) {
+  importProjectOffice(input: $input) {
+    created
+    artifact {
+      ...ProjectOfficeArtifactFields
+    }
+    revision {
+      ...ProjectOfficeRevisionFields
+    }
+    summary
+  }
+}
+${projectOfficeArtifactFieldsFragment}
+${projectOfficeRevisionFieldsFragment}`,
+};
+
+export const importWorkspaceResourceToProjectMutation = {
+  id: 'importWorkspaceResourceToProjectMutation' as const,
+  op: 'importWorkspaceResourceToProject',
+  query: `mutation importWorkspaceResourceToProject($input: ImportWorkspaceResourceToProjectInput!) {
+  importWorkspaceResourceToProject(input: $input) {
+    ...ProjectResourceFields
+  }
+}
+${projectResourceFieldsFragment}`,
 };
 
 export const indexerAggregateQuery = {
@@ -9758,6 +10222,56 @@ export const officeRevisionsQuery = {
 }`,
 };
 
+export const prepareProjectPublicationMutation = {
+  id: 'prepareProjectPublicationMutation' as const,
+  op: 'prepareProjectPublication',
+  query: `mutation prepareProjectPublication($projectId: String!, $resourceId: String!, $kind: String!, $requestKey: String!, $sessionId: String) {
+  prepareProjectPublication(
+    projectId: $projectId
+    resourceId: $resourceId
+    kind: $kind
+    requestKey: $requestKey
+    sessionId: $sessionId
+  ) {
+    ...ProjectPublicationFields
+  }
+}
+${projectPublicationFieldsFragment}`,
+};
+
+export const previewProjectOfficeCommandQuery = {
+  id: 'previewProjectOfficeCommandQuery' as const,
+  op: 'previewProjectOfficeCommand',
+  query: `query previewProjectOfficeCommand($input: ProjectOfficeCommandInput!) {
+  previewProjectOfficeCommand(input: $input) {
+    artifactId
+    expectedRevisionId
+    packageFingerprint
+    stateFingerprint
+    stats
+    summary
+  }
+}`,
+};
+
+export const previewProjectPublicationMutation = {
+  id: 'previewProjectPublicationMutation' as const,
+  op: 'previewProjectPublication',
+  query: `mutation previewProjectPublication($projectId: String!, $publicationId: String!, $expectedRevision: Int!, $workspaceId: String!, $folderId: String, $targetResourceId: String) {
+  previewProjectPublication(
+    projectId: $projectId
+    publicationId: $publicationId
+    expectedRevision: $expectedRevision
+    workspaceId: $workspaceId
+    folderId: $folderId
+    targetResourceId: $targetResourceId
+  ) {
+    ...ProjectPublicationFields
+  }
+}
+${projectPublicationFieldsFragment}`,
+};
+
 export const pricesQuery = {
   id: 'pricesQuery' as const,
   op: 'prices',
@@ -9771,6 +10285,430 @@ export const pricesQuery = {
     lifetimeAmount
   }
 }`,
+};
+
+export const projectAgentTaskQuery = {
+  id: 'projectAgentTaskQuery' as const,
+  op: 'projectAgentTask',
+  query: `query projectAgentTask($projectId: String!, $runId: String!) {
+  projectAgentTask(projectId: $projectId, runId: $runId) {
+    ...ProjectAgentTaskFields
+  }
+}
+${projectAgentTaskFieldsFragment}`,
+};
+
+export const projectAgentTasksQuery = {
+  id: 'projectAgentTasksQuery' as const,
+  op: 'projectAgentTasks',
+  query: `query projectAgentTasks($projectId: String!, $sessionId: String, $cursor: String, $limit: Int) {
+  projectAgentTasks(
+    projectId: $projectId
+    sessionId: $sessionId
+    cursor: $cursor
+    limit: $limit
+  ) {
+    items {
+      ...ProjectAgentTaskFields
+    }
+    nextCursor
+  }
+}
+${projectAgentTaskFieldsFragment}`,
+};
+
+export const projectAiModelQuery = {
+  id: 'projectAiModelQuery' as const,
+  op: 'projectAiModel',
+  query: `query projectAiModel($projectId: String!) {
+  projectAiModel(projectId: $projectId) {
+    configured
+    modelId
+    provider
+  }
+}`,
+};
+
+export const projectChatContextQuery = {
+  id: 'projectChatContextQuery' as const,
+  op: 'projectChatContext',
+  query: `query projectChatContext($projectId: String!, $sessionId: String!) {
+  projectChatContext(projectId: $projectId, sessionId: $sessionId) {
+    ...ProjectChatContextFields
+  }
+}
+${projectChatContextFieldsFragment}`,
+};
+
+export const projectCopilotChatQuery = {
+  id: 'projectCopilotChatQuery' as const,
+  op: 'projectCopilotChat',
+  query: `query projectCopilotChat($projectId: String!, $sessionId: String!) {
+  currentUser {
+    copilot {
+      projectChat(projectId: $projectId, sessionId: $sessionId) {
+        ...CopilotChatHistory
+      }
+    }
+  }
+}
+${copilotChatHistoryFragment}`,
+};
+
+export const projectCopilotChatsQuery = {
+  id: 'projectCopilotChatsQuery' as const,
+  op: 'projectCopilotChats',
+  query: `query projectCopilotChats($projectId: String!, $pagination: PaginationInput!, $options: QueryChatHistoriesInput) {
+  currentUser {
+    copilot {
+      projectChats(projectId: $projectId, pagination: $pagination, options: $options) {
+        totalCount
+        edges {
+          cursor
+          node {
+            ...CopilotChatHistory
+          }
+        }
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+      }
+    }
+  }
+}
+${copilotChatHistoryFragment}`,
+};
+
+export const projectDestinationFoldersQuery = {
+  id: 'projectDestinationFoldersQuery' as const,
+  op: 'projectDestinationFolders',
+  query: `query projectDestinationFolders($projectId: String!, $workspaceId: String!, $parentId: String, $query: String, $cursor: String, $limit: Int) {
+  projectDestinationFolders(
+    projectId: $projectId
+    workspaceId: $workspaceId
+    parentId: $parentId
+    query: $query
+    cursor: $cursor
+    limit: $limit
+  ) {
+    current {
+      workspaceId
+      folderId
+      path {
+        id
+        name
+      }
+      fingerprint
+      canSave
+      canCreateFolder
+    }
+    revision
+    items {
+      workspaceId
+      folderId
+      path {
+        id
+        name
+      }
+      fingerprint
+      canSave
+      canCreateFolder
+    }
+    nextCursor
+  }
+}`,
+};
+
+export const projectDestinationWorkspacesQuery = {
+  id: 'projectDestinationWorkspacesQuery' as const,
+  op: 'projectDestinationWorkspaces',
+  query: `query projectDestinationWorkspaces($projectId: String!) {
+  projectDestinationWorkspaces(projectId: $projectId) {
+    id
+    name
+  }
+}`,
+};
+
+export const projectFileRequestRecipientsQuery = {
+  id: 'projectFileRequestRecipientsQuery' as const,
+  op: 'projectFileRequestRecipients',
+  query: `query projectFileRequestRecipients($projectId: String!, $query: String!) {
+  projectFileRequestRecipients(projectId: $projectId, query: $query) {
+    id
+    name
+  }
+}`,
+};
+
+export const projectFileRequestQuery = {
+  id: 'projectFileRequestQuery' as const,
+  op: 'projectFileRequest',
+  query: `query projectFileRequest($requestId: String!) {
+  projectFileRequest(requestId: $requestId) {
+    ...ProjectFileRequestFields
+  }
+}
+${projectFileRequestFieldsFragment}`,
+};
+
+export const projectLegacyConversationsQuery = {
+  id: 'projectLegacyConversationsQuery' as const,
+  op: 'projectLegacyConversations',
+  query: `query projectLegacyConversations($projectId: String!, $cursor: String) {
+  projectLegacyConversations(projectId: $projectId, cursor: $cursor) {
+    items {
+      id
+      title
+      createdAt
+    }
+    nextCursor
+  }
+}`,
+};
+
+export const projectLegacyMessagesQuery = {
+  id: 'projectLegacyMessagesQuery' as const,
+  op: 'projectLegacyMessages',
+  query: `query projectLegacyMessages($projectId: String!, $sessionId: String!, $cursor: String) {
+  projectLegacyMessages(
+    projectId: $projectId
+    sessionId: $sessionId
+    cursor: $cursor
+  ) {
+    items {
+      id
+      role
+      content
+      truncated
+      createdAt
+    }
+    nextCursor
+  }
+}`,
+};
+
+export const projectLegacyOperationsQuery = {
+  id: 'projectLegacyOperationsQuery' as const,
+  op: 'projectLegacyOperations',
+  query: `query projectLegacyOperations($projectId: String!, $cursor: String) {
+  projectLegacyOperations(projectId: $projectId, cursor: $cursor) {
+    items {
+      id
+      title
+      status
+      revision
+      resourceId
+      createdAt
+    }
+    nextCursor
+  }
+}`,
+};
+
+export const projectOfficeArtifactQuery = {
+  id: 'projectOfficeArtifactQuery' as const,
+  op: 'projectOfficeArtifact',
+  query: `query projectOfficeArtifact($projectId: String!, $artifactId: String!) {
+  projectOfficeArtifact(projectId: $projectId, artifactId: $artifactId) {
+    ...ProjectOfficeArtifactFields
+  }
+}
+${projectOfficeArtifactFieldsFragment}`,
+};
+
+export const projectOfficeRevisionCompareQuery = {
+  id: 'projectOfficeRevisionCompareQuery' as const,
+  op: 'projectOfficeRevisionCompare',
+  query: `query projectOfficeRevisionCompare($projectId: String!, $artifactId: String!, $beforeRevisionId: String!, $afterRevisionId: String!) {
+  projectOfficeRevisionCompare(
+    projectId: $projectId
+    artifactId: $artifactId
+    beforeRevisionId: $beforeRevisionId
+    afterRevisionId: $afterRevisionId
+  ) {
+    artifactId
+    kind
+    beforeRevision {
+      ...ProjectOfficeRevisionFields
+    }
+    afterRevision {
+      ...ProjectOfficeRevisionFields
+    }
+    changed
+    truncated
+    summary
+    changes
+  }
+}
+${projectOfficeRevisionFieldsFragment}`,
+};
+
+export const projectOfficeRevisionsQuery = {
+  id: 'projectOfficeRevisionsQuery' as const,
+  op: 'projectOfficeRevisions',
+  query: `query projectOfficeRevisions($projectId: String!, $artifactId: String!, $limit: SafeInt) {
+  projectOfficeRevisions(
+    projectId: $projectId
+    artifactId: $artifactId
+    limit: $limit
+  ) {
+    ...ProjectOfficeRevisionFields
+  }
+}
+${projectOfficeRevisionFieldsFragment}`,
+};
+
+export const projectPublicationCandidatesQuery = {
+  id: 'projectPublicationCandidatesQuery' as const,
+  op: 'projectPublicationCandidates',
+  query: `query projectPublicationCandidates($projectId: String!, $resourceId: String!, $workspaceId: String!, $parentId: String, $query: String, $cursor: String) {
+  projectPublicationCandidates(
+    projectId: $projectId
+    resourceId: $resourceId
+    workspaceId: $workspaceId
+    parentId: $parentId
+    query: $query
+    cursor: $cursor
+  ) {
+    items {
+      resourceId
+      title
+      kind
+      folderId
+      path {
+        id
+        name
+      }
+      canUpdate
+    }
+    nextCursor
+  }
+}`,
+};
+
+export const projectPublicationQuery = {
+  id: 'projectPublicationQuery' as const,
+  op: 'projectPublication',
+  query: `query projectPublication($projectId: String!, $publicationId: String!) {
+  projectPublication(projectId: $projectId, publicationId: $publicationId) {
+    ...ProjectPublicationFields
+  }
+}
+${projectPublicationFieldsFragment}`,
+};
+
+export const projectPublicationsQuery = {
+  id: 'projectPublicationsQuery' as const,
+  op: 'projectPublications',
+  query: `query projectPublications($projectId: String!, $resourceId: String, $cursor: String, $limit: Int) {
+  projectPublications(
+    projectId: $projectId
+    resourceId: $resourceId
+    cursor: $cursor
+    limit: $limit
+  ) {
+    items {
+      ...ProjectPublicationFields
+    }
+    nextCursor
+  }
+}
+${projectPublicationFieldsFragment}`,
+};
+
+export const projectResourceMigrationsQuery = {
+  id: 'projectResourceMigrationsQuery' as const,
+  op: 'projectResourceMigrations',
+  query: `query projectResourceMigrations($projectId: String!, $cursor: String) {
+  projectResourceMigrations(projectId: $projectId, cursor: $cursor) {
+    items {
+      ...ProjectResourceMigrationFields
+    }
+    nextCursor
+  }
+}
+${projectResourceMigrationFieldsFragment}`,
+};
+
+export const projectResourcePathQuery = {
+  id: 'projectResourcePathQuery' as const,
+  op: 'projectResourcePath',
+  query: `query projectResourcePath($projectId: String!, $resourceId: String!) {
+  projectResourcePath(projectId: $projectId, resourceId: $resourceId) {
+    ...ProjectResourceFields
+  }
+}
+${projectResourceFieldsFragment}`,
+};
+
+export const projectResourceRevisionQuery = {
+  id: 'projectResourceRevisionQuery' as const,
+  op: 'projectResourceRevision',
+  query: `query projectResourceRevision($projectId: String!, $resourceId: String!, $sequence: Int) {
+  projectResourceRevision(
+    projectId: $projectId
+    resourceId: $resourceId
+    sequence: $sequence
+  ) {
+    id
+    projectId
+    resourceId
+    sequence
+    parentId
+    fingerprint
+    origin
+    createdAt
+  }
+}`,
+};
+
+export const projectResourceSourcesQuery = {
+  id: 'projectResourceSourcesQuery' as const,
+  op: 'projectResourceSources',
+  query: `query projectResourceSources($projectId: String!, $resourceId: String!) {
+  projectResourceSources(projectId: $projectId, resourceId: $resourceId) {
+    workspaceId
+    sourceResourceId
+    title
+    workspaceName
+    sourceVersion
+    projectVersion
+  }
+}`,
+};
+
+export const projectResourceQuery = {
+  id: 'projectResourceQuery' as const,
+  op: 'projectResource',
+  query: `query projectResource($projectId: String!, $resourceId: String!) {
+  projectResource(projectId: $projectId, resourceId: $resourceId) {
+    ...ProjectResourceFields
+  }
+}
+${projectResourceFieldsFragment}`,
+};
+
+export const projectResourcesQuery = {
+  id: 'projectResourcesQuery' as const,
+  op: 'projectResources',
+  query: `query projectResources($projectId: String!, $parentId: String, $cursor: String, $limit: Int, $trash: Boolean, $search: String) {
+  projectResources(
+    projectId: $projectId
+    parentId: $parentId
+    cursor: $cursor
+    limit: $limit
+    trash: $trash
+    search: $search
+  ) {
+    items {
+      ...ProjectResourceFields
+    }
+    nextCursor
+  }
+}
+${projectResourceFieldsFragment}`,
 };
 
 export const publishPageMutation = {
@@ -9836,12 +10774,64 @@ export const recoverDocMutation = {
 }`,
 };
 
+export const refreshProjectResourceSourceMutation = {
+  id: 'refreshProjectResourceSourceMutation' as const,
+  op: 'refreshProjectResourceSource',
+  query: `mutation refreshProjectResourceSource($projectId: String!, $resourceId: String!, $workspaceId: String!, $sourceResourceId: String!, $expectedContentVersion: Int!, $expectedSourceVersion: String!, $requestKey: String!) {
+  refreshProjectResourceSource(
+    projectId: $projectId
+    resourceId: $resourceId
+    workspaceId: $workspaceId
+    sourceResourceId: $sourceResourceId
+    expectedContentVersion: $expectedContentVersion
+    expectedSourceVersion: $expectedSourceVersion
+    requestKey: $requestKey
+  ) {
+    ...ProjectResourceFields
+  }
+}
+${projectResourceFieldsFragment}`,
+};
+
 export const removeAvatarMutation = {
   id: 'removeAvatarMutation' as const,
   op: 'removeAvatar',
   query: `mutation removeAvatar {
   removeAvatar {
     success
+  }
+}`,
+};
+
+export const requestProjectImportPermissionMutation = {
+  id: 'requestProjectImportPermissionMutation' as const,
+  op: 'requestProjectImportPermission',
+  query: `mutation requestProjectImportPermission($projectId: String!, $workspaceId: String!, $resourceId: String!, $requestKey: String!) {
+  requestProjectImportPermission(
+    projectId: $projectId
+    workspaceId: $workspaceId
+    resourceId: $resourceId
+    requestKey: $requestKey
+  ) {
+    id
+    status
+    purpose
+  }
+}`,
+};
+
+export const requestProjectMigrationPermissionMutation = {
+  id: 'requestProjectMigrationPermissionMutation' as const,
+  op: 'requestProjectMigrationPermission',
+  query: `mutation requestProjectMigrationPermission($projectId: String!, $migrationId: String!, $requestKey: String!) {
+  requestProjectMigrationPermission(
+    projectId: $projectId
+    migrationId: $migrationId
+    requestKey: $requestKey
+  ) {
+    id
+    status
+    purpose
   }
 }`,
 };
@@ -9885,6 +10875,50 @@ export const revokePublicPageMutation = {
     id
     mode
     public
+  }
+}`,
+};
+
+export const saveProjectDocumentMutation = {
+  id: 'saveProjectDocumentMutation' as const,
+  op: 'saveProjectDocument',
+  query: `mutation saveProjectDocument($input: SaveProjectDocumentInput!) {
+  saveProjectDocument(input: $input) {
+    id
+    projectId
+    resourceId
+    sequence
+    parentId
+    fingerprint
+    origin
+    createdAt
+  }
+}`,
+};
+
+export const searchProjectResourcesQuery = {
+  id: 'searchProjectResourcesQuery' as const,
+  op: 'searchProjectResources',
+  query: `query searchProjectResources($projectId: String!, $query: String!, $cursor: String, $limit: Int) {
+  searchProjectResources(
+    projectId: $projectId
+    query: $query
+    cursor: $cursor
+    limit: $limit
+  ) {
+    items {
+      id
+      projectId
+      title
+      kind
+      contentVersion
+      snippet
+      path {
+        id
+        title
+      }
+    }
+    nextCursor
   }
 }`,
 };
@@ -9958,6 +10992,23 @@ export const setWorkspacePublicByIdMutation = {
     id
   }
 }`,
+};
+
+export const submitProjectFileRequestMutation = {
+  id: 'submitProjectFileRequestMutation' as const,
+  op: 'submitProjectFileRequest',
+  query: `mutation submitProjectFileRequest($requestId: String!, $expectedVersion: Int!, $shareWithProject: Boolean!, $file: Upload!) {
+  submitProjectFileRequest(
+    requestId: $requestId
+    expectedVersion: $expectedVersion
+    shareWithProject: $shareWithProject
+    file: $file
+  ) {
+    ...ProjectFileRequestFields
+  }
+}
+${projectFileRequestFieldsFragment}`,
+  file: true,
 };
 
 export const refreshSubscriptionMutation = {
@@ -10036,6 +11087,22 @@ export const updateDocUserRoleMutation = {
 }`,
 };
 
+export const updateProjectChatContextMutation = {
+  id: 'updateProjectChatContextMutation' as const,
+  op: 'updateProjectChatContext',
+  query: `mutation updateProjectChatContext($projectId: String!, $sessionId: String!, $expectedVersion: Int!, $items: [ProjectChatContextItemInput!]!) {
+  updateProjectChatContext(
+    projectId: $projectId
+    sessionId: $sessionId
+    expectedVersion: $expectedVersion
+    items: $items
+  ) {
+    ...ProjectChatContextFields
+  }
+}
+${projectChatContextFieldsFragment}`,
+};
+
 export const updateSubscriptionMutation = {
   id: 'updateSubscriptionMutation' as const,
   op: 'updateSubscription',
@@ -10084,6 +11151,32 @@ export const uploadAvatarMutation = {
     email
   }
 }`,
+  file: true,
+};
+
+export const uploadProjectBlobMutation = {
+  id: 'uploadProjectBlobMutation' as const,
+  op: 'uploadProjectBlob',
+  query: `mutation uploadProjectBlob($projectId: String!, $file: Upload!) {
+  uploadProjectBlob(projectId: $projectId, file: $file)
+}`,
+  file: true,
+};
+
+export const uploadProjectChatContextFileMutation = {
+  id: 'uploadProjectChatContextFileMutation' as const,
+  op: 'uploadProjectChatContextFile',
+  query: `mutation uploadProjectChatContextFile($projectId: String!, $sessionId: String!, $expectedVersion: Int!, $file: Upload!) {
+  uploadProjectChatContextFile(
+    projectId: $projectId
+    sessionId: $sessionId
+    expectedVersion: $expectedVersion
+    file: $file
+  ) {
+    ...ProjectChatContextFields
+  }
+}
+${projectChatContextFieldsFragment}`,
   file: true,
 };
 

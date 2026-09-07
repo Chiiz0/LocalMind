@@ -1893,6 +1893,10 @@ vi.mock('./workspace-byok', () => ({
   WorkspaceByokAdmin: () => <div>Workspace AI credentials</div>,
 }));
 
+vi.mock('./project-byok', () => ({
+  ProjectByokAdmin: () => <div>Global Project BYOK</div>,
+}));
+
 import { AiPage } from './index';
 
 function renderAiPage(initialPath = '/admin/ai/runtime') {
@@ -10781,6 +10785,7 @@ describe('AiPage', () => {
     renderAiPage('/admin/ai');
 
     expect(screen.getByText('Configuration')).not.toBeNull();
+    expect(screen.getByText('Global Project BYOK')).not.toBeNull();
     expect(screen.getByText('Runtime')).not.toBeNull();
     expect(screen.getByText('AI capability switches')).not.toBeNull();
     expect(screen.getByText('Enterprise CLI governance')).not.toBeNull();

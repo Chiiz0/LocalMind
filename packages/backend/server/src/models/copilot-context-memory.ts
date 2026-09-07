@@ -101,7 +101,7 @@ export type CopilotContextMemoryWriterDecision = {
 
 export type CopilotContextMemoryWriterInput = {
   ownerUserId: string;
-  workspaceId: string;
+  workspaceId: string | null;
   docId?: string | null;
   projectId?: string | null;
   sourceSessionId?: string | null;
@@ -202,7 +202,7 @@ function activeMemoryLifecycleWhere(now = new Date()) {
 
 function memoryWriterLockKey(input: {
   ownerUserId: string;
-  workspaceId: string;
+  workspaceId: string | null;
   scope: CopilotContextMemoryScope;
   docId?: string | null;
   projectId?: string | null;
@@ -581,7 +581,7 @@ export class CopilotContextMemoryModel extends BaseModel {
 
   private async appendWriterEvent(input: {
     ownerUserId: string;
-    workspaceId: string;
+    workspaceId: string | null;
     sourceSessionId?: string | null;
     sourceTurnId?: string | null;
     operation: 'ADD' | 'UPDATE' | 'DELETE' | 'NOOP' | 'UNDO';
@@ -609,24 +609,47 @@ export class CopilotContextMemoryModel extends BaseModel {
 
   @Transactional()
   async applyWriterDecision(input: CopilotContextMemoryWriterInput) {
+    if (!input.workspaceId && input.scope !== 'project')
+      throw new BadRequest('Workspace memory requires a workspace');
     if (input.scope === 'project' && !input.sourceSessionId)
       throw new BadRequest(
         'Project memory writer requires a source conversation'
       );
     let sessionDocuments: CopilotContextMemorySourceDocumentInput[] = [];
+    let projectSourceCheckId: string | undefined;
     if (input.scope === 'project' && input.sourceSessionId) {
       if (!input.projectId)
         throw new BadRequest('Project memory requires a project');
-      await this.models.copilotContext.assertProjectSourcesShared({
-        sessionId: input.sourceSessionId,
-        actorId: input.ownerUserId,
-        projectId: input.projectId,
-        sink: {
-          type: 'project_memory',
-          id: input.decisionFingerprint,
-          phase: input.decision.operation === 'NOOP' ? 'noop' : 'execute',
-        },
-      });
+      const session = await this.models.copilotSession.getMeta(
+        input.sourceSessionId
+      );
+      if (!session || session.workspaceId !== input.workspaceId)
+        throw new BadRequest('Memory conversation owner does not match');
+      if (
+        !input.workspaceId &&
+        (!input.sourceTurnId ||
+          !(await this.db.aiSessionMessage.findFirst({
+            where: {
+              id: input.sourceTurnId,
+              sessionId: input.sourceSessionId,
+              role: 'user',
+            },
+            select: { id: true },
+          })))
+      )
+        throw new BadRequest('Project memory requires a persisted user turn');
+      const checkId =
+        await this.models.copilotContext.checkProjectSourcesShared({
+          sessionId: input.sourceSessionId,
+          actorId: input.ownerUserId,
+          projectId: input.projectId,
+          sink: {
+            type: 'project_memory',
+            id: input.decisionFingerprint,
+            phase: input.decision.operation === 'NOOP' ? 'noop' : 'execute',
+          },
+        });
+      if (!input.workspaceId) projectSourceCheckId = checkId;
       sessionDocuments = (
         await this.models.copilotContext.getSessionSources(
           input.sourceSessionId
@@ -649,10 +672,17 @@ export class CopilotContextMemoryModel extends BaseModel {
       include: { memory: true, previousMemory: true },
     });
     if (replay) return replay;
-    const projectSource = this.projectMemorySourceDocuments({
-      ...input,
-      sourceDocuments: [...(input.sourceDocuments ?? []), ...sessionDocuments],
-    });
+    const sourceDocuments = [
+      ...(input.sourceDocuments ?? []),
+      ...sessionDocuments,
+    ];
+    const projectSource =
+      projectSourceCheckId && !sourceDocuments.length
+        ? null
+        : this.projectMemorySourceDocuments({
+            ...input,
+            sourceDocuments,
+          });
 
     const factKey = normalizeFactKey(input.decision.factKey);
     const scopeWorkspaceId = memoryScopeWorkspaceId(input);
@@ -773,6 +803,7 @@ export class CopilotContextMemoryModel extends BaseModel {
         docId: input.docId ?? null,
         projectId: input.projectId ?? null,
         sourceSessionId: input.sourceSessionId,
+        projectSourceCheckId,
         scope: input.scope,
         kind: 'auto_memory',
         visibility: 'private',
@@ -986,7 +1017,7 @@ export class CopilotContextMemoryModel extends BaseModel {
   async enforceAutoMemoryQuota(
     input: {
       ownerUserId: string;
-      workspaceId: string;
+      workspaceId: string | null;
       scope: Exclude<CopilotContextMemoryScope, 'user'>;
       docId?: string | null;
       projectId?: string | null;
@@ -1220,6 +1251,7 @@ export class CopilotContextMemoryModel extends BaseModel {
       where: { id },
       include: {
         documents: {
+          where: { internalResourceId: null },
           orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
         },
         members: { orderBy: [{ role: 'asc' }, { createdAt: 'asc' }] },
@@ -1235,6 +1267,7 @@ export class CopilotContextMemoryModel extends BaseModel {
       },
       include: {
         documents: {
+          where: { internalResourceId: null },
           orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
         },
         members: { orderBy: [{ role: 'asc' }, { createdAt: 'asc' }] },
@@ -1254,6 +1287,7 @@ export class CopilotContextMemoryModel extends BaseModel {
         members: { some: { userId: input.userId } },
         documents: {
           some: {
+            internalResourceId: null,
             workspaceId: input.workspaceId,
             docId: input.docId,
             status: 'granted',
@@ -1273,6 +1307,7 @@ export class CopilotContextMemoryModel extends BaseModel {
     if (!input.docIds.length) return [];
     return await this.db.aiContextProjectDoc.findMany({
       where: {
+        internalResourceId: null,
         workspaceId: input.workspaceId,
         docId: { in: input.docIds },
         status: 'granted',

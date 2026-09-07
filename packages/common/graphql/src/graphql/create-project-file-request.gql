@@ -1,0 +1,4 @@
+mutation createProjectFileRequest($input: CreateFileRequestInput!) {
+  createProjectFileRequest(input: $input) { ...ProjectFileRequestFields }
+}
+#import './fragments/project-file-request-fields.gql'

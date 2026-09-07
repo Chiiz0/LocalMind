@@ -5,6 +5,7 @@ import { keyframes, style } from '@vanilla-extract/css';
 export const container = style({
   maxHeight: '448px',
   width: '360px',
+  maxWidth: 'calc(100vw - 32px)',
   display: 'flex',
   flexDirection: 'column',
 
@@ -19,6 +20,8 @@ export const header = style({
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
+  flexWrap: 'wrap',
+  gap: '8px',
   fontSize: cssVar('fontSm'),
   lineHeight: '22px',
   padding: '4px 8px 8px',
@@ -57,11 +60,33 @@ export const itemList = style({
 });
 
 export const notificationListItem = style({
+  display: 'flex',
+  alignItems: 'flex-start',
   selectors: {
     '&[data-read="true"]': {
       opacity: 0.68,
     },
   },
+});
+
+export const itemContent = style({
+  flex: 1,
+  minWidth: 0,
+});
+
+export const itemActions = style({
+  display: 'flex',
+  flexDirection: 'column',
+  flexShrink: 0,
+  gap: '4px',
+  padding: '8px 4px 8px 0',
+});
+
+export const confirmActions = style({
+  display: 'flex',
+  justifyContent: 'flex-end',
+  flexWrap: 'wrap',
+  gap: '8px',
 });
 
 export const listEmpty = style({
@@ -141,29 +166,20 @@ export const itemSkeletonContainer = style({
   })} 500ms ease forwards 1s`,
 });
 
-export const itemDeleteButton = style({
-  position: 'absolute',
-  right: '10px',
-  bottom: '8px',
-  width: '20px',
-  height: '20px',
-  backgroundColor: cssVarV2('button/iconButtonSolid'),
-  border: `0.5px solid ${cssVarV2('layer/insideBorder/border')}`,
-  boxShadow: cssVar('buttonShadow'),
-  opacity: 0,
-  selectors: {
-    [`${itemContainer}:hover &`]: {
-      opacity: 1,
-    },
-  },
+export const itemCleanupButton = style({
+  width: '28px',
+  height: '28px',
   '@media': {
     '(hover: none)': {
-      opacity: 1,
+      width: '36px',
+      height: '36px',
     },
   },
 });
 
 export const itemMain = style({
+  minWidth: 0,
+  overflowWrap: 'anywhere',
   display: 'flex',
   flexDirection: 'column',
   gap: '4px',

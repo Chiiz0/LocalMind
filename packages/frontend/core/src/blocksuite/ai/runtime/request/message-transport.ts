@@ -40,8 +40,10 @@ async function resizeImage(blob: Blob | File): Promise<Blob | null> {
     src = URL.createObjectURL(blob);
     const img = new Image();
     img.src = src;
-    await new Promise(resolve => {
+    await new Promise((resolve, reject) => {
       img.onload = resolve;
+      img.onerror = () =>
+        reject(new Error('Image attachment could not be decoded'));
     });
 
     const canvas = document.createElement('canvas');
@@ -99,13 +101,23 @@ async function createMessage({
     options.attachments = stringAttachments;
     options.blobs = (
       await Promise.all(
-        blobs.map(resizeImage).map(async blob => {
-          const file = await blob;
-          if (!file) return null;
-          return new File([file], sessionId, {
-            type: file.type,
-          });
-        })
+        blobs
+          .map(blob =>
+            blob.type.startsWith('image/')
+              ? resizeImage(blob)
+              : Promise.resolve(blob)
+          )
+          .map(async blob => {
+            const file = await blob;
+            if (!file) return null;
+            return new File(
+              [file],
+              file instanceof File ? file.name : sessionId,
+              {
+                type: file.type,
+              }
+            );
+          })
       )
     ).filter(Boolean) as File[];
   }

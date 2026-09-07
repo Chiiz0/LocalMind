@@ -108,6 +108,17 @@ afterEach(() => {
 });
 
 describe('Office tool result presentation', () => {
+  test('restored read validation errors without an isError flag never claim success', () => {
+    expect(
+      officeToolResultView('office_read', {
+        message: 'selector JSON must match the required Office schema',
+      })
+    ).toEqual({ status: 'error', name: 'Office read failed' });
+    expect(officeToolResultView('office_read', {})).toEqual({
+      status: 'error',
+      name: 'Office read failed',
+    });
+  });
   test('states that an approval request has not created a revision', () => {
     const view = officeToolResultView('office_command_request', {
       success: true,

@@ -13,7 +13,18 @@ const folderSchema = z.object({
   type: z.literal('folder'),
   parentId: z.string().min(1).max(256).nullish(),
   data: z.string().min(1).max(512),
+  index: z.string().max(128).optional(),
 });
+const locationCursorSchema = z
+  .object({
+    workspaceId: z.string().min(1).max(256),
+    parentId: z.string().min(1).max(256).nullable(),
+    query: z.string().max(128),
+    revision: z.string().length(64),
+    after: z.string().min(1).max(256),
+    position: z.string().max(128),
+  })
+  .strict();
 export type DocumentDestination = {
   workspaceId: string;
   folderId: string | null;
@@ -100,6 +111,146 @@ export class DocumentDestinationService {
     };
   }
 
+  async locations(input: {
+    actorId: string;
+    workspaceId: string;
+    parentId: string | null;
+    query?: string;
+    cursor?: string;
+    limit?: number;
+  }) {
+    const query = (input.query ?? '').trim();
+    const limit = input.limit ?? 50;
+    if (
+      !input.workspaceId ||
+      input.workspaceId.length > 256 ||
+      input.parentId === undefined ||
+      (input.parentId?.length ?? 0) > 256 ||
+      query.length > 128 ||
+      !Number.isInteger(limit) ||
+      limit < 1 ||
+      limit > 100 ||
+      (input.cursor?.length ?? 0) > 2048
+    )
+      throw new BadRequest('Invalid destination page');
+    const access = this.ac.user(input.actorId).workspace(input.workspaceId);
+    await access.assert('Workspace.Organize.Read');
+    const directory = await this.organization.readDirectory(
+      input.workspaceId,
+      input.actorId
+    );
+    const folders = new Map<string, z.infer<typeof folderSchema>>();
+    const rights = new Map(
+      directory.entries.map(entry => [String(entry.row.id), entry.rights])
+    );
+    for (const { row } of directory.entries) {
+      const parsed = folderSchema.safeParse(row);
+      if (parsed.success) folders.set(parsed.data.id, parsed.data);
+    }
+    const currentRights = input.parentId
+      ? rights.get(input.parentId)
+      : directory.rootRights;
+    if (!currentRights?.canRead)
+      throw new NotFound('Selected directory is unavailable');
+    let after: string | undefined;
+    let position = '';
+    if (input.cursor) {
+      let decoded: z.infer<typeof locationCursorSchema>;
+      try {
+        decoded = locationCursorSchema.parse(
+          JSON.parse(Buffer.from(input.cursor, 'base64url').toString('utf8'))
+        );
+      } catch {
+        throw new BadRequest('Invalid destination cursor');
+      }
+      if (
+        decoded.workspaceId !== input.workspaceId ||
+        decoded.parentId !== input.parentId ||
+        decoded.query !== query ||
+        decoded.revision !== directory.revision
+      )
+        throw new BadRequest('Destination changed; reload this directory');
+      after = decoded.after;
+      position = decoded.position;
+    }
+    const canCreateDoc =
+      (await access.can('Workspace.CreateDoc')) &&
+      (await access.can('Workspace.Sync'));
+    const describe = (folderId: string | null) => {
+      const destination = this.describe(
+        { workspaceId: input.workspaceId, folderId },
+        folders
+      );
+      const policy = folderId ? rights.get(folderId) : directory.rootRights;
+      if (!policy?.canRead)
+        throw new NotFound('Selected directory is unavailable');
+      return {
+        ...destination,
+        canSave: canCreateDoc && policy.canWrite && policy.canOrganize,
+        canCreateFolder:
+          destination.path.length < 64 &&
+          canCreateDoc &&
+          policy.canWrite &&
+          policy.canOrganize &&
+          policy.canCreateFolder,
+      };
+    };
+    const candidates = [...folders.values()]
+      .filter(
+        folder =>
+          (!after ||
+            (folder.index ?? '') > position ||
+            ((folder.index ?? '') === position && folder.id > after)) &&
+          (query
+            ? folder.data
+                .toLocaleLowerCase()
+                .includes(query.toLocaleLowerCase())
+            : (folder.parentId ?? null) === input.parentId)
+      )
+      .sort((a, b) =>
+        (a.index ?? '') < (b.index ?? '')
+          ? -1
+          : (a.index ?? '') > (b.index ?? '')
+            ? 1
+            : a.id < b.id
+              ? -1
+              : a.id > b.id
+                ? 1
+                : 0
+      );
+    const items: ReturnType<typeof describe>[] = [];
+    for (const folder of candidates) {
+      try {
+        items.push(describe(folder.id));
+      } catch (error) {
+        if (!(error instanceof BadRequest || error instanceof NotFound))
+          throw error;
+      }
+      if (items.length > limit) break;
+    }
+    const page = items.slice(0, limit);
+    const last = page.at(-1);
+    const nextCursor =
+      items.length > limit && last?.folderId
+        ? Buffer.from(
+            JSON.stringify({
+              workspaceId: input.workspaceId,
+              parentId: input.parentId,
+              query,
+              revision: directory.revision,
+              after: last.folderId,
+              position: folders.get(last.folderId)?.index ?? '',
+            })
+          ).toString('base64url')
+        : null;
+    return {
+      current: describe(input.parentId),
+      revision: directory.revision,
+      items: page,
+      nextCursor,
+    };
+  }
+
   async authorize(input: {
     actorId: string;
     workspaceId: string;
@@ -133,6 +284,8 @@ export class DocumentDestinationService {
       if (parsed.success) folders.set(parsed.data.id, parsed.data);
     }
     const destination = this.describe(input, folders);
+    if (input.createFolder && destination.path.length >= 64)
+      throw new BadRequest('Directory nesting exceeds its limit');
     const rights = await this.models.workspaceDirectoryGrant.rights({
       workspaceId: input.workspaceId,
       actorId: input.actorId,

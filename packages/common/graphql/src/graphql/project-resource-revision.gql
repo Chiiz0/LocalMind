@@ -1,0 +1,12 @@
+query projectResourceRevision($projectId: String!, $resourceId: String!, $sequence: Int) {
+  projectResourceRevision(projectId: $projectId, resourceId: $resourceId, sequence: $sequence) {
+    id
+    projectId
+    resourceId
+    sequence
+    parentId
+    fingerprint
+    origin
+    createdAt
+  }
+}

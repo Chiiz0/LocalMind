@@ -174,8 +174,11 @@ export const COPILOT_LOCKER = 'copilot';
 
 @InputType()
 class CreateChatSessionInput {
-  @Field(() => String)
-  workspaceId!: string;
+  @Field(() => String, { nullable: true })
+  workspaceId?: string;
+
+  @Field(() => String, { nullable: true })
+  projectId?: string;
 
   @Field(() => String, { nullable: true })
   docId?: string;
@@ -926,8 +929,8 @@ class CopilotHistoriesType implements Omit<ChatHistory, 'userId'> {
   @Field(() => String)
   sessionId!: string;
 
-  @Field(() => String)
-  workspaceId!: string;
+  @Field(() => String, { nullable: true })
+  workspaceId!: string | null;
 
   @Field(() => String, { nullable: true })
   docId!: string | null;
@@ -20427,6 +20430,9 @@ function providerProfileConfigPath(
   if (profile.source === 'byok_server') {
     return 'workspace.byok.server';
   }
+  if (profile.source === 'byok_project_global') {
+    return 'project.byok.global';
+  }
   return undefined;
 }
 
@@ -26376,14 +26382,121 @@ export class CopilotResolver {
     );
   }
 
+  @ResolveField(() => PaginatedCopilotHistoriesType)
+  async projectChats(
+    @CurrentUser() user: CurrentUser,
+    @Args('projectId') projectId: string,
+    @Args('pagination', PaginationInput.decode) pagination: PaginationInput,
+    @Args('options', { nullable: true }) options?: QueryChatHistoriesInput
+  ): Promise<PaginatedCopilotHistoriesType> {
+    await this.modelsStore.projectResource.assertMember({
+      projectId,
+      actorId: user.id,
+    });
+    const scope = {
+      userId: user.id,
+      workspaceId: null,
+      selectedContextProjectId: projectId,
+      docId: null,
+      action: false,
+      fork: false,
+    };
+    const states = await this.chatSession.listStates({
+      ...scope,
+      skip: pagination.offset,
+      limit: Math.min(pagination.first, 100),
+    });
+    const histories = states.flatMap(state => {
+      const history = this.historyProjector.projectHistory(state, {
+        requestUserId: user.id,
+        withMessages: options?.withMessages ?? false,
+        withPrompt: false,
+      });
+      return history
+        ? [{ ...history, messages: history.messages as ChatMessageType[] }]
+        : [];
+    });
+    await this.modelsStore.projectResource.assertMember({
+      projectId,
+      actorId: user.id,
+    });
+    return paginate(
+      histories,
+      'updatedAt',
+      pagination,
+      await this.chatSession.count(scope)
+    );
+  }
+
+  @ResolveField(() => CopilotHistoriesType)
+  async projectChat(
+    @CurrentUser() user: CurrentUser,
+    @Args('projectId') projectId: string,
+    @Args('sessionId') sessionId: string
+  ): Promise<CopilotHistoriesType> {
+    const session = await this.chatSession.assertOwnedSession(
+      user.id,
+      sessionId
+    );
+    if (session.workspaceId || session.selectedContextProjectId !== projectId) {
+      throw new CopilotSessionNotFound();
+    }
+    const state = await this.chatSession.getState(sessionId);
+    const history =
+      state &&
+      this.historyProjector.projectHistory(state, {
+        requestUserId: user.id,
+        withMessages: true,
+        withPrompt: false,
+      });
+    if (!history) throw new CopilotSessionNotFound();
+    await this.modelsStore.projectResource.assertMember({
+      projectId,
+      actorId: user.id,
+    });
+    return { ...history, messages: history.messages as ChatMessageType[] };
+  }
+
+  @Mutation(() => [String])
+  async cleanupProjectCopilotSessions(
+    @CurrentUser() user: CurrentUser,
+    @Args('projectId') projectId: string,
+    @Args('sessionIds', { type: () => [String] }) sessionIds: string[]
+  ) {
+    if (sessionIds.length > 100)
+      throw new BadRequest('Too many conversations.');
+    return this.modelsStore.projectResource.withMember(
+      { projectId, actorId: user.id },
+      () =>
+        this.chatSession.cleanup({
+          userId: user.id,
+          workspaceId: null,
+          selectedContextProjectId: projectId,
+          docId: null,
+          sessionIds,
+        })
+    );
+  }
+
   private async createCopilotSessionInternal(
     user: CurrentUser,
     options: CreateChatSessionInput
   ): Promise<string> {
-    // permission check based on session type
-    await this.assertPermission(user, options);
+    if (options.projectId) {
+      if (options.workspaceId || options.docId) {
+        throw new BadRequest(
+          'A native Project conversation has no Workspace owner.'
+        );
+      }
+      await this.modelsStore.projectResource.assertMember({
+        projectId: options.projectId,
+        actorId: user.id,
+      });
+    } else {
+      await this.assertPermission(user, options);
+    }
 
-    const lockFlag = `${COPILOT_LOCKER}:session:${user.id}:${options.workspaceId}`;
+    const lockFlag = `${COPILOT_LOCKER}:session:${user.id}:${options.projectId ? `project:${options.projectId}` : options.workspaceId}`;
     await using lock = await this.mutex.acquire(lockFlag);
     if (!lock) {
       throw new TooManyRequest('Server is busy');
@@ -26391,6 +26504,8 @@ export class CopilotResolver {
 
     return await this.chatSession.create({
       ...options,
+      workspaceId: options.workspaceId ?? null,
+      selectedContextProjectId: options.projectId ?? null,
       pinned: options.pinned ?? false,
       docId: options.docId ?? null,
       userId: user.id,
@@ -26454,6 +26569,19 @@ export class CopilotResolver {
     const session = await this.chatSession.get(options.sessionId);
     if (!session) {
       throw new CopilotSessionNotFound();
+    }
+
+    if (!session.config.workspaceId) {
+      await this.chatSession.assertOwnedSession(user.id, options.sessionId);
+      if (
+        options.docId ||
+        (options.selectedContextProjectId !== undefined &&
+          options.selectedContextProjectId !==
+            session.config.selectedContextProjectId)
+      ) {
+        throw new BadRequest('A Project conversation cannot change its owner.');
+      }
+      return this.chatSession.update({ ...options, userId: user.id });
     }
 
     const config = await this.assertPermission(user, session.config);

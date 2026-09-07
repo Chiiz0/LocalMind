@@ -10,6 +10,7 @@ import { OFFICE_FORMATS, OfficeCommandService } from '../../core/office';
 import type { PermissionAccess } from '../../core/permission';
 import type { WorkspaceBlobStorage } from '../../core/storage';
 import type { Models } from '../../models';
+import { workspaceOfficeStorage } from './office-storage.fixture';
 
 const bytes = createMinimalXlsxFixture();
 const policy = OFFICE_FORMATS.xlsx;
@@ -106,7 +107,11 @@ function fixture(options?: {
     }),
   } as unknown as PermissionAccess;
   return {
-    service: new OfficeCommandService(models, storage, access),
+    service: new OfficeCommandService(
+      models,
+      workspaceOfficeStorage(storage),
+      access
+    ),
     models,
     storage,
     appendRevision,

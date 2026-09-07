@@ -1,0 +1,5 @@
+#import './fragments/project-resource.gql'
+
+query projectResource($projectId: String!, $resourceId: String!) {
+  projectResource(projectId: $projectId, resourceId: $resourceId) { ...ProjectResourceFields }
+}

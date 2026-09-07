@@ -366,8 +366,10 @@ export class DocWriter {
     workspaceId: string,
     docId: string,
     update: Uint8Array,
-    editorId?: string
+    editorId?: string,
+    beforeWrite?: () => Promise<void>
   ): Promise<PushDocUpdateResult> {
+    await beforeWrite?.();
     if (this.storage.isEmptyBin(update)) {
       const current = await this.storage.getDoc(workspaceId, docId);
       if (!current) {
@@ -380,7 +382,8 @@ export class DocWriter {
       workspaceId,
       docId,
       [update],
-      editorId
+      editorId,
+      beforeWrite
     );
     this.emitDocUpdatesPushed({
       spaceId: workspaceId,
@@ -393,7 +396,9 @@ export class DocWriter {
       workspaceId,
       docId,
       { updatedBy: editorId },
-      editorId
+      editorId,
+      undefined,
+      beforeWrite
     );
     return { success: true, timestamp };
   }

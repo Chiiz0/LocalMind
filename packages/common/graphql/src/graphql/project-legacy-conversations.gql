@@ -1,0 +1,6 @@
+query projectLegacyConversations($projectId: String!, $cursor: String) {
+  projectLegacyConversations(projectId: $projectId, cursor: $cursor) {
+    items { id title createdAt }
+    nextCursor
+  }
+}

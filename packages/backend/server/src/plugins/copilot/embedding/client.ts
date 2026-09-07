@@ -117,6 +117,7 @@ class ProductionEmbeddingClient extends EmbeddingClient {
       dimensions: EMBEDDING_DIMENSIONS,
       signal: normalizedOptions.signal,
       user: normalizedOptions.userId,
+      session: normalizedOptions.sessionId,
       workspace: normalizedOptions.workspaceId,
       byokLeaseId: normalizedOptions.byokLeaseId,
       featureKind,
@@ -170,6 +171,7 @@ class ProductionEmbeddingClient extends EmbeddingClient {
       {
         signal: normalizedOptions.signal,
         user: normalizedOptions.userId,
+        session: normalizedOptions.sessionId,
         workspace: normalizedOptions.workspaceId,
         byokLeaseId: normalizedOptions.byokLeaseId,
         featureKind: 'rerank',

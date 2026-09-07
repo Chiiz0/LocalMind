@@ -11,6 +11,7 @@ import { OfficeArtifactService, OfficeResolver } from '../../core/office';
 import type { PermissionAccess } from '../../core/permission';
 import type { WorkspaceBlobStorage } from '../../core/storage';
 import type { Models } from '../../models';
+import { workspaceOfficeStorage } from './office-storage.fixture';
 
 const DOCX_MIME =
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
@@ -32,7 +33,7 @@ test('OfficeArtifactService checks read permission before listing artifacts', as
   } as unknown as PermissionAccess;
   const service = new OfficeArtifactService(
     models,
-    {} as WorkspaceBlobStorage,
+    workspaceOfficeStorage({} as WorkspaceBlobStorage),
     ac
   );
 
@@ -74,7 +75,11 @@ test('OfficeArtifactService verifies immutable state evidence on retrieval', asy
       workspace: Sinon.stub().returns({ assert: Sinon.stub().resolves() }),
     }),
   } as unknown as PermissionAccess;
-  const service = new OfficeArtifactService(models, storage, ac);
+  const service = new OfficeArtifactService(
+    models,
+    workspaceOfficeStorage(storage),
+    ac
+  );
 
   const asset = await service.readRevisionAsset(
     'workspace-1',
@@ -180,7 +185,11 @@ test('OfficeArtifactService compares verified immutable semantic revisions', asy
       workspace: Sinon.stub().returns({ assert: Sinon.stub().resolves() }),
     }),
   } as unknown as PermissionAccess;
-  const service = new OfficeArtifactService(models, storage, ac);
+  const service = new OfficeArtifactService(
+    models,
+    workspaceOfficeStorage(storage),
+    ac
+  );
 
   const result = await service.compareRevisions(
     'workspace-1',
@@ -259,7 +268,11 @@ test('OfficeArtifactService rejects unauthorized or invalid revision comparisons
       }),
     } as unknown as WorkspaceBlobStorage;
     return {
-      service: new OfficeArtifactService(models, storage, ac),
+      service: new OfficeArtifactService(
+        models,
+        workspaceOfficeStorage(storage),
+        ac
+      ),
       storage,
     };
   };
@@ -355,7 +368,11 @@ test('OfficeArtifactService serves bounded OOXML parts after package evidence ve
       workspace: Sinon.stub().returns({ assert: Sinon.stub().resolves() }),
     }),
   } as unknown as PermissionAccess;
-  const service = new OfficeArtifactService(models, storage, ac);
+  const service = new OfficeArtifactService(
+    models,
+    workspaceOfficeStorage(storage),
+    ac
+  );
 
   const part = await service.readRevisionPackagePart(
     'workspace-1',

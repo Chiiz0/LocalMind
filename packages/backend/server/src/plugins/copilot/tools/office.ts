@@ -15,8 +15,9 @@ import {
   type OfficeAiReadSelector,
   OfficeAiReadSelectorSchema,
 } from '../office-agent-command';
+import type { ProjectOfficeAgentCommandService } from '../project-office-agent-command';
 import { toolError } from './error';
-import { defineTool } from './tool';
+import { type CopilotToolSet, defineTool } from './tool';
 import type { CopilotChatOptions } from './types';
 
 const logger = new Logger('OfficeTools');
@@ -67,7 +68,7 @@ function jsonStringOrValueSchema<TSchema extends z.ZodTypeAny>(
 }
 
 const OfficeAiReadSelectorToolSchema = jsonStringOrValueSchema(
-  OfficeAiReadSelectorSchema,
+  OfficeAiReadSelectorSchema.nullable(),
   { label: 'selector', maxBytes: 8192 }
 );
 
@@ -255,7 +256,7 @@ export const createOfficeReadTool = (
 ) =>
   defineTool({
     description:
-      'Read bounded native semantic state and immutable revision evidence for the current LocalMind Docs, Sheets, Slides, or PDF artifact and revision. Artifact identity is already bound by trusted chat context; provide only an optional selector. Omit selector for the whole state or a lightweight index when large; then use the returned stable IDs with a document block/query, workbook sheet/range, presentation slide/shape, or PDF page selector.',
+      'Read bounded native semantic state and immutable revision evidence for the current LocalMind Docs, Sheets, Slides, or PDF artifact and revision. Artifact identity is already bound by trusted chat context. First call with {"selector":null} (or omit selector) for the whole state or a lightweight index when large. Then use the returned stable IDs with a document block/query, workbook sheet/range, presentation slide/shape, or PDF page selector. Never guess IDs such as current, active, or sheet1.',
     inputSchema: z
       .object({
         selector: OfficeAiReadSelectorToolSchema.optional(),
@@ -263,7 +264,7 @@ export const createOfficeReadTool = (
       .strict(),
     execute: async ({ selector }) => {
       try {
-        return await read(selector);
+        return await read(selector ?? undefined);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         logger.error('Failed to read the bound Office artifact', error);
@@ -325,3 +326,71 @@ export const createOfficeCommandBatchRequestTool = (
       }
     },
   });
+
+export function createProjectOfficeTools(
+  service: ProjectOfficeAgentCommandService,
+  options: NonNullable<CopilotChatOptions>,
+  projectId: string,
+  allowWrites: boolean
+): CopilotToolSet {
+  if (
+    !options.user ||
+    !options.session ||
+    options.workspace ||
+    options.taskId ||
+    options.delegatedExecution
+  )
+    throw new Error(
+      'Project Office tools require an owned native conversation'
+    );
+  const scope = {
+    projectId,
+    actorId: options.user,
+    sessionId: options.session,
+  };
+  const context = options.officeContext;
+  if (!context || !('projectId' in context) || context.projectId !== projectId)
+    throw new Error('Project Office tools require a matching Office context');
+  let proof: OfficeReadProof | null = null;
+  const tools: CopilotToolSet = {
+    office_read: createOfficeReadTool(async selector => {
+      const result = await service.read({
+        ...scope,
+        artifactId: context.artifactId,
+        revisionId: context.revisionId,
+        selector,
+      });
+      proof = { artifactId: result.artifactId, revisionId: result.revisionId };
+      return result;
+    }),
+  };
+  if (allowWrites) {
+    tools.office_command_request = createOfficeCommandRequestTool(
+      async (command, title) => {
+        const parsed = parseOfficeCommand(command);
+        assertContextIdentity(context, parsed);
+        assertReadBeforeWrite(proof, parsed);
+        return service.request({
+          ...scope,
+          command: parsed,
+          title,
+          readProof: proof,
+        });
+      }
+    );
+    tools.office_command_batch_request = createOfficeCommandBatchRequestTool(
+      async (batch, title) => {
+        const parsed = parseOfficeCommandBatch(batch);
+        assertContextIdentity(context, parsed);
+        assertReadBeforeWrite(proof, parsed);
+        return service.request({
+          ...scope,
+          batch: parsed,
+          title,
+          readProof: proof,
+        });
+      }
+    );
+  }
+  return tools;
+}

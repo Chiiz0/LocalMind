@@ -20,7 +20,9 @@ export type IntelligenceWorkbenchTaskItemKind =
   | 'access_request'
   | 'project_invitation'
   | 'project_grant'
-  | 'blocker';
+  | 'blocker'
+  | 'file_request';
+// File requests have their own delivery lifecycle, independent of reminder-only Blockers.
 
 export type IntelligenceWorkbenchTaskSegment = 'todo' | 'in_progress' | 'done';
 
@@ -179,6 +181,7 @@ const HISTORY_KINDS = [
   'project_invitation',
   'project_grant',
   'blocker',
+  'file_request',
 ] as const;
 export const WORKBENCH_TASK_FILTERS = [
   'all',
@@ -361,6 +364,9 @@ export class IntelligenceWorkbenchTaskProjectionModel extends BaseModel {
       authDone,
       blockerTodo,
       blockerDone,
+      fileTodo,
+      fileInProgress,
+      fileDone,
     ] = await Promise.all([
       this.listRunItems({
         userId,
@@ -414,21 +420,40 @@ export class IntelligenceWorkbenchTaskProjectionModel extends BaseModel {
         completedSince: doneSince,
         limit: INTELLIGENCE_WORKBENCH_DONE_LIMIT,
       }),
+      this.listFileRequestItems({
+        userId,
+        projectId,
+        statuses: ['pending'],
+        limit: INTELLIGENCE_WORKBENCH_TODO_LIMIT,
+      }),
+      this.listFileRequestItems({
+        userId,
+        projectId,
+        statuses: ['in_progress'],
+        limit: INTELLIGENCE_WORKBENCH_IN_PROGRESS_LIMIT,
+      }),
+      this.listFileRequestItems({
+        userId,
+        projectId,
+        statuses: ['completed', 'declined', 'cancelled'],
+        completedSince: doneSince,
+        limit: INTELLIGENCE_WORKBENCH_DONE_LIMIT,
+      }),
     ]);
 
     return {
       todo: boundItems(
-        [runTodo, authTodo, blockerTodo],
+        [runTodo, authTodo, blockerTodo, fileTodo],
         INTELLIGENCE_WORKBENCH_TODO_LIMIT,
         panelTodoOrder
       ),
       inProgress: boundItems(
-        [runInProgress],
+        [runInProgress, fileInProgress],
         INTELLIGENCE_WORKBENCH_IN_PROGRESS_LIMIT,
         newestFirst
       ),
       done: boundItems(
-        [runDone, authDone, blockerDone],
+        [runDone, authDone, blockerDone, fileDone],
         INTELLIGENCE_WORKBENCH_DONE_LIMIT,
         panelDoneOrder
       ),
@@ -467,7 +492,7 @@ export class IntelligenceWorkbenchTaskProjectionModel extends BaseModel {
     await this.models.intelligenceWorkbenchAuthorization.expireDueAccessRequests(
       { now }
     );
-    const [runs, authorization, blockers] = await Promise.all([
+    const [runs, authorization, blockers, files] = await Promise.all([
       this.listRunItems({
         userId,
         projectId,
@@ -500,15 +525,25 @@ export class IntelligenceWorkbenchTaskProjectionModel extends BaseModel {
         limit,
         history,
       }),
+      this.listFileRequestItems({ userId, projectId, limit, history }),
     ]);
-    const items = [...runs.items, ...authorization.items, ...blockers.items]
+    const items = [
+      ...runs.items,
+      ...authorization.items,
+      ...blockers.items,
+      ...files.items,
+    ]
       .sort(historyOrder)
       .slice(0, limit);
     const capped =
       runs.capped ||
       authorization.capped ||
       blockers.capped ||
-      runs.items.length + authorization.items.length + blockers.items.length >
+      files.capped ||
+      runs.items.length +
+        authorization.items.length +
+        blockers.items.length +
+        files.items.length >
         limit;
     const last = items.at(-1);
     return {
@@ -543,6 +578,7 @@ export class IntelligenceWorkbenchTaskProjectionModel extends BaseModel {
       project_invitation: 'project-invitation:',
       project_grant: 'project-grant:',
       blocker: 'blocker:',
+      file_request: 'file-request:',
     };
     let identity = Prisma.sql`TRUE`;
     if (taskId) {
@@ -560,21 +596,23 @@ export class IntelligenceWorkbenchTaskProjectionModel extends BaseModel {
     const filterSql =
       filter === 'all'
         ? Prisma.sql`TRUE`
-        : kind === 'run'
-          ? Prisma.sql`status IN (${Prisma.join(filter === 'active' ? ['queued', 'running'] : filter === 'approval' ? ['waiting_approval', 'waiting_for_location', 'failed'] : ['completed', 'cancelled'])})`
-          : filter === 'active'
-            ? Prisma.sql`FALSE`
-            : kind === 'project_grant'
-              ? filter === 'approval'
-                ? Prisma.sql`(${rerequest})`
-                : Prisma.sql`NOT (${rerequest})`
-              : filter === 'completed'
-                ? Prisma.sql`status <> ${kind === 'blocker' ? 'waiting' : 'pending'}`
-                : kind === 'access_request'
-                  ? Prisma.sql`status = 'pending' AND "sourceDecisionActor"`
-                  : kind === 'project_invitation'
-                    ? Prisma.sql`status = 'pending' AND invitee`
-                    : Prisma.sql`FALSE`;
+        : kind === 'file_request'
+          ? Prisma.sql`status IN (${Prisma.join(filter === 'active' ? ['in_progress'] : filter === 'approval' ? ['pending'] : ['completed', 'declined', 'cancelled'])})`
+          : kind === 'run'
+            ? Prisma.sql`status IN (${Prisma.join(filter === 'active' ? ['queued', 'running'] : filter === 'approval' ? ['waiting_approval', 'waiting_for_location', 'failed'] : ['completed', 'cancelled'])})`
+            : filter === 'active'
+              ? Prisma.sql`FALSE`
+              : kind === 'project_grant'
+                ? filter === 'approval'
+                  ? Prisma.sql`(${rerequest})`
+                  : Prisma.sql`NOT (${rerequest})`
+                : filter === 'completed'
+                  ? Prisma.sql`status <> ${kind === 'blocker' ? 'waiting' : 'pending'}`
+                  : kind === 'access_request'
+                    ? Prisma.sql`status = 'pending' AND "sourceDecisionActor"`
+                    : kind === 'project_invitation'
+                      ? Prisma.sql`status = 'pending' AND invitee`
+                      : Prisma.sql`FALSE`;
     let seek = Prisma.sql`TRUE`;
     if (cursor) {
       const sameTime =
@@ -590,6 +628,86 @@ export class IntelligenceWorkbenchTaskProjectionModel extends BaseModel {
       ORDER BY "updatedAt" DESC, id COLLATE "C" DESC
       LIMIT ${limit + 1}
     `);
+  }
+
+  private async listFileRequestItems(input: {
+    userId: string;
+    projectId: string | null;
+    statuses?: string[];
+    completedSince?: Date;
+    limit: number;
+    history?: HistorySelection;
+  }): Promise<BoundedItems> {
+    const rows = await this.queryCandidates<{
+      id: string;
+      projectId: string;
+      requesterId: string;
+      recipientId: string;
+      title: string;
+      status: string;
+      resourceId: string | null;
+      createdAt: Date;
+      updatedAt: Date;
+      completedAt: Date | null;
+    }>(
+      Prisma.sql`
+      SELECT request.id, request.project_id AS "projectId", request.requester_id AS "requesterId",
+        request.recipient_id AS "recipientId", request.title, request.status, request.resource_id AS "resourceId",
+        request.created_at AS "createdAt", request.updated_at AS "updatedAt", request.completed_at AS "completedAt"
+      FROM project_file_requests request
+      JOIN ai_context_projects project ON project.id = request.project_id AND project.status = 'active'
+      JOIN ai_context_project_members sender ON sender.project_id = project.id AND sender.user_id = request.requester_id
+      WHERE ${input.userId} IN (request.requester_id, request.recipient_id)
+        ${input.projectId ? Prisma.sql`AND request.project_id = ${input.projectId}` : Prisma.empty}
+        ${input.statuses ? Prisma.sql`AND request.status IN (${Prisma.join(input.statuses)})` : Prisma.empty}
+        ${input.completedSince ? Prisma.sql`AND request.completed_at >= ${input.completedSince}` : Prisma.empty}
+        AND ((request.recipient_workspace_id IS NULL AND EXISTS (
+          SELECT 1 FROM ai_context_project_members member WHERE member.project_id = project.id AND member.user_id = request.recipient_id
+        )) OR (request.recipient_workspace_id IS NOT NULL AND 2 = (
+          SELECT count(*) FROM workspace_members member WHERE member.workspace_id = request.recipient_workspace_id
+            AND member.user_id IN (request.requester_id, request.recipient_id) AND member.state = 'active'
+        )))
+      ORDER BY request.updated_at DESC, request.id DESC
+    `,
+      'file_request',
+      input.limit,
+      input.history
+    );
+    return {
+      capped: rows.length > input.limit,
+      items: rows.slice(0, input.limit).map(row => ({
+        id: `file-request:${row.id}`,
+        entityId: row.id,
+        kind: 'file_request',
+        projectId: row.projectId,
+        workspaceId: null,
+        title: row.title,
+        status: row.status,
+        segment:
+          row.status === 'pending'
+            ? 'todo'
+            : row.status === 'in_progress'
+              ? 'in_progress'
+              : 'done',
+        attention:
+          row.status === 'pending'
+            ? row.recipientId === input.userId
+              ? 'needs_my_action'
+              : 'waiting_on_others'
+            : null,
+        documentId: row.resourceId,
+        requestedLevel: null,
+        redacted: false,
+        relatedUserId:
+          row.requesterId === input.userId ? row.recipientId : row.requesterId,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+        completedAt: row.completedAt,
+        availableActions: [],
+        run: null,
+        blocker: null,
+      })),
+    };
   }
 
   private async listRunItems(input: {

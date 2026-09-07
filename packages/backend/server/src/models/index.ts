@@ -30,6 +30,9 @@ import { CopilotExternalMcpModel } from './copilot-external-mcp';
 import { CopilotJobModel } from './copilot-job';
 import { CopilotMcpDelegationModel } from './copilot-mcp-delegation';
 import { CopilotModelRegistryRevisionModel } from './copilot-model-registry-revision';
+import { CopilotProjectAgentRuntimeModel } from './copilot-project-agent-runtime';
+import { CopilotProjectByokModel } from './copilot-project-byok';
+import { CopilotProjectContextModel } from './copilot-project-context';
 import { CopilotPromptModel } from './copilot-prompt';
 import { CopilotPromptRegistryRevisionModel } from './copilot-prompt-registry-revision';
 import { CopilotProviderHealthStateModel } from './copilot-provider-health-state';
@@ -62,6 +65,10 @@ import {
   WorkspaceInvitationModel,
   WorkspaceMemberModel,
 } from './permission-write';
+import { ProjectFileRequestModel } from './project-file-request';
+import { ProjectPublicationModel } from './project-publication';
+import { ProjectResourceModel } from './project-resource';
+import { ProjectResourceMigrationModel } from './project-resource-migration';
 import { MODELS_SYMBOL } from './provider';
 import { SessionModel } from './session';
 import { UserModel } from './user';
@@ -94,6 +101,9 @@ const MODELS = {
   notification: NotificationModel,
   officeArtifact: OfficeArtifactModel,
   officeCommandRequest: OfficeCommandRequestModel,
+  projectResource: ProjectResourceModel,
+  projectFileRequest: ProjectFileRequestModel,
+  projectResourceMigration: ProjectResourceMigrationModel,
   iscp: IscpModel,
   intelligenceWorkbenchAuthorization: IntelligenceWorkbenchAuthorizationModel,
   intelligenceWorkbenchBlocker: IntelligenceWorkbenchBlockerModel,
@@ -110,7 +120,11 @@ const MODELS = {
   copilotTranscriptTask: CopilotTranscriptTaskModel,
   copilotActionRun: CopilotActionRunModel,
   copilotAgentRuntime: CopilotAgentRuntimeModel,
+  copilotProjectAgentRuntime: CopilotProjectAgentRuntimeModel,
+  copilotProjectContext: CopilotProjectContextModel,
+  projectPublication: ProjectPublicationModel,
   copilotAiProfile: CopilotAiProfileModel,
+  copilotProjectByok: CopilotProjectByokModel,
   copilotContext: CopilotContextModel,
   copilotContextMemory: CopilotContextMemoryModel,
   copilotContextRule: CopilotContextRuleModel,

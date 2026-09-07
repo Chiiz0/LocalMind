@@ -492,6 +492,17 @@ type CalendarSubscriptionObjectType {
   timezone: String
 }
 
+input ChangeProjectResourceInput {
+  beforeId: ID
+  expectedVersion: Int!
+  parentId: ID
+  projectId: ID!
+  requestKey: String!
+  resourceId: ID!
+  title: String
+  trash: Boolean
+}
+
 enum ChatHistoryOrder {
   asc
   desc
@@ -706,6 +717,8 @@ type Copilot {
 
   """List available models for a prompt, with human-readable names"""
   models(promptName: String!): CopilotModelsType!
+  projectChat(projectId: String!, sessionId: String!): CopilotHistories!
+  projectChats(options: QueryChatHistoriesInput, pagination: PaginationInput!, projectId: String!): PaginatedCopilotHistoriesType!
 
   """
   Evaluate whether the current prompt registry row can pass the publish gate
@@ -781,6 +794,7 @@ type CopilotAccessRequestType {
   docId: String
   expiresAt: DateTime
   id: ID!
+  purpose: String!
   requestedLevel: String!
   requestedTitle: String
   requesterUserId: String!
@@ -1546,7 +1560,7 @@ type CopilotHistories {
   """The number of tokens used in the session"""
   tokens: Int!
   updatedAt: DateTime!
-  workspaceId: String!
+  workspaceId: String
 }
 
 type CopilotHistoriesTypeEdge {
@@ -4091,13 +4105,14 @@ input CreateChatMessageInput {
 input CreateChatSessionInput {
   docId: String
   pinned: Boolean
+  projectId: String
 
   """The prompt name to use for the session"""
   promptName: String!
 
   """true by default, compliant for old version"""
   reuseLatestChat: Boolean
-  workspaceId: String!
+  workspaceId: String
 }
 
 input CreateCheckoutSessionInput {
@@ -4162,6 +4177,13 @@ input CreateEnterpriseConnectionInput {
   workspaceId: String!
 }
 
+input CreateFileRequestInput {
+  projectId: ID!
+  recipientId: ID!
+  requestKey: String!
+  title: String!
+}
+
 input CreateMcpCredentialInput {
   accessMode: McpAccessMode! = READ_ONLY
   callbackUrl: String
@@ -4169,6 +4191,23 @@ input CreateMcpCredentialInput {
   expirationDays: Int! = 90
   name: String!
   workspaceId: String!
+}
+
+input CreateProjectFileInput {
+  blobKey: String!
+  parentId: ID
+  projectId: ID!
+  requestKey: String!
+  title: String!
+}
+
+input CreateProjectResourceInput {
+  kind: ProjectResourceKind!
+  markdown: String! = ""
+  parentId: ID
+  projectId: ID!
+  requestKey: String!
+  title: String!
 }
 
 input CreateUserInput {
@@ -4669,6 +4708,11 @@ enum FeatureType {
   Admin
 }
 
+type FileRequestRecipientType {
+  id: ID!
+  name: String!
+}
+
 input ForkChatSessionInput {
   docId: String!
 
@@ -4738,8 +4782,27 @@ type ImportOfficeDocxResultType {
   revision: OfficeRevisionType!
 }
 
+input ImportProjectOfficeInput {
+  idempotencyKey: String!
+  parentId: ID
+  projectId: ID!
+  sourceBlobKey: String!
+  sourceFileName: String!
+  title: String!
+}
+
 input ImportUsersInput {
   users: [CreateUserInput!]!
+}
+
+input ImportWorkspaceResourceToProjectInput {
+  kind: ProjectResourceKind!
+  parentId: ID
+  projectId: ID!
+  requestKey: String!
+  sourceResourceId: ID!
+  title: String
+  workspaceId: ID!
 }
 
 type InvalidAppConfigDataType {
@@ -5166,6 +5229,7 @@ type Mutation {
   adminUpdateWorkspace(input: AdminUpdateWorkspaceInput!): AdminWorkspace
   approveCopilotAccessRequest(input: ResolveCopilotAccessRequestInput!): CopilotAccessRequestType!
   approveMember(userId: String!, workspaceId: String!): Boolean!
+  approveProjectAgentTask(projectId: String!, runId: String!, targetFingerprint: String!): ProjectAgentTaskType!
 
   """
   Authorize a short-lived manifest or archive artifact download for a DB-backed support bundle.
@@ -5176,9 +5240,15 @@ type Mutation {
   banUser(id: String!): UserType!
   beginEnterpriseAuthorization(connectionId: ID!, workspaceId: String!): EnterpriseAuthorizationSessionType!
   cancelEnterpriseAuthorization(sessionId: ID!, workspaceId: String!): EnterpriseAuthorizationSessionType!
+  cancelProjectAgentTask(projectId: String!, runId: String!): ProjectAgentTaskType!
   cancelSubscription(idempotencyKey: String @deprecated(reason: "use header `Idempotency-Key`"), plan: SubscriptionPlan = Pro, workspaceId: String): SubscriptionType!
   changeEmail(email: String!, token: String!): UserType!
   changePassword(newPassword: String!, token: String!, userId: String): Boolean!
+  changeProjectFileRequest(action: String!, expectedVersion: Int!, requestId: String!): ProjectFileRequestType!
+  changeProjectLegacyOperation(action: String!, expectedRevision: Int!, operationId: String!, projectId: String!): ProjectLegacyOperationType!
+  changeProjectPublication(action: String!, expectedRevision: Int!, projectId: String!, publicationId: String!): ProjectPublicationType!
+  changeProjectResource(input: ChangeProjectResourceInput!): ProjectResourceType!
+  changeProjectResourceMigration(action: String!, expectedRevision: Int!, migrationId: String!, projectId: String!): ProjectResourceMigrationType!
   changeWorkspaceDirectoryPolicy(directoryId: ID!, expectedRevision: String!, principalId: ID!, rights: WorkspaceDirectoryRightsInput, workspaceId: ID!): WorkspaceDirectoryPolicyMutationType!
 
   """Cleanup sessions"""
@@ -5188,10 +5258,12 @@ type Mutation {
   Expire DB-backed support bundles whose retention window has elapsed and retry failed archive object cleanup.
   """
   cleanupCopilotSupportBundleRetention(input: CopilotSupportBundleRetentionCleanupInput!): CopilotSupportBundleRetentionCleanupType!
+  cleanupProjectCopilotSessions(projectId: String!, sessionIds: [String!]!): [String!]!
   clearWorkspaceByokConfigs(provider: ByokProvider, workspaceId: String!): Boolean!
   completeBlobUpload(docScopeId: String, key: String!, parts: [BlobUploadPartInput!], uploadId: String, workspaceId: String!): String!
   confirmCopilotBlockerSuggestion(input: ConfirmCopilotBlockerSuggestionInput!): CopilotBlockerType!
   confirmCopilotDocumentDestination(input: ConfirmCopilotDocumentDestinationInput!): CopilotDocumentOperationType!
+  confirmProjectPublication(expectedRevision: Int!, projectId: String!, publicationId: String!, targetFingerprint: String!): ProjectPublicationType!
   connectExternalMcp(input: ConnectExternalMcpInput!): ExternalMcpConnectionType!
 
   """
@@ -5246,6 +5318,10 @@ type Mutation {
   createMcpCredential(input: CreateMcpCredentialInput!): RevealedMcpCredentialType!
   createOfficeComment(input: OfficeCommentCreateInput!): OfficeCommentType!
   createOfficeCommentReply(input: OfficeCommentReplyCreateInput!): OfficeCommentReplyType!
+  createProjectDestinationFolder(expectedDirectoryRevision: String!, parentId: String, projectId: String!, publicationId: String!, requestKey: String!, title: String!, workspaceId: String!): ProjectDestinationFolderResultType!
+  createProjectFile(input: CreateProjectFileInput!): ProjectResourceType!
+  createProjectFileRequest(input: CreateFileRequestInput!): ProjectFileRequestType!
+  createProjectResource(input: CreateProjectResourceInput!): ProjectResourceType!
   createReply(input: ReplyCreateInput!): ReplyObjectType!
   createSelfhostWorkspaceCustomerPortal(workspaceId: String!): String!
   createSparkClawPairing: SparkClawPairingType!
@@ -5288,6 +5364,10 @@ type Mutation {
   disableEnterpriseConnection(connectionId: String!, workspaceId: String!): EnterpriseConnectionType!
   disableExternalMcp(workspaceId: String!): ExternalMcpConnectionType!
   disconnectSparkClawEndpoint(endpointId: ID!): Boolean!
+  discoverProjectResourceMigrations(projectId: String!): ProjectResourceMigrationPageType!
+
+  """delete all notifications from the current user inbox"""
+  dismissAllNotifications: Boolean!
 
   """delete a notification from the current user inbox"""
   dismissNotification(id: String!): Boolean!
@@ -5303,6 +5383,7 @@ type Mutation {
 
   """Execute and persist a native DOCX user command"""
   executeOfficeDocxCommand(input: OfficeDocxCommandInput!): ExecuteOfficeDocxCommandResultType!
+  executeProjectOfficeCommand(input: ProjectOfficeCommandInput!): ProjectOfficeResultType!
 
   """Create a chat session"""
   forkCopilotSession(options: ForkChatSessionInput!): String!
@@ -5318,9 +5399,11 @@ type Mutation {
 
   """Import a completed workspace DOCX blob as a native resource"""
   importOfficeDocx(input: ImportOfficeDocxRequestInput!): ImportOfficeDocxResultType!
+  importProjectOffice(input: ImportProjectOfficeInput!): ProjectOfficeResultType!
 
   """import users"""
   importUsers(input: ImportUsersInput!): [UserImportResultType!]!
+  importWorkspaceResourceToProject(input: ImportWorkspaceResourceToProjectInput!): ProjectResourceType!
   installLicense(license: Upload!, workspaceId: String!): License!
   inviteMembers(emails: [String!]!, workspaceId: String!): [InviteResult!]!
   leaveCopilotContextProject(projectId: ID!): Boolean!
@@ -5331,12 +5414,14 @@ type Mutation {
   """mention user in a doc"""
   mentionUser(input: MentionInput!): ID!
   mutateWorkspaceDirectory(changes: [WorkspaceDirectoryChangeInput!]!, expectedRevision: String!, workspaceId: ID!): WorkspaceDirectoryMutationType!
+  prepareProjectPublication(kind: String!, projectId: String!, requestKey: String!, resourceId: String!, sessionId: String): ProjectPublicationType!
 
   """
   Preview a Prompt Registry message body edit and return a publishable diff fingerprint before writing.
   """
   previewCopilotPromptRegistryBodyEdit(input: CopilotPromptRegistryBodyEditPreviewInput!): CopilotPromptRegistryBodyEditPreviewType!
   previewLicense(license: Upload!): AdminLicensePreview!
+  previewProjectPublication(expectedRevision: Int!, folderId: String, projectId: String!, publicationId: String!, targetResourceId: String, workspaceId: String!): ProjectPublicationType!
 
   """
   Publish a workspace-scoped DB-backed model definition revision for an existing configured provider.
@@ -5381,6 +5466,7 @@ type Mutation {
   recoverDoc(guid: String!, timestamp: DateTime!, workspaceId: String!): DateTime!
   refreshEnterpriseConnection(connectionId: String!, workspaceId: String!): EnterpriseConnectionType!
   refreshExternalMcpTools(workspaceId: String!): ExternalMcpConnectionType!
+  refreshProjectResourceSource(expectedContentVersion: Int!, expectedSourceVersion: String!, projectId: String!, requestKey: String!, resourceId: String!, sourceResourceId: String!, workspaceId: String!): ProjectResourceType!
 
   """Refresh current user subscriptions and return latest."""
   refreshUserSubscriptions: [SubscriptionType!]!
@@ -5431,6 +5517,8 @@ type Mutation {
   Request prompt registry repair execution. Approval-gated requests can publish a DB-backed workspace prompt registry revision after approval.
   """
   requestCopilotPromptRegistryRepairExecution(input: CopilotPromptRegistryRepairExecutionRequestInput!): CopilotPromptRegistryRepairExecutionRequestType!
+  requestProjectImportPermission(projectId: String!, requestKey: String!, resourceId: String!, workspaceId: String!): ProjectImportPermissionRequestType!
+  requestProjectMigrationPermission(migrationId: String!, projectId: String!, requestKey: String!): ProjectImportPermissionRequestType!
 
   """Resolve a comment or not"""
   resolveComment(input: CommentResolveInput!): Boolean!
@@ -5455,6 +5543,8 @@ type Mutation {
   rollbackCopilotContextRule(id: ID!, revision: Int!): CopilotContextRuleType!
   rotateAuthSigningKey(expectedActiveKeyId: String!): [AuthSigningKeyType!]!
   rotateMcpCredential(expirationDays: Int! = 90, id: ID!, workspaceId: String!): RevealedMcpCredentialType!
+  saveProjectByokConfig(input: ProjectByokConfigInput!): ProjectByokSettingsType!
+  saveProjectDocument(input: SaveProjectDocumentInput!): ProjectResourceRevisionType!
   sendChangeEmail(callbackUrl: String!): Boolean!
   sendChangePasswordEmail(callbackUrl: String!, email: String @deprecated(reason: "fetched from signed in user")): Boolean!
   sendCopilotProjectInvitation(input: SendCopilotProjectInvitationInput!): CopilotProjectInvitationType!
@@ -5465,9 +5555,12 @@ type Mutation {
   setAdminUserAiProfileAssignment(profileId: ID, userId: ID!): AdminUserAiProfileAssignmentType
   setBlob(blob: Upload!, docScopeId: String, workspaceId: String!): String!
   setCopilotContextProjectAiPolicy(input: SetCopilotProjectAiPolicyInput!): CopilotProjectAiPolicyType!
+  setProjectByokEnabled(enabled: Boolean!, expectedRevision: SafeInt!): ProjectByokSettingsType!
   settleTranscriptTask(taskId: String!, workspaceId: String!): TranscriptionResultType
+  submitProjectFileRequest(expectedVersion: Int!, file: Upload!, requestId: String!, shareWithProject: Boolean!): ProjectFileRequestType!
   submitTranscriptTask(blob: Upload, blobId: String!, blobs: [Upload!], input: SubmitAudioTranscriptionInput, workspaceId: String!): TranscriptionResultType
   testExternalMcpConversation(query: String!, workspaceId: String!): ExternalMcpToolCallResultType!
+  testProjectByokConfig(input: ProjectByokConfigInput!): ProjectByokTestResultType!
   testWorkspaceByokConfig(input: TestWorkspaceByokConfigInput!): TestWorkspaceByokConfigResultType!
   transferCopilotContextProjectOwnership(input: TransferCopilotProjectOwnershipInput!): Boolean!
   undoCopilotContextMemoryEvent(eventId: ID!, workspaceId: String!): CopilotContextMemoryEventType!
@@ -5495,6 +5588,7 @@ type Mutation {
   updateOfficeComment(input: OfficeCommentUpdateInput!): OfficeCommentType!
   updateOfficeCommentReply(input: OfficeCommentReplyUpdateInput!): OfficeCommentReplyType!
   updateProfile(input: UpdateUserInput!): UserType!
+  updateProjectChatContext(expectedVersion: Int!, items: [ProjectChatContextItemInput!]!, projectId: String!, sessionId: String!): ProjectChatContextType!
 
   """Update a reply content"""
   updateReply(input: ReplyUpdateInput!): Boolean!
@@ -5521,6 +5615,8 @@ type Mutation {
 
   """Upload a comment attachment and return the access url"""
   uploadCommentAttachment(attachment: Upload!, docId: String!, workspaceId: String!): String!
+  uploadProjectBlob(file: Upload!, projectId: String!): String!
+  uploadProjectChatContextFile(expectedVersion: Int!, file: Upload!, projectId: String!, sessionId: String!): ProjectChatContextType!
   upsertAdminAiProfile(input: UpsertAdminAiProfileInput!): AdminAiProfileType!
   upsertWorkspaceByokConfig(input: UpsertWorkspaceByokConfigInput!): WorkspaceByokKeyConfigType!
   verifyEmail(token: String!): Boolean!
@@ -5604,6 +5700,7 @@ enum NotificationType {
   InvitationReviewDeclined
   InvitationReviewRequest
   Mention
+  ProjectFileRequest
 }
 
 type NotificationWorkspaceType {
@@ -5851,6 +5948,396 @@ enum Permission {
   Owner
 }
 
+type ProjectAgentTaskPageType {
+  items: [ProjectAgentTaskType!]!
+  nextCursor: String
+}
+
+type ProjectAgentTaskType {
+  createdAt: DateTime!
+  failureCode: String
+  failureMessage: String
+  id: ID!
+  preview: JSONObject
+  projectId: ID!
+  receipt: JSONObject
+  sessionId: ID
+  status: String!
+  targetFingerprint: String!
+  title: String!
+  updatedAt: DateTime!
+  workerAttempt: Int!
+  workflow: String!
+}
+
+type ProjectAiModelType {
+  configured: Boolean!
+  modelId: String
+  provider: ByokProvider
+}
+
+type ProjectByokAuditEventType {
+  actorId: String!
+  createdAt: DateTime!
+  credentialChanged: Boolean!
+  enabled: Boolean!
+  endpoint: String
+  modelId: String!
+  provider: ByokProvider!
+  revision: SafeInt!
+}
+
+input ProjectByokConfigInput {
+  apiKey: String
+  endpoint: String
+  expectedRevision: SafeInt!
+  modelId: String!
+  provider: ByokProvider!
+}
+
+type ProjectByokSettingsType {
+  allowedProviders: [ByokProvider!]!
+  auditEvents: [ProjectByokAuditEventType!]!
+  configured: Boolean!
+  customEndpointSupported: Boolean!
+  enabled: Boolean!
+  endpoint: String
+  lastError: String
+  lastUsedAt: DateTime
+  lastValidatedAt: DateTime
+  modelId: String
+  provider: ByokProvider!
+  revision: SafeInt!
+  updatedAt: DateTime
+  updatedBy: String
+}
+
+type ProjectByokTestResultType {
+  message: String
+  ok: Boolean!
+}
+
+input ProjectChatContextItemInput {
+  blobKey: String
+  kind: String!
+  name: String
+  resourceId: String
+  sequence: Int
+}
+
+type ProjectChatContextItemType {
+  available: Boolean!
+  blobKey: String
+  byteSize: Int
+  currentSequence: Int
+  kind: String!
+  mimeType: String
+  name: String
+  resourceId: String
+  resourceKind: String
+  sequence: Int
+  title: String!
+}
+
+type ProjectChatContextType {
+  items: [ProjectChatContextItemType!]!
+  projectId: String!
+  sessionId: String!
+  version: Int!
+}
+
+type ProjectDestinationFolderResultType {
+  failureCode: String
+  folderId: String
+  runId: ID!
+  status: String!
+}
+
+type ProjectDestinationFolderType {
+  canCreateFolder: Boolean!
+  canSave: Boolean!
+  fingerprint: String!
+  folderId: ID
+  path: [ProjectDestinationWorkspaceType!]!
+  workspaceId: ID!
+}
+
+type ProjectDestinationPageType {
+  current: ProjectDestinationFolderType!
+  items: [ProjectDestinationFolderType!]!
+  nextCursor: String
+  revision: String!
+}
+
+type ProjectDestinationWorkspaceType {
+  id: ID!
+  name: String!
+}
+
+type ProjectFileRequestNotificationBodyType {
+  """
+  The user who created the notification, maybe null when user is deleted or sent by system
+  """
+  createdByUser: PublicUserType
+  isRecipient: Boolean!
+  projectName: String!
+  requestId: ID!
+  status: String!
+  title: String!
+
+  """The type of the notification"""
+  type: NotificationType!
+  workspace: NotificationWorkspaceType
+}
+
+type ProjectFileRequestType {
+  fileName: String
+  id: ID!
+  isRecipient: Boolean!
+  projectId: ID!
+  projectName: String!
+  recipientName: String!
+  requesterName: String!
+  resourceId: ID
+  status: String!
+  title: String!
+  updatedAt: DateTime!
+  version: Int!
+}
+
+type ProjectImportPermissionRequestType {
+  id: ID!
+  purpose: String!
+  status: String!
+}
+
+type ProjectLegacyConversationPageType {
+  items: [ProjectLegacyConversationType!]!
+  nextCursor: String
+}
+
+type ProjectLegacyConversationType {
+  createdAt: DateTime!
+  id: ID!
+  title: String
+}
+
+type ProjectLegacyMessagePageType {
+  items: [ProjectLegacyMessageType!]!
+  nextCursor: String
+}
+
+type ProjectLegacyMessageType {
+  content: String!
+  createdAt: DateTime!
+  id: ID!
+  role: String!
+  truncated: Boolean!
+}
+
+type ProjectLegacyOperationPageType {
+  items: [ProjectLegacyOperationType!]!
+  nextCursor: String
+}
+
+type ProjectLegacyOperationType {
+  createdAt: DateTime!
+  id: ID!
+  resourceId: ID
+  revision: Int!
+  status: String!
+  title: String!
+}
+
+type ProjectOfficeArtifactType {
+  compatibility: JSONObject!
+  createdAt: DateTime!
+  createdBy: ID!
+  currentRevision: ProjectOfficeRevisionType!
+  id: ID!
+  kind: OfficeArtifactKind!
+  projectId: ID!
+  revisionCounter: SafeInt!
+  sourceByteSize: SafeInt!
+  sourceFileName: String!
+  sourceFingerprint: String!
+  sourceMimeType: String!
+  title: String!
+  updatedAt: DateTime!
+}
+
+input ProjectOfficeCommandInput {
+  command: JSON!
+  projectId: ID!
+}
+
+type ProjectOfficeCompareType {
+  afterRevision: ProjectOfficeRevisionType!
+  artifactId: ID!
+  beforeRevision: ProjectOfficeRevisionType!
+  changed: Boolean!
+  changes: JSON!
+  kind: OfficeArtifactKind!
+  summary: JSONObject!
+  truncated: Boolean!
+}
+
+type ProjectOfficeResultType {
+  artifact: ProjectOfficeArtifactType!
+  created: Boolean!
+  revision: ProjectOfficeRevisionType!
+  summary: JSONObject!
+}
+
+type ProjectOfficeRevisionType {
+  artifactId: ID!
+  createdAt: DateTime!
+  createdBy: ID!
+  id: ID!
+  modelVersion: String!
+  operationSummary: JSONObject!
+  origin: OfficeRevisionOrigin!
+  packageByteSize: SafeInt!
+  packageFingerprint: String!
+  packageMimeType: String!
+  packageUrl: String!
+  parentRevisionId: ID
+  projectId: ID!
+  sequence: SafeInt!
+  stateByteSize: SafeInt
+  stateFingerprint: String
+  stateUrl: String
+}
+
+type ProjectPublicationCandidateType {
+  canUpdate: Boolean!
+  folderId: ID
+  kind: String!
+  path: [ProjectPublicationPathType!]!
+  resourceId: ID!
+  title: String!
+}
+
+type ProjectPublicationCandidatesType {
+  items: [ProjectPublicationCandidateType!]!
+  nextCursor: String
+}
+
+type ProjectPublicationPageType {
+  items: [ProjectPublicationType!]!
+  nextCursor: String
+}
+
+type ProjectPublicationPathType {
+  id: ID!
+  name: String!
+}
+
+type ProjectPublicationType {
+  createdAt: DateTime!
+  expiresAt: DateTime!
+  failureCode: String
+  id: ID!
+  kind: String!
+  preview: JSONObject
+  projectId: ID!
+  receipt: JSONObject
+  resourceId: ID!
+  revision: Int!
+  runId: ID
+  sourceSequence: Int!
+  status: String!
+  target: JSONObject
+  targetFingerprint: String
+  title: String!
+}
+
+enum ProjectResourceKind {
+  document
+  edgeless
+  file
+  folder
+  page
+  pdf
+  presentation
+  workbook
+}
+
+type ProjectResourceMigrationPageType {
+  items: [ProjectResourceMigrationType!]!
+  nextCursor: String
+}
+
+type ProjectResourceMigrationType {
+  failureCode: String
+  id: ID!
+  projectId: ID!
+  resourceId: ID
+  revision: Int!
+  status: String!
+  title: String
+}
+
+type ProjectResourcePageType {
+  items: [ProjectResourceType!]!
+  nextCursor: String
+}
+
+type ProjectResourceRevisionType {
+  createdAt: DateTime!
+  fingerprint: String!
+  id: ID!
+  origin: String!
+  parentId: ID
+  projectId: ID!
+  resourceId: ID!
+  sequence: Int!
+}
+
+type ProjectResourceSourceType {
+  projectVersion: Int!
+  sourceResourceId: ID!
+  sourceVersion: String!
+  title: String!
+  workspaceId: ID!
+  workspaceName: String!
+}
+
+type ProjectResourceType {
+  contentVersion: Int!
+  createdAt: DateTime!
+  id: ID!
+  kind: ProjectResourceKind!
+  officeArtifactId: ID
+  parentId: ID
+  projectId: ID!
+  sortKey: String!
+  title: String!
+  trashedAt: DateTime
+  updatedAt: DateTime!
+  version: Int!
+}
+
+type ProjectSearchPageType {
+  items: [ProjectSearchResultType!]!
+  nextCursor: String
+}
+
+type ProjectSearchPathType {
+  id: ID!
+  title: String!
+}
+
+type ProjectSearchResultType {
+  contentVersion: Int!
+  id: ID!
+  kind: ProjectResourceKind!
+  path: [ProjectSearchPathType!]!
+  projectId: ID!
+  snippet: String!
+  title: String!
+}
+
 """The mode which the public doc default in"""
 enum PublicDocMode {
   Edgeless
@@ -5874,6 +6361,7 @@ type Query {
 
   """Aggregate mail delivery timeline facts for admin panel"""
   adminMailDeliveries(input: AdminMailDeliveriesInput): AdminMailDeliveryAnalytics!
+  adminProjectByokSettings: ProjectByokSettingsType!
   adminUserAiProfileAssignment(userId: ID!): AdminUserAiProfileAssignmentType
 
   """Get workspace detail for admin"""
@@ -5901,7 +6389,6 @@ type Query {
 
   """get workspace invitation info"""
   getInviteInfo(inviteId: String!): InvitationType!
-  hello: String!
   latestEnterpriseAuthorizationSession(connectionId: ID!, workspaceId: String!): EnterpriseAuthorizationSessionType
   mcpCredentialReadWriteAvailable: Boolean!
   mcpCredentials(workspaceId: String!): [McpCredentialType!]!
@@ -5934,13 +6421,38 @@ type Query {
 
   """Preview a native DOCX command without persisting changes"""
   previewOfficeDocxCommand(input: OfficeDocxCommandInput!): OfficeDocxCommandPreviewType!
+  previewProjectOfficeCommand(input: ProjectOfficeCommandInput!): OfficeCommandPreviewType!
   prices: [SubscriptionPrice!]!
+  projectAgentTask(projectId: String!, runId: String!): ProjectAgentTaskType!
+  projectAgentTasks(cursor: String, limit: Int, projectId: String!, sessionId: String): ProjectAgentTaskPageType!
+  projectAiModel(projectId: String!): ProjectAiModelType!
+  projectChatContext(projectId: String!, sessionId: String!): ProjectChatContextType!
+  projectDestinationFolders(cursor: String, limit: Int, parentId: String, projectId: String!, query: String, workspaceId: String!): ProjectDestinationPageType!
+  projectDestinationWorkspaces(projectId: String!): [ProjectDestinationWorkspaceType!]!
+  projectFileRequest(requestId: String!): ProjectFileRequestType!
+  projectFileRequestRecipients(projectId: String!, query: String!): [FileRequestRecipientType!]!
+  projectLegacyConversations(cursor: String, projectId: String!): ProjectLegacyConversationPageType!
+  projectLegacyMessages(cursor: String, projectId: String!, sessionId: String!): ProjectLegacyMessagePageType!
+  projectLegacyOperations(cursor: String, projectId: String!): ProjectLegacyOperationPageType!
+  projectOfficeArtifact(artifactId: String!, projectId: String!): ProjectOfficeArtifactType!
+  projectOfficeRevisionCompare(afterRevisionId: String!, artifactId: String!, beforeRevisionId: String!, projectId: String!): ProjectOfficeCompareType!
+  projectOfficeRevisions(artifactId: String!, limit: SafeInt = 50, projectId: String!): [ProjectOfficeRevisionType!]!
+  projectPublication(projectId: String!, publicationId: String!): ProjectPublicationType!
+  projectPublicationCandidates(cursor: String, parentId: String, projectId: String!, query: String, resourceId: String!, workspaceId: String!): ProjectPublicationCandidatesType!
+  projectPublications(cursor: String, limit: Int, projectId: String!, resourceId: String): ProjectPublicationPageType!
+  projectResource(projectId: String!, resourceId: String!): ProjectResourceType!
+  projectResourceMigrations(cursor: String, projectId: String!): ProjectResourceMigrationPageType!
+  projectResourcePath(projectId: String!, resourceId: String!): [ProjectResourceType!]!
+  projectResourceRevision(projectId: String!, resourceId: String!, sequence: Int): ProjectResourceRevisionType!
+  projectResourceSources(projectId: String!, resourceId: String!): [ProjectResourceSourceType!]!
+  projectResources(cursor: String, limit: Int, parentId: String, projectId: String!, search: String, trash: Boolean): ProjectResourcePageType!
 
   """Get public user by id"""
   publicUserById(id: String!): PublicUserType
 
   """query workspace embedding status"""
   queryWorkspaceEmbeddingStatus(workspaceId: String!): ContextWorkspaceEmbeddingStatus! @deprecated(reason: "Use realtime subscription \"workspace.embedding.progress.changed\" instead.")
+  searchProjectResources(cursor: String, limit: Int, projectId: String!, query: String!): ProjectSearchPageType!
 
   """server config"""
   serverConfig: ServerConfigType!
@@ -6136,6 +6648,14 @@ scalar SafeInt @specifiedBy(url: "https://www.ecma-international.org/ecma-262/#s
 
 type SameSubscriptionRecurringDataType {
   recurring: String!
+}
+
+input SaveProjectDocumentInput {
+  expectedContentVersion: Int!
+  projectId: ID!
+  requestKey: String!
+  resourceId: ID!
+  snapshotBase64: String!
 }
 
 type SearchDocObjectType {
@@ -6513,7 +7033,7 @@ input TransferCopilotProjectOwnershipInput {
   projectId: ID!
 }
 
-union UnionNotificationBodyType = AccessRequestNotificationBodyType | InvitationAcceptedNotificationBodyType | InvitationBlockedNotificationBodyType | InvitationNotificationBodyType | InvitationReviewApprovedNotificationBodyType | InvitationReviewDeclinedNotificationBodyType | InvitationReviewRequestNotificationBodyType | MentionNotificationBodyType
+union UnionNotificationBodyType = AccessRequestNotificationBodyType | InvitationAcceptedNotificationBodyType | InvitationBlockedNotificationBodyType | InvitationNotificationBodyType | InvitationReviewApprovedNotificationBodyType | InvitationReviewDeclinedNotificationBodyType | InvitationReviewRequestNotificationBodyType | MentionNotificationBodyType | ProjectFileRequestNotificationBodyType
 
 type UnknownOauthProviderDataType {
   name: String!

@@ -95,6 +95,7 @@ export async function resolveProjectDocumentOperation(input: {
   const session = await input.models.copilotSession.getMeta(input.sessionId);
   if (
     !session ||
+    !session.workspaceId ||
     session.userId !== input.actorId ||
     (input.expectedHostWorkspaceId !== undefined &&
       session.workspaceId !== input.expectedHostWorkspaceId)
@@ -218,6 +219,7 @@ export async function createAgentRuntimeDocUpdateRequest(input: {
     const session = await input.models.copilotSession.getMeta(sessionId);
     if (
       !session ||
+      !session.workspaceId ||
       session.userId !== input.actorId ||
       (input.expectedHostWorkspaceId !== undefined &&
         session.workspaceId !== input.expectedHostWorkspaceId)

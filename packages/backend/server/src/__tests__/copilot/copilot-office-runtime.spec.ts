@@ -19,6 +19,48 @@ const officeContext = {
   },
 } as const;
 
+test('native Project collaboration survives empty legacy prompt config while Office and Workspace scopes stay bounded', async t => {
+  const host = new CapabilityPolicyHost(
+    { features: [] } as never,
+    {} as never,
+    {} as never,
+    {
+      getEffectiveModelSelectionScope: Sinon.stub().resolves({
+        projectModelId: 'byok/model',
+      }),
+      resolveModelContextWindow: Sinon.stub().resolves(32_000),
+    } as never
+  );
+  const session = {
+    config: {
+      sessionId: 'session-1',
+      userId: 'user-1',
+      workspaceId: null,
+      selectedContextProjectId: 'project-1',
+      promptConfig: {},
+    },
+    model: 'byok/model',
+  };
+  const selection = await host.selectChat(session as never, {
+    responseMode: 'object',
+    chatSurface: 'intelligence_workbench',
+  });
+  t.deepEqual(selection.providerOptions.tools, ['blocker']);
+  const office = await host.selectChat(session as never, {
+    responseMode: 'object',
+    officeContext,
+  });
+  t.deepEqual(office.providerOptions.tools, ['office']);
+  const workspace = await host.selectChat(
+    {
+      ...session,
+      config: { ...session.config, workspaceId: 'workspace-1' },
+    } as never,
+    { responseMode: 'text' }
+  );
+  t.is(workspace.providerOptions.tools, undefined);
+});
+
 test('forces Office chats onto BYOK-only routing and the native Office tool group', async t => {
   const resolveModelId = Sinon.stub().resolves('byok/model');
   const resolveModelContextWindow = Sinon.stub().resolves(32_000);
@@ -167,6 +209,17 @@ test('exposes only bounded read and approval-gated Office request tools', async 
   const inputSchema = tools.office_read.inputSchema;
   t.true(inputSchema instanceof z.ZodType);
   if (!(inputSchema instanceof z.ZodType)) return;
+  for (const selector of [null, 'null']) {
+    readStateForAi.resetHistory();
+    await tools.office_read.execute?.(inputSchema.parse({ selector }), {});
+    Sinon.assert.calledOnceWithExactly(readStateForAi, {
+      workspaceId: 'workspace-1',
+      actorId: 'user-1',
+      artifactId: officeContext.artifactId,
+      revisionId: officeContext.revisionId,
+      selector: undefined,
+    });
+  }
   readStateForAi.resetHistory();
   const encodedSelector = inputSchema.parse({
     selector: '{"kind":"pdf","page_index":0}',
@@ -305,7 +358,8 @@ test('revalidates persisted Office turn context and injects fixed-layout planner
       }),
     } as never,
     {} as never,
-    { persistTextResult } as never
+    { persistTextResult } as never,
+    {} as never
   );
 
   const result = await orchestrator.streamText('user-1', 'session-1', {});
@@ -399,7 +453,8 @@ test('supports the object stream transport used by Office AI Chat', async t => {
       }),
     } as never,
     {} as never,
-    { persistObjectResult } as never
+    { persistObjectResult } as never,
+    {} as never
   );
 
   const result = await orchestrator.streamObject('user-1', 'session-1', {});

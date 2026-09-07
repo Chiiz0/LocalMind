@@ -1,0 +1,4 @@
+mutation confirmProjectPublication($projectId: String!, $publicationId: String!, $expectedRevision: Int!, $targetFingerprint: String!) {
+  confirmProjectPublication(projectId: $projectId, publicationId: $publicationId, expectedRevision: $expectedRevision, targetFingerprint: $targetFingerprint) { ...ProjectPublicationFields }
+}
+#import './fragments/project-publication-fields.gql'

@@ -24,6 +24,7 @@ import { OFFICE_FORMATS, OfficeCommandService } from '../../core/office';
 import type { PermissionAccess } from '../../core/permission';
 import type { WorkspaceBlobStorage } from '../../core/storage';
 import type { Models } from '../../models';
+import { workspaceOfficeStorage } from './office-storage.fixture';
 
 function fingerprint(bytes: Uint8Array) {
   return `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
@@ -75,6 +76,11 @@ async function executeNativeBatch(input: {
     },
   }));
   const models = {
+    copilotContext: {
+      withDocumentSourcesShared: Sinon.stub().callsFake(
+        async (_input, execute) => execute()
+      ),
+    },
     officeArtifact: {
       get: Sinon.stub().resolves({ id: input.artifactId, kind: input.kind }),
       getCurrentRevision: Sinon.stub().resolves({
@@ -106,7 +112,11 @@ async function executeNativeBatch(input: {
       workspace: Sinon.stub().returns({ assert }),
     }),
   } as unknown as PermissionAccess;
-  const service = new OfficeCommandService(models, storage, access);
+  const service = new OfficeCommandService(
+    models,
+    workspaceOfficeStorage(storage),
+    access
+  );
 
   const result = await service.executeBatch({
     workspaceId: 'workspace-1',

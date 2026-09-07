@@ -4,13 +4,17 @@ import { WorkspaceDialogService } from '@affine/core/modules/dialogs';
 import { useI18n } from '@affine/i18n';
 import { track } from '@affine/track';
 import { AccountIcon, AdminIcon, SignOutIcon } from '@blocksuite/icons/rc';
-import { useLiveData, useService } from '@toeverything/infra';
+import {
+  useLiveData,
+  useService,
+  useServiceOptional,
+} from '@toeverything/infra';
 import { useCallback, useEffect } from 'react';
 
 import { useSignOut } from '../../hooks/affine/use-sign-out';
 
 export const AccountMenu = () => {
-  const workspaceDialogService = useService(WorkspaceDialogService);
+  const workspaceDialogService = useServiceOptional(WorkspaceDialogService);
   const openSignOutModal = useSignOut();
   const serverService = useService(ServerService);
   const userFeatureService = useService(UserFeatureService);
@@ -18,7 +22,7 @@ export const AccountMenu = () => {
 
   const onOpenAccountSetting = useCallback(() => {
     track.$.navigationPanel.profileAndBadge.openSettings({ to: 'account' });
-    workspaceDialogService.open('setting', {
+    workspaceDialogService?.open('setting', {
       activeTab: 'account',
     });
   }, [workspaceDialogService]);
@@ -35,13 +39,15 @@ export const AccountMenu = () => {
 
   return (
     <>
-      <MenuItem
-        prefixIcon={<AccountIcon />}
-        data-testid="workspace-modal-account-settings-option"
-        onClick={onOpenAccountSetting}
-      >
-        {t['com.affine.workspace.cloud.account.settings']()}
-      </MenuItem>
+      {workspaceDialogService ? (
+        <MenuItem
+          prefixIcon={<AccountIcon />}
+          data-testid="workspace-modal-account-settings-option"
+          onClick={onOpenAccountSetting}
+        >
+          {t['com.affine.workspace.cloud.account.settings']()}
+        </MenuItem>
+      ) : null}
       {isAFFiNEAdmin ? (
         <MenuItem
           prefixIcon={<AdminIcon />}

@@ -548,7 +548,8 @@ export class ContextMemoryService implements OnModuleInit {
 
   async retrieveVisible(input: {
     userId: string;
-    workspaceId: string;
+    workspaceId: string | null;
+    sessionId?: string;
     docIds: string[];
     documentRefs?: CopilotContextDocumentRef[];
     projectIds: string[];
@@ -564,7 +565,11 @@ export class ContextMemoryService implements OnModuleInit {
         documentRefs: input.documentRefs,
         projectIds: input.projectIds,
       })
-    ).filter(memory => memory.kind !== 'rule');
+    ).filter(
+      memory =>
+        memory.kind !== 'rule' &&
+        (!!input.workspaceId || memory.scope === 'project')
+    );
     if (!authorized.length) return [];
 
     const vectorScores = new Map<string, number>();
@@ -573,7 +578,8 @@ export class ContextMemoryService implements OnModuleInit {
       try {
         const embedding = await client.getEmbedding(input.query, {
           userId: input.userId,
-          workspaceId: input.workspaceId,
+          workspaceId: input.workspaceId ?? undefined,
+          sessionId: input.sessionId,
           featureKind: 'embedding',
           signal: AbortSignal.timeout(10_000),
         });
@@ -627,7 +633,8 @@ export class ContextMemoryService implements OnModuleInit {
           Math.min(ranked.length, 32),
           {
             userId: input.userId,
-            workspaceId: input.workspaceId,
+            workspaceId: input.workspaceId ?? undefined,
+            sessionId: input.sessionId,
             featureKind: 'rerank',
             signal: AbortSignal.timeout(10_000),
           }
@@ -794,7 +801,7 @@ export class ContextMemoryService implements OnModuleInit {
     content: string;
     modelId?: string;
     userId: string;
-    workspaceId: string;
+    workspaceId: string | null;
     sessionId: string;
   }): Promise<CopilotContextMemoryWriterDecision[]> {
     if (!this.runtime || !shouldAttemptImplicitExtraction(input.content)) {
@@ -817,7 +824,7 @@ export class ContextMemoryService implements OnModuleInit {
       ],
       {
         user: input.userId,
-        workspace: input.workspaceId,
+        workspace: input.workspaceId ?? undefined,
         session: input.sessionId,
         featureKind: 'chat',
         responseSchemaJson: MEMORY_WRITER_RESPONSE_CONTRACT.responseSchemaJson,
@@ -848,14 +855,16 @@ export class ContextMemoryService implements OnModuleInit {
     id: string;
     content: string;
     userId: string;
-    workspaceId: string;
+    workspaceId: string | null;
+    sessionId?: string;
   }) {
     const client = this.embeddingClientService?.getClient();
     if (!client) return;
     try {
       const embedding = await client.getEmbedding(input.content, {
         userId: input.userId,
-        workspaceId: input.workspaceId,
+        workspaceId: input.workspaceId ?? undefined,
+        sessionId: input.sessionId,
         featureKind: 'embedding',
         signal: AbortSignal.timeout(10_000),
       });
@@ -878,7 +887,7 @@ export class ContextMemoryService implements OnModuleInit {
 
   async captureDurableTurn(input: {
     userId: string;
-    workspaceId: string;
+    workspaceId: string | null;
     docId?: string | null;
     sessionId: string;
     turn?: Turn;
@@ -886,6 +895,7 @@ export class ContextMemoryService implements OnModuleInit {
     modelId?: string;
   }) {
     if (!input.turn || input.turn.role !== 'user') return [];
+    const workspaceId = input.workspaceId;
     try {
       const explicitDecisions = extractExplicitMemoryDecisions(
         input.turn.content
@@ -896,7 +906,7 @@ export class ContextMemoryService implements OnModuleInit {
       ) {
         return [];
       }
-      if (!explicitDecisions.length) {
+      if (!explicitDecisions.length && input.workspaceId) {
         const settings = await this.getSettings(
           input.userId,
           input.workspaceId
@@ -904,6 +914,7 @@ export class ContextMemoryService implements OnModuleInit {
         if (!settings.autoMemoryEnabled) return [];
       }
       const projectIds = input.docId ? [] : (input.scope?.projectIds ?? []);
+      if (!workspaceId && projectIds.length !== 1) return [];
       // A rejected project scope must never become a broader memory target.
       if (
         input.scope &&
@@ -947,18 +958,20 @@ export class ContextMemoryService implements OnModuleInit {
       const targetsWithSources = await Promise.all(
         targets.map(async target => ({
           ...target,
-          sourceDocuments: target.projectId
-            ? await this.projectMemorySourceDocuments({
-                userId: input.userId,
-                projectId: target.projectId,
-                readableDocumentRefs: input.scope?.readableDocumentRefs,
-              })
-            : undefined,
+          sourceDocuments:
+            target.projectId && workspaceId
+              ? await this.projectMemorySourceDocuments({
+                  userId: input.userId,
+                  projectId: target.projectId,
+                  readableDocumentRefs: input.scope?.readableDocumentRefs,
+                })
+              : undefined,
         }))
       );
       if (
         targetsWithSources.some(
-          target => target.projectId && !target.sourceDocuments?.length
+          target =>
+            workspaceId && target.projectId && !target.sourceDocuments?.length
         )
       ) {
         return [];
@@ -1024,6 +1037,7 @@ export class ContextMemoryService implements OnModuleInit {
                 content: memory.content,
                 userId: input.userId,
                 workspaceId: input.workspaceId,
+                sessionId: input.sessionId,
               });
             }
           }
@@ -1041,7 +1055,7 @@ export class ContextMemoryService implements OnModuleInit {
             targetsWithSources.map(target =>
               this.models.copilotContextMemory.enforceAutoMemoryQuota({
                 ownerUserId: input.userId,
-                workspaceId: input.workspaceId,
+                workspaceId,
                 scope: target.scope,
                 docId: target.docId,
                 projectId: target.projectId,

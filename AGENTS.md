@@ -18,6 +18,13 @@ Slides 和 PDF 资源类型；它们共享 LocalMind 平台能力，但不得把
 编辑状态强行转换或塞入普通 BlockSuite 页面模型。其 source of truth 是
 `docs/office-native/README.md`。
 
+Project 原生资源已实现，产品及验收契约的 source of truth 是
+`docs/ai-modernization/tracks/project-native-resources.md`。Project 拥有独立文档
+和文件树，默认内部保存不属于任何 Workspace；只有用户明确要求才发布或更新
+指定 Workspace 的独立副本。成员默认内部读写，对外操作按目标 ACL，导入按
+来源复制/分享权限。该契约覆盖旧的共享引用直接写回语义，不能用隐藏 Workspace
+替代项目原生存储。
+
 新增 LocalMind AI 能力通常至少应落到以下一项：
 
 - 持久化的运行状态或业务状态；
@@ -121,7 +128,8 @@ LocalMind AI 的关键不变量：
 
 1. Agent run、step、timeline、worker lease、execution result 与 cancel request
    应有可恢复的持久状态，不能只存在于内存或 UI。
-2. 写操作必须经过工作区/用户权限检查；需要审批的工具不得绕过审批进入队列。
+2. 写操作必须经过资源所属 Project/Workspace 及用户权限检查；需要审批的工具
+   不得绕过审批进入队列。
 3. 外部 MCP/集成任务冻结凭据能力上限，同时在执行时重新检查委托用户的实时
    ACL；取消控制只允许取消，不扩展为隐式批准或重试。
 4. 队列和 webhook 必须考虑幂等、重放、租约交接、并发状态漂移和条件终态写入。
@@ -134,8 +142,15 @@ LocalMind AI 的关键不变量：
 8. 日志、错误、support bundle 和模型证据必须有界并脱敏，不得暴露 token、API
    key、完整私密提示词或不必要的文档正文。
 9. Project AI 权限、会话绑定、跨工作区文档位置确认和访问申请通知遵守
-   `docs/ai-modernization/tracks/project-ai-boundaries.md`。AI 不得创建 Project、
-   管理成员、修改权限策略或批准/拒绝授权，也不得用文件夹代替 Project。
+   `docs/ai-modernization/tracks/project-ai-boundaries.md`，资源归属、内部文件树、
+   独立副本与显式发布以
+   `docs/ai-modernization/tracks/project-native-resources.md` 的新契约为准。
+   AI 不得创建 Project、管理成员、修改权限策略或批准/拒绝授权，也不得用
+   文件夹代替 Project。
+10. 所有 Project 会话统一使用实例管理员在 `/admin` 配置的全局 Project BYOK。
+    该配置独立于 Workspace、Workspace 默认 Profile 和用户 Profile；会话中的
+    `workspaceId` 仅保留执行、授权及审计上下文，不决定 Project 的模型凭据。
+    全局配置缺失或停用时不得回退到 Workspace、设备本地凭据或平台额度模型。
 
 ---
 
@@ -153,13 +168,14 @@ AI 现代化任务按以下顺序读取：
 
 当前 track：
 
-| Track            | 文档                         | 关注点                                                    |
-| ---------------- | ---------------------------- | --------------------------------------------------------- |
-| Support Bundle   | `tracks/support-bundle.md`   | 请求、归档、下载授权、保留清理、转发与重放                |
-| Repair Execution | `tracks/repair-execution.md` | 预览、预检、审批、worker、side effect 与人工控制          |
-| Agent Runtime    | `tracks/agent-runtime.md`    | run/step/timeline、租约、adapter、执行结果与取消          |
-| Registries       | `tracks/registries.md`       | prompt/model/provider/task route/health 的 DB-backed 状态 |
-| Context Memory   | `tracks/context-memory.md`   | Rule、Automatic Memory、scope、检索、信任边界与评测       |
+| Track                    | 文档                                 | 关注点                                                    |
+| ------------------------ | ------------------------------------ | --------------------------------------------------------- |
+| Support Bundle           | `tracks/support-bundle.md`           | 请求、归档、下载授权、保留清理、转发与重放                |
+| Repair Execution         | `tracks/repair-execution.md`         | 预览、预检、审批、worker、side effect 与人工控制          |
+| Agent Runtime            | `tracks/agent-runtime.md`            | run/step/timeline、租约、adapter、执行结果与取消          |
+| Registries               | `tracks/registries.md`               | prompt/model/provider/task route/health 的 DB-backed 状态 |
+| Context Memory           | `tracks/context-memory.md`           | Rule、Automatic Memory、scope、检索、信任边界与评测       |
+| Project Native Resources | `tracks/project-native-resources.md` | Project 原生文档/文件树、独立副本、显式发布与旧引用迁移   |
 
 `docs/ai-modernization/archive/` 是历史审计记录，不是默认执行入口。只有当前文档
 引用了具体历史章节，或任务需要追溯旧决策时才读取。不要继续旧的“不断加深

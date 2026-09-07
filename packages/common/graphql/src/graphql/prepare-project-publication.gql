@@ -1,0 +1,4 @@
+mutation prepareProjectPublication($projectId: String!, $resourceId: String!, $kind: String!, $requestKey: String!, $sessionId: String) {
+  prepareProjectPublication(projectId: $projectId, resourceId: $resourceId, kind: $kind, requestKey: $requestKey, sessionId: $sessionId) { ...ProjectPublicationFields }
+}
+#import './fragments/project-publication-fields.gql'

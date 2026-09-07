@@ -73,6 +73,28 @@ async function drainActionResult(
 }
 
 describe('runtime request transport', () => {
+  test('keeps non-image attachment bytes, filename and MIME intact', async () => {
+    const client = createClient();
+    const document = new File(['Native Office bytes'], 'report.docx', {
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    });
+    await drain(
+      textToText({
+        client,
+        sessionId: 'project-session',
+        content: 'Read this file',
+        attachments: [document],
+        stream: true,
+      }) as AsyncIterable<string>
+    );
+    const blobs = vi.mocked(client.createMessage).mock.calls[0][0].blobs;
+    expect(blobs).toHaveLength(1);
+    const sent = blobs?.[0] as File;
+    expect(sent.name).toBe(document.name);
+    expect(sent.type).toBe(document.type);
+    expect(await sent.text()).toBe('Native Office bytes');
+  });
+
   test('does not create a stream after cancellation', async () => {
     const controller = new AbortController();
     const client = createClient({

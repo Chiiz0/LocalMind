@@ -175,6 +175,7 @@ const PROVIDER_SOURCES = new Set<string>([
   'legacy',
   'byok_server',
   'byok_local',
+  'byok_project_global',
   'db_revision',
 ]);
 const PROVIDER_REGISTRY_SOURCE_CHAIN_SOURCES = new Set([

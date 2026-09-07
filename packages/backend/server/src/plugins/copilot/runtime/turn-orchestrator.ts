@@ -5,6 +5,7 @@ import { BadRequest } from '../../../base';
 import { CopilotContextService } from '../context/service';
 import { type Turn } from '../core';
 import { OfficeAgentCommandService } from '../office-agent-command';
+import { ProjectContextService } from '../project-context-service';
 import {
   ModelInputType,
   type PromptMessage,
@@ -12,12 +13,24 @@ import {
   type StreamObject,
 } from '../providers/types';
 import { ChatSession } from '../session';
+import { PROJECT_COLLABORATION_POLICY } from '../tools/project-file-request';
 import { ChatQuerySchema } from '../types';
 import { CapabilityRuntime } from './capability-runtime';
 import { CapabilityPolicyHost } from './hosts/capability-policy-host';
 import { ConversationHost } from './hosts/conversation-host';
 import { ImageResultHost } from './hosts/image-result-host';
 import { TurnPersistence } from './hosts/turn-persistence';
+
+export function appendChatSystemPolicy(
+  messages: PromptMessage[],
+  policy: PromptMessage
+): PromptMessage[] {
+  const [first, ...rest] = messages;
+  // Native request construction retains only the first system message.
+  return first?.role === 'system'
+    ? [{ ...first, content: `${first.content}\n\n${policy.content}` }, ...rest]
+    : [policy, ...messages];
+}
 
 @Injectable()
 export class TurnOrchestrator {
@@ -28,7 +41,8 @@ export class TurnOrchestrator {
     private readonly capabilityPolicy: CapabilityPolicyHost,
     private readonly runtime: CapabilityRuntime,
     private readonly imageResults: ImageResultHost,
-    private readonly turnPersistence: TurnPersistence
+    private readonly turnPersistence: TurnPersistence,
+    private readonly projectContext: ProjectContextService
   ) {}
 
   private async resolveOfficeContext(
@@ -38,8 +52,12 @@ export class TurnOrchestrator {
     if (!latestTurn || !Object.hasOwn(latestTurn.metadata, 'officeContext')) {
       return null;
     }
+    if (!session.config.workspaceId && !session.config.selectedContextProjectId)
+      throw new BadRequest('Office context requires a resource owner.');
     return await this.office.validateAiContext({
-      workspaceId: session.config.workspaceId,
+      ...(session.config.workspaceId
+        ? { workspaceId: session.config.workspaceId }
+        : { projectId: session.config.selectedContextProjectId as string }),
       actorId: session.config.userId,
       context: latestTurn.metadata.officeContext,
     });
@@ -60,6 +78,7 @@ export class TurnOrchestrator {
         `Validated context: ${JSON.stringify(office.context)}.`,
         `File: ${office.artifact.title} (${office.artifact.sourceFileName}), immutable revision ${office.revision.sequence}.`,
         'Before every write request, call office_read in this tool loop and use only its returned revision and stable IDs. office_read is already bound to the validated current artifact and revision, so pass only an optional selector and never ask the user for an artifact ID.',
+        'Start with office_read({"selector":null}) to discover stable IDs, then read a narrower selection if needed. Do not guess current/active/sheet1 as worksheet IDs. A failed read is not revision evidence; retry without a selector.',
         'Use office_command_request for one change and office_command_batch_request when all changes must succeed atomically.',
         'Never invent stable IDs, directly rewrite an OOXML/PDF package, or use another artifact.',
         'A command request only creates a persisted preview awaiting approval. Say that approval is required and do not claim the edit completed.',
@@ -71,13 +90,7 @@ export class TurnOrchestrator {
         .filter(Boolean)
         .join('\n'),
     };
-    const insertAt = messages.findIndex(message => message.role !== 'system');
-    if (insertAt === -1) return [...messages, policy];
-    return [
-      ...messages.slice(0, insertAt),
-      policy,
-      ...messages.slice(insertAt),
-    ];
+    return appendChatSystemPolicy(messages, policy);
   }
 
   private async buildPromptParams(
@@ -158,12 +171,30 @@ export class TurnOrchestrator {
             ? 'action'
             : 'chat',
     });
+    const projectSource =
+      !prepared.session.config.workspaceId &&
+      prepared.session.config.selectedContextProjectId &&
+      prepared.latestTurn?.metadata.projectContext
+        ? await this.projectContext.materialize({
+            projectId: prepared.session.config.selectedContextProjectId,
+            actorId: userId,
+            sessionId,
+            snapshot: prepared.latestTurn.metadata.projectContext,
+            maxCharacters: Math.min(
+              32000,
+              Math.floor((selected.contextWindow ?? 128 * 1024) / 4)
+            ),
+          })
+        : null;
     const renderedMessages = prepared.session.finish(
       {
         ...prepared.params,
         ...promptParams,
       },
-      { contextWindow: selected.contextWindow }
+      {
+        contextWindow: selected.contextWindow,
+        referenceMessages: projectSource ? [projectSource] : [],
+      }
     );
     const messagesWithOfficePolicy = office
       ? this.appendOfficePlannerPolicy(renderedMessages, office)
@@ -171,19 +202,18 @@ export class TurnOrchestrator {
     const managementPolicy: PromptMessage = {
       role: 'system',
       content:
-        'LocalMind Projects are managed by people. You must not create a Project, manage its members, change its permissions or AI policy, or approve/reject access requests. If asked to create a Project, explain that the user must create it in Intelligence. Never create a folder as a substitute. Do not delete or convert existing folders. Document creation requires an explicitly chosen destination workspace and location, including an explicit root choice. Report only actual tool execution outcomes; an access request is not a grant and a write preview is not a completed edit.',
+        'LocalMind Projects are managed by people. You must not create a Project, manage its members, change its permissions or AI policy, or approve/reject access requests. If asked to create a Project, explain that the user must create it in Intelligence. Never create a folder as a substitute. Report only actual tool execution outcomes; an access request is not a grant and a write preview is not a completed edit. ' +
+        (prepared.session.config.workspaceId === null
+          ? `This conversation owns native Project resources in ${prepared.session.config.selectedContextProjectId}. Create folders and documents in this Project by default. Use project_resource_list to resolve exact internal parent IDs. doc_create saves the real internal document immediately; no Workspace location is needed. Workspace documents and Project resources are independent copies. Ordinary edits and retries must stay inside the Project. Only an explicit user request can start a separate external publication or source refresh. Cancellation or failure of publication must preserve the internal resource. Use doc_read before doc_update and handle version conflicts without overwriting.`
+          : 'Document creation requires an explicitly chosen destination workspace and location, including an explicit root choice.') +
+        (prepared.session.config.workspaceId === null
+          ? `\n${PROJECT_COLLABORATION_POLICY}`
+          : ''),
     };
-    const policyIndex = messagesWithOfficePolicy.findIndex(
-      message => message.role !== 'system'
+    const finalMessage = appendChatSystemPolicy(
+      messagesWithOfficePolicy,
+      managementPolicy
     );
-    const finalMessage =
-      policyIndex < 0
-        ? [...messagesWithOfficePolicy, managementPolicy]
-        : [
-            ...messagesWithOfficePolicy.slice(0, policyIndex),
-            managementPolicy,
-            ...messagesWithOfficePolicy.slice(policyIndex),
-          ];
 
     return {
       prepared,

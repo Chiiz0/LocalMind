@@ -307,35 +307,61 @@ Automatic Memory 不应被当作秘密保险箱。即使系统会过滤常见凭
 
 ## 9. 使用 Context Project
 
-Context Project 将一组工作区文档组织成同一个 AI 上下文边界。项目本身属于
-工作区，项目中的 Rule、Automatic Memory 和 Project Summary 仍分别属于创建
-它们的用户。
+Project 拥有独立的文档、文件和多级目录，不隶属于任何工作区。资源规则以
+[Project 原生资源](./ai-modernization/tracks/project-native-resources.md)为准，
+会话和 AI 管理边界见[Project AI 边界](./ai-modernization/tracks/project-ai-boundaries.md)。
+所有 Project 中的对话统一使用实例管理员在 `/admin/ai/config` 的
+`Global Project BYOK` 配置，与会话的工作区、工作区默认 AI Profile 和用户
+Profile 无关。管理员填写 Provider、Endpoint、Model ID 和 API key 后，点击
+`Verify and save`；服务端验证成功才会加密保存并生效。未配置或停用时，Project
+对话不会回退到工作区模型。已有工作区凭据不会自动转为全局凭据。
+
+只有项目成员资格、没有工作区成员资格，也能在项目内创建、编辑、保存和使用 AI。
+`All projects` 只显示总览；选择具体项目后才显示该项目的聊天和文件树。
 
 ### 9.1 创建项目
 
-只有工作区 Owner 或 Admin 可以管理 Context Project：
+登录用户可以在 Intelligence 中创建独立项目：
 
-1. 打开 `Workspace settings > AI context`；
-2. 在 `Context projects` 输入项目名称和说明；
-3. 点击 `Select documents`；
-4. 选择 1 到 100 个文档；
-5. 点击创建图标。
+1. 打开 Intelligence；
+2. 使用项目列表的新建入口，填写项目名称和说明；
+3. 创建后选择项目，在文件树中新建文档、画布、目录或上传文件；
+4. 需要共享协作时，由项目 Owner 邀请成员。
 
-普通成员只能看到包含其有权读取文档的项目，不能修改项目配置。
+所有有效成员默认可读写项目内部资源。项目成员和管理权限由用户管理，AI
+不能创建项目、管理成员、修改权限或批准访问申请。
 
 ### 9.2 修改、归档和删除
 
-Owner 或 Admin 可以：
+项目 Owner 负责项目名称、说明、归档及成员管理。有效成员可以：
 
-- 修改项目名称和说明；
-- 调整项目包含的文档；
-- 使用开关将项目归档或重新启用；
-- 删除已经归档且没有个人记忆引用的项目。
+- 新建、嵌套、重命名、移动和排序内部文件与目录；
+- 打开编辑文档、画布和 Docs/Sheets/Slides/PDF；
+- 将资源移入回收站或恢复，外部副本不会随之移动或删除。
 
-归档会停止项目上下文的后续注入，但不会删除用户的私人项目记忆。如果删除
-失败，请先保持项目归档，并由各记忆所有者删除自己关联的项目记忆。
+自动保存、关闭重开、AI 修改和重试只更新项目内部版本。打开 Office 资源时，
+可以同时使用编辑器和该项目的 AI 聊天；AI 写入需要在任务中批准，撤回不会写入。
 
-### 9.3 添加 Project Summary
+### 9.3 发布、更新和导入
+
+在资源的 `Workspace publications` 中选择发布副本或更新已有文档。先选择
+Workspace，再逐级进入目录；可以搜索、返回上级、在当前目录新建文件夹或
+保存到当前目录。确认前检查目标和版本差异，完成后从回执打开外部文档。
+
+发布会创建独立 ID 和版本历史。发布到多个 Workspace 后，更新只影响本次准确
+选择的目标。普通项目成员也可以发布；能否执行取决于目标实时权限。取消、
+失败、过期或断网会保留内部文档；历史请求可以恢复，已明确创建的目录也会保留。
+出现冲突时重新比较版本，不会自动覆盖或按同名改绑目标。
+
+从 Workspace 加入项目会复制独立内部资源，须有来源读取、复制和向项目分享的
+权限。审批前不复制正文或附件。合法导入后，外部修改或授权变化不会改写内部
+副本；只有明确使用来源刷新并重新通过来源权限和版本检查，才读取新版。
+
+旧引用在 `Historical imports` 显示迁移结果；待授权条目可以申请权限并恢复。
+`Historical requests and conversations` 保留旧请求身份和会话历史，可恢复
+合法的内部草稿或撤回任务，不会自动恢复旧的 Workspace 写回。
+
+### 9.4 添加 Project Summary
 
 1. 在 `Your rules and memories` 中选择 `Project summary`；
 2. 选择 `Project`；
@@ -352,12 +378,47 @@ Owner 或 Admin 可以：
 
 Project Summary 适合记录稳定背景，不适合复制每天变化的完整进度日志。
 
+### 9.5 向成员索取文件
+
+在选定 Project 的会话里输入“帮我问 member-01 要一个文件 a”，或者点击任务栏
+的 `Request file`。AI 会先查找真实成员；同名结果不唯一时需要选择接收人。
+接收人必须是项目成员，或与你在同一个有效 Workspace 中。文件请求发送站内
+通知，不发送外部邮件，也不会邀请对方加入 Project。
+
+| 阶段                       | 发起方                      | 接收方                    |
+| -------------------------- | --------------------------- | ------------------------- |
+| 已发送请求                 | `To do > Waiting on others` | `To do > Needs my action` |
+| 对方点击 `Start preparing` | `In progress`               | `In progress`             |
+| 对方提交文件               | `Done`，文件保存在 Project  | `Done`                    |
+| 对方拒绝或发起方撤回       | `Done`，保留终态记录        | `Done`，保留终态记录      |
+
+接收方从 `Notifications` 或任务详情打开请求，选择不超过 32 MB 的文件，勾选
+向项目成员分享，再点击 `Submit file`。收到的文件是 Project 的独立副本，
+不会改动对方的源文件。请求下载入口只提供最初交付的版本；对方不会因此获得
+项目其他文件或后续编辑版本的访问权。关系或项目权限失效后，请求操作会拒绝。
+
+`To do` 数字仅统计需要本人操作的任务；发起方等待文件时数字仍可能为 0，应查看
+`Waiting on others`。若只想记录等待事项而不发送请求，可以说“记录等待回复，
+不发消息”；AI 会显示 Blocker 确认卡，点击 `Create blocker` 才保存，截止时间
+可留空。明确要求只起草时不会发通知或创建任务。
+
+### 9.6 清理通知
+
+打开侧栏 `Notifications`，每条通知右侧可以标为已读或删除，包括权限申请和文件
+请求通知。顶部勾选图标将所有通知标为已读，未读数字随即更新；`All` 中仍可查看
+已读通知。
+
+顶部 `...` 菜单提供 `Delete read notifications` 和 `Clear all notifications`。
+清空全部需要确认，覆盖整个收件箱，而不仅是当前加载的一页。删除通知无法撤销，
+只清理本人收件箱，不会完成、撤回任务，也不会批准或拒绝权限申请。后续收到的新
+通知正常显示；文件请求被清理后，对方接单或交付仍会重新提醒。
+
 ## 10. 团队和权限
 
 ### 10.1 管理成员
 
-在 `Workspace settings > Members` 中邀请和管理成员。工作区 Owner/Admin
-负责成员管理及 Context Project 配置。
+在 `Workspace settings > Members` 中管理工作区成员。Project 有独立成员列表，
+由项目 Owner 管理；加入 Project 不会自动加入任何 Workspace，反之亦然。
 
 ### 10.2 AI 可见范围
 
@@ -365,7 +426,7 @@ LocalMind 在搜索排序前先检查文档权限：
 
 - 用户只能检索和使用自己有权读取的文档；
 - 无权限文档不会因为相关度较高而进入 AI 上下文；
-- 普通成员不能通过 Context Project 绕过原有文档权限；
+- 项目成员可读取项目内部资源，但导入或刷新 Workspace 来源仍检查来源权限；
 - 每个用户只能管理和使用自己的 Rule 与 Memory；
 - 团队成员之间不会自动共享私人 Memory。
 
@@ -402,10 +463,10 @@ LocalMind 在搜索排序前先检查文档权限：
 
 ### 12.2 开始团队项目
 
-1. Owner/Admin 创建 Context Project；
-2. 选择权威项目文档；
+1. 用户创建 Project，并邀请项目成员；
+2. 创建内部文档或合法导入权威材料；
 3. 成员分别添加自己的 Project Summary 或项目 Rule；
-4. 从项目文档进入 AI Chat 或在对话中选择对应文档；
+4. 选择项目，在 AI Chat 中添加该项目文档和附件；
 5. 项目结束后归档 Context Project。
 
 ### 12.3 文档更新后重新分析
@@ -420,11 +481,11 @@ LocalMind 在搜索排序前先检查文档权限：
 
 ### 12.4 验证权限隔离
 
-1. Owner 创建包含受限文档的 Context Project；
-2. 邀请普通成员加入工作区；
-3. 仅授予该成员必要的文档权限；
-4. 成员从 AI Chat 搜索项目内容；
-5. 确认只能看到已授权资料；
+1. 创建 Project 并加入一个普通项目成员；
+2. 核验该成员能编辑内部文档，非成员不能搜索、打开或下载；
+3. 使用仅能个人阅读的 Workspace 文档尝试导入；
+4. 确认审批前没有项目正文或附件副本；
+5. 移除项目成员，确认其内部资源访问被拒绝；
 6. 分别创建个人 Memory，确认成员之间不能互相查看或召回。
 
 ## 13. 使用提示
@@ -473,10 +534,10 @@ LocalMind 在搜索排序前先检查文档权限：
 关闭开关只停止创建新记忆，不会删除已有内容。请在 Memory 列表中逐条停用
 或删除旧记忆。
 
-### 为什么普通成员不能创建 Context Project？
+### 没有 Workspace 成员资格能使用 Project 吗？
 
-Context Project 会改变工作区级文档分组，因此只有 Owner/Admin 可以管理。
-普通成员仍可使用自己有权访问的项目和自己的私人 Memory。
+可以。登录用户可以创建 Project，有效项目成员可读写内部资源。AI 聊天需要
+管理员启用全局 Project BYOK；只有显式发布或导入才涉及 Workspace 权限。
 
 ### 为什么 Context Project 无法删除？
 
@@ -499,7 +560,7 @@ Context Project 会改变工作区级文档分组，因此只有 Owner/Admin 可
 - 用户可以查看、编辑、停用或删除自己的 Memory；
 - 退出某工作区后，Memory 不会在该工作区继续注入；
 - 删除账号时，该用户的 Memory 会随账号清理；
-- 删除文档会移除文档专属 Memory 和项目成员关系；
+- 项目资源移入回收站不会改变项目成员关系或删除外部副本；
 - 项目级 Memory 可能仍会保留，因为它可能总结项目中的其他文档；
 - 禁用 Memory 不等于删除；
 - 清除聊天记录不等于删除长期 Memory。
@@ -513,7 +574,7 @@ Context Project 会改变工作区级文档分组，因此只有 Owner/Admin 可
 | Rule             | 用户明确维护的长期 AI 约束                         |
 | Automatic Memory | 从对话中自动识别并保存的用户长期信息               |
 | Project Summary  | 当前用户为 Context Project 保存的背景摘要          |
-| Context Project  | 将多个工作区文档组织为项目上下文的工作区对象       |
+| Context Project  | 拥有独立成员、内部资源、文件树和 AI 上下文的项目   |
 | Rolling Summary  | 当前长对话中较早内容的压缩摘要                     |
 | Scope            | 一条私人 Memory 可以在哪些工作区、文档或项目中使用 |
 | Embedding        | 用于工作区语义检索的文档向量索引                   |

@@ -165,7 +165,7 @@ export class ContextRuleService {
 
   async retrieveApplicable(input: {
     userId: string;
-    workspaceId: string;
+    workspaceId: string | null;
     scope: ContextScopeResolution;
     query: string;
   }): Promise<ApplicableContextDirective[]> {
@@ -175,13 +175,16 @@ export class ContextRuleService {
         workspaceId: input.workspaceId,
         projectIds: input.scope.projectIds,
       }),
-      this.models.copilotContextRule.listPolicies({
-        workspaceId: input.workspaceId,
-      }),
+      input.workspaceId
+        ? this.models.copilotContextRule.listPolicies({
+            workspaceId: input.workspaceId,
+          })
+        : [],
     ]);
     const directives: ApplicableContextDirective[] = [];
 
     for (const rule of rules) {
+      if (!input.workspaceId && rule.scope !== 'project') continue;
       const revision = rule.revisions.find(
         item => item.revision === rule.activeRevision
       );

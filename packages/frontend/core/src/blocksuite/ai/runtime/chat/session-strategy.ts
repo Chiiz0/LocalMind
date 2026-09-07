@@ -109,7 +109,9 @@ export class DocAIChatSessionStrategy implements AIChatSessionStrategy {
 
   canOpenAsTab(session: CopilotChatHistoryFragment, scope: AIChatScope) {
     return (
-      scope.kind === 'doc' && (!session.docId || session.docId === scope.docId)
+      scope.kind === 'doc' &&
+      session.workspaceId === scope.workspaceId &&
+      (!session.docId || session.docId === scope.docId)
     );
   }
 
@@ -117,7 +119,7 @@ export class DocAIChatSessionStrategy implements AIChatSessionStrategy {
     if (this.canOpenAsTab(session, scope)) {
       return { type: 'opened' as const, session };
     }
-    if (scope.kind === 'doc' && session.docId) {
+    if (scope.kind === 'doc' && session.docId && session.workspaceId) {
       return {
         type: 'navigate' as const,
         target: {
@@ -134,6 +136,7 @@ export class DocAIChatSessionStrategy implements AIChatSessionStrategy {
 
 export class WorkspaceAIChatSessionStrategy implements AIChatSessionStrategy {
   async loadInitialSession(scope: AIChatScope, request: AIRequestService) {
+    if (scope.kind === 'project') return null;
     const sessions = await request.getSessions(scope.workspaceId, undefined, {
       pinned: true,
       limit: 1,
@@ -155,6 +158,7 @@ export class WorkspaceAIChatSessionStrategy implements AIChatSessionStrategy {
     request: AIRequestService,
     options: AIChatCreateSessionOptions = {}
   ) {
+    if (scope.kind === 'project') return Promise.resolve(null);
     return request.createSessionWithHistory({
       workspaceId: scope.workspaceId,
       promptName: getSessionPromptName(options),
@@ -198,6 +202,7 @@ export class ForkAIChatSessionStrategy implements AIChatSessionStrategy {
     request: AIRequestService,
     options: AIChatCreateSessionOptions = {}
   ) {
+    if (scope.kind === 'project') return null;
     const docId = 'docId' in scope ? scope.docId : undefined;
     const parentSessionId =
       'parentSessionId' in scope ? scope.parentSessionId : undefined;
@@ -235,3 +240,48 @@ export class ForkAIChatSessionStrategy implements AIChatSessionStrategy {
 export class ChatBlockAIChatSessionStrategy extends ForkAIChatSessionStrategy {}
 
 export class PlaygroundAIChatSessionStrategy extends ForkAIChatSessionStrategy {}
+
+export class ProjectAIChatSessionStrategy implements AIChatSessionStrategy {
+  async loadInitialSession(scope: AIChatScope, request: AIRequestService) {
+    if (scope.kind !== 'project') return null;
+    const sessions = await request.getProjectSessions(
+      scope.projectId,
+      { first: 1 },
+      { pinned: true }
+    );
+    return sessions[0] ?? null;
+  }
+
+  createDraftSession(scope: AIChatScope) {
+    return createDraftTab(scope);
+  }
+
+  async createSession(
+    scope: AIChatScope,
+    request: AIRequestService,
+    options: AIChatCreateSessionOptions = {}
+  ) {
+    if (scope.kind !== 'project') return null;
+    return request.createSessionWithHistory({
+      projectId: scope.projectId,
+      promptName: getSessionPromptName(options),
+      reuseLatestChat: false,
+      pinned: options.pinned,
+    });
+  }
+
+  canOpenAsTab(session: CopilotChatHistoryFragment, scope: AIChatScope) {
+    return (
+      scope.kind === 'project' &&
+      session.workspaceId === null &&
+      !session.docId &&
+      session.selectedContextProjectId === scope.projectId
+    );
+  }
+
+  openSession(session: CopilotChatHistoryFragment, scope: AIChatScope) {
+    if (!this.canOpenAsTab(session, scope))
+      throw new Error('Conversation belongs to another resource owner');
+    return { type: 'opened' as const, session };
+  }
+}

@@ -1,0 +1,16 @@
+fragment ProjectAgentTaskFields on ProjectAgentTaskType {
+  id
+  projectId
+  sessionId
+  title
+  workflow
+  status
+  targetFingerprint
+  workerAttempt
+  createdAt
+  updatedAt
+  failureCode
+  failureMessage
+  receipt
+  preview
+}

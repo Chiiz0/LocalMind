@@ -36,6 +36,543 @@ function createProxy(initValue: (key: string) => any) {
 }
 export function useAFFiNEI18N(): {
     /**
+      * `File request`
+      */
+    ["com.affine.localmind.fileRequest.title"](): string;
+    /**
+      * `Request file`
+      */
+    ["com.affine.localmind.fileRequest.request"](): string;
+    /**
+      * `Recipient`
+      */
+    ["com.affine.localmind.fileRequest.recipient"](): string;
+    /**
+      * `Requested by`
+      */
+    ["com.affine.localmind.fileRequest.requester"](): string;
+    /**
+      * `Project`
+      */
+    ["com.affine.localmind.fileRequest.project"](): string;
+    /**
+      * `Requested file`
+      */
+    ["com.affine.localmind.fileRequest.fileName"](): string;
+    /**
+      * `Find recipient`
+      */
+    ["com.affine.localmind.fileRequest.search"](): string;
+    /**
+      * `No matching recipients`
+      */
+    ["com.affine.localmind.fileRequest.noRecipients"](): string;
+    /**
+      * `Waiting for file`
+      */
+    ["com.affine.localmind.fileRequest.pending"](): string;
+    /**
+      * `Preparing file`
+      */
+    ["com.affine.localmind.fileRequest.in_progress"](): string;
+    /**
+      * `File received`
+      */
+    ["com.affine.localmind.fileRequest.completed"](): string;
+    /**
+      * `Declined`
+      */
+    ["com.affine.localmind.fileRequest.declined"](): string;
+    /**
+      * `Cancelled`
+      */
+    ["com.affine.localmind.fileRequest.cancelled"](): string;
+    /**
+      * `File request unavailable`
+      */
+    ["com.affine.localmind.fileRequest.unavailable"](): string;
+    /**
+      * `Start preparing`
+      */
+    ["com.affine.localmind.fileRequest.start"](): string;
+    /**
+      * `Decline request`
+      */
+    ["com.affine.localmind.fileRequest.decline"](): string;
+    /**
+      * `Cancel request`
+      */
+    ["com.affine.localmind.fileRequest.cancel"](): string;
+    /**
+      * `Confirm`
+      */
+    ["com.affine.localmind.fileRequest.confirm"](): string;
+    /**
+      * `Back`
+      */
+    ["com.affine.localmind.fileRequest.back"](): string;
+    /**
+      * `Choose file (up to 32 MB)`
+      */
+    ["com.affine.localmind.fileRequest.choose"](): string;
+    /**
+      * `Share this file with all members of {{project}}`
+      */
+    ["com.affine.localmind.fileRequest.share"](options: {
+        readonly project: string;
+    }): string;
+    /**
+      * `Submit file`
+      */
+    ["com.affine.localmind.fileRequest.submit"](): string;
+    /**
+      * `Download file`
+      */
+    ["com.affine.localmind.fileRequest.download"](): string;
+    /**
+      * `Reload request`
+      */
+    ["com.affine.localmind.fileRequest.refresh"](): string;
+    /**
+      * `Loading file request`
+      */
+    ["com.affine.localmind.fileRequest.loading"](): string;
+    /**
+      * `Could not update the request. Reload and try again.`
+      */
+    ["com.affine.localmind.fileRequest.failed"](): string;
+    /**
+      * `Choose a file no larger than 32 MB.`
+      */
+    ["com.affine.localmind.fileRequest.tooLarge"](): string;
+    /**
+      * `No historical requests`
+      */
+    ["com.affine.localmind.legacy.empty"](): string;
+    /**
+      * `This message exceeds the display limit. Only the first 8,000 characters are shown.`
+      */
+    ["com.affine.localmind.legacy.truncated"](): string;
+    /**
+      * `No historical conversations`
+      */
+    ["com.affine.localmind.legacy.emptyConversations"](): string;
+    /**
+      * `Historical requests and conversations`
+      */
+    ["com.affine.localmind.legacy.title"](): string;
+    /**
+      * `Conversation history`
+      */
+    ["com.affine.localmind.legacy.conversations"](): string;
+    /**
+      * `External result preserved`
+      */
+    ["com.affine.localmind.legacy.external"](): string;
+    /**
+      * `Source authorization needs review`
+      */
+    ["com.affine.localmind.legacy.blocked"](): string;
+    /**
+      * `Pending internal recovery`
+      */
+    ["com.affine.localmind.legacy.pending"](): string;
+    /**
+      * `Restore project draft`
+      */
+    ["com.affine.localmind.legacy.recover"](): string;
+    /**
+      * `Read latest source`
+      */
+    ["com.affine.localmind.source-refresh.title"](): string;
+    /**
+      * `No linked source is currently available to copy into this project.`
+      */
+    ["com.affine.localmind.source-refresh.empty"](): string;
+    /**
+      * `Replace project version {{version}} with the current content of {{title}}?`
+      */
+    ["com.affine.localmind.source-refresh.confirm"](options: Readonly<{
+        version: string;
+        title: string;
+    }>): string;
+    /**
+      * `Update project copy`
+      */
+    ["com.affine.localmind.source-refresh.apply"](): string;
+    /**
+      * `Historical imports`
+      */
+    ["com.affine.localmind.migrations.title"](): string;
+    /**
+      * `Historical reference`
+      */
+    ["com.affine.localmind.migrations.source"](): string;
+    /**
+      * `No historical imports`
+      */
+    ["com.affine.localmind.migrations.empty"](): string;
+    /**
+      * `Waiting to import`
+      */
+    ["com.affine.localmind.migrations.pending"](): string;
+    /**
+      * `Importing`
+      */
+    ["com.affine.localmind.migrations.running"](): string;
+    /**
+      * `Source copy permission required`
+      */
+    ["com.affine.localmind.migrations.authorization"](): string;
+    /**
+      * `Import failed; check source access and retry`
+      */
+    ["com.affine.localmind.migrations.failed"](): string;
+    /**
+      * `Imported to Project`
+      */
+    ["com.affine.localmind.migrations.complete"](): string;
+    /**
+      * `Import cancelled`
+      */
+    ["com.affine.localmind.migrations.cancelled"](): string;
+    /**
+      * `Request copy permission`
+      */
+    ["com.affine.localmind.migrations.request"](): string;
+    /**
+      * `Copy permission requested`
+      */
+    ["com.affine.localmind.migrations.permissionPending"](): string;
+    /**
+      * `Copy permission approved; retry import`
+      */
+    ["com.affine.localmind.migrations.permissionApproved"](): string;
+    /**
+      * `Copy permission request was declined`
+      */
+    ["com.affine.localmind.migrations.permissionRejected"](): string;
+    /**
+      * `Workspace publications`
+      */
+    ["com.affine.localmind.publications.title"](): string;
+    /**
+      * `Publish a copy`
+      */
+    ["com.affine.localmind.publications.publish"](): string;
+    /**
+      * `Update an existing document`
+      */
+    ["com.affine.localmind.publications.update"](): string;
+    /**
+      * `Saved in Project`
+      */
+    ["com.affine.localmind.publications.saved"](): string;
+    /**
+      * `Awaiting destination`
+      */
+    ["com.affine.localmind.publications.waiting_for_location"](): string;
+    /**
+      * `Awaiting confirmation`
+      */
+    ["com.affine.localmind.publications.waiting_for_confirmation"](): string;
+    /**
+      * `Published`
+      */
+    ["com.affine.localmind.publications.complete"](): string;
+    /**
+      * `Changed since preview`
+      */
+    ["com.affine.localmind.publications.conflict"](): string;
+    /**
+      * `Expired`
+      */
+    ["com.affine.localmind.publications.expired"](): string;
+    /**
+      * `Choose destination again`
+      */
+    ["com.affine.localmind.publications.reopen"](): string;
+    /**
+      * `Workspace`
+      */
+    ["com.affine.localmind.publications.workspace"](): string;
+    /**
+      * `Root directory`
+      */
+    ["com.affine.localmind.publications.root"](): string;
+    /**
+      * `Use current directory`
+      */
+    ["com.affine.localmind.publications.current"](): string;
+    /**
+      * `Review changes`
+      */
+    ["com.affine.localmind.publications.preview"](): string;
+    /**
+      * `Confirm publication`
+      */
+    ["com.affine.localmind.publications.confirm"](): string;
+    /**
+      * `Current target`
+      */
+    ["com.affine.localmind.publications.before"](): string;
+    /**
+      * `Project version`
+      */
+    ["com.affine.localmind.publications.after"](): string;
+    /**
+      * `No publication requests`
+      */
+    ["com.affine.localmind.publications.empty"](): string;
+    /**
+      * `No available Workspaces`
+      */
+    ["com.affine.localmind.publications.noWorkspaces"](): string;
+    /**
+      * `No matching documents`
+      */
+    ["com.affine.localmind.publications.noTargets"](): string;
+    /**
+      * `No permission at this destination`
+      */
+    ["com.affine.localmind.publications.noPermission"](): string;
+    /**
+      * `Preview unavailable. Reload the request and review access.`
+      */
+    ["com.affine.localmind.publications.previewUnavailable"](): string;
+    /**
+      * `Search destinations`
+      */
+    ["com.affine.localmind.publications.search"](): string;
+    /**
+      * `Target document`
+      */
+    ["com.affine.localmind.publications.target"](): string;
+    /**
+      * `Workspace members: {{count}}`
+      */
+    ["com.affine.localmind.publications.audience"](options: {
+        readonly count: string;
+    }): string;
+    /**
+      * `Partial preview`
+      */
+    ["com.affine.localmind.publications.truncated"](): string;
+    /**
+      * `Open published document`
+      */
+    ["com.affine.localmind.publications.external"](): string;
+    /**
+      * `Project tasks`
+      */
+    ["com.affine.localmind.project-tasks.title"](): string;
+    /**
+      * `No tasks`
+      */
+    ["com.affine.localmind.project-tasks.empty"](): string;
+    /**
+      * `Approve changes`
+      */
+    ["com.affine.localmind.project-tasks.approve"](): string;
+    /**
+      * `Awaiting approval`
+      */
+    ["com.affine.localmind.project-tasks.waitingApproval"](): string;
+    /**
+      * `Awaiting destination`
+      */
+    ["com.affine.localmind.project-tasks.waitingLocation"](): string;
+    /**
+      * `Queued`
+      */
+    ["com.affine.localmind.project-tasks.queued"](): string;
+    /**
+      * `Running`
+      */
+    ["com.affine.localmind.project-tasks.running"](): string;
+    /**
+      * `Completed`
+      */
+    ["com.affine.localmind.project-tasks.completed"](): string;
+    /**
+      * `Cancelled`
+      */
+    ["com.affine.localmind.project-tasks.cancelled"](): string;
+    /**
+      * `Failed`
+      */
+    ["com.affine.localmind.project-tasks.failed"](): string;
+    /**
+      * `{{count}} changes`
+      */
+    ["com.affine.localmind.project-tasks.commands"](options: {
+        readonly count: string;
+    }): string;
+    /**
+      * `Latest tasks`
+      */
+    ["com.affine.localmind.project-tasks.latest"](): string;
+    /**
+      * `AI chat`
+      */
+    ["com.affine.localmind.project-files.chat"](): string;
+    /**
+      * `Clear selection`
+      */
+    ["com.affine.localmind.project-files.clearSelection"](): string;
+    /**
+      * `Project files`
+      */
+    ["com.affine.localmind.project-files.title"](): string;
+    /**
+      * `New document`
+      */
+    ["com.affine.localmind.project-files.newDocument"](): string;
+    /**
+      * `New canvas`
+      */
+    ["com.affine.localmind.project-files.newCanvas"](): string;
+    /**
+      * `New folder`
+      */
+    ["com.affine.localmind.project-files.newFolder"](): string;
+    /**
+      * `Upload file`
+      */
+    ["com.affine.localmind.project-files.upload"](): string;
+    /**
+      * `Trash`
+      */
+    ["com.affine.localmind.project-files.trash"](): string;
+    /**
+      * `Project root`
+      */
+    ["com.affine.localmind.project-files.root"](): string;
+    /**
+      * `Name`
+      */
+    ["com.affine.localmind.project-files.name"](): string;
+    /**
+      * `Rename`
+      */
+    ["com.affine.localmind.project-files.rename"](): string;
+    /**
+      * `Move`
+      */
+    ["com.affine.localmind.project-files.move"](): string;
+    /**
+      * `Move here`
+      */
+    ["com.affine.localmind.project-files.moveHere"](): string;
+    /**
+      * `Move up`
+      */
+    ["com.affine.localmind.project-files.moveUp"](): string;
+    /**
+      * `Move down`
+      */
+    ["com.affine.localmind.project-files.moveDown"](): string;
+    /**
+      * `Restore`
+      */
+    ["com.affine.localmind.project-files.restore"](): string;
+    /**
+      * `Move to trash`
+      */
+    ["com.affine.localmind.project-files.delete"](): string;
+    /**
+      * `File actions`
+      */
+    ["com.affine.localmind.project-files.actions"](): string;
+    /**
+      * `No files`
+      */
+    ["com.affine.localmind.project-files.empty"](): string;
+    /**
+      * `Load more`
+      */
+    ["com.affine.localmind.project-files.more"](): string;
+    /**
+      * `Retry`
+      */
+    ["com.affine.localmind.project-files.retry"](): string;
+    /**
+      * `Cancel`
+      */
+    ["com.affine.localmind.project-files.cancel"](): string;
+    /**
+      * `Create`
+      */
+    ["com.affine.localmind.project-files.create"](): string;
+    /**
+      * `Save`
+      */
+    ["com.affine.localmind.project-files.save"](): string;
+    /**
+      * `Saved in project`
+      */
+    ["com.affine.localmind.project-files.saved"](): string;
+    /**
+      * `Saving`
+      */
+    ["com.affine.localmind.project-files.saving"](): string;
+    /**
+      * `Unsaved changes`
+      */
+    ["com.affine.localmind.project-files.unsaved"](): string;
+    /**
+      * `Reload`
+      */
+    ["com.affine.localmind.project-files.reload"](): string;
+    /**
+      * `Close file`
+      */
+    ["com.affine.localmind.project-files.close"](): string;
+    /**
+      * `Download`
+      */
+    ["com.affine.localmind.project-files.download"](): string;
+    /**
+      * `Version history`
+      */
+    ["com.affine.localmind.project-files.history"](): string;
+    /**
+      * `Current version`
+      */
+    ["com.affine.localmind.project-files.current"](): string;
+    /**
+      * `Compare versions`
+      */
+    ["com.affine.localmind.project-files.compare"](): string;
+    /**
+      * `Search this folder`
+      */
+    ["com.affine.localmind.project-files.search"](): string;
+    /**
+      * `Parent folder`
+      */
+    ["com.affine.localmind.project-files.back"](): string;
+    /**
+      * `Historical version`
+      */
+    ["com.affine.localmind.project-files.readOnly"](): string;
+    /**
+      * `Import failed. Retry to continue.`
+      */
+    ["com.affine.localmind.project-files.importFailed"](): string;
+    /**
+      * `The file changed. Reload and compare before saving.`
+      */
+    ["com.affine.localmind.project-files.conflict"](): string;
+    /**
+      * `Open`
+      */
+    ["com.affine.localmind.project-files.open"](): string;
+    /**
+      * `Source references`
+      */
+    ["com.affine.localmind.project-files.source"](): string;
+    /**
       * `Storage workspace`
       */
     ["com.affine.localmind.documentCreation.workspace"](): string;
@@ -8168,6 +8705,10 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.workbench.project.aiPolicy"](): string;
     /**
+      * `Project AI is not configured. Contact your LocalMind instance administrator to configure the global Project model.`
+      */
+    ["com.affine.localmind.project.aiNotConfigured"](): string;
+    /**
       * `Read only`
       */
     ["com.affine.localmind.workbench.project.aiPolicy.readOnly"](): string;
@@ -9334,6 +9875,18 @@ export function useAFFiNEI18N(): {
       * `Mark all as read`
       */
     ["com.affine.notification.mark-all-read"](): string;
+    /**
+      * `Mark as read`
+      */
+    ["com.affine.notification.mark-read"](): string;
+    /**
+      * `Clear all notifications`
+      */
+    ["com.affine.notification.clear-all"](): string;
+    /**
+      * `Clear all read and unread notifications from your inbox? This cannot be undone. Tasks, file requests and access requests will remain unchanged.`
+      */
+    ["com.affine.notification.clear-all.confirmation"](): string;
     /**
       * `Delete read notifications`
       */

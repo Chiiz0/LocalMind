@@ -1,0 +1,19 @@
+#import '../fragments/project-byok-settings.gql'
+
+query adminProjectByokSettings {
+  adminProjectByokSettings {
+    ...ProjectByokSettings
+  }
+}
+
+mutation saveProjectByokConfig($input: ProjectByokConfigInput!) {
+  saveProjectByokConfig(input: $input) {
+    ...ProjectByokSettings
+  }
+}
+
+mutation setProjectByokEnabled($expectedRevision: SafeInt!, $enabled: Boolean!) {
+  setProjectByokEnabled(expectedRevision: $expectedRevision, enabled: $enabled) {
+    ...ProjectByokSettings
+  }
+}

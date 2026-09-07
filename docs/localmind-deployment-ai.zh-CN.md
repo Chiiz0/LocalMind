@@ -268,7 +268,9 @@ ISCP 部署在 `-f` 参数后加入 `--profile iscp`。Compose 会先运行
 
 基础部署成功不等于 AI provider 已就绪。配置 AI 时：
 
-- 优先使用 LocalMind 管理界面或 workspace BYOK 流程；
+- Project 对话使用 `/admin/ai/config` 中的 `Global Project BYOK`，由实例管理员
+  统一验证并配置，适用于所有 Project，与 Workspace 无关；其他工作区 AI 入口
+  保留原有 workspace BYOK 流程；
 - 不猜测 provider、model ID、endpoint 或 API key；
 - 自定义 endpoint 只有在服务端策略允许时才能使用；
 - 私网 endpoint 需要显式的私网访问策略，不能通过关闭 SSRF 防护规避；

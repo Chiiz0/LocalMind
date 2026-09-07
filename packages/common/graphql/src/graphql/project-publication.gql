@@ -1,0 +1,4 @@
+query projectPublication($projectId: String!, $publicationId: String!) {
+  projectPublication(projectId: $projectId, publicationId: $publicationId) { ...ProjectPublicationFields }
+}
+#import './fragments/project-publication-fields.gql'

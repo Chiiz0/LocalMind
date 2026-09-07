@@ -1,0 +1,5 @@
+#import './fragments/project-resource.gql'
+
+mutation createProjectResource($input: CreateProjectResourceInput!) {
+  createProjectResource(input: $input) { ...ProjectResourceFields }
+}

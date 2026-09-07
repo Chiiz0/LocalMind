@@ -25,12 +25,16 @@ export async function applyActionModelId(
     return options;
   }
 
+  if (!options.workspaceId) {
+    options.modelSelection = { promptName, source: 'unresolved' };
+    return options;
+  }
   const modelId = await getAIPanelWidget(host).config?.resolveActionModelId?.({
     actionId,
     promptName,
     workspaceId: options.workspaceId,
     docId: options.docId,
-    options,
+    options: { ...options, workspaceId: options.workspaceId },
   });
 
   if (modelId) {

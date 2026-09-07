@@ -142,6 +142,7 @@ export type CopilotProviderEffectiveRoutePolicyCandidateDiagnostics =
   };
 
 export type CopilotProviderEffectiveModelSelectionScope = {
+  projectModelId?: string;
   providerIds: string[];
   configuredModelIds: string[];
 };
@@ -1082,7 +1083,7 @@ export class CopilotProviderFactory {
     const { byokRegistry, quotaBackedRegistry, quotaBackedRoutesAvailable } =
       await this.getEffectiveRegistry(context);
     const routePolicyContext = {
-      workspaceId: context.workspaceId,
+      workspaceId: this.byokRouteContext(byokRegistry, context).workspaceId,
       featureKind: context.featureKind,
     };
     const byokProviderIds = this.getModelSelectionProviderIdsFromRegistry(
@@ -1098,6 +1099,11 @@ export class CopilotProviderFactory {
 
     return {
       providerIds: unique([...byokProviderIds, ...quotaBackedProviderIds]),
+      ...(this.isProjectByokRegistry(byokRegistry)
+        ? {
+            projectModelId: [...byokRegistry.profiles.values()][0]?.models?.[0],
+          }
+        : {}),
       configuredModelIds: unique([
         ...this.getConfiguredModelIdsForProviderIds(
           byokRegistry,
@@ -1166,7 +1172,7 @@ export class CopilotProviderFactory {
     }
 
     const byokRoutePolicyContext = {
-      workspaceId: context.workspaceId,
+      workspaceId: this.byokRouteContext(byokRegistry, context).workspaceId,
       featureKind: context.featureKind,
     };
     const byokRegistryAvailable = byokRegistry.order.length > 0;
@@ -1433,7 +1439,7 @@ export class CopilotProviderFactory {
       byokRegistry,
       byokCond,
       filter,
-      context,
+      this.byokRouteContext(byokRegistry, context),
       {
         registryKind: 'byok',
         registryAvailable: byokRegistry.order.length > 0,
@@ -1512,6 +1518,9 @@ export class CopilotProviderFactory {
     quotaBackedRegistry: CopilotProviderRegistry,
     cond: ModelFullConditions
   ): ModelFullConditions {
+    if (this.isProjectByokRegistry(byokRegistry)) {
+      return { ...cond, modelId: undefined };
+    }
     if (!cond.modelId || parseModelPrefix(byokRegistry, cond.modelId)) {
       return cond;
     }
@@ -1541,13 +1550,16 @@ export class CopilotProviderFactory {
     outputType?: ModelOutputType
   ): Promise<EffectiveProviderRegistry> {
     const instanceManaged = isInstanceManagedOutputType(outputType);
-    const quotaBackedRegistry =
-      await this.registries.getRegistryWithModelRevisions(
-        instanceManaged ? undefined : context.workspaceId
-      );
     const byokProfiles = instanceManaged
       ? []
       : (await this.access.resolveRouteAccess(context)).byokProfiles;
+    const quotaBackedRegistry =
+      await this.registries.getRegistryWithModelRevisions(
+        instanceManaged ||
+          byokProfiles.some(profile => profile.source === 'byok_project_global')
+          ? undefined
+          : context.workspaceId
+      );
 
     return {
       byokRegistry: buildProviderRegistry({
@@ -1567,11 +1579,27 @@ export class CopilotProviderFactory {
   ): CopilotAccessContext {
     return {
       userId: options?.user,
+      sessionId: options?.session,
       workspaceId: options?.workspace,
       byokLeaseId: options?.byokLeaseId,
       featureKind: options?.featureKind,
       quotaBackedRoutesAllowed: options?.quotaBackedRoutesAllowed,
     };
+  }
+
+  private isProjectByokRegistry(registry: CopilotProviderRegistry) {
+    return [...registry.profiles.values()].some(
+      profile => profile.source === 'byok_project_global'
+    );
+  }
+
+  private byokRouteContext(
+    registry: CopilotProviderRegistry,
+    context: CopilotAccessContext
+  ) {
+    return this.isProjectByokRegistry(registry)
+      ? { ...context, workspaceId: undefined }
+      : context;
   }
 
   private filterPreparedRoutes(routes: Array<ResolvedCopilotProvider | null>) {
@@ -1762,14 +1790,14 @@ export class CopilotProviderFactory {
       byokRegistry,
       byokCond,
       filter,
-      context,
+      this.byokRouteContext(byokRegistry, context),
       {
         registryKind: 'byok',
         registryAvailable: byokRegistry.order.length > 0,
       }
     );
     const normalizedByokRoutes =
-      byokCond === cond
+      byokCond === cond || this.isProjectByokRegistry(byokRegistry)
         ? byokRoutes
         : byokRoutes.map(route => ({ ...route, rawModelId: cond.modelId }));
     if (!byokRegistry.order.length) {

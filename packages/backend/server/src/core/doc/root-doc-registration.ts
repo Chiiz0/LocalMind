@@ -90,20 +90,28 @@ export function readRootDocPageIdsWithYjs(
   rootDocBin: Uint8Array,
   includeTrash = false
 ) {
+  return readRootDocPagesWithYjs(rootDocBin, includeTrash).map(page => page.id);
+}
+
+export function readRootDocPagesWithYjs(
+  rootDocBin: Uint8Array,
+  includeTrash = false
+) {
   const document = new Y.Doc();
   try {
     Y.applyUpdate(document, rootDocBin);
     const pages = document.getMap('meta').get('pages');
     if (!(pages instanceof Y.Array)) return [];
-    const ids: string[] = [];
+    const result: { id: string; title: string | null }[] = [];
     for (const page of pages.toArray()) {
       const id = pageValue(page, 'id');
       const trash = pageValue(page, 'trash');
       if (typeof id === 'string' && (includeTrash || trash !== true)) {
-        ids.push(id);
+        const title = pageValue(page, 'title');
+        result.push({ id, title: typeof title === 'string' ? title : null });
       }
     }
-    return ids;
+    return result;
   } finally {
     document.destroy();
   }

@@ -1,0 +1,23 @@
+#import './fragments/project-office-revision-fields.gql'
+
+query projectOfficeRevisionCompare($projectId: String!, $artifactId: String!, $beforeRevisionId: String!, $afterRevisionId: String!) {
+  projectOfficeRevisionCompare(
+    projectId: $projectId
+    artifactId: $artifactId
+    beforeRevisionId: $beforeRevisionId
+    afterRevisionId: $afterRevisionId
+  ) {
+    artifactId
+    kind
+    beforeRevision {
+      ...ProjectOfficeRevisionFields
+    }
+    afterRevision {
+      ...ProjectOfficeRevisionFields
+    }
+    changed
+    truncated
+    summary
+    changes
+  }
+}

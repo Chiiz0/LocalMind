@@ -13,7 +13,7 @@ export const ConversationSchema = z
   .object({
     id: z.string(),
     userId: z.string(),
-    workspaceId: z.string(),
+    workspaceId: z.string().nullable(),
     docId: z.string().nullable(),
     selectedContextProjectId: z.string().nullable(),
     pinned: z.boolean(),

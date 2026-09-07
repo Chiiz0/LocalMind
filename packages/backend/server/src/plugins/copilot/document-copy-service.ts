@@ -56,6 +56,7 @@ export class CopilotDocumentCopyService {
     const session = await this.models.copilotSession.getMeta(input.sessionId);
     if (
       !session ||
+      !session.workspaceId ||
       session.userId !== input.actorId ||
       input.workspaceId === input.documentId
     )

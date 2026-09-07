@@ -118,11 +118,20 @@ export class ChatSession implements AsyncDisposable {
       sessionId,
       userId,
       workspaceId,
+      selectedContextProjectId,
       docId,
       prompt: { name: promptName, config: promptConfig },
     } = this.state;
 
-    return { sessionId, userId, workspaceId, docId, promptName, promptConfig };
+    return {
+      sessionId,
+      userId,
+      workspaceId,
+      selectedContextProjectId,
+      docId,
+      promptName,
+      promptConfig,
+    };
   }
 
   get stashTurns() {
@@ -179,21 +188,34 @@ export class ChatSession implements AsyncDisposable {
 
   finish(
     params: PromptParams,
-    options: { contextWindow?: number } = {}
+    options: {
+      contextWindow?: number;
+      referenceMessages?: PromptMessage[];
+    } = {}
   ): PromptMessage[] {
     const turns = this.state.turns.map(turn => promptMessageFromTurn(turn));
     const maxTokenSize = resolveEffectiveMaxTokenSize(
       this.maxTokenSize,
       options.contextWindow
     );
-    const render = (plannedTurns: PromptMessage[]) =>
-      this.renderPromptSession(
+    const render = (plannedTurns: PromptMessage[]) => {
+      const messages = [...plannedTurns];
+      const latestUser = messages.findLastIndex(
+        message => message.role === 'user'
+      );
+      messages.splice(
+        latestUser < 0 ? messages.length : latestUser,
+        0,
+        ...(options.referenceMessages ?? [])
+      );
+      return this.renderPromptSession(
         this.state.prompt,
-        plannedTurns,
+        messages,
         params,
         maxTokenSize,
         this.state.sessionId
       );
+    };
     if (!this.context) return render(turns);
 
     const plan = this.context.planner.plan({
@@ -291,6 +313,7 @@ export class ChatSessionService {
         .retrieveVisible({
           userId: scope.userId,
           workspaceId: scope.workspaceId,
+          sessionId: scope.sessionId,
           docIds: scope.readableDocIds,
           documentRefs: scope.readableDocumentRefs,
           projectIds: scope.projectIds,
@@ -482,6 +505,19 @@ export class ChatSessionService {
     return await this.access.getQuota(userId);
   }
 
+  async assertOwnedSession(userId: string, sessionId: string) {
+    const session = await this.models.copilotSession.getMeta(sessionId);
+    if (!session || session.userId !== userId)
+      throw new CopilotSessionNotFound();
+    if (session.selectedContextProjectId) {
+      await this.models.projectResource.assertMember({
+        actorId: userId,
+        projectId: session.selectedContextProjectId,
+      });
+    }
+    return session;
+  }
+
   async checkQuota(userId: string) {
     await this.access.checkQuota(userId);
   }
@@ -512,7 +548,7 @@ export class ChatSessionService {
   }
 
   @Transactional()
-  async unpin(workspaceId: string, userId: string) {
+  async unpin(workspaceId: string | null, userId: string) {
     await this.store.unpin(workspaceId, userId);
   }
 
@@ -710,6 +746,7 @@ export class ChatSessionService {
           sessionId: state.conversation.id,
           workspaceId: state.conversation.workspaceId,
           docId: state.conversation.docId,
+          selectedContextProjectId: state.conversation.selectedContextProjectId,
           turns: state.turns,
           prompt: state.prompt,
         },

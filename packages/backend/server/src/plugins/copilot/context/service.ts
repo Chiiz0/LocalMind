@@ -179,6 +179,7 @@ export class CopilotContextService implements OnApplicationBootstrap {
     );
     if (
       !accessInfo ||
+      !accessInfo.session.workspaceId ||
       accessInfo.session.userId !== userId ||
       (options.workspaceId &&
         accessInfo.session.workspaceId !== options.workspaceId) ||

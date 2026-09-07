@@ -126,6 +126,9 @@ export class ChatPanelAddPopover extends SignalWatcher(
   @property({ attribute: false })
   accessor docId: string | undefined;
 
+  @property({ attribute: false })
+  accessor attachmentsOnly = false;
+
   @state()
   private accessor _searchGroups: MenuGroup[] = [];
 
@@ -139,7 +142,7 @@ export class ChatPanelAddPopover extends SignalWatcher(
 
   private _focusSearchInput() {
     requestAnimationFrame(() => {
-      this.searchInput.focus();
+      this.searchInput?.focus();
     });
   }
 
@@ -207,6 +210,7 @@ export class ChatPanelAddPopover extends SignalWatcher(
   };
 
   private get _menuGroup() {
+    if (this.attachmentsOnly) return [this.uploadGroup];
     let groups: MenuGroup[] = [];
 
     switch (this._mode) {
@@ -220,7 +224,13 @@ export class ChatPanelAddPopover extends SignalWatcher(
         if (this._query) {
           groups = [...this._searchGroups, this.uploadGroup];
         } else {
-          groups = [...this._searchGroups, this.tcGroup, this.uploadGroup];
+          groups = [
+            ...this._searchGroups,
+            ...(this.searchMenuConfig?.supportsCategories === false
+              ? []
+              : [this.tcGroup]),
+            this.uploadGroup,
+          ];
         }
     }
 
@@ -293,7 +303,7 @@ export class ChatPanelAddPopover extends SignalWatcher(
   }
 
   override firstUpdated() {
-    this._focusSearchInput();
+    if (!this.attachmentsOnly) this._focusSearchInput();
   }
 
   override disconnectedCallback() {
@@ -304,8 +314,8 @@ export class ChatPanelAddPopover extends SignalWatcher(
 
   override render() {
     return html`<div class="ai-add-popover" data-testid="ai-add-popover">
-      ${this._renderSearchInput()} ${this._renderDivider()}
-      ${this._renderMenuGroup(this._menuGroup)}
+      ${this.attachmentsOnly ? '' : this._renderSearchInput()}
+      ${this._renderDivider()} ${this._renderMenuGroup(this._menuGroup)}
     </div>`;
   }
 
@@ -412,6 +422,7 @@ export class ChatPanelAddPopover extends SignalWatcher(
   }
 
   private _updateSearchGroup() {
+    if (this.attachmentsOnly) return;
     this._menuGroupAbortController.abort();
     this._menuGroupAbortController = new AbortController();
     switch (this._mode) {

@@ -1,0 +1,3 @@
+query projectDestinationWorkspaces($projectId: String!) {
+  projectDestinationWorkspaces(projectId: $projectId) { id name }
+}

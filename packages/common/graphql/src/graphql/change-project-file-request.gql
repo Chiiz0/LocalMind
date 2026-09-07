@@ -1,0 +1,4 @@
+mutation changeProjectFileRequest($requestId: String!, $expectedVersion: Int!, $action: String!) {
+  changeProjectFileRequest(requestId: $requestId, expectedVersion: $expectedVersion, action: $action) { ...ProjectFileRequestFields }
+}
+#import './fragments/project-file-request-fields.gql'

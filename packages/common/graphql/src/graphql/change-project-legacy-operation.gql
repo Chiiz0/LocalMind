@@ -1,0 +1,5 @@
+mutation changeProjectLegacyOperation($projectId: String!, $operationId: String!, $expectedRevision: Int!, $action: String!) {
+  changeProjectLegacyOperation(projectId: $projectId, operationId: $operationId, expectedRevision: $expectedRevision, action: $action) {
+    id title status revision resourceId createdAt
+  }
+}

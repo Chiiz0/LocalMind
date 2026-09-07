@@ -1,0 +1,15 @@
+#import './fragments/project-office-artifact-fields.gql'
+#import './fragments/project-office-revision-fields.gql'
+
+mutation importProjectOffice($input: ImportProjectOfficeInput!) {
+  importProjectOffice(input: $input) {
+    created
+    artifact {
+      ...ProjectOfficeArtifactFields
+    }
+    revision {
+      ...ProjectOfficeRevisionFields
+    }
+    summary
+  }
+}

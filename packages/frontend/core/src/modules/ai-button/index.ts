@@ -12,6 +12,7 @@ import { GraphQLService, ServerScope, SubscriptionService } from '../cloud';
 import { FeatureFlagService } from '../feature-flag';
 import { CacheStorage, GlobalStateService } from '../storage';
 import { WorkspaceScope } from '../workspace';
+import { ProjectAIModel } from './entities/project-model';
 import { AIButtonProvider } from './provider/ai-button';
 import { AIButtonService } from './services/ai-button';
 import { AIDraftService } from './services/ai-draft';
@@ -47,6 +48,7 @@ export function configureAIToolsConfigModule(framework: Framework) {
 export function configureAIModelModule(framework: Framework) {
   framework
     .scope(ServerScope)
+    .entity(ProjectAIModel, [GraphQLService])
     .service(AIModelService, [
       GlobalStateService,
       GraphQLService,

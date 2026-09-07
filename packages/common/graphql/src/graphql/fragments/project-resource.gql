@@ -1,0 +1,14 @@
+fragment ProjectResourceFields on ProjectResourceType {
+  id
+  projectId
+  parentId
+  kind
+  title
+  sortKey
+  version
+  contentVersion
+  officeArtifactId
+  trashedAt
+  createdAt
+  updatedAt
+}

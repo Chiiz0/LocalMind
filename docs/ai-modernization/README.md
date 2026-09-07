@@ -51,12 +51,20 @@ this modernization plan.
 
 ## Track Documents
 
+The implemented [Project Native Resources](tracks/project-native-resources.md)
+owns Project storage, file trees, independent copies, explicit Workspace
+publishing, and migration, superseding older reference-only Project rules.
+Its [goal instruction](project-native-resources.goal.md) defines the execution
+scope. [Execution and acceptance evidence](project-native-resources.execution.md)
+records P1-P6, A01-A22, migration exceptions, backups and runtime verification.
+
 - `tracks/support-bundle.md`
 - `tracks/repair-execution.md`
 - `tracks/agent-runtime.md`
 - `tracks/registries.md`
 - `tracks/context-memory.md`
 - `tracks/intelligence-workbench.md`
+- `tracks/project-native-resources.md`
 
 ## Local Documentation Policy
 

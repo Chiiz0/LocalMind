@@ -78,6 +78,7 @@ export type IntelligenceWorkbenchRequestAccessInput = {
   requestedTitle?: string | null;
   expiresAt?: Date | null;
   idempotencyKey?: string;
+  purpose?: 'access' | 'project_copy';
 } & (
   | { beneficiaryType: 'user'; beneficiaryUserId: string }
   | { beneficiaryType: 'project'; beneficiaryProjectId: string }
@@ -162,6 +163,60 @@ function terminalTimestampData(
 
 @Injectable()
 export class IntelligenceWorkbenchAuthorizationModel extends BaseModel {
+  @Transactional()
+  async projectCopyPermission(input: ProjectDocumentRef & { actorId: string }) {
+    await this.lockProjectDocumentAuthorization(input);
+    await this.models.projectResource.assertMember(input, true);
+    const source = await this.sourceDocumentCapability({
+      ...input,
+      userId: input.actorId,
+    });
+    if (!(await this.models.workspace.allowSharing(input.workspaceId)))
+      throw new BadRequest(
+        'The source Workspace does not allow sharing copies'
+      );
+    if (source.canShare)
+      return {
+        method: 'source_sharing_authority' as const,
+        authorizationId: null,
+      };
+    const approval = await this.db.aiContextProjectCopyAuthorization.findFirst({
+      where: {
+        projectId: input.projectId,
+        workspaceId: input.workspaceId,
+        docId: input.docId,
+        grant: { status: 'active' },
+        request: { status: 'approved', purpose: 'project_copy' },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!approval)
+      throw new BadRequest(
+        'Source permission to copy this document into the Project is required'
+      );
+    return {
+      method: 'approved_project_copy' as const,
+      authorizationId: approval.requestId,
+    };
+  }
+
+  @Transactional()
+  async requestProjectCopy(
+    input: ProjectDocumentRef & { actorId: string; requestKey: string }
+  ) {
+    await this.lockProjectDocumentAuthorization(input);
+    await this.models.projectResource.assertMember(input, true);
+    return this.createAccessRequest({
+      ...input,
+      beneficiaryType: 'project',
+      beneficiaryProjectId: input.projectId,
+      requesterUserId: input.actorId,
+      requestedLevel: 'read',
+      purpose: 'project_copy',
+      idempotencyKey: input.requestKey,
+    });
+  }
+
   @Transactional()
   async lockProjectDocumentAuthorization(input: ProjectDocumentRef) {
     const projectId = requireString(input.projectId, 'projectId');
@@ -630,21 +685,58 @@ export class IntelligenceWorkbenchAuthorizationModel extends BaseModel {
         },
         select: { status: true },
       });
-      if (placeholder?.status !== 'pending') {
+      if (
+        placeholder?.status !== 'pending' &&
+        current.purpose !== 'project_copy'
+      ) {
         throw new NotFound('Access request not found');
       }
-      await this.createProjectGrant({
+      const existingGrant =
+        current.purpose === 'project_copy'
+          ? await this.findActiveProjectGrant({
+              projectId: current.beneficiaryProjectId,
+              workspaceId: current.workspaceId,
+              docId: current.docId,
+            })
+          : null;
+      if (current.purpose === 'project_copy') {
+        const authority = await this.sourceDocumentCapability({
+          workspaceId: current.workspaceId,
+          docId: current.docId,
+          userId: input.actorUserId,
+        });
+        if (
+          !authority.canShare ||
+          !(await this.models.workspace.allowSharing(current.workspaceId))
+        )
+          throw new BadRequest(
+            'Source sharing authority is required to approve a Project copy'
+          );
+      }
+      const grant = await this.createProjectGrant({
         projectId: current.beneficiaryProjectId,
         workspaceId: current.workspaceId,
         docId: current.docId,
-        requestedLevel:
-          current.requestedLevel as IntelligenceWorkbenchGrantLevel,
+        requestedLevel: (existingGrant?.level ??
+          current.requestedLevel) as IntelligenceWorkbenchGrantLevel,
         suppliedTitle: current.requestedTitle,
         actorUserId: input.actorUserId,
         addedByUserId: current.requesterUserId,
         source: 'access_request',
         accessRequestId: current.id,
+        nativeCopy: current.purpose === 'project_copy',
       });
+      if (current.purpose === 'project_copy')
+        await this.db.aiContextProjectCopyAuthorization.create({
+          data: {
+            requestId: current.id,
+            grantId: grant.id,
+            projectId: current.beneficiaryProjectId,
+            workspaceId: current.workspaceId,
+            docId: current.docId,
+            approvedBy: input.actorUserId,
+          },
+        });
     } else if (
       current.beneficiaryType === 'user' &&
       current.beneficiaryUserId
@@ -1750,6 +1842,7 @@ export class IntelligenceWorkbenchAuthorizationModel extends BaseModel {
       sortOrder?: number;
       source: 'direct' | 'access_request';
       accessRequestId?: string;
+      nativeCopy?: boolean;
     }
   ) {
     const level = requireGrantLevel(input.requestedLevel);
@@ -1798,7 +1891,8 @@ export class IntelligenceWorkbenchAuthorizationModel extends BaseModel {
       where: documentKey,
       select: { projectId: true },
     });
-    if (!document) await this.ensureProjectDocumentCapacity(input.projectId);
+    if (!document && !input.nativeCopy)
+      await this.ensureProjectDocumentCapacity(input.projectId);
     await this.db.aiContextProjectDoc.upsert({
       where: documentKey,
       create: {
@@ -1874,6 +1968,7 @@ export class IntelligenceWorkbenchAuthorizationModel extends BaseModel {
         workspaceId: input.workspaceId,
         docId: input.docId,
         status: 'pending',
+        purpose: 'access',
       },
       orderBy: { id: 'asc' },
     });
@@ -1909,6 +2004,7 @@ export class IntelligenceWorkbenchAuthorizationModel extends BaseModel {
         MAX_TITLE_LENGTH
       ),
       requesterSuppliedIdentity,
+      purpose: input.purpose ?? 'access',
     };
     if (
       !normalized.requesterSuppliedIdentity &&
@@ -1954,6 +2050,7 @@ export class IntelligenceWorkbenchAuthorizationModel extends BaseModel {
       normalized.requestedLevel,
       String(normalized.requesterSuppliedIdentity),
       idempotencyKey,
+      ...(input.purpose === 'project_copy' ? ['project_copy'] : []),
     ]);
     const replay = await this.db.accessRequest.findUnique({
       where: { requestFingerprint },
@@ -1970,6 +2067,7 @@ export class IntelligenceWorkbenchAuthorizationModel extends BaseModel {
         beneficiaryUserId: beneficiary.beneficiaryUserId,
         beneficiaryProjectId: beneficiary.beneficiaryProjectId,
         status: 'pending',
+        purpose: normalized.purpose,
       },
     });
     if (pending) {
@@ -1989,7 +2087,17 @@ export class IntelligenceWorkbenchAuthorizationModel extends BaseModel {
         expiresAt: input.expiresAt ?? null,
       },
     });
-    if (beneficiary.beneficiaryProjectId) {
+    if (
+      beneficiary.beneficiaryProjectId &&
+      !(
+        normalized.purpose === 'project_copy' &&
+        (await this.findActiveProjectGrant({
+          projectId: beneficiary.beneficiaryProjectId,
+          workspaceId: normalized.workspaceId,
+          docId: normalized.docId,
+        }))
+      )
+    ) {
       const documentKey = {
         projectId_workspaceId_docId: {
           projectId: beneficiary.beneficiaryProjectId,
@@ -2001,7 +2109,7 @@ export class IntelligenceWorkbenchAuthorizationModel extends BaseModel {
         where: documentKey,
         select: { projectId: true },
       });
-      if (!document) {
+      if (!document && normalized.purpose !== 'project_copy') {
         await this.ensureProjectDocumentCapacity(
           beneficiary.beneficiaryProjectId
         );
@@ -2043,6 +2151,7 @@ export class IntelligenceWorkbenchAuthorizationModel extends BaseModel {
       actorUserId: normalized.requesterUserId,
       metadata: {
         requesterSuppliedIdentity: normalized.requesterSuppliedIdentity,
+        purpose: normalized.purpose,
       },
     });
     return { created: true, request };

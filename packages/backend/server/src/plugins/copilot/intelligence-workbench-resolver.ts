@@ -88,6 +88,9 @@ export class CopilotAccessRequestType {
   @Field(() => String)
   requestedLevel!: string;
 
+  @Field(() => String)
+  purpose!: string;
+
   @Field(() => String, { nullable: true })
   requestedTitle!: string | null;
 
@@ -559,6 +562,7 @@ export class IntelligenceWorkbenchResolver {
       requesterUserId:
         request.requesterUserId ?? request.requesterUserIdSnapshot,
       requestedLevel: request.requestedLevel,
+      purpose: request.purpose,
       requestedTitle: identityVisible ? request.requestedTitle : null,
       status: request.status,
       resolvedByUserId: request.resolvedByUserId,

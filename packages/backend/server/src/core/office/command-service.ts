@@ -9,15 +9,22 @@ import { OfficeRevisionOrigin, type Prisma } from '@prisma/client';
 
 import { readBufferWithLimit } from '../../base';
 import { Models } from '../../models';
+import {
+  type OfficeOwner,
+  officeOwnerFromInput,
+  type OfficeOwnerInput,
+  officeOwnerToInput,
+} from '../../models/office-owner';
 import { PermissionAccess } from '../permission';
-import { WorkspaceBlobStorage } from '../storage';
 import { officeFingerprint, officeJsonFingerprint } from './evidence';
 import {
   applyNativeOfficeCommand,
   type NativeOfficeState,
   officeFormatForCommand,
+  officePackageSearchText,
   officeStateStats,
 } from './formats';
+import { OfficeResourceStorage } from './resource-storage';
 
 const ORIGIN_BY_SOURCE = {
   user: OfficeRevisionOrigin.user,
@@ -32,15 +39,13 @@ type PreparedOfficeCommandResult = {
   summary: Record<string, unknown>;
 };
 
-export type ExecuteOfficeCommandInput = {
-  workspaceId: string;
+export type ExecuteOfficeCommandInput = OfficeOwnerInput & {
   actorId: string;
   sourceSessionId?: string | null;
   command: unknown;
 };
 
-export type ExecuteOfficeCommandBatchInput = {
-  workspaceId: string;
+export type ExecuteOfficeCommandBatchInput = OfficeOwnerInput & {
   actorId: string;
   sourceSessionId?: string | null;
   batch: unknown;
@@ -381,7 +386,7 @@ function batchSummary(
 export class OfficeCommandService {
   constructor(
     private readonly models: Models,
-    private readonly storage: WorkspaceBlobStorage,
+    private readonly storage: OfficeResourceStorage,
     private readonly ac: PermissionAccess
   ) {}
 
@@ -422,12 +427,12 @@ export class OfficeCommandService {
   }
 
   async execute(input: ExecuteOfficeCommandInput) {
-    const { workspaceId, actorId, command, artifact, parent, policy, result } =
-      await this.prepare(input);
+    const { owner, actorId, command, artifact, parent, policy, result } =
+      await this.prepare(input, true);
     const idempotencyFingerprint = officeJsonFingerprint({
       version: 'localmind-office-command-execution/v1',
       format: policy.format,
-      workspaceId,
+      ...officeOwnerToInput(owner),
       actorId,
       parentRevisionId: parent.id,
       parentPackageFingerprint: parent.packageFingerprint,
@@ -443,7 +448,7 @@ export class OfficeCommandService {
       operation: command.operation,
     } satisfies Prisma.InputJsonObject;
     return await this.persistPrepared({
-      workspaceId,
+      owner,
       actorId,
       artifact,
       parent,
@@ -458,12 +463,12 @@ export class OfficeCommandService {
   }
 
   async executeBatch(input: ExecuteOfficeCommandBatchInput) {
-    const { workspaceId, actorId, batch, artifact, parent, policy, result } =
-      await this.prepareBatch(input);
+    const { owner, actorId, batch, artifact, parent, policy, result } =
+      await this.prepareBatch(input, true);
     const idempotencyFingerprint = officeJsonFingerprint({
       version: 'localmind-office-command-batch-execution/v1',
       format: policy.format,
-      workspaceId,
+      ...officeOwnerToInput(owner),
       actorId,
       parentRevisionId: parent.id,
       parentPackageFingerprint: parent.packageFingerprint,
@@ -476,7 +481,7 @@ export class OfficeCommandService {
       ...result.summary,
     } satisfies Prisma.InputJsonObject;
     return await this.persistPrepared({
-      workspaceId,
+      owner,
       actorId,
       artifact,
       parent,
@@ -491,7 +496,7 @@ export class OfficeCommandService {
   }
 
   private async persistPrepared(input: {
-    workspaceId: string;
+    owner: OfficeOwner;
     actorId: string;
     artifact: Awaited<ReturnType<Models['officeArtifact']['get']>> & {};
     parent: NonNullable<
@@ -505,6 +510,41 @@ export class OfficeCommandService {
     idempotencyFingerprint: string;
     operationSummary: Prisma.InputJsonObject;
   }) {
+    if (typeof input.owner !== 'string') {
+      const projectId = input.owner.projectId;
+      const execute = async () => {
+        await this.models.projectResource.assertOfficeResource({
+          projectId,
+          actorId: input.actorId,
+          artifactId: input.artifact.id,
+        });
+        return this.persistAuthorized(input);
+      };
+      if (input.source === 'ai') {
+        if (!input.sourceSessionId)
+          throw new Error(
+            'Project AI writes require their source conversation'
+          );
+        return this.models.copilotContext.withProjectSourcesShared(
+          {
+            projectId,
+            actorId: input.actorId,
+            sessionId: input.sourceSessionId,
+            sink: {
+              type: 'tool_write',
+              projectId,
+              id: input.artifact.id,
+              phase: 'execute',
+            },
+          },
+          execute
+        );
+      }
+      return this.models.projectResource.withMember(
+        { projectId, actorId: input.actorId },
+        execute
+      );
+    }
     if (input.source === 'ai')
       return await this.models.copilotContext.withDocumentSourcesShared(
         {
@@ -514,7 +554,7 @@ export class OfficeCommandService {
             type: 'tool_write',
             id: input.artifact.id,
             documentId: input.artifact.id,
-            workspaceId: input.workspaceId,
+            workspaceId: input.owner,
             phase: 'execute',
           },
         },
@@ -527,7 +567,7 @@ export class OfficeCommandService {
     input: Parameters<OfficeCommandService['persistPrepared']>[0]
   ) {
     const {
-      workspaceId,
+      owner,
       actorId,
       artifact,
       parent,
@@ -541,11 +581,16 @@ export class OfficeCommandService {
     const packageBytes = Buffer.from(result.packageBytes);
     const packageFingerprint = officeFingerprint(packageBytes);
     const hash = packageFingerprint.slice('sha256:'.length);
-    const packageBlobKey = `office/package/${policy.format}/${hash}${policy.extension}`;
-    await this.storage.put(workspaceId, packageBlobKey, packageBytes, {
-      contentType: policy.mimeType,
-      contentLength: packageBytes.byteLength,
-    });
+    const packageBlobKey = await this.storage.put(
+      owner,
+      actorId,
+      `office/package/${policy.format}/${hash}${policy.extension}`,
+      packageBytes,
+      {
+        contentType: policy.mimeType,
+        contentLength: packageBytes.byteLength,
+      }
+    );
     const stateBytes = Buffer.from(JSON.stringify(result.state), 'utf8');
     if (
       !stateBytes.byteLength ||
@@ -556,13 +601,18 @@ export class OfficeCommandService {
       );
     }
     const stateFingerprint = officeFingerprint(stateBytes);
-    const stateBlobKey = `office/state/${policy.format}/${stateFingerprint.slice('sha256:'.length)}.json`;
-    await this.storage.put(workspaceId, stateBlobKey, stateBytes, {
-      contentType: policy.stateMimeType,
-      contentLength: stateBytes.byteLength,
-    });
+    const stateBlobKey = await this.storage.put(
+      owner,
+      actorId,
+      `office/state/${policy.format}/${stateFingerprint.slice('sha256:'.length)}.json`,
+      stateBytes,
+      {
+        contentType: policy.stateMimeType,
+        contentLength: stateBytes.byteLength,
+      }
+    );
     const appended = await this.models.officeArtifact.appendRevision({
-      workspaceId,
+      ...officeOwnerToInput(owner),
       artifactId: artifact.id,
       actorId,
       origin: ORIGIN_BY_SOURCE[source],
@@ -583,6 +633,14 @@ export class OfficeCommandService {
       modelVersion: policy.modelVersion,
       operationSummary,
     });
+    if (typeof owner !== 'string')
+      await this.models.projectResource.updateSearchText({
+        projectId: owner.projectId,
+        actorId,
+        resourceId: artifact.id,
+        sequence: appended.revision.sequence,
+        text: await officePackageSearchText(result.state, packageBytes),
+      });
     return {
       ...appended,
       packageBlobKey,
@@ -594,17 +652,19 @@ export class OfficeCommandService {
     };
   }
 
-  private async prepare(input: ExecuteOfficeCommandInput) {
-    const workspaceId = requireExecutionField(
-      input.workspaceId,
-      'workspace id'
-    );
+  private async prepare(input: ExecuteOfficeCommandInput, allowReplay = false) {
+    const owner = officeOwnerFromInput(input);
     const actorId = requireExecutionField(input.actorId, 'actor id');
     const command = parseOfficeCommand(input.command);
     const policy = officeFormatForCommand(command);
-    await this.assertPermissions(workspaceId, actorId, command.source);
+    await this.assertPermissions(
+      owner,
+      actorId,
+      command.source,
+      command.artifactId
+    );
     const artifact = await this.models.officeArtifact.get(
-      workspaceId,
+      owner,
       command.artifactId
     );
     if (!artifact || artifact.kind !== policy.kind) {
@@ -612,9 +672,12 @@ export class OfficeCommandService {
         `Office ${policy.format.toUpperCase()} artifact not found: ${command.artifactId}`
       );
     }
-    const parent = await this.models.officeArtifact.getCurrentRevision(
-      workspaceId,
-      command.artifactId
+    const parent = await this.commandParent(
+      owner,
+      command.artifactId,
+      command.expectedRevisionId,
+      command.idempotencyKey,
+      allowReplay
     );
     if (!parent || parent.id !== command.expectedRevisionId) {
       throw new Error(
@@ -627,7 +690,8 @@ export class OfficeCommandService {
       );
     }
     const parentBytes = await this.readRevisionPackage(
-      workspaceId,
+      owner,
+      actorId,
       parent.packageBlobKey,
       parent.packageMimeType,
       parent.packageByteSize,
@@ -641,7 +705,7 @@ export class OfficeCommandService {
     }
     const result = await applyNativeOfficeCommand(policy, parentBytes, command);
     return {
-      workspaceId,
+      owner,
       actorId,
       command,
       artifact,
@@ -651,11 +715,11 @@ export class OfficeCommandService {
     };
   }
 
-  private async prepareBatch(input: ExecuteOfficeCommandBatchInput) {
-    const workspaceId = requireExecutionField(
-      input.workspaceId,
-      'workspace id'
-    );
+  private async prepareBatch(
+    input: ExecuteOfficeCommandBatchInput,
+    allowReplay = false
+  ) {
+    const owner = officeOwnerFromInput(input);
     const actorId = requireExecutionField(input.actorId, 'actor id');
     const batch = parseOfficeCommandBatch(input.batch);
     const policy = officeFormatForCommand(batch.commands[0]);
@@ -666,9 +730,14 @@ export class OfficeCommandService {
         );
       }
     }
-    await this.assertPermissions(workspaceId, actorId, batch.source);
+    await this.assertPermissions(
+      owner,
+      actorId,
+      batch.source,
+      batch.artifactId
+    );
     const artifact = await this.models.officeArtifact.get(
-      workspaceId,
+      owner,
       batch.artifactId
     );
     if (!artifact || artifact.kind !== policy.kind) {
@@ -676,9 +745,12 @@ export class OfficeCommandService {
         `Office ${policy.format.toUpperCase()} artifact not found: ${batch.artifactId}`
       );
     }
-    const parent = await this.models.officeArtifact.getCurrentRevision(
-      workspaceId,
-      batch.artifactId
+    const parent = await this.commandParent(
+      owner,
+      batch.artifactId,
+      batch.expectedRevisionId,
+      batch.idempotencyKey,
+      allowReplay
     );
     if (!parent || parent.id !== batch.expectedRevisionId) {
       throw new Error(
@@ -691,7 +763,8 @@ export class OfficeCommandService {
       );
     }
     let packageBytes = await this.readRevisionPackage(
-      workspaceId,
+      owner,
+      actorId,
       parent.packageBlobKey,
       parent.packageMimeType,
       parent.packageByteSize,
@@ -728,7 +801,7 @@ export class OfficeCommandService {
       throw new Error('Office command batch must contain at least one command');
     }
     return {
-      workspaceId,
+      owner,
       actorId,
       batch,
       artifact,
@@ -741,27 +814,65 @@ export class OfficeCommandService {
     };
   }
 
-  private async assertPermissions(
-    workspaceId: string,
-    actorId: string,
-    source: 'user' | 'ai' | 'system'
+  private async commandParent(
+    owner: OfficeOwner,
+    artifactId: string,
+    expectedRevisionId: string,
+    requestKey: string,
+    allowReplay: boolean
   ) {
+    const current = await this.models.officeArtifact.getCurrentRevision(
+      owner,
+      artifactId
+    );
+    if (
+      typeof owner !== 'string' &&
+      allowReplay &&
+      current?.id !== expectedRevisionId
+    ) {
+      const committed = await this.models.officeArtifact.getRevisionByRequest(
+        owner,
+        artifactId,
+        requestKey
+      );
+      if (committed?.parentRevisionId === expectedRevisionId)
+        return this.models.officeArtifact.getRevision(
+          owner,
+          artifactId,
+          expectedRevisionId
+        );
+    }
+    return current;
+  }
+
+  private async assertPermissions(
+    owner: OfficeOwner,
+    actorId: string,
+    source: 'user' | 'ai' | 'system',
+    artifactId: string
+  ) {
+    if (typeof owner !== 'string') {
+      await this.models.projectResource.assertOfficeResource({
+        projectId: owner.projectId,
+        actorId,
+        artifactId,
+      });
+      return;
+    }
     const checks = [
-      this.ac
-        .user(actorId)
-        .workspace(workspaceId)
-        .assert('Workspace.Blobs.Write'),
+      this.ac.user(actorId).workspace(owner).assert('Workspace.Blobs.Write'),
     ];
     if (source === 'ai') {
       checks.push(
-        this.ac.user(actorId).workspace(workspaceId).assert('Workspace.Copilot')
+        this.ac.user(actorId).workspace(owner).assert('Workspace.Copilot')
       );
     }
     await Promise.all(checks);
   }
 
   private async readRevisionPackage(
-    workspaceId: string,
+    owner: OfficeOwner,
+    actorId: string,
     key: string,
     mimeType: string,
     byteSize: number,
@@ -777,7 +888,7 @@ export class OfficeCommandService {
         `Office ${format.toUpperCase()} revision has an invalid byte size: ${key}`
       );
     }
-    const stored = await this.storage.get(workspaceId, key);
+    const stored = await this.storage.get(owner, actorId, key);
     if (!stored.body) {
       throw new Error(
         `Office ${format.toUpperCase()} revision bytes are not available: ${key}`

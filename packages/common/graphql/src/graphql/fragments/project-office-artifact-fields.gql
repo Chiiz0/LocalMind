@@ -1,0 +1,34 @@
+fragment ProjectOfficeArtifactFields on ProjectOfficeArtifactType {
+  id
+  projectId
+  kind
+  title
+  sourceFileName
+  sourceMimeType
+  sourceByteSize
+  sourceFingerprint
+  revisionCounter
+  compatibility
+  createdBy
+  createdAt
+  updatedAt
+  currentRevision {
+    id
+    projectId
+    artifactId
+    sequence
+    origin
+    parentRevisionId
+    packageMimeType
+    packageByteSize
+    packageFingerprint
+    stateByteSize
+    stateFingerprint
+    modelVersion
+    operationSummary
+    createdBy
+    createdAt
+    packageUrl
+    stateUrl
+  }
+}

@@ -10,6 +10,7 @@ import {
   DocAIChatSessionStrategy,
   ForkAIChatSessionStrategy,
   PlaygroundAIChatSessionStrategy,
+  ProjectAIChatSessionStrategy,
   WorkspaceAIChatSessionStrategy,
 } from './session-strategy';
 import type { AIChatScope } from './state';
@@ -64,6 +65,20 @@ function createRequest(
 ): AIRequestService {
   return {
     getSessions: vi.fn().mockResolvedValue([]),
+    getProjectSession: vi.fn().mockResolvedValue(null),
+    getProjectSessions: vi.fn().mockResolvedValue([]),
+    cleanupProjectSessions: vi.fn().mockResolvedValue(undefined),
+    projectContext: {
+      get: vi.fn().mockResolvedValue({
+        projectId: 'project-1',
+        sessionId: 'session-1',
+        version: 0,
+        items: [],
+      }),
+      set: vi.fn(),
+      upload: vi.fn(),
+      resource: vi.fn(),
+    },
     getRecentSessions: vi.fn().mockResolvedValue([]),
     getSession: vi.fn().mockResolvedValue(null),
     createSessionWithHistory: vi.fn().mockResolvedValue(session()),
@@ -109,6 +124,201 @@ function createRuntime(request = createRequest()) {
 }
 
 describe('AIChatRuntime', () => {
+  test('Project sessions create, send, reopen and delete without any Workspace API', async () => {
+    const projectSession = session({
+      workspaceId: null,
+      docId: null,
+      selectedContextProjectId: 'project-1',
+    });
+    const request = createRequest({
+      createSessionWithHistory: vi.fn().mockResolvedValue(projectSession),
+      getProjectSession: vi.fn().mockResolvedValue(projectSession),
+    });
+    const runtime = new AIChatRuntime({
+      request,
+      scope: { kind: 'project', projectId: 'project-1' },
+      strategy: new ProjectAIChatSessionStrategy(),
+      chatSurface: 'intelligence_workbench',
+      projectId: 'project-1',
+    });
+    await runtime.dispatch({ type: 'initialize' });
+    await runtime.dispatch({
+      type: 'send',
+      input: 'Create an internal document',
+    });
+    expect(request.createSessionWithHistory).toHaveBeenCalledWith({
+      projectId: 'project-1',
+      promptName: 'Chat With LocalMind AI',
+      reuseLatestChat: false,
+      pinned: undefined,
+    });
+    expect(request.updateSession).not.toHaveBeenCalled();
+    expect(request.executeAction).toHaveBeenCalledWith(
+      'chat',
+      expect.objectContaining({
+        workspaceId: undefined,
+        projectId: 'project-1',
+        sessionId: projectSession.sessionId,
+      })
+    );
+    expect(runtime.getSnapshot().status).toBe('success');
+    await runtime.dispatch({ type: 'loadContext' });
+    await runtime.dispatch({
+      type: 'openSession',
+      sessionId: projectSession.sessionId,
+    });
+    await runtime.dispatch({
+      type: 'deleteSession',
+      sessionId: projectSession.sessionId,
+    });
+    expect(request.cleanupProjectSessions).toHaveBeenCalledWith('project-1', [
+      projectSession.sessionId,
+    ]);
+    expect(request.getSessions).not.toHaveBeenCalled();
+    expect(request.getSession).not.toHaveBeenCalled();
+    expect(request.cleanupSessions).not.toHaveBeenCalled();
+    expect(request.context.getContextId).not.toHaveBeenCalled();
+    expect(request.context.getSessionScope).not.toHaveBeenCalled();
+    runtime.dispose();
+  });
+
+  test('Project scope rejects foreign sessions and persists attachments through the native context API before switching', async () => {
+    const request = createRequest({
+      createSessionWithHistory: vi.fn().mockResolvedValue(
+        session({
+          workspaceId: null,
+          docId: null,
+          selectedContextProjectId: 'project-1',
+        })
+      ),
+      getProjectSession: vi
+        .fn()
+        .mockResolvedValue(session({ selectedContextProjectId: 'project-1' })),
+    });
+    const runtime = new AIChatRuntime({
+      request,
+      scope: { kind: 'project', projectId: 'project-1' },
+      strategy: new ProjectAIChatSessionStrategy(),
+    });
+    await runtime.dispatch({ type: 'initialize' });
+    await runtime.dispatch({
+      type: 'openSession',
+      sessionId: 'legacy-session',
+    });
+    expect(runtime.getSnapshot().activeSessionId).toBeNull();
+    vi.mocked(request.getProjectSession).mockResolvedValue(
+      session({
+        workspaceId: null,
+        docId: null,
+        selectedContextProjectId: 'project-2',
+      })
+    );
+    await runtime.dispatch({
+      type: 'openSession',
+      sessionId: 'other-project-session',
+    });
+    expect(runtime.getSnapshot().activeSessionId).toBeNull();
+    vi.mocked(request.projectContext.upload).mockImplementation(async () => {
+      const context = {
+        projectId: 'project-1',
+        sessionId: 'session-1',
+        version: 1,
+        items: [
+          {
+            kind: 'blob',
+            blobKey: 'sha256-attachment',
+            name: 'private.txt',
+            title: 'private.txt',
+            available: true,
+            resourceId: null,
+            sequence: null,
+            currentSequence: null,
+            resourceKind: 'file',
+            mimeType: 'text/plain',
+            byteSize: 7,
+          },
+        ],
+      };
+      vi.mocked(request.projectContext.get).mockResolvedValue(context);
+      return context;
+    });
+    const attachment = new File(['private'], 'private.txt', {
+      type: 'text/plain',
+    });
+    await runtime.dispatch({
+      type: 'addContextItem',
+      item: { kind: 'file', file: attachment },
+    });
+    expect(runtime.getSnapshot().composer.context.items).toHaveLength(1);
+    expect(request.projectContext.upload).toHaveBeenCalledWith(
+      'project-1',
+      'session-1',
+      0,
+      attachment
+    );
+    await runtime.dispatch({ type: 'loadContext' });
+    expect(runtime.getSnapshot().composer.context.items[0]).toMatchObject({
+      fileId: 'sha256-attachment',
+      state: 'finished',
+    });
+    await runtime.dispatch({
+      type: 'setScope',
+      scope: { kind: 'project', projectId: 'project-2' },
+    });
+    expect(runtime.getSnapshot().composer.context.items).toHaveLength(0);
+    expect(request.context.addContextFile).not.toHaveBeenCalled();
+    runtime.dispose();
+  });
+
+  test.each(['success', 'failure'] as const)(
+    'late Project attachment %s does not change the newly selected Project',
+    async outcome => {
+      const pending =
+        Promise.withResolvers<
+          Awaited<ReturnType<AIRequestService['projectContext']['upload']>>
+        >();
+      const request = createRequest({
+        createSessionWithHistory: vi.fn().mockResolvedValue(
+          session({
+            workspaceId: null,
+            docId: null,
+            selectedContextProjectId: 'project-1',
+          })
+        ),
+      });
+      vi.mocked(request.projectContext.upload).mockReturnValue(pending.promise);
+      const runtime = new AIChatRuntime({
+        request,
+        scope: { kind: 'project', projectId: 'project-1' },
+        strategy: new ProjectAIChatSessionStrategy(),
+      });
+      await runtime.dispatch({ type: 'initialize' });
+      const adding = runtime.dispatch({
+        type: 'addContextItem',
+        item: { kind: 'file', file: new File(['source'], 'source.txt') },
+      });
+      await vi.waitFor(() =>
+        expect(request.projectContext.upload).toHaveBeenCalledOnce()
+      );
+      await runtime.dispatch({
+        type: 'setScope',
+        scope: { kind: 'project', projectId: 'project-2' },
+      });
+      const current = runtime.getSnapshot().composer.context;
+      if (outcome === 'failure')
+        pending.reject(new Error('Old Project upload failed'));
+      else
+        pending.resolve(
+          await request.projectContext.get('project-1', 'session-1')
+        );
+      await adding;
+      expect(runtime.getSnapshot().composer.context).toEqual(current);
+      expect(runtime.getSnapshot().activeSessionId).toBeNull();
+      expect(request.updateSession).not.toHaveBeenCalled();
+      runtime.dispose();
+    }
+  );
+
   test('initializes doc scope with a draft tab when no session exists', async () => {
     const runtime = createRuntime();
 

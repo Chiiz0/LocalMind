@@ -144,7 +144,7 @@ export function PresentationEditor({
   state,
   revision,
   artifactId,
-  workspaceId,
+  owner,
   graphql,
   readOnly,
   onRevision,
@@ -227,7 +227,7 @@ export function PresentationEditor({
       try {
         const result = await executeAndReloadOfficeCommand<PptxSemanticState>({
           graphql,
-          workspaceId,
+          owner,
           kind: 'presentation',
           command,
         });
@@ -242,7 +242,7 @@ export function PresentationEditor({
         setSaving(false);
       }
     },
-    [graphql, onRevision, readOnly, saving, workspaceId]
+    [graphql, onRevision, owner, readOnly, saving]
   );
 
   const saveText = useCallback(async () => {

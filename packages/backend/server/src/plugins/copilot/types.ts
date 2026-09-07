@@ -97,7 +97,7 @@ export const ChatHistorySchema = z
   .object({
     userId: z.string(),
     sessionId: z.string(),
-    workspaceId: z.string(),
+    workspaceId: z.string().nullable(),
     docId: z.string().nullable(),
     selectedContextProjectId: z.string().nullable(),
     parentSessionId: z.string().nullable(),
@@ -128,7 +128,8 @@ export type SubmittedMessage = z.infer<typeof SubmittedMessageSchema>;
 
 export type ChatSessionOptions = {
   userId: string;
-  workspaceId: string;
+  workspaceId: string | null;
+  selectedContextProjectId?: string | null;
   docId: string | null;
   promptName: string;
   pinned: boolean;
@@ -146,7 +147,8 @@ export type ChatSessionForkOptions = {
 export type ChatSessionState = {
   userId: string;
   sessionId: string;
-  workspaceId: string;
+  workspaceId: string | null;
+  selectedContextProjectId?: string | null;
   docId: string | null;
   turns: Turn[];
   prompt: ResolvedPrompt;

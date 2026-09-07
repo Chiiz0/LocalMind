@@ -16,11 +16,12 @@ import {
   type OfficeRevision,
 } from '@prisma/client';
 
-import { readBufferWithLimit } from '../../base';
+import { BadRequest, readBufferWithLimit } from '../../base';
 import { Models } from '../../models';
+import type { OfficeOwner } from '../../models/office-owner';
 import { PermissionAccess } from '../permission';
-import { WorkspaceBlobStorage } from '../storage';
 import { officeFingerprint } from './evidence';
+import { OfficeResourceStorage } from './resource-storage';
 
 const MAX_OFFICE_PACKAGE_DOWNLOAD_BYTES = 512 * 1024 * 1024;
 const MAX_OFFICE_STATE_DOWNLOAD_BYTES = 256 * 1024 * 1024;
@@ -32,38 +33,44 @@ export type OfficeRevisionAssetKind = 'package' | 'state';
 export class OfficeArtifactService {
   constructor(
     private readonly models: Models,
-    private readonly storage: WorkspaceBlobStorage,
+    private readonly storage: OfficeResourceStorage,
     private readonly ac: PermissionAccess
   ) {}
 
   async list(
-    workspaceId: string,
+    owner: OfficeOwner,
     actorId: string,
     limit?: number,
     kind?: OfficeArtifactKind
   ) {
-    await this.assertRead(workspaceId, actorId);
-    const artifacts = await this.models.officeArtifact.list(
-      workspaceId,
-      limit,
-      kind
-    );
+    await this.assertRead(owner, actorId);
+    const artifacts = await this.models.officeArtifact.list(owner, limit, kind);
+    if (typeof owner !== 'string') {
+      const visible = [];
+      for (const artifact of artifacts) {
+        try {
+          visible.push(await this.get(owner, actorId, artifact.id));
+        } catch (error) {
+          if (!(error instanceof BadRequest)) throw error;
+        }
+      }
+      return visible;
+    }
     return await Promise.all(
       artifacts.map(async artifact => ({
         artifact,
         revision: await this.models.officeArtifact.getCurrentRevision(
-          workspaceId,
+          owner,
           artifact.id
         ),
       }))
     );
   }
 
-  async get(workspaceId: string, actorId: string, artifactId: string) {
-    await this.assertRead(workspaceId, actorId);
-    const artifact = await this.requireArtifact(workspaceId, artifactId);
+  async get(owner: OfficeOwner, actorId: string, artifactId: string) {
+    const artifact = await this.getArtifactForAsset(owner, actorId, artifactId);
     const revision = await this.models.officeArtifact.getCurrentRevision(
-      workspaceId,
+      owner,
       artifactId
     );
     if (!revision) {
@@ -75,23 +82,19 @@ export class OfficeArtifactService {
   }
 
   async getRevision(
-    workspaceId: string,
+    owner: OfficeOwner,
     actorId: string,
     artifactId: string,
     revisionId?: string
   ) {
-    await this.assertRead(workspaceId, actorId);
-    await this.requireArtifact(workspaceId, artifactId);
+    await this.getArtifactForAsset(owner, actorId, artifactId);
     const revision = revisionId
       ? await this.models.officeArtifact.getRevision(
-          workspaceId,
+          owner,
           artifactId,
           revisionId
         )
-      : await this.models.officeArtifact.getCurrentRevision(
-          workspaceId,
-          artifactId
-        );
+      : await this.models.officeArtifact.getCurrentRevision(owner, artifactId);
     if (!revision) {
       throw new Error(
         `Office revision not found: ${revisionId ?? `current:${artifactId}`}`
@@ -101,22 +104,21 @@ export class OfficeArtifactService {
   }
 
   async listRevisions(
-    workspaceId: string,
+    owner: OfficeOwner,
     actorId: string,
     artifactId: string,
     limit?: number
   ) {
-    await this.assertRead(workspaceId, actorId);
-    await this.requireArtifact(workspaceId, artifactId);
+    await this.getArtifactForAsset(owner, actorId, artifactId);
     return await this.models.officeArtifact.listRevisions(
-      workspaceId,
+      owner,
       artifactId,
       limit
     );
   }
 
   async compareRevisions(
-    workspaceId: string,
+    owner: OfficeOwner,
     actorId: string,
     artifactId: string,
     beforeRevisionId: string,
@@ -124,14 +126,14 @@ export class OfficeArtifactService {
   ) {
     const [before, after] = await Promise.all([
       this.readRevisionAsset(
-        workspaceId,
+        owner,
         actorId,
         artifactId,
         beforeRevisionId,
         'state'
       ),
       this.readRevisionAsset(
-        workspaceId,
+        owner,
         actorId,
         artifactId,
         afterRevisionId,
@@ -165,25 +167,21 @@ export class OfficeArtifactService {
   }
 
   async readRevisionAsset(
-    workspaceId: string,
+    owner: OfficeOwner,
     actorId: string,
     artifactId: string,
     revisionId: string,
     kind: OfficeRevisionAssetKind
   ) {
-    const artifact = await this.getArtifactForAsset(
-      workspaceId,
-      actorId,
-      artifactId
-    );
+    const artifact = await this.getArtifactForAsset(owner, actorId, artifactId);
     const revision = await this.getRevision(
-      workspaceId,
+      owner,
       actorId,
       artifactId,
       revisionId
     );
     const evidence = this.assetEvidence(revision, kind);
-    const stored = await this.storage.get(workspaceId, evidence.key);
+    const stored = await this.storage.get(owner, actorId, evidence.key);
     if (!stored.body) {
       throw new Error(
         `Office ${kind} bytes are not available: ${evidence.key}`
@@ -217,18 +215,19 @@ export class OfficeArtifactService {
         `Office ${kind} fingerprint does not match: ${evidence.key}`
       );
     }
+    await this.getArtifactForAsset(owner, actorId, artifactId);
     return { artifact, revision, bytes, mimeType: evidence.mimeType };
   }
 
   async readRevisionPackagePart(
-    workspaceId: string,
+    owner: OfficeOwner,
     actorId: string,
     artifactId: string,
     revisionId: string,
     partName: string
   ) {
     const asset = await this.readRevisionAsset(
-      workspaceId,
+      owner,
       actorId,
       artifactId,
       revisionId,
@@ -259,13 +258,13 @@ export class OfficeArtifactService {
   }
 
   async exportDocumentRevisionPdf(
-    workspaceId: string,
+    owner: OfficeOwner,
     actorId: string,
     artifactId: string,
     revisionId: string
   ) {
     const asset = await this.readRevisionAsset(
-      workspaceId,
+      owner,
       actorId,
       artifactId,
       revisionId,
@@ -292,27 +291,35 @@ export class OfficeArtifactService {
     };
   }
 
-  async assertRead(workspaceId: string, actorId: string) {
-    await this.ac
-      .user(actorId)
-      .workspace(workspaceId)
-      .assert('Workspace.Blobs.Read');
+  async assertRead(owner: OfficeOwner, actorId: string) {
+    if (typeof owner !== 'string') {
+      await this.models.projectResource.assertMember({
+        projectId: owner.projectId,
+        actorId,
+      });
+      return;
+    }
+    await this.ac.user(actorId).workspace(owner).assert('Workspace.Blobs.Read');
   }
 
   private async getArtifactForAsset(
-    workspaceId: string,
+    owner: OfficeOwner,
     actorId: string,
     artifactId: string
   ) {
-    await this.assertRead(workspaceId, actorId);
-    return await this.requireArtifact(workspaceId, artifactId);
+    await this.assertRead(owner, actorId);
+    const artifact = await this.requireArtifact(owner, artifactId);
+    if (typeof owner !== 'string')
+      await this.models.projectResource.assertOfficeResource({
+        projectId: owner.projectId,
+        actorId,
+        artifactId,
+      });
+    return artifact;
   }
 
-  private async requireArtifact(workspaceId: string, artifactId: string) {
-    const artifact = await this.models.officeArtifact.get(
-      workspaceId,
-      artifactId
-    );
+  private async requireArtifact(owner: OfficeOwner, artifactId: string) {
+    const artifact = await this.models.officeArtifact.get(owner, artifactId);
     if (!artifact) {
       throw new Error(`Office artifact not found: ${artifactId}`);
     }

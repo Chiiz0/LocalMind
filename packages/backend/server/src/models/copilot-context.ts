@@ -40,13 +40,21 @@ export type SharedWriteSourceSink = {
     | 'tool_write';
   id: string;
   workspaceId?: string;
+  projectId?: string;
   documentId?: string;
   phase: 'prepare' | 'confirm' | 'execute' | 'retry' | 'noop';
 };
 
 export type CopilotInputSource = {
-  workspaceId: string;
-  kind: 'workspace' | 'document' | 'private' | 'private_attachment' | 'unknown';
+  workspaceId: string | null;
+  kind:
+    | 'workspace'
+    | 'document'
+    | 'project_resource'
+    | 'project_blob'
+    | 'private'
+    | 'private_attachment'
+    | 'unknown';
   sourceId: string;
 };
 
@@ -307,12 +315,11 @@ export class CopilotContextModel extends BaseModel {
       where: { id: sessionId },
       select: { workspaceId: true },
     });
-    const documentRefs = evidence
-      .filter(source => source.kind === 'document')
-      .map(source => ({
-        workspaceId: source.workspaceId,
-        docId: source.sourceId,
-      }));
+    const documentRefs = evidence.flatMap(source =>
+      source.kind === 'document' && source.workspaceId
+        ? [{ workspaceId: source.workspaceId, docId: source.sourceId }]
+        : []
+    );
     const historicalDocs = documentRefs
       .filter(source => source.workspaceId === session?.workspaceId)
       .map(source => source.docId);
@@ -414,8 +421,9 @@ export class CopilotContextModel extends BaseModel {
       input.sources.length > 4096 ||
       input.sources.some(
         source =>
-          !source.workspaceId ||
-          source.workspaceId.length > 256 ||
+          (!source.workspaceId && !input.projectId) ||
+          (source.workspaceId?.length ?? 0) > 256 ||
+          (source.kind === 'document' && !source.workspaceId) ||
           !source.sourceId ||
           source.sourceId.length > 256
       )
@@ -425,6 +433,11 @@ export class CopilotContextModel extends BaseModel {
       data: input.sources.map(source => ({
         ...source,
         sessionId: input.sessionId,
+        projectId: source.workspaceId ? null : input.projectId,
+        kind:
+          !source.workspaceId && source.kind === 'workspace'
+            ? 'project'
+            : source.kind,
       })),
       skipDuplicates: true,
     });
@@ -435,7 +448,7 @@ export class CopilotContextModel extends BaseModel {
     sessionId: string;
     actorId: string;
     projectId: string | null;
-    workspaceId: string;
+    workspaceId: string | null;
     memories: Array<{ id: string; content: string }>;
   }) {
     if (input.memories.length > 64)
@@ -478,7 +491,9 @@ export class CopilotContextModel extends BaseModel {
   }) {
     await this.db
       .$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${'context-source:' + input.sessionId}, 0))`;
-    const sessions = await this.db.$queryRaw<Array<{ workspaceId: string }>>`
+    const sessions = await this.db.$queryRaw<
+      Array<{ workspaceId: string | null }>
+    >`
       SELECT session.workspace_id AS "workspaceId"
       FROM ai_sessions_metadata session
       JOIN ai_context_projects project ON project.id = session.selected_context_project_id
@@ -496,13 +511,58 @@ export class CopilotContextModel extends BaseModel {
   }
 
   @Transactional()
-  async assertProjectSourcesShared(input: {
+  async withProjectSourcesShared<T>(
+    input: Parameters<CopilotContextModel['assertProjectSourcesShared']>[0],
+    execute: () => Promise<T>
+  ) {
+    await this.assertProjectSourcesShared(input);
+    return execute();
+  }
+
+  async assertProjectSourcesShared(
+    input: Parameters<CopilotContextModel['checkProjectSourcesShared']>[0]
+  ): Promise<void> {
+    await this.checkProjectSourcesShared(input);
+  }
+
+  @Transactional()
+  async checkProjectSourcesShared(input: {
     sessionId: string;
     actorId: string;
     projectId: string;
     sink?: SharedWriteSourceSink;
   }) {
-    const documentSink = input.sink && input.sink.type !== 'project_memory';
+    if (input.sink?.workspaceId && input.sink.phase !== 'noop') {
+      await this.sourceAuditDb.aiSharedWriteSourceCheck.create({
+        data: {
+          sessionId: input.sessionId,
+          actorId: input.actorId,
+          projectId: input.projectId,
+          sinkType: input.sink.type,
+          sinkId: input.sink.id,
+          sinkWorkspaceId: input.sink.workspaceId,
+          phase: input.sink.phase,
+          allowed: false,
+          reasonCode: 'unshared_source',
+          sources: [],
+          sourceFingerprint: createHash('sha256').update('[]').digest('hex'),
+          audienceEvidence: {
+            policy: 'project_native_requires_explicit_publication',
+          },
+        },
+      });
+      throw new BadRequest(
+        'Legacy Project writes to Workspace are suspended. Save a Project resource and use its explicit publication workflow.'
+      );
+    }
+    if (
+      input.sink?.projectId &&
+      (input.sink.projectId !== input.projectId || input.sink.workspaceId)
+    )
+      throw new BadRequest('Project source sink has a conflicting owner');
+    const internalSink = input.sink?.projectId === input.projectId;
+    const documentSink =
+      input.sink && input.sink.type !== 'project_memory' && !internalSink;
     const audienceEvidence =
       documentSink && input.sink?.workspaceId
         ? await this.lockDocumentAudience(
@@ -529,7 +589,13 @@ export class CopilotContextModel extends BaseModel {
         members.length === audienceEvidence.userIds.length);
     const sources = await this.db.aiSessionContextSource.findMany({
       where: { sessionId: input.sessionId },
-      select: { workspaceId: true, kind: true, sourceId: true, evidence: true },
+      select: {
+        workspaceId: true,
+        projectId: true,
+        kind: true,
+        sourceId: true,
+        evidence: true,
+      },
       orderBy: [{ workspaceId: 'asc' }, { kind: 'asc' }, { sourceId: 'asc' }],
       take: 4098,
     });
@@ -549,7 +615,18 @@ export class CopilotContextModel extends BaseModel {
     let projectInputs = 0;
     for (const source of sources) {
       if (
-        source.kind !== 'workspace' ||
+        source.projectId === input.projectId &&
+        !source.workspaceId &&
+        (source.kind === 'project_resource' || source.kind === 'project_blob')
+      ) {
+        projectInputs++;
+        continue;
+      }
+      if (
+        !(
+          source.kind === 'workspace' ||
+          (source.kind === 'project' && source.projectId === input.projectId)
+        ) ||
         source.workspaceId !== session.workspaceId
       )
         continue;
@@ -575,7 +652,10 @@ export class CopilotContextModel extends BaseModel {
             fingerprint
         )
           projectInputs++;
-      } else if (source.sourceId.startsWith('workspace-policy:')) {
+      } else if (
+        source.workspaceId &&
+        source.sourceId.startsWith('workspace-policy:')
+      ) {
         const policies = await this.db.$queryRaw<Array<{ id: string }>>`
           SELECT policy.id FROM ai_context_policies policy
           JOIN ai_context_policy_revisions revision ON revision.policy_id = policy.id
@@ -609,11 +689,12 @@ export class CopilotContextModel extends BaseModel {
       audienceAllowed &&
       !overBudget &&
       shared.length + projectInputs === sources.length;
+    let sourceCheckId: string | undefined;
     if (input.sink) {
       const evidence = sources.slice(0, 4097);
       // A denial must remain auditable even when its caller rolls back the write.
       // No live-record foreign keys or permission locks are taken by this insert.
-      await this.sourceAuditDb.aiSharedWriteSourceCheck.create({
+      const check = await this.sourceAuditDb.aiSharedWriteSourceCheck.create({
         data: {
           sessionId: input.sessionId,
           actorId: input.actorId,
@@ -630,7 +711,9 @@ export class CopilotContextModel extends BaseModel {
               : 'unshared_source',
           sources: evidence,
           audienceEvidence: audienceEvidence ?? {
-            version: 'project-memory-audience/v1',
+            version: internalSink
+              ? 'project-resource-audience/v1'
+              : 'project-memory-audience/v1',
             projectId: input.projectId,
           },
           sourceFingerprint: createHash('sha256')
@@ -638,11 +721,13 @@ export class CopilotContextModel extends BaseModel {
             .digest('hex'),
         },
       });
+      sourceCheckId = check.id;
     }
     if (!allowed)
       throw new BadRequest(
         'This conversation contains private or unverified sources that are not authorized for the entire Project. Start a new conversation after authorizing the source documents, without private or unverified sources, before writing shared content.'
       );
+    return sourceCheckId;
   }
 
   async mergeBlobStatus(

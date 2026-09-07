@@ -11,7 +11,12 @@ import {
   ServerService,
 } from '@affine/core/modules/cloud';
 import { GlobalDialogService } from '@affine/core/modules/dialogs';
-import { useLiveData, useService } from '@toeverything/infra';
+import { WorkspaceService } from '@affine/core/modules/workspace';
+import {
+  useLiveData,
+  useService,
+  useServiceOptional,
+} from '@toeverything/infra';
 import { useCallback } from 'react';
 
 import { Account } from './account';
@@ -71,6 +76,7 @@ const UnauthorizedUserInfo = () => {
 };
 
 const OperationMenu = () => {
+  const workspace = useServiceOptional(WorkspaceService);
   const serverService = useService(ServerService);
   const serverFeatures = useLiveData(serverService.server.features$);
 
@@ -78,8 +84,8 @@ const OperationMenu = () => {
     <>
       <Account />
       <Divider />
-      <CloudUsage />
-      {serverFeatures?.copilot ? <AIUsage /> : null}
+      {workspace ? <CloudUsage /> : null}
+      {workspace && serverFeatures?.copilot ? <AIUsage /> : null}
       <Divider />
       <TeamList />
       <AccountMenu />

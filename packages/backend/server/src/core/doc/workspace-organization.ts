@@ -700,7 +700,7 @@ export class WorkspaceOrganizationService {
         const seen = new Set<string>();
         while (current) {
           const id = String(current.id);
-          if (seen.has(id) || seen.size >= 64)
+          if (seen.has(id) || (current.type === 'folder' && path.length >= 64))
             throw new Error('Directory path is invalid or too deeply nested');
           seen.add(id);
           if (current.type === 'folder') path.push(id);
@@ -856,6 +856,36 @@ export class WorkspaceOrganizationService {
     );
   }
 
+  async documentLocations(
+    workspaceId: string,
+    userId: string,
+    docIds: string[]
+  ) {
+    if (docIds.length > 200)
+      throw new Error('Document location page exceeds its bounds');
+    const raw = await this.readDirectorySnapshot(workspaceId, userId);
+    const visible = await this.readDirectory(workspaceId, userId);
+    const requested = new Set(docIds);
+    const placed = new Set(
+      raw.rows
+        .filter(row => row.type === 'doc' && requested.has(String(row.data)))
+        .map(row => String(row.data))
+    );
+    return docIds.flatMap(docId => {
+      if (!placed.has(docId))
+        return visible.rootRights.canRead
+          ? [{ docId, folderId: null as string | null }]
+          : [];
+      return visible.entries
+        .filter(entry => entry.row.type === 'doc' && entry.row.data === docId)
+        .map(entry => ({
+          docId,
+          folderId:
+            typeof entry.row.parentId === 'string' ? entry.row.parentId : null,
+        }));
+    });
+  }
+
   private async readDirectorySnapshot(workspaceId: string, userId: string) {
     // Storage is read on every request, so missed realtime/Redis invalidation
     // cannot reuse a stale tree. Only parsing is cached, never actor rights.
@@ -932,7 +962,7 @@ export class WorkspaceOrganizationService {
       let valid = true;
       while (current) {
         const id = String(current.id);
-        if (seen.has(id) || seen.size >= 64) {
+        if (seen.has(id) || (current.type === 'folder' && path.length >= 64)) {
           valid = false;
           break;
         }

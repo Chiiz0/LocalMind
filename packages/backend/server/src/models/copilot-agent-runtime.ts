@@ -337,6 +337,7 @@ const AGENT_RUNTIME_ADAPTER_RESOLUTION_STATUSES = new Set([
 const AGENT_RUNTIME_ADAPTER_SIDE_EFFECT_MODES = new Set([
   'none',
   'workspace_write',
+  'project_write',
   'external_tool',
 ]);
 const AGENT_RUNTIME_ADAPTER_SNAPSHOT_MAX_COUNT = 24;
@@ -3021,6 +3022,7 @@ export class CopilotAgentRuntimeModel extends BaseModel {
       FROM ai_agent_runs
       WHERE source_type <> ${'repair_execution_request'}
         AND status = ${'running'}
+        AND workspace_id IS NOT NULL
         AND worker_lease_expires_at IS NOT NULL
         AND worker_lease_expires_at <= ${now}
       ORDER BY worker_lease_expires_at ASC, updated_at ASC, id ASC
@@ -3046,6 +3048,7 @@ export class CopilotAgentRuntimeModel extends BaseModel {
       FROM ai_agent_runs
       WHERE source_type <> ${'repair_execution_request'}
         AND status = ${'queued'}
+        AND workspace_id IS NOT NULL
         AND worker_attempt < worker_max_attempts
       ORDER BY queued_at ASC NULLS LAST, updated_at ASC, id ASC
       LIMIT ${limit}
@@ -3356,6 +3359,7 @@ export class CopilotAgentRuntimeModel extends BaseModel {
           AND run.worker_attempt < run.worker_max_attempts
           AND run.status = ${'queued'}
           AND (${input.workspaceId ?? null}::varchar IS NULL OR run.workspace_id = ${input.workspaceId ?? null})
+          AND run.workspace_id IS NOT NULL
           AND (${input.id ?? null}::varchar IS NULL OR run.id = ${input.id ?? null})
           AND NOT EXISTS (
             SELECT 1
@@ -4447,6 +4451,9 @@ export class CopilotAgentRuntimeModel extends BaseModel {
       input.sideEffectMode,
       'side-effect mode'
     );
+    if (sideEffectMode === 'project_write') {
+      throw new Error('Project effects require a native Project worker lease');
+    }
     if (!AGENT_RUNTIME_ADAPTER_SIDE_EFFECT_MODES.has(sideEffectMode)) {
       throw new Error(
         `Agent runtime completion side-effect mode is unsupported: ${sideEffectMode}`

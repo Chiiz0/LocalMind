@@ -1,0 +1,4 @@
+mutation cancelProjectAgentTask($projectId: String!, $runId: String!) {
+  cancelProjectAgentTask(projectId: $projectId, runId: $runId) { ...ProjectAgentTaskFields }
+}
+#import './fragments/project-agent-task-fields.gql'

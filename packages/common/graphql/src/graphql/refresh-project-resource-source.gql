@@ -1,0 +1,22 @@
+mutation refreshProjectResourceSource(
+  $projectId: String!
+  $resourceId: String!
+  $workspaceId: String!
+  $sourceResourceId: String!
+  $expectedContentVersion: Int!
+  $expectedSourceVersion: String!
+  $requestKey: String!
+) {
+  refreshProjectResourceSource(
+    projectId: $projectId
+    resourceId: $resourceId
+    workspaceId: $workspaceId
+    sourceResourceId: $sourceResourceId
+    expectedContentVersion: $expectedContentVersion
+    expectedSourceVersion: $expectedSourceVersion
+    requestKey: $requestKey
+  ) {
+    ...ProjectResourceFields
+  }
+}
+#import './fragments/project-resource.gql'

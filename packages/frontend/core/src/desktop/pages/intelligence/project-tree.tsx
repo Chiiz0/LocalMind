@@ -19,6 +19,7 @@ import {
 import { Fragment, useEffect, useMemo, useState } from 'react';
 
 import { ProjectDocumentTitle } from './project-document-title';
+import { ProjectFiles } from './project-files';
 import * as styles from './project-tree.css';
 import {
   isWorkbenchDocumentOpenable,
@@ -30,6 +31,8 @@ type ProjectTreeProps = {
   workspace?: Workspace;
   projects: WorkbenchProject[];
   selectedProjectId: string | null;
+  selectedResourceId?: string | null;
+  onSelectResource?: (projectId: string, resourceId: string) => void;
   loading: boolean;
   error?: string;
   mutationsPending: boolean;
@@ -71,6 +74,8 @@ export const ProjectTree = ({
   workspace,
   projects,
   selectedProjectId,
+  selectedResourceId,
+  onSelectResource,
   loading,
   error,
   mutationsPending,
@@ -323,82 +328,91 @@ export const ProjectTree = ({
                   ) : null}
                 </div>
 
+                {selectedProjectId === project.id && onSelectResource ? (
+                  <ProjectFiles
+                    key={project.id}
+                    projectId={project.id}
+                    selectedResourceId={selectedResourceId ?? null}
+                    onOpen={resourceId =>
+                      onSelectResource(project.id, resourceId)
+                    }
+                  />
+                ) : null}
                 <div className={styles.documents}>
-                  {groupDocuments(project.documents).map(
-                    ([groupId, documents]) => (
-                      <Fragment key={groupId ?? 'ungrouped'}>
-                        {groupId ? (
-                          <div className={styles.groupLabel}>{groupId}</div>
-                        ) : null}
-                        {documents.map((document, index) => {
-                          const openable =
-                            isWorkbenchDocumentOpenable(document);
-                          const placeholderLabel =
-                            document.status === 'pending'
-                              ? t[
-                                  'com.affine.localmind.workbench.document.pending'
-                                ]()
-                              : t[
-                                  'com.affine.localmind.workbench.document.revoked'
-                                ]();
-                          return (
-                            <div
-                              key={`${document.workspaceId}:${document.docId ?? `redacted-${index}`}`}
-                              className={styles.documentRow}
+                  {groupDocuments(
+                    onSelectResource ? [] : project.documents
+                  ).map(([groupId, documents]) => (
+                    <Fragment key={groupId ?? 'ungrouped'}>
+                      {groupId ? (
+                        <div className={styles.groupLabel}>{groupId}</div>
+                      ) : null}
+                      {documents.map((document, index) => {
+                        const openable = isWorkbenchDocumentOpenable(document);
+                        const placeholderLabel =
+                          document.status === 'pending'
+                            ? t[
+                                'com.affine.localmind.workbench.document.pending'
+                              ]()
+                            : t[
+                                'com.affine.localmind.workbench.document.revoked'
+                              ]();
+                        return (
+                          <div
+                            key={`${document.workspaceId}:${document.docId ?? `redacted-${index}`}`}
+                            className={styles.documentRow}
+                          >
+                            <button
+                              type="button"
+                              className={styles.documentButton}
+                              data-placeholder={!openable || undefined}
+                              disabled={!openable}
+                              onClick={() => {
+                                if (openable) {
+                                  onSelectDocument(project.id, document);
+                                }
+                              }}
                             >
-                              <button
-                                type="button"
-                                className={styles.documentButton}
-                                data-placeholder={!openable || undefined}
-                                disabled={!openable}
-                                onClick={() => {
-                                  if (openable) {
-                                    onSelectDocument(project.id, document);
-                                  }
-                                }}
-                              >
-                                <PageIcon />
-                                <ProjectDocumentTitle
-                                  document={document}
-                                  workspace={workspace}
-                                  untitled={t[
-                                    'com.affine.localmind.workbench.document.untitled'
-                                  ]()}
-                                  fallback={
-                                    openable
-                                      ? document.title ||
-                                        t[
-                                          'com.affine.localmind.workbench.document.untitled'
-                                        ]()
-                                      : document.title
-                                        ? `${document.title} - ${placeholderLabel}`
-                                        : placeholderLabel
-                                  }
-                                />
-                              </button>
-                              {project.canManage && document.docId ? (
-                                <IconButton
-                                  className={styles.documentRemoveButton}
-                                  size="16"
-                                  tooltip={t[
-                                    'com.affine.localmind.workbench.document.remove'
-                                  ]()}
-                                  aria-label={t[
-                                    'com.affine.localmind.workbench.document.remove'
-                                  ]()}
-                                  icon={<DeleteTemporarilyIcon />}
-                                  disabled={mutationsPending}
-                                  onClick={() =>
-                                    onRemoveDocument(project, document)
-                                  }
-                                />
-                              ) : null}
-                            </div>
-                          );
-                        })}
-                      </Fragment>
-                    )
-                  )}
+                              <PageIcon />
+                              <ProjectDocumentTitle
+                                document={document}
+                                workspace={workspace}
+                                untitled={t[
+                                  'com.affine.localmind.workbench.document.untitled'
+                                ]()}
+                                fallback={
+                                  openable
+                                    ? document.title ||
+                                      t[
+                                        'com.affine.localmind.workbench.document.untitled'
+                                      ]()
+                                    : document.title
+                                      ? `${document.title} - ${placeholderLabel}`
+                                      : placeholderLabel
+                                }
+                              />
+                            </button>
+                            {project.canManage && document.docId ? (
+                              <IconButton
+                                className={styles.documentRemoveButton}
+                                size="16"
+                                tooltip={t[
+                                  'com.affine.localmind.workbench.document.remove'
+                                ]()}
+                                aria-label={t[
+                                  'com.affine.localmind.workbench.document.remove'
+                                ]()}
+                                icon={<DeleteTemporarilyIcon />}
+                                disabled={mutationsPending}
+                                onClick={() =>
+                                  onRemoveDocument(project, document)
+                                }
+                              />
+                            ) : null}
+                          </div>
+                        );
+                      })}
+                    </Fragment>
+                  ))}
                 </div>
               </li>
             ))}

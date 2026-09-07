@@ -1,0 +1,5 @@
+#import './fragments/project-resource.gql'
+
+mutation changeProjectResource($input: ChangeProjectResourceInput!) {
+  changeProjectResource(input: $input) { ...ProjectResourceFields }
+}

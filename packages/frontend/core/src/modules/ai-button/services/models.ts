@@ -3470,6 +3470,11 @@ export function formatAIModelDiagnosticsLabel(
     .join('\n');
 }
 
+export type AIModelSelection = Pick<
+  AIModelService,
+  'modelId' | 'models' | 'setWorkspaceId' | 'setPromptName' | 'setModel'
+>;
+
 export class AIModelService extends Service {
   modelId: Signal<string | undefined> = signal(undefined);
 

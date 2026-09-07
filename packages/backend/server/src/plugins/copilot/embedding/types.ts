@@ -116,6 +116,7 @@ export type Chunk = {
 export type EmbeddingCallOptions = {
   signal?: AbortSignal;
   userId?: string;
+  sessionId?: string;
   workspaceId?: string;
   byokLeaseId?: string;
   featureKind?: Extract<

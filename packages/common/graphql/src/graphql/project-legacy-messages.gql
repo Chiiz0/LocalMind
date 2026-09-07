@@ -1,0 +1,6 @@
+query projectLegacyMessages($projectId: String!, $sessionId: String!, $cursor: String) {
+  projectLegacyMessages(projectId: $projectId, sessionId: $sessionId, cursor: $cursor) {
+    items { id role content truncated createdAt }
+    nextCursor
+  }
+}

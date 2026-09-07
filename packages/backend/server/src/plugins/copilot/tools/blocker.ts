@@ -24,13 +24,19 @@ export const createBlockerSuggestionTool = (
 ) =>
   defineTool({
     description:
-      'Suggest a reminder-only Blocker for the selected global Project. This tool never creates a Blocker or changes permissions, approvals, invitations, access requests, or execution state. Present the suggestion to the user and wait for explicit confirmation before the separate confirm mutation is called.',
+      "Suggest a reminder-only Blocker when the user asks to track waiting for someone's reply, file, or decision. Return a confirmation card rather than only giving example text. To actually ask a member for a file, use the file request tools instead. This tool never sends messages, creates a Blocker, or changes permissions, approvals, invitations, access requests, or execution state. Present the suggestion to the user and wait for explicit confirmation before the separate confirm mutation is called.",
     inputSchema: z
       .object({
         title: z.string().trim().min(1).max(256),
         type: z.enum(INTELLIGENCE_WORKBENCH_BLOCKER_TYPES),
         waiting_on: z.string().trim().min(1).max(512),
-        due_at: z.string().datetime({ offset: true }).optional(),
+        due_at: z
+          .string()
+          .datetime({ offset: true })
+          .nullish()
+          .describe(
+            'Optional deadline. Use null when no date or reminder time was requested.'
+          ),
       })
       .strict(),
     execute: async ({ title, type, waiting_on, due_at }) => {
@@ -39,7 +45,7 @@ export const createBlockerSuggestionTool = (
           title,
           type,
           waitingOn: waiting_on,
-          dueAt: due_at,
+          dueAt: due_at ?? undefined,
         });
         return {
           aiSuggestionId: suggestion.aiSuggestionId,

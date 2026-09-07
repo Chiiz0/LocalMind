@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { PermissionModule } from '../permission';
+import { ProjectModule } from '../project';
 import { RealtimeModule } from '../realtime';
 import { StorageModule } from '../storage';
 import { OfficeArtifactService } from './artifact-service';
@@ -11,13 +12,18 @@ import { OfficeController } from './controller';
 import { OfficeDocxCommandService } from './docx-command';
 import { OfficeDocxImportService } from './docx-import';
 import { OfficeImportService } from './import-service';
+import { ProjectOfficeController } from './project-controller';
+import { ProjectResourceIndexer } from './project-indexer';
+import { ProjectOfficeResolver } from './project-resolver';
 import { OfficeResolver } from './resolver';
+import { OfficeResourceStorage } from './resource-storage';
 
 @Module({
-  imports: [PermissionModule, RealtimeModule, StorageModule],
-  controllers: [OfficeController],
+  imports: [PermissionModule, ProjectModule, RealtimeModule, StorageModule],
+  controllers: [OfficeController, ProjectOfficeController],
   providers: [
     OfficeArtifactService,
+    OfficeResourceStorage,
     OfficeCommentResolver,
     OfficeCommentService,
     OfficeCommandService,
@@ -25,6 +31,8 @@ import { OfficeResolver } from './resolver';
     OfficeDocxImportService,
     OfficeImportService,
     OfficeResolver,
+    ProjectOfficeResolver,
+    ProjectResourceIndexer,
   ],
   exports: [
     OfficeArtifactService,
@@ -33,6 +41,7 @@ import { OfficeResolver } from './resolver';
     OfficeDocxCommandService,
     OfficeDocxImportService,
     OfficeImportService,
+    ProjectResourceIndexer,
   ],
 })
 export class OfficeModule {}

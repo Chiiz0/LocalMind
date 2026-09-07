@@ -1,0 +1,6 @@
+mutation changeProjectResourceMigration($projectId: String!, $migrationId: String!, $expectedRevision: Int!, $action: String!) {
+  changeProjectResourceMigration(projectId: $projectId, migrationId: $migrationId, expectedRevision: $expectedRevision, action: $action) {
+    ...ProjectResourceMigrationFields
+  }
+}
+#import './fragments/project-resource-migration-fields.gql'

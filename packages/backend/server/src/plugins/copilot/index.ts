@@ -8,6 +8,8 @@ import { DocStorageModule } from '../../core/doc';
 import { FeatureModule } from '../../core/features';
 import { OfficeModule } from '../../core/office';
 import { PermissionModule } from '../../core/permission';
+import { ProjectModule } from '../../core/project';
+import { ProjectTransferModule } from '../../core/project-transfer';
 import { QuotaModule } from '../../core/quota';
 import { StorageModule } from '../../core/storage';
 import { WorkspaceModule } from '../../core/workspaces';
@@ -27,6 +29,7 @@ import {
 
 const COPILOT_SHARED_IMPORTS = [
   DocStorageModule,
+  ProjectTransferModule,
   FeatureModule,
   QuotaModule,
   PermissionModule,
@@ -36,6 +39,7 @@ const COPILOT_SHARED_IMPORTS = [
   IndexerModule,
   CommentModule,
   OfficeModule,
+  ProjectModule,
 ];
 
 @Module({

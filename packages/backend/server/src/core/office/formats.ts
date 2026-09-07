@@ -32,12 +32,92 @@ import {
 } from '@localmind/office/xlsx';
 import { OfficeArtifactKind } from '@prisma/client';
 
+import { pdfSearchText } from './pdf-search';
+
 export type NativeOfficeFormat = 'docx' | 'xlsx' | 'pptx' | 'pdf';
 export type NativeOfficeState =
   | DocxSemanticState
   | XlsxSemanticState
   | PptxSemanticState
   | PdfSemanticState;
+
+export function officeStateSearchText(state: NativeOfficeState) {
+  const parts: string[] = [];
+  let remaining = 250000;
+  const append = (value: string | number | boolean | null | undefined) => {
+    if (value === undefined || value === null || remaining <= 0) return;
+    const text = String(value).slice(0, remaining);
+    remaining -= text.length + 1;
+    parts.push(text);
+  };
+  if ('body' in state) {
+    const pending = [
+      ...state.body,
+      ...state.stories.flatMap(story => story.blocks),
+    ];
+    while (pending.length && remaining > 0) {
+      const block = pending.pop();
+      if (!block) break;
+      if (block.type === 'paragraph') append(block.text);
+      else if (block.type === 'contentControl') pending.push(...block.blocks);
+      else if (block.type === 'table')
+        for (const row of block.rows)
+          for (const cell of row.cells) pending.push(...cell.blocks);
+    }
+  } else if ('sheets' in state) {
+    for (const sheet of state.sheets) {
+      if (remaining <= 0) break;
+      append(sheet.name);
+      for (const cell of sheet.cells) {
+        if (remaining <= 0) break;
+        append(cell.value);
+        append(cell.formula);
+      }
+    }
+  } else if ('slides' in state) {
+    for (const slide of state.slides) {
+      if (remaining <= 0) break;
+      append(slide.name);
+      append(slide.notesText);
+      const pending = [...slide.shapes];
+      while (pending.length && remaining > 0) {
+        const shape = pending.pop();
+        if (!shape) break;
+        append(shape.text);
+        append(shape.description);
+        if (shape.children) pending.push(...shape.children);
+      }
+    }
+  } else {
+    append(state.metadata.title);
+    append(state.metadata.subject);
+    for (const page of state.pages) {
+      if (remaining <= 0) break;
+      for (const annotation of page.annotations) append(annotation.contents);
+    }
+    for (const field of state.formFields) {
+      if (remaining <= 0) break;
+      append(field.name);
+      append(Array.isArray(field.value) ? field.value.join(' ') : field.value);
+    }
+  }
+  return parts.join('\n');
+}
+
+export async function officePackageSearchText(
+  state: NativeOfficeState,
+  bytes: Uint8Array
+) {
+  const metadata = officeStateSearchText(state);
+  if (
+    state.schemaVersion !== 'localmind-office-pdf-state/v1' ||
+    metadata.length >= 250000 ||
+    bytes.length > 64 * 1024 * 1024
+  )
+    return metadata;
+  const text = await pdfSearchText(bytes, 250000 - metadata.length - 1);
+  return `${metadata}\n${text}`.slice(0, 250000);
+}
 
 export const OFFICE_FORMATS = {
   docx: {

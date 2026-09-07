@@ -1,0 +1,7 @@
+query projectPublications($projectId: String!, $resourceId: String, $cursor: String, $limit: Int) {
+  projectPublications(projectId: $projectId, resourceId: $resourceId, cursor: $cursor, limit: $limit) {
+    items { ...ProjectPublicationFields }
+    nextCursor
+  }
+}
+#import './fragments/project-publication-fields.gql'

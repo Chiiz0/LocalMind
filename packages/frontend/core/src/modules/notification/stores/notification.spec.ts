@@ -1,6 +1,7 @@
 /** @vitest-environment happy-dom */
 
 import {
+  dismissAllNotificationsMutation,
   dismissNotificationMutation,
   dismissReadNotificationsMutation,
   listNotificationsQuery,
@@ -52,6 +53,7 @@ describe('NotificationStore', () => {
 
     await store.dismissNotification('notification-1');
     await store.dismissReadNotifications();
+    await store.dismissAllNotifications();
 
     expect(gql).toHaveBeenNthCalledWith(1, {
       query: dismissNotificationMutation,
@@ -59,6 +61,9 @@ describe('NotificationStore', () => {
     });
     expect(gql).toHaveBeenNthCalledWith(2, {
       query: dismissReadNotificationsMutation,
+    });
+    expect(gql).toHaveBeenNthCalledWith(3, {
+      query: dismissAllNotificationsMutation,
     });
   });
 });

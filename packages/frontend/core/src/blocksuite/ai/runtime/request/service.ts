@@ -4,11 +4,17 @@ import {
   type CopilotChatHistoryFragment,
   type getCopilotHistoriesQuery,
   type GraphQLQuery,
+  type ProjectChatContextItemInput,
+  projectChatContextQuery,
+  projectOfficeArtifactQuery,
+  projectResourceQuery,
   type QueryChatSessionsInput,
   type QueryOptions,
   type QueryResponse,
   type RequestOptions,
   type UpdateChatSessionInput,
+  updateProjectChatContextMutation,
+  uploadProjectChatContextFileMutation,
 } from '@affine/graphql';
 import { Subject } from 'rxjs';
 
@@ -27,7 +33,13 @@ import {
 } from './copilot-client';
 import { textToText, toImage } from './message-transport';
 
-type CreateSessionOptions = BlockSuitePresets.AICreateSessionOptions;
+type CreateSessionOptions = Omit<
+  BlockSuitePresets.AICreateSessionOptions,
+  'workspaceId'
+> & {
+  workspaceId?: string;
+  projectId?: string;
+};
 
 export type AIRequestActionEvent = {
   action: AIActionId;
@@ -52,11 +64,65 @@ export class AIRequestService {
     return true;
   }
 
+  readonly projectContext = {
+    get: async (projectId: string, sessionId: string) =>
+      (
+        await this.client.gql({
+          query: projectChatContextQuery,
+          variables: { projectId, sessionId },
+        })
+      ).projectChatContext,
+    set: async (
+      projectId: string,
+      sessionId: string,
+      expectedVersion: number,
+      items: ProjectChatContextItemInput[]
+    ) =>
+      (
+        await this.client.gql({
+          query: updateProjectChatContextMutation,
+          variables: { projectId, sessionId, expectedVersion, items },
+        })
+      ).updateProjectChatContext,
+    upload: async (
+      projectId: string,
+      sessionId: string,
+      expectedVersion: number,
+      file: File
+    ) =>
+      (
+        await this.client.gql({
+          query: uploadProjectChatContextFileMutation,
+          variables: { projectId, sessionId, expectedVersion, file },
+        })
+      ).uploadProjectChatContextFile,
+    resource: async (projectId: string, resourceId: string) => {
+      const { projectResource: resource } = await this.client.gql({
+        query: projectResourceQuery,
+        variables: { projectId, resourceId },
+      });
+      const sequence = resource.officeArtifactId
+        ? (
+            await this.client.gql({
+              query: projectOfficeArtifactQuery,
+              variables: { projectId, artifactId: resource.officeArtifactId },
+            })
+          ).projectOfficeArtifact.currentRevision.sequence
+        : resource.contentVersion;
+      return {
+        kind: 'resource',
+        resourceId,
+        sequence,
+      } satisfies ProjectChatContextItemInput;
+    },
+  };
+
   async createSession(options: CreateSessionOptions) {
     if (options.sessionId) return options.sessionId;
     if (options.retry) return this.lastActionSessionId;
     return this.client.createSession({
       workspaceId: options.workspaceId,
+      projectId: options.projectId,
       docId: options.docId,
       promptName: options.promptName,
       pinned: options.pinned,
@@ -68,6 +134,7 @@ export class AIRequestService {
     if (!options.sessionId && !options.retry) {
       return this.client.createSessionWithHistory({
         workspaceId: options.workspaceId,
+        projectId: options.projectId,
         docId: options.docId,
         promptName: options.promptName,
         pinned: options.pinned,
@@ -77,7 +144,23 @@ export class AIRequestService {
 
     const sessionId = await this.createSession(options);
     if (!sessionId) return undefined;
+    if (options.projectId)
+      return this.getProjectSession(options.projectId, sessionId);
+    if (!options.workspaceId)
+      throw new Error('A session resource owner is required');
     return this.getSession(options.workspaceId, sessionId);
+  }
+
+  getProjectSession(projectId: string, sessionId: string) {
+    return this.client.getProjectSession(projectId, sessionId);
+  }
+
+  getProjectSessions(...args: Parameters<CopilotClient['getProjectSessions']>) {
+    return this.client.getProjectSessions(...args);
+  }
+
+  cleanupProjectSessions(projectId: string, sessionIds: string[]) {
+    return this.client.cleanupProjectSessions(projectId, sessionIds);
   }
 
   getSession(workspaceId: string, sessionId: string) {
@@ -426,7 +509,7 @@ export function createAIRequestService(
     url: string,
     eventSourceInitDict?: EventSourceInit
   ) => EventSource,
-  realtime: Pick<NbstoreService['realtime'], 'request'>
+  realtime?: Pick<NbstoreService['realtime'], 'request'>
 ) {
   return new AIRequestService(new CopilotClient(gql, eventSource, realtime));
 }

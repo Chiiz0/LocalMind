@@ -13,7 +13,7 @@ export type ContextProjectResolution =
 
 export type ContextScopeResolution = {
   userId: string;
-  workspaceId: string;
+  workspaceId: string | null;
   sessionId: string;
   primaryDocId: string | null;
   readableDocIds: string[];
@@ -33,7 +33,7 @@ export class ContextScopeResolver {
 
   async resolve(input: {
     userId: string;
-    workspaceId: string;
+    workspaceId: string | null;
     sessionId: string;
     primaryDocId?: string | null;
     selectedProjectId?: string | null;
@@ -41,13 +41,40 @@ export class ContextScopeResolver {
     const sources = await this.models.copilotContext.getSessionSources(
       input.sessionId
     );
+    if (!input.workspaceId) {
+      const project = input.selectedProjectId
+        ? await this.models.copilotContextMemory.getProject(
+            input.selectedProjectId
+          )
+        : null;
+      const active =
+        project?.status === 'active' &&
+        project.members.some(member => member.userId === input.userId) &&
+        !input.primaryDocId;
+      return {
+        userId: input.userId,
+        workspaceId: null,
+        sessionId: input.sessionId,
+        primaryDocId: null,
+        readableDocIds: [],
+        readableDocumentRefs: [],
+        candidateProjectIds: active ? [project.id] : [],
+        projectIds:
+          active && sources.valid && !sources.hasPrivateAttachments
+            ? [project.id]
+            : [],
+        selectedProjectId: active ? project.id : null,
+        projectResolution: active ? 'selected' : 'invalid_selection',
+      };
+    }
+    const workspaceId = input.workspaceId;
     const candidateDocs = Array.from(
       new Set(
         [input.primaryDocId, ...sources.docIds].filter(
           (docId): docId is string => Boolean(docId)
         )
       )
-    ).map(docId => ({ workspaceId: input.workspaceId, docId }));
+    ).map(docId => ({ workspaceId, docId }));
     const readableHostDocuments = await this.filterReadableDocumentRefs(
       input.userId,
       candidateDocs,

@@ -6,6 +6,7 @@ import {
   BadRequest,
   Cache,
   Config,
+  CopilotSessionNotFound,
   CryptoHelper,
   metrics,
   safeFetch,
@@ -35,6 +36,16 @@ export type ByokProviderRequestContext = {
   userId?: string;
   workspaceId?: string;
   byokLeaseId?: string;
+  sessionId?: string;
+  projectId?: string;
+};
+
+export type ProjectByokInput = {
+  expectedRevision: number;
+  provider: ByokProvider;
+  apiKey?: string | null;
+  endpoint?: string | null;
+  modelId: string;
 };
 
 export type ByokProfileSourceFilter = {
@@ -148,8 +159,12 @@ type LocalLeaseActive = {
 };
 
 type ByokProfileMeta = {
-  source: ByokProviderSource.Server | ByokProviderSource.Local;
+  source:
+    | ByokProviderSource.Server
+    | ByokProviderSource.Local
+    | ByokProviderSource.ProjectGlobal;
   keyId?: string;
+  revision?: number;
   provider: ByokProvider;
 };
 
@@ -175,6 +190,175 @@ export class ByokService {
       this.customEndpointSupported &&
       this.config.copilot.byok.allowPrivateEndpoint
     );
+  }
+
+  async getAdminProjectSettings(userId: string) {
+    await this.entitlement.assertInstanceManagementAccess(userId);
+    const [current, auditEvents] = await Promise.all([
+      this.models.copilotProjectByok.get(),
+      this.models.copilotProjectByok.listAuditEvents(),
+    ]);
+    return {
+      configured: Boolean(current),
+      revision: current?.revision ?? 0,
+      provider: current?.provider ?? ByokProvider.openai,
+      endpoint: current?.endpoint ?? null,
+      modelId: current?.modelId ?? null,
+      enabled: current?.enabled ?? false,
+      lastValidatedAt: current?.lastValidatedAt ?? null,
+      lastUsedAt: current?.lastUsedAt ?? null,
+      lastError: current?.lastError ?? null,
+      updatedAt: current?.updatedAt ?? null,
+      updatedBy: current?.updatedBy ?? null,
+      allowedProviders: [
+        ByokProvider.openai,
+        ByokProvider.anthropic,
+        ByokProvider.gemini,
+      ],
+      customEndpointSupported: this.customEndpointSupported,
+      auditEvents,
+    };
+  }
+
+  private async prepareProjectConfig(input: ProjectByokInput, userId: string) {
+    await this.entitlement.assertInstanceManagementAccess(userId);
+    this.assertProvider(input.provider);
+    if (input.provider === ByokProvider.fal) {
+      throw new BadRequestException('Project BYOK requires a text provider.');
+    }
+    if (
+      !Number.isSafeInteger(input.expectedRevision) ||
+      input.expectedRevision < 0
+    ) {
+      throw new BadRequestException('Invalid Project BYOK revision.');
+    }
+    const current = await this.models.copilotProjectByok.get();
+    if ((current?.revision ?? 0) !== input.expectedRevision) {
+      throw new BadRequest(
+        'Project BYOK changed. Reload the settings and try again.'
+      );
+    }
+    const apiKey = input.apiKey?.trim();
+    if (apiKey && apiKey.length > 8192) {
+      throw new BadRequestException('API key is too long.');
+    }
+    if (!apiKey && (!current || current.provider !== input.provider)) {
+      throw new BadRequestException(
+        'An API key is required for this provider.'
+      );
+    }
+    const encryptedApiKey = apiKey
+      ? this.crypto.encrypt(apiKey)
+      : current?.encryptedApiKey;
+    if (!encryptedApiKey) {
+      throw new BadRequestException(
+        'An API key is required for this provider.'
+      );
+    }
+    const endpoint = this.normalizeEndpoint(input.endpoint);
+    if (endpoint) {
+      const url = new URL(endpoint);
+      if (
+        endpoint.length > 2048 ||
+        url.username ||
+        url.password ||
+        url.search ||
+        url.hash
+      ) {
+        throw new BadRequestException(
+          'Endpoint must not contain credentials, a query, or a fragment.'
+        );
+      }
+    }
+    const modelId = this.normalizeModelId(input.modelId);
+    if (!modelId) throw new BadRequestException('Model ID is required.');
+    return {
+      current,
+      encryptedApiKey,
+      endpoint,
+      modelId,
+      credentialChanged: Boolean(apiKey),
+    };
+  }
+
+  private async probeProjectConfig(input: {
+    provider: ByokProvider;
+    encryptedApiKey: string;
+    endpoint: string | null;
+    modelId: string;
+  }) {
+    try {
+      await runProviderProbe(
+        this.probeFetch,
+        input.provider,
+        this.crypto.decrypt(input.encryptedApiKey),
+        input.endpoint,
+        this.privateEndpointSupported,
+        input.modelId
+      );
+    } catch {
+      // Provider errors can contain authorization headers or response bodies.
+      throw new BadRequestException(
+        'Project provider test failed. Check the endpoint, model and API key.'
+      );
+    }
+  }
+
+  async testProjectConfig(input: ProjectByokInput, userId: string) {
+    const prepared = await this.prepareProjectConfig(input, userId);
+    try {
+      await this.probeProjectConfig({ ...prepared, provider: input.provider });
+      return { ok: true, message: null };
+    } catch {
+      return {
+        ok: false,
+        message:
+          'Project provider test failed. Check the endpoint, model and API key.',
+      };
+    }
+  }
+
+  async saveProjectConfig(input: ProjectByokInput, userId: string) {
+    const prepared = await this.prepareProjectConfig(input, userId);
+    await this.probeProjectConfig({ ...prepared, provider: input.provider });
+    await this.models.copilotProjectByok.save({
+      ...prepared,
+      expectedRevision: input.expectedRevision,
+      provider: input.provider,
+      enabled: true,
+      lastValidatedAt: new Date(),
+      actorId: userId,
+    });
+    return this.getAdminProjectSettings(userId);
+  }
+
+  async setProjectConfigEnabled(
+    expectedRevision: number,
+    enabled: boolean,
+    userId: string
+  ) {
+    await this.entitlement.assertInstanceManagementAccess(userId);
+    const current = await this.models.copilotProjectByok.get();
+    if (!current || current.revision !== expectedRevision) {
+      throw new BadRequest(
+        'Project BYOK changed. Reload the settings and try again.'
+      );
+    }
+    if (enabled) {
+      await this.probeProjectConfig({
+        ...current,
+        provider: current.provider as ByokProvider,
+      });
+    }
+    await this.models.copilotProjectByok.save({
+      ...current,
+      expectedRevision,
+      enabled,
+      lastValidatedAt: enabled ? new Date() : current.lastValidatedAt,
+      actorId: userId,
+      credentialChanged: false,
+    });
+    return this.getAdminProjectSettings(userId);
   }
 
   async getSettings(
@@ -589,6 +773,46 @@ export class ByokService {
     context: ByokProviderRequestContext = {},
     sources: ByokProfileSourceFilter = { local: true, server: true }
   ): Promise<CopilotProviderProfile[]> {
+    if (!sources.local && !sources.server) return [];
+    let projectId = context.projectId;
+    if (context.sessionId) {
+      const session = await this.models.copilotSession.getMeta(
+        context.sessionId
+      );
+      if (
+        !session ||
+        !context.userId ||
+        session.userId !== context.userId ||
+        (context.workspaceId && session.workspaceId !== context.workspaceId) ||
+        (projectId && session.selectedContextProjectId !== projectId)
+      ) {
+        throw new CopilotSessionNotFound();
+      }
+      projectId = session.selectedContextProjectId ?? undefined;
+    }
+    if (projectId) {
+      await this.models.copilotProjectByok.assertProjectMember(
+        projectId,
+        context.userId
+      );
+      const row = await this.models.copilotProjectByok.get();
+      if (!row?.enabled || !isByokProvider(row.provider)) return [];
+      return [
+        {
+          id: `byok-project-global-${row.provider}-r${row.revision}`,
+          type: byokProviderToCopilotType(row.provider),
+          source: ByokProviderSource.ProjectGlobal,
+          priority: BYOK_PROFILE_PRIORITY_BASE,
+          models: [row.modelId],
+          modelDefinitions: [this.modelDefinition(row.provider, row.modelId)],
+          config: this.providerConfig(
+            row.provider,
+            row.encryptedApiKey,
+            row.endpoint
+          ),
+        } as CopilotProviderProfile,
+      ];
+    }
     if (!context.workspaceId) {
       return [];
     }
@@ -657,6 +881,9 @@ export class ByokService {
         meta.keyId
       );
     }
+    if (meta.source === ByokProviderSource.ProjectGlobal && meta.revision) {
+      await this.models.copilotProjectByok.touchUsed(meta.revision);
+    }
   }
 
   async recordProviderFailure(input: {
@@ -681,6 +908,12 @@ export class ByokService {
         input.workspaceId,
         meta.keyId,
         message
+      );
+    }
+    if (meta.source === ByokProviderSource.ProjectGlobal && meta.revision) {
+      await this.models.copilotProjectByok.recordFailure(
+        meta.revision,
+        'Provider request failed.'
       );
     }
   }
@@ -813,6 +1046,17 @@ export class ByokService {
     providerId: string,
     workspaceId?: string
   ): ByokProfileMeta | null {
+    const globalMatch =
+      /^byok-project-global-(openai|anthropic|gemini)-r([1-9][0-9]*)$/.exec(
+        providerId
+      );
+    if (globalMatch) {
+      return {
+        provider: globalMatch[1] as ByokProvider,
+        source: ByokProviderSource.ProjectGlobal,
+        revision: Number(globalMatch[2]),
+      };
+    }
     const match =
       /^byok-([a-f0-9]{12})-(openai|anthropic|gemini|fal)-(.+)$/.exec(
         providerId

@@ -10,6 +10,13 @@ import {
 } from '@prisma/client';
 
 import { BaseModel } from './base';
+import {
+  type OfficeOwner,
+  officeOwnerColumns,
+  officeOwnerFromInput,
+  type OfficeOwnerInput,
+  officeWriterLock,
+} from './office-owner';
 
 const MAX_TITLE_LENGTH = 512;
 const MAX_FILE_NAME_LENGTH = 512;
@@ -34,9 +41,9 @@ type RevisionStateInput = {
   fingerprint: string;
 };
 
-export type CreateImportedOfficeArtifactInput = {
-  workspaceId: string;
+export type CreateImportedOfficeArtifactInput = OfficeOwnerInput & {
   actorId: string;
+  artifactId?: string;
   kind: OfficeArtifactKind;
   title: string;
   sourceFileName: string;
@@ -49,8 +56,7 @@ export type CreateImportedOfficeArtifactInput = {
   operationSummary?: Prisma.InputJsonObject;
 };
 
-export type AppendOfficeRevisionInput = {
-  workspaceId: string;
+export type AppendOfficeRevisionInput = OfficeOwnerInput & {
   artifactId: string;
   actorId: string;
   origin: OfficeRevisionOrigin;
@@ -114,8 +120,12 @@ function normalizeJsonObject(
 export class OfficeArtifactModel extends BaseModel {
   @Transactional()
   async createOrReuseImported(input: CreateImportedOfficeArtifactInput) {
-    const workspaceId = requireString(input.workspaceId, 'workspace id', 512);
+    const owner = officeOwnerFromInput(input);
+    const ownership = officeOwnerColumns(owner);
+    const { projectId } = ownership;
     const actorId = requireString(input.actorId, 'actor id', 512);
+    if (projectId)
+      await this.models.projectResource.assertMember({ projectId, actorId });
     const title = requireString(input.title, 'title', MAX_TITLE_LENGTH);
     const sourceFileName = requireString(
       input.sourceFileName,
@@ -150,18 +160,29 @@ export class OfficeArtifactModel extends BaseModel {
       MAX_OPERATION_SUMMARY_BYTES
     );
 
+    const importWhere =
+      typeof owner !== 'string'
+        ? {
+            projectId_importIdempotencyKey: {
+              projectId: owner.projectId,
+              importIdempotencyKey,
+            },
+          }
+        : {
+            workspaceId_importIdempotencyKey: {
+              workspaceId: owner,
+              importIdempotencyKey,
+            },
+          };
     const existing = await this.db.officeArtifact.findUnique({
-      where: {
-        workspaceId_importIdempotencyKey: {
-          workspaceId,
-          importIdempotencyKey,
-        },
-      },
+      where: importWhere,
       include: {
         revisions: { where: { sequence: 1 }, take: 1 },
       },
     });
     if (existing) {
+      if (input.artifactId && existing.id !== input.artifactId)
+        throw new Error('Office import target identity changed');
       return this.reuseImportedArtifact(
         existing,
         importFingerprint,
@@ -169,22 +190,24 @@ export class OfficeArtifactModel extends BaseModel {
       );
     }
 
-    await this.requireAvailableBlob(workspaceId, source, 'source');
+    await this.requireAvailableBlob(owner, source, 'source');
     if (state) {
       await this.requireAvailableBlob(
-        workspaceId,
+        owner,
         { ...state, mimeType: 'application/octet-stream' },
         'state',
         false
       );
     }
 
-    const artifactId = randomUUID();
+    const artifactId = input.artifactId
+      ? requireString(input.artifactId, 'artifact id', 256)
+      : randomUUID();
     const inserted = await this.db.officeArtifact.createMany({
       data: [
         {
           id: artifactId,
-          workspaceId,
+          ...ownership,
           kind: input.kind,
           title,
           sourceFileName,
@@ -202,12 +225,7 @@ export class OfficeArtifactModel extends BaseModel {
     });
     if (inserted.count === 0) {
       const raced = await this.db.officeArtifact.findUnique({
-        where: {
-          workspaceId_importIdempotencyKey: {
-            workspaceId,
-            importIdempotencyKey,
-          },
-        },
+        where: importWhere,
         include: {
           revisions: { where: { sequence: 1 }, take: 1 },
         },
@@ -217,6 +235,8 @@ export class OfficeArtifactModel extends BaseModel {
           `Office artifact import could not be reconciled: ${importIdempotencyKey}`
         );
       }
+      if (raced.id !== artifactId && input.artifactId)
+        throw new Error('Office import target identity changed');
       return this.reuseImportedArtifact(
         raced,
         importFingerprint,
@@ -226,7 +246,7 @@ export class OfficeArtifactModel extends BaseModel {
 
     const revision = await this.db.officeRevision.create({
       data: {
-        workspaceId,
+        ...ownership,
         artifactId,
         sequence: 1,
         origin: OfficeRevisionOrigin.import,
@@ -258,9 +278,13 @@ export class OfficeArtifactModel extends BaseModel {
 
   @Transactional()
   async appendRevision(input: AppendOfficeRevisionInput) {
-    const workspaceId = requireString(input.workspaceId, 'workspace id', 512);
+    const owner = officeOwnerFromInput(input);
+    const ownership = officeOwnerColumns(owner);
+    const { workspaceId, projectId } = ownership;
     const artifactId = requireString(input.artifactId, 'artifact id', 512);
     const actorId = requireString(input.actorId, 'actor id', 512);
+    if (projectId)
+      await this.models.projectResource.assertMember({ projectId, actorId });
     const expectedParentRevisionId = requireString(
       input.expectedParentRevisionId,
       'expected parent revision id',
@@ -291,7 +315,7 @@ export class OfficeArtifactModel extends BaseModel {
       throw new Error('import origin is only valid for the initial revision');
     }
 
-    await this.lockArtifactWriter(workspaceId, artifactId);
+    await this.lockArtifactWriter(owner, artifactId);
 
     const existing = await this.db.officeRevision.findUnique({
       where: {
@@ -301,6 +325,7 @@ export class OfficeArtifactModel extends BaseModel {
     if (existing) {
       if (
         existing.workspaceId !== workspaceId ||
+        existing.projectId !== projectId ||
         existing.idempotencyFingerprint !== idempotencyFingerprint
       ) {
         throw new Error(
@@ -313,7 +338,11 @@ export class OfficeArtifactModel extends BaseModel {
     const artifact = await this.db.officeArtifact.findUnique({
       where: { id: artifactId },
     });
-    if (!artifact || artifact.workspaceId !== workspaceId) {
+    if (
+      !artifact ||
+      artifact.workspaceId !== workspaceId ||
+      artifact.projectId !== projectId
+    ) {
       throw new Error(`Office artifact not found: ${artifactId}`);
     }
     assertOfficePackageMimeType(artifact.kind, packageBlob.mimeType);
@@ -331,10 +360,10 @@ export class OfficeArtifactModel extends BaseModel {
       );
     }
 
-    await this.requireAvailableBlob(workspaceId, packageBlob, 'package');
+    await this.requireAvailableBlob(owner, packageBlob, 'package');
     if (state) {
       await this.requireAvailableBlob(
-        workspaceId,
+        owner,
         { ...state, mimeType: 'application/octet-stream' },
         'state',
         false
@@ -344,7 +373,7 @@ export class OfficeArtifactModel extends BaseModel {
     const sequence = artifact.revisionCounter + 1;
     const revision = await this.db.officeRevision.create({
       data: {
-        workspaceId,
+        ...ownership,
         artifactId,
         sequence,
         origin: input.origin,
@@ -370,14 +399,14 @@ export class OfficeArtifactModel extends BaseModel {
     return { created: true, revision };
   }
 
-  async get(workspaceId: string, artifactId: string) {
+  async get(owner: OfficeOwner, artifactId: string) {
     return await this.db.officeArtifact.findFirst({
-      where: { id: artifactId, workspaceId },
+      where: { id: artifactId, ...officeOwnerColumns(owner) },
     });
   }
 
-  async getCurrentRevision(workspaceId: string, artifactId: string) {
-    const artifact = await this.get(workspaceId, artifactId);
+  async getCurrentRevision(owner: OfficeOwner, artifactId: string) {
+    const artifact = await this.get(owner, artifactId);
     if (!artifact || artifact.revisionCounter === 0) return null;
     return await this.db.officeRevision.findUnique({
       where: {
@@ -389,37 +418,57 @@ export class OfficeArtifactModel extends BaseModel {
     });
   }
 
+  async getRevisionByRequest(
+    owner: OfficeOwner,
+    artifactId: string,
+    idempotencyKey: string
+  ) {
+    return this.db.officeRevision.findFirst({
+      where: { ...officeOwnerColumns(owner), artifactId, idempotencyKey },
+    });
+  }
+
   async getRevision(
-    workspaceId: string,
+    owner: OfficeOwner,
     artifactId: string,
     revisionId: string
   ) {
     return await this.db.officeRevision.findFirst({
-      where: { id: revisionId, artifactId, workspaceId },
+      where: { id: revisionId, artifactId, ...officeOwnerColumns(owner) },
     });
   }
 
-  async list(workspaceId: string, limit = 50, kind?: OfficeArtifactKind) {
+  async list(owner: OfficeOwner, limit = 50, kind?: OfficeArtifactKind) {
     const normalizedLimit = Number.isFinite(limit) ? Math.trunc(limit) : 50;
     return await this.db.officeArtifact.findMany({
-      where: { workspaceId, kind },
+      where: { ...officeOwnerColumns(owner), kind },
       orderBy: { updatedAt: 'desc' },
       take: Math.min(Math.max(normalizedLimit, 1), 100),
     });
   }
 
-  async listRevisions(workspaceId: string, artifactId: string, limit = 50) {
+  async getRevisionBySequence(
+    owner: OfficeOwner,
+    artifactId: string,
+    sequence: number
+  ) {
+    return this.db.officeRevision.findFirst({
+      where: { ...officeOwnerColumns(owner), artifactId, sequence },
+    });
+  }
+
+  async listRevisions(owner: OfficeOwner, artifactId: string, limit = 50) {
     const normalizedLimit = Number.isFinite(limit) ? Math.trunc(limit) : 50;
     return await this.db.officeRevision.findMany({
-      where: { workspaceId, artifactId },
+      where: { ...officeOwnerColumns(owner), artifactId },
       orderBy: { sequence: 'desc' },
       take: Math.min(Math.max(normalizedLimit, 1), 100),
     });
   }
 
-  private async lockArtifactWriter(workspaceId: string, artifactId: string) {
+  async lockArtifactWriter(owner: OfficeOwner, artifactId: string) {
     await this.db
-      .$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`office-artifact:${workspaceId}:${artifactId}`}, 0))`;
+      .$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${officeWriterLock(owner, artifactId)}, 0))`;
   }
 
   private reuseImportedArtifact(
@@ -469,11 +518,26 @@ export class OfficeArtifactModel extends BaseModel {
   }
 
   private async requireAvailableBlob(
-    workspaceId: string,
+    owner: OfficeOwner,
     input: { key: string; mimeType: string; byteSize: number },
     field: string,
     requireMimeMatch = true
   ) {
+    if (typeof owner !== 'string') {
+      const blob = await this.db.projectBlob.findUnique({
+        where: {
+          projectId_key: { projectId: owner.projectId, key: input.key },
+        },
+      });
+      if (
+        !blob ||
+        blob.byteSize !== input.byteSize ||
+        (requireMimeMatch && blob.mimeType !== input.mimeType)
+      )
+        throw new Error(`Office ${field} Project Blob does not match`);
+      return;
+    }
+    const workspaceId = owner;
     const [blob] = await this.db.$queryRaw<
       Array<{
         mime: string;

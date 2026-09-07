@@ -8,6 +8,8 @@ import { ConversationPolicy } from '../conversation/policy';
 import { getByokSourceCoverage } from './feature-coverage';
 
 export type CopilotAccessContext = {
+  sessionId?: string;
+  projectId?: string;
   userId?: string;
   workspaceId?: string;
   byokLeaseId?: string;

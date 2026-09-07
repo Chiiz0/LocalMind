@@ -1,0 +1,18 @@
+fragment ProjectPublicationFields on ProjectPublicationType {
+  id
+  projectId
+  resourceId
+  runId
+  revision
+  kind
+  title
+  status
+  sourceSequence
+  createdAt
+  expiresAt
+  targetFingerprint
+  failureCode
+  target
+  preview
+  receipt
+}

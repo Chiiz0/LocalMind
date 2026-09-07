@@ -8,6 +8,7 @@ import {
   addContextDocMutation,
   addContextFileMutation,
   cleanupCopilotSessionMutation,
+  cleanupProjectCopilotSessionsMutation,
   copilotContextSessionScopeQuery,
   createCopilotContextMutation,
   createCopilotMessageMutation,
@@ -24,6 +25,8 @@ import {
   listContextQuery,
   matchContextQuery,
   type PaginationInput,
+  projectCopilotChatQuery,
+  projectCopilotChatsQuery,
   type QueryOptions,
   type QueryResponse,
   removeContextBlobMutation,
@@ -200,6 +203,55 @@ export class CopilotClient {
         variables: { sessionId, workspaceId },
       });
       return res.currentUser?.copilot?.chats?.edges?.[0]?.node;
+    } catch (err) {
+      throw resolveError(err);
+    }
+  }
+
+  async getProjectSession(projectId: string, sessionId: string) {
+    try {
+      const res = await this.gql({
+        query: projectCopilotChatQuery,
+        variables: { projectId, sessionId },
+      });
+      return res.currentUser?.copilot?.projectChat ?? null;
+    } catch (err) {
+      throw resolveError(err);
+    }
+  }
+
+  async getProjectSessions(
+    projectId: string,
+    pagination: PaginationInput = { first: 50 },
+    options?: RequestOptions<
+      typeof projectCopilotChatsQuery
+    >['variables']['options']
+  ) {
+    try {
+      const res = await this.gql({
+        query: projectCopilotChatsQuery,
+        variables: {
+          projectId,
+          pagination,
+          options: { ...options, withMessages: true },
+        },
+      });
+      return (
+        res.currentUser?.copilot?.projectChats.edges.map(edge => edge.node) ??
+        []
+      );
+    } catch (err) {
+      throw resolveError(err);
+    }
+  }
+
+  async cleanupProjectSessions(projectId: string, sessionIds: string[]) {
+    try {
+      const res = await this.gql({
+        query: cleanupProjectCopilotSessionsMutation,
+        variables: { projectId, sessionIds },
+      });
+      return res.cleanupProjectCopilotSessions;
     } catch (err) {
       throw resolveError(err);
     }

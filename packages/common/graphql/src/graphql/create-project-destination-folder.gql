@@ -1,0 +1,3 @@
+mutation createProjectDestinationFolder($projectId: String!, $publicationId: String!, $workspaceId: String!, $parentId: String, $title: String!, $expectedDirectoryRevision: String!, $requestKey: String!) {
+  createProjectDestinationFolder(projectId: $projectId, publicationId: $publicationId, workspaceId: $workspaceId, parentId: $parentId, title: $title, expectedDirectoryRevision: $expectedDirectoryRevision, requestKey: $requestKey) { runId status folderId failureCode }
+}

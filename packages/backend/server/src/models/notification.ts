@@ -127,11 +127,18 @@ export const CommentMentionNotificationCreateSchema =
   });
 
 export type UnionNotificationBody =
+  | ProjectFileRequestNotificationBody
   | AccessRequestNotificationBody
   | MentionNotificationBody
   | InvitationNotificationBody
   | InvitationReviewDeclinedNotificationBody
   | CommentNotificationBody;
+
+export type ProjectFileRequestNotificationBody = {
+  workspaceId?: never;
+  createdByUserId: string;
+  requestId: string;
+};
 
 export type AccessRequestNotificationBody = {
   workspaceId: string;
@@ -156,6 +163,7 @@ export type CommentNotification = Notification &
   z.infer<typeof CommentNotificationCreateSchema>;
 
 export type UnionNotification =
+  | (Notification & { body: ProjectFileRequestNotificationBody })
   | (Notification & { body: AccessRequestNotificationBody })
   | MentionNotification
   | InvitationNotification
@@ -475,6 +483,14 @@ export class NotificationModel extends BaseModel {
   async dismissRead(userId: string) {
     const { count } = await this.db.notification.updateMany({
       where: { userId, read: true, dismissedAt: null },
+      data: { dismissedAt: new Date() },
+    });
+    return count;
+  }
+
+  async dismissAll(userId: string) {
+    const { count } = await this.db.notification.updateMany({
+      where: { userId, dismissedAt: null },
       data: { dismissedAt: new Date() },
     });
     return count;

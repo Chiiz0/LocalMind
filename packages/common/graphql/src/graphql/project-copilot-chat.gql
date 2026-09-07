@@ -1,0 +1,11 @@
+#import "./fragments/copilot-chat-history.gql"
+
+query projectCopilotChat($projectId: String!, $sessionId: String!) {
+  currentUser {
+    copilot {
+      projectChat(projectId: $projectId, sessionId: $sessionId) {
+        ...CopilotChatHistory
+      }
+    }
+  }
+}

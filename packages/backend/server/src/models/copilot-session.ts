@@ -69,7 +69,7 @@ type StoredChatMessage = Prisma.AiSessionMessageGetPayload<{
 
 type PureChatSession = {
   sessionId: string;
-  workspaceId: string;
+  workspaceId: string | null;
   docId?: string | null;
   selectedContextProjectId?: string | null;
   pinned?: boolean;
@@ -120,7 +120,7 @@ export type UpdateChatSession = ChatSessionBaseState & UpdateChatSessionOptions;
 
 export type ListSessionOptions = Pick<
   Partial<ChatSession>,
-  'sessionId' | 'workspaceId' | 'docId' | 'pinned'
+  'sessionId' | 'workspaceId' | 'docId' | 'pinned' | 'selectedContextProjectId'
 > & {
   userId: string | undefined;
   action?: boolean;
@@ -137,7 +137,7 @@ export type ListSessionOptions = Pick<
 
 export type CleanupSessionOptions = Pick<
   ChatSession,
-  'userId' | 'workspaceId' | 'docId'
+  'userId' | 'workspaceId' | 'docId' | 'selectedContextProjectId'
 > & {
   sessionIds: string[];
 };
@@ -392,7 +392,19 @@ export class CopilotSessionModel extends BaseModel {
   @Transactional()
   async create(state: ChatSession, reuseChat = false): Promise<string> {
     await this.assertForkParent(state);
+    if (
+      !state.workspaceId &&
+      (!state.selectedContextProjectId || state.docId)
+    ) {
+      throw new CopilotSessionInvalidInput(
+        'A native conversation requires its Project owner.'
+      );
+    }
     if (state.selectedContextProjectId) {
+      await this.models.projectResource.assertMember({
+        projectId: state.selectedContextProjectId,
+        actorId: state.userId,
+      });
       const membership = await this.db.aiContextProjectMember.findFirst({
         where: {
           projectId: state.selectedContextProjectId,
@@ -414,7 +426,11 @@ export class CopilotSessionModel extends BaseModel {
     }
 
     if (state.pinned) {
-      await this.unpin(state.workspaceId, state.userId);
+      await this.unpin(
+        state.workspaceId,
+        state.userId,
+        state.selectedContextProjectId
+      );
     }
 
     const session = await this.db.aiSession.create({
@@ -455,7 +471,11 @@ export class CopilotSessionModel extends BaseModel {
         'A fork requires its source conversation.'
       );
     if (options.pinned) {
-      await this.unpin(options.workspaceId, options.userId);
+      await this.unpin(
+        options.workspaceId,
+        options.userId,
+        options.selectedContextProjectId
+      );
     }
     const { messages, ...forkedState } = options;
 
@@ -629,6 +649,7 @@ export class CopilotSessionModel extends BaseModel {
       {
         userId,
         workspaceId,
+        selectedContextProjectId: options.selectedContextProjectId,
         docId: getEqCond(docId),
         id: getEqCond(sessionId),
         deletedAt: null,
@@ -724,9 +745,21 @@ export class CopilotSessionModel extends BaseModel {
   }
 
   @Transactional()
-  async unpin(workspaceId: string, userId: string): Promise<boolean> {
+  async unpin(
+    workspaceId: string | null,
+    userId: string,
+    selectedContextProjectId?: string | null
+  ): Promise<boolean> {
+    if (!workspaceId && !selectedContextProjectId)
+      throw new CopilotSessionInvalidInput('Project scope is required.');
     const { count } = await this.db.aiSession.updateMany({
-      where: { userId, workspaceId, pinned: true, deletedAt: null },
+      where: {
+        userId,
+        workspaceId,
+        ...(!workspaceId ? { selectedContextProjectId } : {}),
+        pinned: true,
+        deletedAt: null,
+      },
       data: { pinned: false },
     });
 
@@ -764,6 +797,13 @@ export class CopilotSessionModel extends BaseModel {
     );
     if (!session) {
       throw new CopilotSessionNotFound();
+    }
+
+    if (session.selectedContextProjectId) {
+      await this.models.projectResource.assertMember({
+        projectId: session.selectedContextProjectId,
+        actorId: userId,
+      });
     }
 
     if (
@@ -844,7 +884,11 @@ export class CopilotSessionModel extends BaseModel {
     }
     if (pinned && pinned !== session.pinned) {
       // if pin the session, unpin exists session in the workspace
-      await this.unpin(session.workspaceId, userId);
+      await this.unpin(
+        session.workspaceId,
+        userId,
+        session.selectedContextProjectId
+      );
     }
 
     const updated = await this.db.aiSession.updateMany({
@@ -883,6 +927,7 @@ export class CopilotSessionModel extends BaseModel {
         id: { in: options.sessionIds },
         userId: options.userId,
         workspaceId: options.workspaceId,
+        selectedContextProjectId: options.selectedContextProjectId,
         docId: options.docId,
         deletedAt: null,
       },
@@ -967,10 +1012,7 @@ export class CopilotSessionModel extends BaseModel {
   @Transactional()
   async updateMessages(state: UpdateChatSessionMessage) {
     const { sessionId, userId, messages } = state;
-    const haveSession = await this.has(sessionId, userId);
-    if (!haveSession) {
-      throw new CopilotSessionNotFound();
-    }
+    await this.assertMessageWriter(sessionId, userId);
 
     if (messages.length) {
       const sanitizedMessages = messages.map(m => this.sanitizeMessage(m));
@@ -1010,10 +1052,7 @@ export class CopilotSessionModel extends BaseModel {
     prompt: { model: string };
     message: ChatMessage;
   }) {
-    const haveSession = await this.has(state.sessionId, state.userId);
-    if (!haveSession) {
-      throw new CopilotSessionNotFound();
-    }
+    await this.assertMessageWriter(state.sessionId, state.userId);
 
     const message = this.sanitizeMessage(state.message);
     const tokenCost = this.calculateTokenSize([message], state.prompt.model);
@@ -1051,6 +1090,18 @@ export class CopilotSessionModel extends BaseModel {
     });
 
     return this.toPublicMessage(created);
+  }
+
+  private async assertMessageWriter(sessionId: string, userId: string) {
+    const session = await this.getMeta(sessionId);
+    if (!session || session.userId !== userId)
+      throw new CopilotSessionNotFound();
+    if (session.selectedContextProjectId) {
+      await this.models.projectResource.assertMember({
+        projectId: session.selectedContextProjectId,
+        actorId: userId,
+      });
+    }
   }
 
   @Transactional()

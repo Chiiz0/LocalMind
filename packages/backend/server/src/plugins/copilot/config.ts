@@ -92,6 +92,7 @@ export const CopilotProviderProfileSourceValues = [
   'db_revision',
   'byok_server',
   'byok_local',
+  'byok_project_global',
 ] as const;
 export type CopilotProviderProfileSource =
   (typeof CopilotProviderProfileSourceValues)[number];

@@ -3,25 +3,38 @@ import type { Prisma } from '@prisma/client';
 
 import { readBufferWithLimit } from '../../base';
 import { Models } from '../../models';
+import {
+  officeOwnerFromInput,
+  type OfficeOwnerInput,
+  officeOwnerToInput,
+} from '../../models/office-owner';
 import { PermissionAccess } from '../permission';
-import { WorkspaceBlobStorage } from '../storage';
 import { officeFingerprint, officeJsonFingerprint } from './evidence';
 import {
   officeCompatibilitySummary,
   officeFormatFromFileName,
+  officePackageSearchText,
   officeStateStats,
   readNativeOfficeState,
 } from './formats';
+import { OfficeResourceStorage } from './resource-storage';
 
 const MAX_IMPORT_FIELD_LENGTH = 1024;
 
-export type ImportOfficeArtifactInput = {
-  workspaceId: string;
+export type ImportOfficeArtifactInput = OfficeOwnerInput & {
   actorId: string;
   sourceBlobKey: string;
   title: string;
   sourceFileName: string;
   importIdempotencyKey: string;
+  parentId?: string | null;
+  projectRequestKey?: string;
+  projectRequestHash?: string;
+  replaceProjectArtifact?: {
+    artifactId: string;
+    expectedParentRevisionId: string;
+    requestFingerprint: string;
+  };
 };
 
 function requireImportField(value: string, field: string, maxLength: number) {
@@ -36,16 +49,14 @@ function requireImportField(value: string, field: string, maxLength: number) {
 export class OfficeImportService {
   constructor(
     private readonly models: Models,
-    private readonly storage: WorkspaceBlobStorage,
+    private readonly storage: OfficeResourceStorage,
     private readonly ac: PermissionAccess
   ) {}
 
   async import(input: ImportOfficeArtifactInput) {
-    const workspaceId = requireImportField(
-      input.workspaceId,
-      'workspace id',
-      512
-    );
+    const owner = officeOwnerFromInput(input);
+    if (input.replaceProjectArtifact && typeof owner === 'string')
+      throw new Error('Source refresh requires a Project resource');
     const actorId = requireImportField(input.actorId, 'actor id', 512);
     const sourceBlobKey = requireImportField(
       input.sourceBlobKey,
@@ -65,18 +76,36 @@ export class OfficeImportService {
       256
     );
 
-    await Promise.all([
-      this.ac
-        .user(actorId)
-        .workspace(workspaceId)
-        .assert('Workspace.CreateDoc'),
-      this.ac
-        .user(actorId)
-        .workspace(workspaceId)
-        .assert('Workspace.Blobs.Write'),
-    ]);
+    if (typeof owner === 'string')
+      await Promise.all([
+        this.ac.user(actorId).workspace(owner).assert('Workspace.CreateDoc'),
+        this.ac.user(actorId).workspace(owner).assert('Workspace.Blobs.Write'),
+      ]);
+    else
+      await this.models.projectResource.assertMember({
+        projectId: owner.projectId,
+        actorId,
+      });
 
-    const sourceBlob = await this.models.blob.get(workspaceId, sourceBlobKey);
+    const projectBlob =
+      typeof owner !== 'string'
+        ? await this.models.projectResource.getBlob({
+            projectId: owner.projectId,
+            actorId,
+            key: sourceBlobKey,
+          })
+        : null;
+    const sourceBlob =
+      typeof owner === 'string'
+        ? await this.models.blob.get(owner, sourceBlobKey)
+        : projectBlob
+          ? {
+              mime: projectBlob.mimeType,
+              size: projectBlob.byteSize,
+              status: 'completed',
+              deletedAt: null,
+            }
+          : null;
     if (
       !sourceBlob ||
       sourceBlob.deletedAt ||
@@ -97,7 +126,7 @@ export class OfficeImportService {
       );
     }
 
-    const stored = await this.storage.get(workspaceId, sourceBlobKey);
+    const stored = await this.storage.get(owner, actorId, sourceBlobKey);
     if (!stored.body) {
       throw new Error(
         `${policy.format.toUpperCase()} source bytes are not available: ${sourceBlobKey}`
@@ -134,11 +163,16 @@ export class OfficeImportService {
     const sourceFingerprint = officeFingerprint(sourceBytes);
     const semanticState = await readNativeOfficeState(policy, sourceBytes);
     const hash = sourceFingerprint.slice('sha256:'.length);
-    const packageBlobKey = `office/package/${policy.format}/${hash}${policy.extension}`;
-    await this.storage.put(workspaceId, packageBlobKey, sourceBytes, {
-      contentType: policy.mimeType,
-      contentLength: sourceBytes.byteLength,
-    });
+    const packageBlobKey = await this.storage.put(
+      owner,
+      actorId,
+      `office/package/${policy.format}/${hash}${policy.extension}`,
+      sourceBytes,
+      {
+        contentType: policy.mimeType,
+        contentLength: sourceBytes.byteLength,
+      }
+    );
     const stateBytes = Buffer.from(JSON.stringify(semanticState), 'utf8');
     if (
       !stateBytes.byteLength ||
@@ -149,11 +183,16 @@ export class OfficeImportService {
       );
     }
     const stateFingerprint = officeFingerprint(stateBytes);
-    const stateBlobKey = `office/state/${policy.format}/${stateFingerprint.slice('sha256:'.length)}.json`;
-    await this.storage.put(workspaceId, stateBlobKey, stateBytes, {
-      contentType: policy.stateMimeType,
-      contentLength: stateBytes.byteLength,
-    });
+    const stateBlobKey = await this.storage.put(
+      owner,
+      actorId,
+      `office/state/${policy.format}/${stateFingerprint.slice('sha256:'.length)}.json`,
+      stateBytes,
+      {
+        contentType: policy.stateMimeType,
+        contentLength: stateBytes.byteLength,
+      }
+    );
 
     const compatibility = officeCompatibilitySummary(
       policy,
@@ -168,7 +207,7 @@ export class OfficeImportService {
     const trustedImportFingerprint = officeJsonFingerprint({
       version: 'localmind-office-import/v1',
       format: policy.format,
-      workspaceId,
+      ...officeOwnerToInput(owner),
       actorId,
       title,
       sourceFileName,
@@ -179,30 +218,121 @@ export class OfficeImportService {
       sourceFingerprint,
       stateFingerprint,
       modelVersion: policy.modelVersion,
+      ...(typeof owner === 'string'
+        ? {}
+        : { parentId: input.parentId ?? null }),
     });
-    const result = await this.models.officeArtifact.createOrReuseImported({
-      workspaceId,
-      actorId,
-      kind: policy.kind,
-      title,
-      sourceFileName,
-      source: {
-        key: packageBlobKey,
-        mimeType: policy.mimeType,
-        byteSize: sourceBytes.byteLength,
-        fingerprint: sourceFingerprint,
-      },
-      state: {
-        key: stateBlobKey,
-        byteSize: stateBytes.byteLength,
-        fingerprint: stateFingerprint,
-      },
-      modelVersion: policy.modelVersion,
-      importIdempotencyKey,
-      importFingerprint: trustedImportFingerprint,
-      compatibility,
-      operationSummary,
-    });
+    const persist = () =>
+      this.models.officeArtifact.createOrReuseImported({
+        ...officeOwnerToInput(owner),
+        actorId,
+        kind: policy.kind,
+        title,
+        sourceFileName,
+        source: {
+          key: packageBlobKey,
+          mimeType: policy.mimeType,
+          byteSize: sourceBytes.byteLength,
+          fingerprint: sourceFingerprint,
+        },
+        state: {
+          key: stateBlobKey,
+          byteSize: stateBytes.byteLength,
+          fingerprint: stateFingerprint,
+        },
+        modelVersion: policy.modelVersion,
+        importIdempotencyKey,
+        importFingerprint: trustedImportFingerprint,
+        compatibility,
+        operationSummary,
+      });
+    const result =
+      typeof owner === 'string'
+        ? await persist()
+        : await this.models.projectResource.withMember(
+            { projectId: owner.projectId, actorId },
+            async () => {
+              if (input.replaceProjectArtifact) {
+                const target = input.replaceProjectArtifact;
+                const artifact = await this.models.officeArtifact.get(
+                  owner,
+                  target.artifactId
+                );
+                if (!artifact || artifact.kind !== policy.kind)
+                  throw new Error('Source refresh type does not match');
+                await this.models.projectResource.assertOfficeResource({
+                  projectId: owner.projectId,
+                  actorId,
+                  artifactId: artifact.id,
+                });
+                const result = await this.models.officeArtifact.appendRevision({
+                  projectId: owner.projectId,
+                  artifactId: artifact.id,
+                  actorId,
+                  origin: 'user',
+                  expectedParentRevisionId: target.expectedParentRevisionId,
+                  idempotencyKey: importIdempotencyKey,
+                  idempotencyFingerprint: target.requestFingerprint,
+                  package: {
+                    key: packageBlobKey,
+                    mimeType: policy.mimeType,
+                    byteSize: sourceBytes.byteLength,
+                    fingerprint: sourceFingerprint,
+                  },
+                  state: {
+                    key: stateBlobKey,
+                    byteSize: stateBytes.byteLength,
+                    fingerprint: stateFingerprint,
+                  },
+                  modelVersion: policy.modelVersion,
+                  operationSummary: {
+                    ...operationSummary,
+                    type: 'source_refresh',
+                  },
+                });
+                await this.models.projectResource.updateSearchText({
+                  projectId: owner.projectId,
+                  actorId,
+                  resourceId: artifact.id,
+                  sequence: result.revision.sequence,
+                  text: await officePackageSearchText(
+                    semanticState,
+                    sourceBytes
+                  ),
+                });
+                return { ...result, artifact };
+              }
+              const imported = await persist();
+              await this.models.projectResource.create({
+                projectId: owner.projectId,
+                actorId,
+                resourceId: imported.artifact.id,
+                officeArtifactId: imported.artifact.id,
+                parentId: input.parentId,
+                title,
+                kind: policy.kind,
+                requestKey:
+                  input.projectRequestKey ??
+                  `office:${officeJsonFingerprint({ importIdempotencyKey })}`,
+                requestHash: input.projectRequestHash,
+                origin: 'import',
+              });
+              await this.models.projectResource.assertOfficeResource({
+                projectId: owner.projectId,
+                actorId,
+                artifactId: imported.artifact.id,
+              });
+              await this.models.projectResource.updateSearchText({
+                projectId: owner.projectId,
+                actorId,
+                resourceId: imported.artifact.id,
+                sequence: imported.revision.sequence,
+                text: await officePackageSearchText(semanticState, sourceBytes),
+              });
+              return imported;
+            },
+            true
+          );
     return {
       ...result,
       format: policy.format,

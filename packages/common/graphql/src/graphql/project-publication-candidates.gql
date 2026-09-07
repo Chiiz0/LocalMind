@@ -1,0 +1,6 @@
+query projectPublicationCandidates($projectId: String!, $resourceId: String!, $workspaceId: String!, $parentId: String, $query: String, $cursor: String) {
+  projectPublicationCandidates(projectId: $projectId, resourceId: $resourceId, workspaceId: $workspaceId, parentId: $parentId, query: $query, cursor: $cursor) {
+    items { resourceId title kind folderId path { id name } canUpdate }
+    nextCursor
+  }
+}

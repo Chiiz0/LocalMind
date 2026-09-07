@@ -18,6 +18,7 @@ import {
 import type { PermissionAccess } from '../../core/permission';
 import type { WorkspaceBlobStorage } from '../../core/storage';
 import type { Models } from '../../models';
+import { workspaceOfficeStorage } from './office-storage.fixture';
 
 function fingerprint(bytes: Uint8Array) {
   return `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
@@ -139,7 +140,11 @@ test('imports XLSX, PPTX, and PDF through the native format registry', async t =
       put,
     } as unknown as WorkspaceBlobStorage;
     const { access } = permissions();
-    const service = new OfficeImportService(models, storage, access);
+    const service = new OfficeImportService(
+      models,
+      workspaceOfficeStorage(storage),
+      access
+    );
 
     const result = await service.import({
       workspaceId: 'workspace-1',
@@ -184,7 +189,11 @@ test('rejects MIME mismatch and denied import permissions before persistence', a
   const allowed = permissions();
 
   await t.throwsAsync(
-    new OfficeImportService(models, storage, allowed.access).import({
+    new OfficeImportService(
+      models,
+      workspaceOfficeStorage(storage),
+      allowed.access
+    ).import({
       workspaceId: 'workspace-1',
       actorId: 'user-1',
       sourceBlobKey: 'imports/budget.xlsx',
@@ -202,7 +211,11 @@ test('rejects MIME mismatch and denied import permissions before persistence', a
     blob: { get: Sinon.stub() },
   } as unknown as Models;
   await t.throwsAsync(
-    new OfficeImportService(deniedModels, storage, denied.access).import({
+    new OfficeImportService(
+      deniedModels,
+      workspaceOfficeStorage(storage),
+      denied.access
+    ).import({
       workspaceId: 'workspace-1',
       actorId: 'user-1',
       sourceBlobKey: 'imports/budget.xlsx',
@@ -256,7 +269,11 @@ test('previews and executes XLSX, PPTX, and PDF commands with immutable evidence
       put,
     } as unknown as WorkspaceBlobStorage;
     const { access } = permissions();
-    const service = new OfficeCommandService(models, storage, access);
+    const service = new OfficeCommandService(
+      models,
+      workspaceOfficeStorage(storage),
+      access
+    );
 
     const preview = await service.preview({
       workspaceId: 'workspace-1',
@@ -314,7 +331,11 @@ test('rejects stale revisions, altered bytes, and missing AI permission before w
     },
   } as unknown as Models;
   await t.throwsAsync(
-    new OfficeCommandService(staleModels, storage, allowed.access).execute({
+    new OfficeCommandService(
+      staleModels,
+      workspaceOfficeStorage(storage),
+      allowed.access
+    ).execute({
       workspaceId: 'workspace-1',
       actorId: 'user-1',
       command: item.command,
@@ -336,7 +357,11 @@ test('rejects stale revisions, altered bytes, and missing AI permission before w
     },
   } as unknown as Models;
   await t.throwsAsync(
-    new OfficeCommandService(alteredModels, storage, allowed.access).execute({
+    new OfficeCommandService(
+      alteredModels,
+      workspaceOfficeStorage(storage),
+      allowed.access
+    ).execute({
       workspaceId: 'workspace-1',
       actorId: 'user-1',
       command: item.command,
@@ -352,7 +377,11 @@ test('rejects stale revisions, altered bytes, and missing AI permission before w
     officeArtifact: { get: Sinon.stub() },
   } as unknown as Models;
   await t.throwsAsync(
-    new OfficeCommandService(deniedModels, storage, denied.access).execute({
+    new OfficeCommandService(
+      deniedModels,
+      workspaceOfficeStorage(storage),
+      denied.access
+    ).execute({
       workspaceId: 'workspace-1',
       actorId: 'user-1',
       command: aiCommand,

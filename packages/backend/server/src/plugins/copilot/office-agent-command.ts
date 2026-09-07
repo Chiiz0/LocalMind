@@ -29,6 +29,10 @@ import type {
   CopilotAgentStepRecord,
 } from '../../models/copilot-agent-runtime';
 import {
+  officeOwnerFromInput,
+  type OfficeOwnerInput,
+} from '../../models/office-owner';
+import {
   type CopilotAgentRuntimeWorkflowAdapterInput,
   CopilotAgentRuntimeWorkflowRegistry,
 } from './agent-runtime-workflow-registry';
@@ -614,17 +618,23 @@ export class OfficeAgentCommandService {
     return await this.requestPayload(input, { kind: 'batch', batch });
   }
 
-  async validateAiContext(input: {
-    workspaceId: string;
-    actorId: string;
-    context: unknown;
-  }) {
+  async validateAiContext(
+    input: OfficeOwnerInput & {
+      actorId: string;
+      context: unknown;
+    }
+  ) {
     const context = parseOfficeAiContext(input.context);
-    if (context.workspaceId !== input.workspaceId) {
-      throw new Error('Office AI context workspace does not match the session');
+    const owner = officeOwnerFromInput(input);
+    if (
+      typeof owner === 'string'
+        ? !('workspaceId' in context) || context.workspaceId !== owner
+        : !('projectId' in context) || context.projectId !== owner.projectId
+    ) {
+      throw new Error('Office AI context owner does not match the session');
     }
     const current = await this.artifacts.get(
-      input.workspaceId,
+      owner,
       input.actorId,
       context.artifactId
     );
@@ -640,7 +650,7 @@ export class OfficeAgentCommandService {
     }
     if (context.selection) {
       const asset = await this.artifacts.readRevisionAsset(
-        input.workspaceId,
+        owner,
         input.actorId,
         context.artifactId,
         context.revisionId,
@@ -903,21 +913,23 @@ export class OfficeAgentCommandService {
     };
   }
 
-  async readStateForAi(input: {
-    workspaceId: string;
-    actorId: string;
-    artifactId: string;
-    revisionId?: string | null;
-    selector?: OfficeAiReadSelector;
-  }) {
+  async readStateForAi(
+    input: OfficeOwnerInput & {
+      actorId: string;
+      artifactId: string;
+      revisionId?: string | null;
+      selector?: OfficeAiReadSelector;
+    }
+  ) {
+    const owner = officeOwnerFromInput(input);
     const revision = await this.artifacts.getRevision(
-      input.workspaceId,
+      owner,
       input.actorId,
       input.artifactId,
       input.revisionId ?? undefined
     );
     const asset = await this.artifacts.readRevisionAsset(
-      input.workspaceId,
+      owner,
       input.actorId,
       input.artifactId,
       revision.id,

@@ -27,6 +27,9 @@ export class AIChatAddContext extends SignalWatcher(
   accessor docId: string | undefined;
 
   @property({ attribute: false })
+  accessor attachmentsOnly = false;
+
+  @property({ attribute: false })
   accessor independentMode: boolean | undefined;
 
   @property({ attribute: false })
@@ -75,6 +78,7 @@ export class AIChatAddContext extends SignalWatcher(
     createLitPortal({
       template: html`
         <chat-panel-add-popover
+          .attachmentsOnly=${this.attachmentsOnly}
           .docId=${this.docId}
           .independentMode=${this.independentMode}
           .addChip=${this.addChip}

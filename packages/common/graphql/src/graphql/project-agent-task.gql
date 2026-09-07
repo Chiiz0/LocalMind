@@ -1,0 +1,4 @@
+query projectAgentTask($projectId: String!, $runId: String!) {
+  projectAgentTask(projectId: $projectId, runId: $runId) { ...ProjectAgentTaskFields }
+}
+#import './fragments/project-agent-task-fields.gql'

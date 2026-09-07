@@ -1,0 +1,3 @@
+mutation uploadProjectBlob($projectId: String!, $file: Upload!) {
+  uploadProjectBlob(projectId: $projectId, file: $file)
+}

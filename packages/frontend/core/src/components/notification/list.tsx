@@ -1,9 +1,6 @@
 import {
   Avatar,
   Button,
-  IconButton,
-  Menu,
-  MenuItem,
   notify,
   observeIntersection,
   RadioGroup,
@@ -33,9 +30,7 @@ import { i18nTime, Trans, useI18n } from '@affine/i18n';
 import track from '@affine/track';
 import {
   CollaborationIcon,
-  DeleteIcon,
   EdgelessIcon,
-  MoreHorizontalIcon,
   NotificationIcon,
   PageIcon,
 } from '@blocksuite/icons/rc';
@@ -52,7 +47,12 @@ import {
 
 import { useNavigateHelper } from '../hooks/use-navigate-helper';
 import { AccessRequestNotificationItem } from './access-request';
+import {
+  NotificationCleanupActions,
+  NotificationItemActions,
+} from './cleanup-actions';
 import * as styles from './list.style.css';
+import { ProjectFileRequestNotificationItem } from './project-file-request';
 
 export const NotificationList = () => {
   const t = useI18n();
@@ -103,18 +103,6 @@ export const NotificationList = () => {
     globalDialogService.open('sign-in', {});
   }, [globalDialogService]);
 
-  const handleReadAll = useCallback(() => {
-    notificationListService.readAllNotifications().catch(err => {
-      notify.error(UserFriendlyError.fromAny(err));
-    });
-  }, [notificationListService]);
-
-  const handleDismissRead = useCallback(() => {
-    notificationListService.dismissReadNotifications().catch(err => {
-      notify.error(UserFriendlyError.fromAny(err));
-    });
-  }, [notificationListService]);
-
   const handleModeChange = useCallback(
     (value: string) => {
       notificationListService.setMode(value === 'all' ? 'all' : 'unread');
@@ -149,31 +137,7 @@ export const NotificationList = () => {
               },
             ]}
           />
-          {notifications.length > 0 && (
-            <Menu
-              items={
-                <>
-                  <MenuItem onClick={handleReadAll}>
-                    <span>{t['com.affine.notification.mark-all-read']()}</span>
-                  </MenuItem>
-                  {mode === 'all' && (
-                    <MenuItem
-                      prefixIcon={<DeleteIcon />}
-                      onClick={handleDismissRead}
-                    >
-                      <span>{t['com.affine.notification.delete-read']()}</span>
-                    </MenuItem>
-                  )}
-                </>
-              }
-            >
-              <IconButton
-                icon={<MoreHorizontalIcon />}
-                aria-label={t['com.affine.notification.more-actions']()}
-                title={t['com.affine.notification.more-actions']()}
-              />
-            </Menu>
-          )}
+          {authStatus === 'authenticated' && <NotificationCleanupActions />}
         </div>
       </div>
       <Scrollable.Root className={styles.scrollRoot}>
@@ -188,7 +152,10 @@ export const NotificationList = () => {
                   className={styles.notificationListItem}
                   data-read={notification.read}
                 >
-                  <NotificationItem notification={notification} />
+                  <div className={styles.itemContent}>
+                    <NotificationItem notification={notification} />
+                  </div>
+                  <NotificationItemActions notification={notification} />
                 </li>
               ))}
               {userFriendlyError && (
@@ -325,7 +292,9 @@ const NotificationItem = ({ notification }: { notification: Notification }) => {
   const t = useI18n();
   const type = notification.type;
 
-  return type === NotificationType.AccessRequest ||
+  return type === NotificationType.ProjectFileRequest ? (
+    <ProjectFileRequestNotificationItem notification={notification} />
+  ) : type === NotificationType.AccessRequest ||
     type === NotificationType.AccessRequestResolved ? (
     <AccessRequestNotificationItem notification={notification} />
   ) : type === NotificationType.Mention ? (
@@ -352,7 +321,6 @@ const NotificationItem = ({ notification }: { notification: Notification }) => {
       <div className={styles.itemNotSupported}>
         {t['com.affine.notification.unsupported']()} ({type})
       </div>
-      <DeleteButton notification={notification} />
     </div>
   );
 };
@@ -421,7 +389,6 @@ const MentionNotificationItem = ({
           })}
         </div>
       </div>
-      <DeleteButton notification={notification} />
     </div>
   );
 };
@@ -485,7 +452,6 @@ const InvitationReviewRequestNotificationItem = ({
           })}
         </div>
       </div>
-      <DeleteButton notification={notification} />
     </div>
   );
 };
@@ -535,7 +501,6 @@ const InvitationReviewDeclinedNotificationItem = ({
           })}
         </div>
       </div>
-      <DeleteButton notification={notification} />
     </div>
   );
 };
@@ -613,7 +578,6 @@ const InvitationReviewApprovedNotificationItem = ({
           })}
         </div>
       </div>
-      <DeleteButton notification={notification} />
     </div>
   );
 };
@@ -669,7 +633,6 @@ const InvitationAcceptedNotificationItem = ({
           })}
         </div>
       </div>
-      <DeleteButton notification={notification} />
     </div>
   );
 };
@@ -726,7 +689,6 @@ const InvitationBlockedNotificationItem = ({
           })}
         </div>
       </div>
-      <DeleteButton notification={notification} />
     </div>
   );
 };
@@ -855,49 +817,7 @@ const InvitationNotificationItem = ({
           })}
         </div>
       </div>
-      <DeleteButton notification={notification} />
     </div>
-  );
-};
-
-const DeleteButton = ({
-  notification,
-  onClick,
-}: {
-  notification: Notification;
-  onClick?: () => void;
-}) => {
-  const notificationListService = useService(NotificationListService);
-  const t = useI18n();
-
-  const handleDelete = useCallback(
-    (e: React.MouseEvent<HTMLButtonElement>) => {
-      e.stopPropagation(); // prevent trigger the click event of the parent element
-
-      track.$.sidebar.notifications.clickNotification({
-        type: notification.type,
-        item: 'dismiss',
-      });
-
-      notificationListService
-        .dismissNotification(notification.id)
-        .catch(err => {
-          console.error(err);
-        });
-      onClick?.();
-    },
-    [notificationListService, notification, onClick]
-  );
-
-  return (
-    <IconButton
-      size={16}
-      className={styles.itemDeleteButton}
-      icon={<DeleteIcon />}
-      aria-label={t['com.affine.notification.delete']()}
-      title={t['com.affine.notification.delete']()}
-      onClick={handleDelete}
-    />
   );
 };
 
@@ -1020,7 +940,6 @@ const CommentNotificationItem = ({
           })}
         </div>
       </div>
-      <DeleteButton notification={notification} />
     </div>
   );
 };
@@ -1090,7 +1009,6 @@ const CommentMentionNotificationItem = ({
           })}
         </div>
       </div>
-      <DeleteButton notification={notification} />
     </div>
   );
 };

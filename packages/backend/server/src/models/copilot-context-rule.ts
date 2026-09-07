@@ -167,7 +167,7 @@ export class CopilotContextRuleModel extends BaseModel {
 
   async listRules(input: {
     ownerUserId: string;
-    workspaceId: string;
+    workspaceId: string | null;
     projectIds?: string[];
     includeDisabled?: boolean;
   }) {

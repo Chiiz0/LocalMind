@@ -83,6 +83,7 @@ import {
   type OfficeDocxCommand,
   officePackagePartUrl,
   officePdfExportUrl,
+  type OfficeResourceOwner,
   type OfficeTextRange,
   paginateDocxBlocks,
   previewOfficeDocxCommand,
@@ -117,7 +118,7 @@ const FONT_SIZES = [
 ];
 
 type Artifact = NonNullable<OfficeArtifactQuery['officeArtifact']>;
-type Revision = Artifact['currentRevision'];
+type Revision = OfficeRevision;
 type HistoryRevision = OfficeRevisionsQuery['officeRevisions'][number];
 type RevisionCompare = OfficeRevisionCompareQuery['officeRevisionCompare'];
 type DocxObject = OfficeDocumentInsertObjectCommand['object'];
@@ -133,7 +134,9 @@ type RevisionCompareChange = {
   after?: string;
 };
 
-function revisionCompareChanges(value: unknown): RevisionCompareChange[] {
+export function revisionCompareChanges(
+  value: unknown
+): RevisionCompareChange[] {
   if (!Array.isArray(value)) return [];
   return value.filter((item): item is RevisionCompareChange => {
     if (!item || typeof item !== 'object') return false;
@@ -1753,11 +1756,11 @@ function CenterState({ children }: { children: ReactNode }) {
   return <div className={styles.centerState}>{children}</div>;
 }
 
-function DocumentEditor({
+export function DocumentEditor({
   state,
   revision,
   artifactId,
-  workspaceId,
+  owner,
   graphql,
   readOnly,
   onRevision,
@@ -1767,7 +1770,7 @@ function DocumentEditor({
   state: DocxSemanticState;
   revision: Revision;
   artifactId: string;
-  workspaceId: string;
+  owner: OfficeResourceOwner;
   graphql: GraphQLService;
   readOnly: boolean;
   onRevision: (revision: Revision, state: DocxSemanticState) => void;
@@ -1844,7 +1847,7 @@ function DocumentEditor({
       try {
         const result = await executeAndReloadOfficeCommand<DocxSemanticState>({
           graphql,
-          workspaceId,
+          owner,
           kind: 'document',
           command,
         });
@@ -1859,7 +1862,7 @@ function DocumentEditor({
         setSaving(false);
       }
     },
-    [graphql, onRevision, readOnly, saving, workspaceId]
+    [graphql, onRevision, owner, readOnly, saving]
   );
 
   const executeImmediateInBackground = useCallback(
@@ -2043,11 +2046,7 @@ function DocumentEditor({
     setPreviewing(true);
     setError(null);
     try {
-      const result = await previewOfficeDocxCommand(
-        graphql,
-        workspaceId,
-        command
-      );
+      const result = await previewOfficeDocxCommand(graphql, owner, command);
       setPreview({
         command,
         stats: result.previewOfficeDocxCommand.stats as Record<string, number>,
@@ -2057,7 +2056,7 @@ function DocumentEditor({
     } finally {
       setPreviewing(false);
     }
-  }, [graphql, makeCommand, readOnly, workspaceId]);
+  }, [graphql, makeCommand, owner, readOnly]);
 
   const handleApply = useCallback(async () => {
     if (!preview || readOnly) return;
@@ -2066,7 +2065,7 @@ function DocumentEditor({
     try {
       const result = await executeOfficeDocxCommand(
         graphql,
-        workspaceId,
+        owner,
         preview.command
       );
       const next = result.executeOfficeDocxCommand.artifact.currentRevision;
@@ -2089,7 +2088,7 @@ function DocumentEditor({
     } finally {
       setSaving(false);
     }
-  }, [graphql, onRevision, preview, readOnly, workspaceId]);
+  }, [graphql, onRevision, owner, preview, readOnly]);
 
   const handleParagraphCommit = useCallback(
     async (paragraph: DocxParagraph, text: string) => {
@@ -2121,12 +2120,8 @@ function DocumentEditor({
       setSaving(true);
       setError(null);
       try {
-        await previewOfficeDocxCommand(graphql, workspaceId, command);
-        const result = await executeOfficeDocxCommand(
-          graphql,
-          workspaceId,
-          command
-        );
+        await previewOfficeDocxCommand(graphql, owner, command);
+        const result = await executeOfficeDocxCommand(graphql, owner, command);
         const next = result.executeOfficeDocxCommand.artifact.currentRevision;
         if (!next.stateUrl)
           throw new Error('Saved revision has no document state');
@@ -2141,15 +2136,7 @@ function DocumentEditor({
         setSaving(false);
       }
     },
-    [
-      artifactId,
-      graphql,
-      onRevision,
-      readOnly,
-      revision.id,
-      saving,
-      workspaceId,
-    ]
+    [artifactId, graphql, onRevision, readOnly, revision.id, saving, owner]
   );
 
   const handleEditorKeyDown = useCallback((event: KeyboardEvent) => {
@@ -2641,7 +2628,7 @@ export const Component = () => {
         state={state}
         revision={revision}
         artifactId={artifact.id}
-        workspaceId={workspaceId}
+        owner={{ kind: 'workspace', workspaceId }}
         graphql={graphql}
         readOnly={isHistorical}
         onRevision={handleRevision}
@@ -2653,7 +2640,7 @@ export const Component = () => {
         state={state}
         revision={revision}
         artifactId={artifact.id}
-        workspaceId={workspaceId}
+        owner={{ kind: 'workspace', workspaceId }}
         graphql={graphql}
         readOnly={isHistorical}
         onRevision={handleRevision}
@@ -2667,7 +2654,7 @@ export const Component = () => {
         state={state}
         revision={revision}
         artifactId={artifact.id}
-        workspaceId={workspaceId}
+        owner={{ kind: 'workspace', workspaceId }}
         graphql={graphql}
         readOnly={isHistorical}
         onRevision={handleRevision}
@@ -2679,7 +2666,7 @@ export const Component = () => {
         state={state}
         revision={revision}
         artifactId={artifact.id}
-        workspaceId={workspaceId}
+        owner={{ kind: 'workspace', workspaceId }}
         graphql={graphql}
         readOnly={isHistorical}
         onRevision={handleRevision}

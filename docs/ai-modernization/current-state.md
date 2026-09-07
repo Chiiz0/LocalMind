@@ -1,5 +1,60 @@
 # Current State
 
+## Project Native Resources
+
+The 2026-09-06 user-confirmed design is recorded in
+[Project Native Resources](tracks/project-native-resources.md), with a separate
+[implementation goal prompt](project-native-resources.goal.md). Projects own
+internal resources, immutable revisions, Blob storage and persistent file trees
+without Workspace storage; internal changes do not update external copies.
+Workspace publication/update requires an explicit user action and target ACL,
+while import retains source copy/share checks. Members have default internal
+read/write access, without an additional Owner-only publication gate.
+
+This new contract supersedes conflicting historical creation, Project-grant
+and shared-write descriptions below. Those sections remain evidence of the
+earlier implementation. Native resource tests, real model and browser checks,
+upgrade/backfill counts, backups and runtime synchronization are recorded in
+[the execution report](project-native-resources.execution.md).
+Global Project BYOK remains independent of Workspace.
+
+P1-P6 and A01-A22 are accepted. The backed-up 3011 runtime has 353 migrations;
+2 historical references were copied and 11 remain recoverable pending source
+authorization. Workspace data fingerprints did not change during migration and
+synchronization. The runtime global Project BYOK is unconfigured and correctly
+rejects model calls; real model creation and Office approval were validated in
+the isolated instance. No image was rebuilt.
+
+BlockSuite documents/canvases and Docs/Sheets/Slides/PDF use their existing
+editors with Project ownership. Project chat persists selected resources and
+attachments, works without Workspace membership, and records Project source
+evidence. Approval, cancellation, lease fencing and immutable receipts apply to
+Office and publication tasks. Historical references retain recoverable
+authorization failures; old conversations cannot resume as implicit Workspace
+writes.
+
+## Global Project BYOK
+
+Project conversations now resolve one administrator-managed global BYOK record
+independently of their execution Workspace. The `/admin/ai/config` form probes
+the selected provider before saving encrypted credentials, compares the current
+revision and records immutable, secret-free change events. Workspace/user
+Profiles and local leases do not contribute to Project model selection.
+
+Persisted session ownership and current active Project membership are checked
+when resolving providers, including stream preparation, tool subcalls and
+retries. Disabling or replacing the global record affects subsequent requests;
+already dispatched provider requests can finish. The Project model menu uses a
+separate member-authorized metadata query and does not read or change the user's
+Workspace model preference. Migration `20260906040000_project_global_byok` adds
+independent config and audit tables without copying existing Workspace secrets.
+
+The authority is [Project AI Boundaries](tracks/project-ai-boundaries.md).
+[Validation evidence](tracks/project-ai-boundaries.md#global-project-byok-validation-on-2026-09-06)
+covers Linux regression tests, upgrade preservation and the isolated Admin
+browser workflow. Current runtime status is tracked in the native resource
+execution report above.
+
 ## Project AI Stage Two Accepted
 
 Stage two passed isolated Linux, real Chrome and encrypted-BYOK acceptance.

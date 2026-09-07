@@ -159,7 +159,7 @@ describe('PdfEditor', () => {
           } as never
         }
         artifactId="artifact-1"
-        workspaceId="workspace-1"
+        owner={{ kind: 'workspace', workspaceId: 'workspace-1' }}
         graphql={{} as never}
         readOnly={false}
         onRevision={vi.fn()}

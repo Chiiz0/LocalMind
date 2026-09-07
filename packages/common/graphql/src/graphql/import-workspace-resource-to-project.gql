@@ -1,0 +1,7 @@
+#import './fragments/project-resource.gql'
+
+mutation importWorkspaceResourceToProject($input: ImportWorkspaceResourceToProjectInput!) {
+  importWorkspaceResourceToProject(input: $input) {
+    ...ProjectResourceFields
+  }
+}

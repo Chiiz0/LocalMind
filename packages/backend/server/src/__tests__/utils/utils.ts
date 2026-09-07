@@ -13,7 +13,9 @@ async function flushDB(client: PrismaClient) {
                              AND schemaname != 'information_schema'`;
   const query = `TRUNCATE TABLE ${result
     .map(({ tablename }) => tablename)
-    .filter(name => !name.includes('migrations'))
+    .filter(
+      name => name !== '_prisma_migrations' && name !== '_data_migrations'
+    )
     .join(', ')}`;
 
   for (let attempt = 0; attempt < 3; attempt++) {

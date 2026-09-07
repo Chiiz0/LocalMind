@@ -342,7 +342,7 @@ export function PdfEditor({
   state,
   revision,
   artifactId,
-  workspaceId,
+  owner,
   graphql,
   readOnly,
   onRevision,
@@ -419,7 +419,7 @@ export function PdfEditor({
       try {
         const result = await executeAndReloadOfficeCommand<PdfSemanticState>({
           graphql,
-          workspaceId,
+          owner,
           kind: 'pdf',
           command,
         });
@@ -434,7 +434,7 @@ export function PdfEditor({
         setSaving(false);
       }
     },
-    [graphql, onRevision, readOnly, saving, workspaceId]
+    [graphql, onRevision, owner, readOnly, saving]
   );
 
   const commandBase = useCallback(() => {

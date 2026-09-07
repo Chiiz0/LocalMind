@@ -143,16 +143,30 @@ export const OfficeSelectionSchema = z.discriminatedUnion('kind', [
   OfficePdfSelectionSchema,
 ]);
 
+const officeContextFields = {
+  artifactId: boundedString(512),
+  artifactKind: z.enum(['document', 'workbook', 'presentation', 'pdf']),
+  revisionId: boundedString(512),
+  selection: OfficeSelectionSchema.optional(),
+};
+
 export const OfficeAiContextSchema = z
-  .object({
-    version: z.literal('localmind-office-ai-context/v1'),
-    workspaceId: boundedString(512),
-    artifactId: boundedString(512),
-    artifactKind: z.enum(['document', 'workbook', 'presentation', 'pdf']),
-    revisionId: boundedString(512),
-    selection: OfficeSelectionSchema.optional(),
-  })
-  .strict()
+  .discriminatedUnion('version', [
+    z
+      .object({
+        ...officeContextFields,
+        version: z.literal('localmind-office-ai-context/v1'),
+        workspaceId: boundedString(512),
+      })
+      .strict(),
+    z
+      .object({
+        ...officeContextFields,
+        version: z.literal('localmind-project-office-ai-context/v1'),
+        projectId: boundedString(512),
+      })
+      .strict(),
+  ])
   .superRefine((context, refinement) => {
     if (context.selection && context.selection.kind !== context.artifactKind) {
       refinement.addIssue({

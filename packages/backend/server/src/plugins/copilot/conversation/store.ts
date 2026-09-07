@@ -254,7 +254,7 @@ export class ConversationStore {
     return await this.models.copilotSession.count(options);
   }
 
-  async unpin(workspaceId: string, userId: string) {
+  async unpin(workspaceId: string | null, userId: string) {
     return await this.models.copilotSession.unpin(workspaceId, userId);
   }
 }

@@ -637,6 +637,14 @@ export class NotificationService {
     return count;
   }
 
+  async dismissAll(userId: string) {
+    const count = await this.models.notification.dismissAll(userId);
+    if (count > 0) {
+      await this.publishCountChanged(userId, 'deleted');
+    }
+    return count;
+  }
+
   /**
    * Find notifications by user id, order by createdAt desc
    */
@@ -655,7 +663,11 @@ export class NotificationService {
     const userInfos = new Map(users.map(u => [u.id, u]));
 
     // fill workspace info
-    const workspaceIds = new Set(notifications.map(n => n.body.workspaceId));
+    const workspaceIds = new Set(
+      notifications
+        .map(n => n.body.workspaceId)
+        .filter((id): id is string => typeof id === 'string')
+    );
     const workspaces = await this.models.workspace.findMany(
       Array.from(workspaceIds)
     );
@@ -691,8 +703,32 @@ export class NotificationService {
           ...(n.body as UnionNotificationBody),
           // set type to body.type to improve type inference on frontend
           type: n.type,
-          workspace: workspaceInfos.get(n.body.workspaceId),
+          workspace: n.body.workspaceId
+            ? workspaceInfos.get(n.body.workspaceId)
+            : undefined,
           createdByUser: userInfos.get(n.body.createdByUserId),
+          ...(n.type === NotificationType.ProjectFileRequest &&
+          'requestId' in n.body &&
+          typeof n.body.requestId === 'string'
+            ? await this.models.projectFileRequest
+                .get(n.body.requestId, userId)
+                .then(request =>
+                  this.models.projectFileRequest.present(request, userId)
+                )
+                .then(request => ({
+                  requestId: request.id,
+                  title: request.title,
+                  projectName: request.projectName,
+                  status: request.status,
+                  isRecipient: request.isRecipient,
+                }))
+                .catch(() => ({
+                  title: '',
+                  projectName: '',
+                  status: 'unavailable',
+                  isRecipient: false,
+                }))
+            : {}),
           ...((n.type === NotificationType.AccessRequest ||
             n.type === NotificationType.AccessRequestResolved) &&
           'requestId' in n.body &&

@@ -300,6 +300,7 @@ const CopilotProviderOptionsSchema = z.object({
           sideEffectType: z.enum([
             'read',
             'workspace_write',
+            'project_write',
             'external_dynamic',
           ]),
         })

@@ -13,8 +13,13 @@ export type AIActionModelSelection = {
   source: AIActionModelSelectionSource;
 };
 
-export type AIActionOptions = BlockSuitePresets.AITextActionOptions &
+export type AIActionOptions = Omit<
+  BlockSuitePresets.AITextActionOptions,
+  'workspaceId'
+> &
   Record<string, unknown> & {
+    workspaceId?: string;
+    projectId?: string;
     modelSelection?: AIActionModelSelection;
     officeContext?: OfficeAiContext;
   };

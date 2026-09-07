@@ -10,6 +10,7 @@ import {
   WorkspaceOrganizationService,
 } from '../../../core/doc';
 import { PermissionAccess, PermissionService } from '../../../core/permission';
+import { ProjectResourceService } from '../../../core/project';
 import { Models } from '../../../models';
 import { mcpDelegationFingerprint } from '../../../models/copilot-mcp-delegation';
 import { IndexerService } from '../../indexer';
@@ -23,6 +24,7 @@ import {
 import { ExternalMcpToolRegistry } from '../external-mcp';
 import { McpAttachmentService } from '../mcp/attachments';
 import { OfficeAgentCommandService } from '../office-agent-command';
+import { ProjectOfficeAgentCommandService } from '../project-office-agent-command';
 import {
   type CopilotChatOptions,
   type CopilotChatTools,
@@ -65,12 +67,18 @@ import {
   createProjectDocReadTool,
   createProjectDocSemanticSearchTool,
   createProjectDocUpdateRequestTool,
+  createProjectOfficeTools,
   createSectionEditTool,
   createTaskAttachmentReadTool,
   createWorkspaceOrganizationTools,
   defineTool,
 } from '../tools';
 import { createDocCopyRequestTool } from '../tools/doc-write';
+import { createProjectFileRequestTools } from '../tools/project-file-request';
+import {
+  createProjectResourceTools,
+  PROJECT_NATIVE_TOOL_NAMES,
+} from '../tools/project-resources';
 import { PromptRuntime } from './prompt-runtime';
 import type { ToolLoopBackend } from './tool/bridge';
 import { createNativeToolLoopAdapter } from './tool/native-adapter';
@@ -141,8 +149,9 @@ export function canRunDirectlyInProjectSession(toolName: string) {
   );
 }
 
-export function canExposeInProjectSession(toolName: string) {
+export function canExposeInProjectSession(toolName: string, native = false) {
   return (
+    (native && PROJECT_NATIVE_TOOL_NAMES.has(toolName)) ||
     canRunDirectlyInProjectSession(toolName) ||
     PROJECT_SESSION_APPROVAL_GATED_TOOLS.has(toolName)
   );
@@ -165,7 +174,10 @@ export class ToolRuntime {
     @Optional() private readonly enterpriseTools?: EnterpriseToolRegistry,
     @Optional() private readonly externalMcpTools?: ExternalMcpToolRegistry,
     @Optional() private readonly mcpAttachments?: McpAttachmentService,
-    @Optional() private readonly documentCopies?: CopilotDocumentCopyService
+    @Optional() private readonly documentCopies?: CopilotDocumentCopyService,
+    @Optional() private readonly projectResources?: ProjectResourceService,
+    @Optional()
+    private readonly projectOffice?: ProjectOfficeAgentCommandService
   ) {}
 
   async getTools(
@@ -202,7 +214,7 @@ export class ToolRuntime {
     let sessionMeta:
       | {
           userId: string;
-          workspaceId: string;
+          workspaceId: string | null;
           docId: string | null;
           selectedContextProjectId: string | null;
         }
@@ -225,7 +237,41 @@ export class ToolRuntime {
     if (options.session) {
       await resolveSelectedProjectId();
     }
+    const nativeProjectId =
+      sessionMeta?.workspaceId === null ? selectedProjectId : null;
+    if (nativeProjectId) {
+      if (!this.projectResources)
+        throw new Error('Project resource service is unavailable.');
+      const nativeTools = createProjectResourceTools(
+        this.models,
+        this.projectResources,
+        options,
+        nativeProjectId
+      );
+      Object.assign(
+        tools,
+        Object.fromEntries(
+          Object.entries(nativeTools).filter(
+            ([, tool]) =>
+              documentWriteToolsEnabled || tool.sideEffectType === 'read'
+          )
+        )
+      );
+    }
     for (const tool of options.tools) {
+      if (
+        nativeProjectId &&
+        [
+          'docCreate',
+          'docRead',
+          'docUpdate',
+          'docUpdateMeta',
+          'docSemanticSearch',
+          'docKeywordSearch',
+          'workspaceOrganization',
+        ].includes(tool)
+      )
+        continue;
       const toolDef =
         selectedProjectId || tool === 'blocker'
           ? undefined
@@ -452,6 +498,20 @@ export class ToolRuntime {
           break;
         }
         case 'office': {
+          if (nativeProjectId) {
+            if (!this.projectOffice)
+              throw new Error('Project Office service is unavailable');
+            Object.assign(
+              tools,
+              createProjectOfficeTools(
+                this.projectOffice,
+                options,
+                nativeProjectId,
+                documentWriteToolsEnabled
+              )
+            );
+            break;
+          }
           let readProof: { artifactId: string; revisionId: string } | null =
             null;
           const readOffice = buildOfficeReadHandler(this.office, proof => {
@@ -481,7 +541,7 @@ export class ToolRuntime {
             options.chatSurface !== 'intelligence_workbench' ||
             !workbenchSession ||
             workbenchSession.userId !== options.user ||
-            workbenchSession.workspaceId !== options.workspace ||
+            workbenchSession.workspaceId !== (options.workspace ?? null) ||
             workbenchSession.docId !== null ||
             !selectedProjectId ||
             !options.user
@@ -509,6 +569,22 @@ export class ToolRuntime {
               )),
             })
           );
+          if (
+            nativeProjectId &&
+            !options.taskId &&
+            !options.delegatedExecution &&
+            options.session
+          ) {
+            Object.assign(
+              tools,
+              createProjectFileRequestTools(this.models, {
+                projectId: nativeProjectId,
+                actorId: options.user,
+                sessionId: options.session,
+                turnId: options.billingUnitId,
+              })
+            );
+          }
           break;
         }
         case 'enterprise': {
@@ -572,12 +648,17 @@ export class ToolRuntime {
       : null;
     const activeProjectId =
       options.session &&
-      Object.keys(guarded).some(name => !canExposeInProjectSession(name))
+      Object.keys(guarded).some(
+        name => !canExposeInProjectSession(name, !!nativeProjectId)
+      )
         ? await resolveSelectedProjectId()
         : (selectedProjectId ?? null);
     return Object.fromEntries(
       Object.entries(guarded).filter(([name, tool]) => {
-        if (activeProjectId && !canExposeInProjectSession(name)) {
+        if (
+          activeProjectId &&
+          !canExposeInProjectSession(name, !!nativeProjectId)
+        ) {
           return false;
         }
         if (allowedNames && !allowedNames.has(name)) return false;
@@ -659,7 +740,7 @@ export class ToolRuntime {
             if (
               !session ||
               session.userId !== options.user ||
-              session.workspaceId !== options.workspace ||
+              session.workspaceId !== (options.workspace ?? null) ||
               session.selectedContextProjectId !== expectedProjectId
             ) {
               throw new Error(
@@ -686,7 +767,9 @@ export class ToolRuntime {
               ) {
                 throw new Error('Project membership is no longer active.');
               }
-              if (!canExposeInProjectSession(name)) {
+              if (
+                !canExposeInProjectSession(name, session.workspaceId === null)
+              ) {
                 throw new Error(
                   'This tool is not permitted in a project conversation.'
                 );
@@ -827,7 +910,11 @@ export class ToolRuntime {
               })),
             });
           }
-          if (options.session && options.user && options.workspace) {
+          if (
+            options.session &&
+            options.user &&
+            (options.workspace || expectedProjectId)
+          ) {
             const identity = {
               actorId: options.user,
               sessionId: options.session,
@@ -850,14 +937,16 @@ export class ToolRuntime {
                 ],
               });
             }
-            const derived = !failed && PROJECT_DERIVED_RESULT_TOOLS.has(name);
+            const derived =
+              (!options.workspace && PROJECT_NATIVE_TOOL_NAMES.has(name)) ||
+              (!failed && PROJECT_DERIVED_RESULT_TOOLS.has(name));
             const privateAttachment =
               name === 'blob_read' || name === 'task_attachment_read';
             await this.models.copilotContext.recordInputSources({
               ...identity,
               sources: [
                 {
-                  workspaceId: options.workspace,
+                  workspaceId: options.workspace ?? null,
                   kind: derived
                     ? 'workspace'
                     : privateAttachment

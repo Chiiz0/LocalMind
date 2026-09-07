@@ -98,6 +98,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 
 import { Header } from '../header';
+import { ProjectByokAdmin } from './project-byok';
 import { WorkspaceByokAdmin } from './workspace-byok';
 
 const ADMIN_AI_DEFAULT_PROMPT_NAME = 'Chat With LocalMind AI';
@@ -697,6 +698,7 @@ const PROVIDER_TYPE_LABELS: Record<string, string> = {
 const PROVIDER_SOURCE_LABELS: Record<string, string> = {
   byok_local: 'BYOK local',
   byok_server: 'BYOK server',
+  byok_project_global: 'Project BYOK global',
   configured: 'Configured',
   legacy: 'Legacy config',
 };
@@ -11427,6 +11429,7 @@ function AiConfigPageContent() {
       <ScrollArea className="h-full">
         <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6 px-4 py-5 sm:px-6">
           <AiPageTabs active="config" />
+          <ProjectByokAdmin />
           <AiConfigPage
             appConfig={appConfigData.appConfig as AppConfigData | undefined}
             onSaved={async () => {

@@ -1,0 +1,11 @@
+#import './fragments/project-office-revision-fields.gql'
+
+query projectOfficeRevisions($projectId: String!, $artifactId: String!, $limit: SafeInt) {
+  projectOfficeRevisions(
+    projectId: $projectId
+    artifactId: $artifactId
+    limit: $limit
+  ) {
+    ...ProjectOfficeRevisionFields
+  }
+}

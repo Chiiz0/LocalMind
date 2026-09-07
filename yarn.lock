@@ -1010,6 +1010,7 @@ __metadata:
     nodemailer: "npm:^9.0.0"
     nodemon: "npm:^3.1.14"
     on-headers: "npm:^1.1.0"
+    pdfjs-dist: "npm:5.4.624"
     piscina: "npm:^5.1.4"
     prisma: "npm:^6.6.0"
     react: "npm:^19.2.1"

@@ -1,0 +1,7 @@
+query projectAgentTasks($projectId: String!, $sessionId: String, $cursor: String, $limit: Int) {
+  projectAgentTasks(projectId: $projectId, sessionId: $sessionId, cursor: $cursor, limit: $limit) {
+    items { ...ProjectAgentTaskFields }
+    nextCursor
+  }
+}
+#import './fragments/project-agent-task-fields.gql'

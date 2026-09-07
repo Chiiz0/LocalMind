@@ -16,6 +16,7 @@ import type { NotificationCountService } from './count';
 export class NotificationListService extends Service {
   mode$ = new LiveData<'unread' | 'all'>('unread');
   isLoading$ = new LiveData(false);
+  isMutating$ = new LiveData(false);
   notifications$ = new LiveData<Notification[]>([]);
   nextCursor$ = new LiveData<string | undefined>(undefined);
   hasMore$ = new LiveData(true);
@@ -30,7 +31,7 @@ export class NotificationListService extends Service {
     super();
     const subscription = this.notificationCount.revision$.subscribe(
       revision => {
-        if (!revision) return;
+        if (!revision || this.isMutating$.value) return;
         if (
           this.notifications$.value.length ||
           !this.hasMore$.value ||
@@ -46,7 +47,7 @@ export class NotificationListService extends Service {
 
   readonly loadMore = effect(
     exhaustMap(() => {
-      if (!this.hasMore$.value) {
+      if (!this.hasMore$.value || this.isMutating$.value) {
         return EMPTY;
       }
       return fromPromise(signal =>
@@ -110,95 +111,102 @@ export class NotificationListService extends Service {
   }
 
   async readNotification(id: string) {
-    const existing = this.notifications$.value.find(
-      notification => notification.id === id
+    return this.mutate(
+      () => {
+        const existing = this.notifications$.value.find(n => n.id === id);
+        this.notifications$.next(
+          this.mode$.value === 'unread'
+            ? this.notifications$.value.filter(n => n.id !== id)
+            : this.notifications$.value.map(n =>
+                n.id === id ? { ...n, read: true } : n
+              )
+        );
+        if (existing && !existing.read) {
+          this.notificationCount.setCount(
+            Math.max(this.notificationCount.count$.value - 1, 0)
+          );
+        }
+      },
+      () => this.store.readNotification(id)
     );
-    await this.store.readNotification(id);
-    if (this.mode$.value === 'unread') {
-      this.notifications$.next(
-        this.notifications$.value.filter(notification => notification.id !== id)
-      );
-    } else {
-      this.notifications$.next(
-        this.notifications$.value.map(notification =>
-          notification.id === id
-            ? { ...notification, read: true }
-            : notification
-        )
-      );
-    }
-    if (existing && !existing.read) {
-      this.notificationCount.setCount(
-        Math.max(this.notificationCount.count$.value - 1, 0)
-      );
-    }
   }
 
   async readAllNotifications() {
-    const previousNotifications = this.notifications$.value;
-    const previousCount = this.notificationCount.count$.value;
-    if (this.mode$.value === 'unread') {
-      this.reset();
-      this.hasMore$.setValue(false);
-    } else {
-      this.notifications$.next(
-        previousNotifications.map(notification => ({
-          ...notification,
-          read: true,
-        }))
-      );
-    }
-    this.notificationCount.setCount(0);
-
-    try {
-      await this.store.readAllNotifications();
-    } catch (err) {
-      this.notificationCount.setCount(previousCount);
-      // rollback the optimistic clear all notifications
-      this.reset();
-      this.loadMore();
-
-      // rethrow the error to the caller, to notify the user
-      throw err;
-    }
+    return this.mutate(
+      () => {
+        this.notifications$.next(
+          this.mode$.value === 'unread'
+            ? []
+            : this.notifications$.value.map(n => ({ ...n, read: true }))
+        );
+        this.notificationCount.setCount(0);
+      },
+      () => this.store.readAllNotifications()
+    );
   }
 
   async dismissNotification(id: string) {
-    const previousNotifications = this.notifications$.value;
-    const previousCount = this.notificationCount.count$.value;
-    const existing = previousNotifications.find(
-      notification => notification.id === id
+    return this.mutate(
+      () => {
+        const existing = this.notifications$.value.find(n => n.id === id);
+        this.notifications$.next(
+          this.notifications$.value.filter(n => n.id !== id)
+        );
+        if (existing && !existing.read) {
+          this.notificationCount.setCount(
+            Math.max(this.notificationCount.count$.value - 1, 0)
+          );
+        }
+      },
+      () => this.store.dismissNotification(id)
     );
-    this.notifications$.next(
-      previousNotifications.filter(notification => notification.id !== id)
-    );
-    if (existing && !existing.read) {
-      this.notificationCount.setCount(
-        Math.max(this.notificationCount.count$.value - 1, 0)
-      );
-    }
-
-    try {
-      await this.store.dismissNotification(id);
-    } catch (err) {
-      this.notificationCount.setCount(previousCount);
-      this.reset();
-      this.loadMore();
-      throw err;
-    }
   }
 
   async dismissReadNotifications() {
-    const previousNotifications = this.notifications$.value;
-    this.notifications$.next(
-      previousNotifications.filter(notification => !notification.read)
+    return this.mutate(
+      () => {
+        this.notifications$.next(
+          this.notifications$.value.filter(n => !n.read)
+        );
+      },
+      () => this.store.dismissReadNotifications()
     );
+  }
+
+  async dismissAllNotifications() {
+    return this.mutate(
+      () => {
+        this.notifications$.next([]);
+        this.notificationCount.setCount(0);
+      },
+      () => this.store.dismissAllNotifications()
+    );
+  }
+
+  private async mutate(
+    optimistic: () => void,
+    request: () => Promise<unknown>
+  ) {
+    if (this.isMutating$.value) return;
+    this.isMutating$.setValue(true);
+    const previousCount = this.notificationCount.count$.value;
+    const revision = this.notificationCount.revision$.value;
+    this.loadMore.reset();
+    this.isLoading$.setValue(false);
+    optimistic();
     try {
-      await this.store.dismissReadNotifications();
+      await request();
     } catch (err) {
+      if (this.notificationCount.revision$.value === revision) {
+        this.notificationCount.setCount(previousCount);
+      }
+      throw err;
+    } finally {
+      // Reconcile pagination and notifications received while the mutation ran.
+      this.isMutating$.setValue(false);
       this.reset();
       this.loadMore();
-      throw err;
+      this.notificationCount.revalidate();
     }
   }
 }

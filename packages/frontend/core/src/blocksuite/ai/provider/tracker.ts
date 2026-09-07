@@ -62,7 +62,7 @@ type AIActionEventProperties = {
   category: string;
   other: Record<string, unknown>;
   docId?: string;
-  workspaceId: string;
+  workspaceId?: string;
 };
 
 const trackAction = ({

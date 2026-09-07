@@ -1,0 +1,6 @@
+mutation testProjectByokConfig($input: ProjectByokConfigInput!) {
+  testProjectByokConfig(input: $input) {
+    ok
+    message
+  }
+}

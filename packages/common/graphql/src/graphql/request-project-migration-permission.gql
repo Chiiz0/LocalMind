@@ -1,0 +1,7 @@
+mutation requestProjectMigrationPermission($projectId: String!, $migrationId: String!, $requestKey: String!) {
+  requestProjectMigrationPermission(projectId: $projectId, migrationId: $migrationId, requestKey: $requestKey) {
+    id
+    status
+    purpose
+  }
+}

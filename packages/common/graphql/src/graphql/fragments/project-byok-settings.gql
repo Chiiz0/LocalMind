@@ -1,0 +1,25 @@
+fragment ProjectByokSettings on ProjectByokSettingsType {
+  configured
+  revision
+  provider
+  endpoint
+  modelId
+  enabled
+  lastValidatedAt
+  lastUsedAt
+  lastError
+  updatedAt
+  updatedBy
+  allowedProviders
+  customEndpointSupported
+  auditEvents {
+    revision
+    actorId
+    provider
+    endpoint
+    modelId
+    enabled
+    credentialChanged
+    createdAt
+  }
+}

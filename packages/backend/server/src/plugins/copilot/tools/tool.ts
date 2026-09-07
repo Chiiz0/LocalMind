@@ -11,6 +11,11 @@ export type CopilotToolExecuteOptions = {
 };
 
 export type CopilotTool = {
+  sideEffectType?:
+    | 'read'
+    | 'workspace_write'
+    | 'project_write'
+    | 'external_dynamic';
   description?: string;
   jsonSchema?: Record<string, unknown>;
   inputSchema?: ZodTypeAny | Record<string, unknown>;

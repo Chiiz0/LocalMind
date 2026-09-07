@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
+import { BadRequest } from '../../../../base';
 import type { LlmImageResponse } from '../../../../native';
 import { PromptService } from '../../prompt';
 import { CopilotProviderFactory } from '../../providers/factory';
@@ -72,6 +73,11 @@ export class ActionStreamHost {
       sessionId,
       query
     );
+    const workspaceId = prepared.session.config.workspaceId;
+    if (!workspaceId)
+      throw new BadRequest(
+        'Use Project resource commands in a Project conversation.'
+      );
     const requestedActionId =
       firstQueryValue(query.actionId) ?? prepared.session.config.promptName;
     const actionId = requestedActionId;
@@ -107,7 +113,7 @@ export class ActionStreamHost {
     );
     const runStream = this.bridge.runStream({
       userId,
-      workspaceId: prepared.session.config.workspaceId,
+      workspaceId,
       docId: prepared.session.config.docId,
       session: prepared.session,
       userMessageId: prepared.latestTurn?.id,
@@ -121,11 +127,7 @@ export class ActionStreamHost {
       },
       persistAttachment: isImageAction(actionId)
         ? attachment =>
-            this.persistImageAttachment(
-              userId,
-              prepared.session.config.workspaceId,
-              attachment
-            )
+            this.persistImageAttachment(userId, workspaceId, attachment)
         : undefined,
       prepareStructuredRoutes: isImageAction(actionId)
         ? undefined
@@ -139,7 +141,7 @@ export class ActionStreamHost {
               ...prepared.session.config.promptConfig,
               signal,
               user: userId,
-              workspace: prepared.session.config.workspaceId,
+              workspace: workspaceId,
               session: sessionId,
               byokLeaseId: parsedQuery.byokLeaseId,
               quotaBackedRoutesAllowed: prepared.quotaBackedRoutesAllowed,
@@ -189,7 +191,8 @@ export class ActionStreamHost {
             {},
             {
               userId: routeContext.userId,
-              workspaceId: session.config.workspaceId,
+              sessionId: session.config.sessionId,
+              workspaceId: session.config.workspaceId ?? undefined,
               byokLeaseId: routeContext.byokLeaseId,
               featureKind: 'action',
               quotaBackedRoutesAllowed: routeContext.quotaBackedRoutesAllowed,

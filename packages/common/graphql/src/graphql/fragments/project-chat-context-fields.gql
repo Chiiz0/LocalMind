@@ -1,0 +1,18 @@
+fragment ProjectChatContextFields on ProjectChatContextType {
+  projectId
+  sessionId
+  version
+  items {
+    kind
+    title
+    available
+    resourceId
+    sequence
+    currentSequence
+    resourceKind
+    blobKey
+    name
+    mimeType
+    byteSize
+  }
+}

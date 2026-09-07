@@ -1,11 +1,7 @@
-import {
-  IconButton,
-  Loading,
-  notify,
-  useConfirmModal,
-} from '@affine/component';
+import { IconButton, notify, useConfirmModal } from '@affine/component';
 import type { BlockerSuggestion } from '@affine/core/blocksuite/ai/components/ai-chat-messages';
 import { useQuery } from '@affine/core/components/hooks/use-query';
+import { ProjectFileRequestModal } from '@affine/core/components/project-file-request/detail';
 import { SWRConfigProvider } from '@affine/core/components/providers/swr-config-provider';
 import { NotificationButton } from '@affine/core/components/root-app-sidebar/notification-button';
 import UserInfo from '@affine/core/components/root-app-sidebar/user-info';
@@ -17,6 +13,7 @@ import {
   QuickSearchInput,
 } from '@affine/core/modules/app-sidebar/views';
 import {
+  DefaultServerService,
   GraphQLService,
   WorkspaceServerService,
 } from '@affine/core/modules/cloud';
@@ -51,7 +48,6 @@ import {
   CloseIcon,
   SettingsIcon,
   SidebarIcon,
-  WarningIcon,
 } from '@blocksuite/icons/rc';
 import {
   FrameworkScope,
@@ -67,6 +63,7 @@ import {
   ProjectCollaboration,
   type ProjectCollaborationPendingKey,
 } from './project-collaboration';
+import { ProjectResourcePreview } from './project-resource-preview';
 import { ProjectTree } from './project-tree';
 import { SourceDocumentPeek } from './source-document-peek';
 import { TaskPanel } from './task-panel';
@@ -87,20 +84,38 @@ import { executeWorkbenchTaskAction } from './workbench-task-action';
 export const Component = () => {
   useAppLayoutReady();
 
-  const t = useI18n();
-  const { hostMetadata, hostWorkspace, selectHost, workspacesRevalidating } =
-    useWorkbenchHost();
+  const defaultServer = useService(DefaultServerService).server;
+  const { hostMetadata, hostWorkspace, selectHost } = useWorkbenchHost();
   const [searchParams, setSearchParams] = useSearchParams();
   const [peekDocument, setPeekDocument] = useState<WorkbenchDocument | null>(
     null
   );
   const selectedProjectId = searchParams.get('project');
+  const selectedResourceId = searchParams.get('resource');
+
+  const selectResource = useCallback(
+    (projectId: string, resourceId: string | null) => {
+      setPeekDocument(null);
+      setSearchParams(
+        current => {
+          const next = new URLSearchParams(current);
+          next.set('project', projectId);
+          if (resourceId) next.set('resource', resourceId);
+          else next.delete('resource');
+          return next;
+        },
+        { replace: true }
+      );
+    },
+    [setSearchParams]
+  );
 
   const selectProject = useCallback(
     (projectId: string | null) => {
       setSearchParams(
         current => {
           const next = new URLSearchParams(current);
+          if (next.get('project') !== projectId) next.delete('resource');
           if (projectId) {
             next.set('project', projectId);
           } else {
@@ -114,34 +129,38 @@ export const Component = () => {
     [setSearchParams]
   );
 
-  if (!hostMetadata || !hostWorkspace) {
-    return (
-      <main className={styles.unavailableRoot}>
-        {workspacesRevalidating || hostMetadata ? (
-          <Loading size={28} />
-        ) : (
-          <>
-            <WarningIcon />
-            <h1>Intelligence</h1>
-            <p>{t['com.affine.localmind.workbench.noHost']()}</p>
-          </>
-        )}
-      </main>
-    );
-  }
-
-  const hostServer = hostWorkspace.scope.get(WorkspaceServerService).server;
+  const hostServer =
+    hostWorkspace?.scope.get(WorkspaceServerService).server ?? defaultServer;
 
   return (
     <FrameworkScope scope={hostServer?.scope}>
-      <FrameworkScope scope={hostWorkspace.scope}>
+      <FrameworkScope scope={hostWorkspace?.scope}>
         <SWRConfigProvider>
-          <WorkspaceDialogs />
-          <QuickSearchContainer />
+          <ProjectFileRequestModal
+            requestId={searchParams.get('fileRequest')}
+            onClose={() =>
+              setSearchParams(
+                current => {
+                  const next = new URLSearchParams(current);
+                  next.delete('fileRequest');
+                  return next;
+                },
+                { replace: true }
+              )
+            }
+          />
+          {hostWorkspace ? (
+            <>
+              <WorkspaceDialogs />
+              <QuickSearchContainer />
+            </>
+          ) : null}
           <IntelligenceWorkbench
-            hostWorkspace={hostWorkspace}
+            hostWorkspace={hostWorkspace ?? undefined}
             hostMetadata={hostMetadata}
             selectedProjectId={selectedProjectId}
+            selectedResourceId={selectedResourceId}
+            onSelectResource={selectResource}
             peekDocument={peekDocument}
             onSelectHost={selectHost}
             onSelectProject={selectProject}
@@ -155,9 +174,11 @@ export const Component = () => {
 };
 
 type IntelligenceWorkbenchProps = {
-  hostWorkspace: Workspace;
-  hostMetadata: WorkspaceMetadata;
+  hostWorkspace?: Workspace;
+  hostMetadata: WorkspaceMetadata | null;
   selectedProjectId: string | null;
+  selectedResourceId: string | null;
+  onSelectResource: (projectId: string, resourceId: string | null) => void;
   peekDocument: WorkbenchDocument | null;
   onSelectHost: (metadata: WorkspaceMetadata) => void;
   onSelectProject: (projectId: string | null) => void;
@@ -169,6 +190,8 @@ const IntelligenceWorkbench = ({
   hostWorkspace,
   hostMetadata,
   selectedProjectId,
+  selectedResourceId,
+  onSelectResource,
   peekDocument,
   onSelectHost,
   onSelectProject,
@@ -179,7 +202,7 @@ const IntelligenceWorkbench = ({
   const navigate = useNavigate();
   const graphqlService = useService(GraphQLService);
   const notificationCount = useService(NotificationCountService);
-  const workspaceDialogService = useService(WorkspaceDialogService);
+  const workspaceDialogService = useServiceOptional(WorkspaceDialogService);
   const quickSearchService = useServiceOptional(CMDKQuickSearchService);
   const { openConfirmModal } = useConfirmModal();
   const [pendingMutationKey, setPendingMutationKey] = useState<string | null>(
@@ -200,7 +223,17 @@ const IntelligenceWorkbench = ({
   useEffect(() => {
     if (!mobileNavigationOpen) return;
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
+      if (
+        event.key === 'Escape' &&
+        !event.defaultPrevented &&
+        !event
+          .composedPath()
+          .some(
+            target =>
+              target instanceof Element &&
+              target.matches('[role="dialog"], [role="menu"]')
+          )
+      ) {
         setMobileNavigationOpen(false);
       }
     };
@@ -273,6 +306,7 @@ const IntelligenceWorkbench = ({
     if (
       !projectsLoading &&
       !projectsError &&
+      projectsData?.currentUser &&
       selectedProjectId &&
       !selectedProject
     ) {
@@ -280,6 +314,7 @@ const IntelligenceWorkbench = ({
     }
   }, [
     onSelectProject,
+    projectsData,
     projectsError,
     projectsLoading,
     selectedProject,
@@ -409,6 +444,7 @@ const IntelligenceWorkbench = ({
 
   const addDocuments = useCallback(
     (project: WorkbenchProject, requestedLevel: 'read' | 'write') => {
+      if (!hostWorkspace || !workspaceDialogService) return;
       const existingIds = new Set(
         project.documents
           .filter(document => document.workspaceId === hostWorkspace.id)
@@ -480,8 +516,7 @@ const IntelligenceWorkbench = ({
     },
     [
       graphqlService,
-      hostWorkspace.id,
-      hostWorkspace.docCollection.meta,
+      hostWorkspace,
       refreshProjects,
       refreshTaskPanel,
       reportMutationError,
@@ -925,19 +960,23 @@ const IntelligenceWorkbench = ({
       >
         <div className={styles.railHeader}>
           <div className={styles.workspaceAndAccount}>
-            <div className={styles.workspaceSelector}>
-              <WorkspaceSelector
-                workspaceMetadata={hostMetadata}
-                onSelectWorkspace={metadata => {
-                  onSelectHost(metadata);
-                  setMobileNavigationOpen(false);
-                }}
-                showEnableCloudButton
-                showArrowDownIcon
-                showSyncStatus
-                dense
-              />
-            </div>
+            {hostMetadata ? (
+              <div className={styles.workspaceSelector}>
+                <WorkspaceSelector
+                  workspaceMetadata={hostMetadata}
+                  onSelectWorkspace={metadata => {
+                    onSelectHost(metadata);
+                    setMobileNavigationOpen(false);
+                  }}
+                  showEnableCloudButton
+                  showArrowDownIcon
+                  showSyncStatus
+                  dense
+                />
+              </div>
+            ) : (
+              <strong>LocalMind</strong>
+            )}
             <UserInfo />
             <span className={styles.mobileRailClose}>
               <IconButton
@@ -953,25 +992,29 @@ const IntelligenceWorkbench = ({
             onClick={() => quickSearchService?.toggle()}
           />
           <div className={styles.railUtilities}>
-            <SidebarMenuItem
-              icon={<ArrowLeftSmallIcon />}
-              onClick={() =>
-                navigate(getWorkspaceDocPath(hostWorkspace.id, 'all'))
-              }
-            >
-              {t['com.affine.localmind.workbench.returnToWorkspace']()}
-            </SidebarMenuItem>
+            {hostWorkspace ? (
+              <SidebarMenuItem
+                icon={<ArrowLeftSmallIcon />}
+                onClick={() =>
+                  navigate(getWorkspaceDocPath(hostWorkspace.id, 'all'))
+                }
+              >
+                {t['com.affine.localmind.workbench.returnToWorkspace']()}
+              </SidebarMenuItem>
+            ) : null}
             <NotificationButton />
-            <SidebarMenuItem
-              icon={<SettingsIcon />}
-              onClick={() =>
-                workspaceDialogService.open('setting', {
-                  activeTab: 'appearance',
-                })
-              }
-            >
-              {t['com.affine.settingSidebar.title']()}
-            </SidebarMenuItem>
+            {workspaceDialogService ? (
+              <SidebarMenuItem
+                icon={<SettingsIcon />}
+                onClick={() =>
+                  workspaceDialogService.open('setting', {
+                    activeTab: 'appearance',
+                  })
+                }
+              >
+                {t['com.affine.settingSidebar.title']()}
+              </SidebarMenuItem>
+            ) : null}
           </div>
         </div>
 
@@ -979,10 +1022,15 @@ const IntelligenceWorkbench = ({
           workspace={hostWorkspace}
           projects={projects}
           selectedProjectId={selectedProjectId}
+          selectedResourceId={selectedResourceId}
+          onSelectResource={(projectId, resourceId) => {
+            onSelectResource(projectId, resourceId);
+            setMobileNavigationOpen(false);
+          }}
           loading={projectsLoading}
           error={projectsError?.message}
           mutationsPending={pendingMutationKey !== null}
-          canAddDocuments={true}
+          canAddDocuments={!!hostWorkspace}
           onRefresh={() => void refreshProjects()}
           onSelectProject={projectId => {
             onSelectProject(projectId);
@@ -1035,17 +1083,27 @@ const IntelligenceWorkbench = ({
           selectedProjectId={selectedProjectId}
           onCreateBlocker={createBlocker}
         />
-        <div className={styles.conversationAndPeek} data-peek={!!peekDocument}>
-          <WorkbenchConversation
-            onDocumentsChanged={refreshProjects}
-            selectedProjectId={selectedProjectId}
-            selectedProjectName={selectedProject?.name}
-            projectDocuments={selectedProject?.documents ?? []}
-            onOpenDocument={onOpenDocument}
-            onConfirmBlockerSuggestion={
-              selectedProjectId ? confirmBlockerSuggestion : undefined
-            }
-          />
+        <div
+          className={styles.conversationAndPeek}
+          data-peek={!!peekDocument || !!selectedResourceId}
+          data-resource-open={!!selectedResourceId}
+        >
+          {selectedProject ? (
+            <div
+              className={styles.conversationPane}
+              hidden={!!selectedResourceId}
+            >
+              <WorkbenchConversation
+                onDocumentsChanged={refreshProjects}
+                selectedProjectId={selectedProject.id}
+                selectedProjectName={selectedProject.name}
+                onOpenResource={resourceId =>
+                  onSelectResource(selectedProject.id, resourceId)
+                }
+                onConfirmBlockerSuggestion={confirmBlockerSuggestion}
+              />
+            </div>
+          ) : null}
           {peekDocument && isWorkbenchDocumentOpenable(peekDocument) ? (
             <aside className={styles.peekPane}>
               <SourceDocumentPeek
@@ -1054,6 +1112,19 @@ const IntelligenceWorkbench = ({
                 requestedLevel={peekDocument.requestedLevel}
                 title={peekDocument.title ?? undefined}
                 onClose={onCloseDocument}
+              />
+            </aside>
+          ) : null}
+          {selectedProject && selectedResourceId ? (
+            <aside className={styles.peekPane}>
+              <ProjectResourcePreview
+                key={`${selectedProject.id}:${selectedResourceId}`}
+                projectId={selectedProject.id}
+                resourceId={selectedResourceId}
+                onOpenResource={resourceId =>
+                  onSelectResource(selectedProject.id, resourceId)
+                }
+                onClose={() => onSelectResource(selectedProject.id, null)}
               />
             </aside>
           ) : null}

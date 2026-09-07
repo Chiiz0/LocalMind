@@ -1,0 +1,3 @@
+mutation cleanupProjectCopilotSessions($projectId: String!, $sessionIds: [String!]!) {
+  cleanupProjectCopilotSessions(projectId: $projectId, sessionIds: $sessionIds)
+}

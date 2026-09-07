@@ -90,7 +90,7 @@ export class PromptRuntime {
       if (
         !session ||
         session.userId !== providerOptions.user ||
-        session.workspaceId !== providerOptions.workspace
+        session.workspaceId !== (providerOptions.workspace ?? null)
       )
         throw new Error('Prompt conversation authorization is unavailable');
       await this.models.copilotContext.recordInputSources({
@@ -115,6 +115,7 @@ export class PromptRuntime {
       outputType: options.outputType ?? ModelOutputType.Text,
       routeContext: {
         userId: providerOptions.user,
+        sessionId: providerOptions.session,
         workspaceId: providerOptions.workspace,
         byokLeaseId: providerOptions.byokLeaseId,
         featureKind,

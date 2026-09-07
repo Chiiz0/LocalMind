@@ -5,6 +5,20 @@
 Move selected config-only AI registry concepts into DB-backed records with
 revision, scope, actor, and audit metadata.
 
+## Global Project BYOK
+
+All Project conversations use the singleton `ai_project_byok_config`, managed
+by instance administrators through `/admin/ai/config`. This configuration is
+independent of Workspace credentials, defaults and user Profile assignments.
+The server probes before saving, encrypts the API key, serializes revision
+updates and appends immutable `ai_project_byok_audit_events` without credentials.
+Provider IDs carry the config revision so rotation cannot reuse a previous
+provider instance or let a late failure overwrite new configuration evidence.
+Runtime routing reads the persisted conversation Project and rechecks active
+membership. Missing/disabled configuration cannot fall back to another scope.
+Workspace routes remain available to conversations outside Projects; embedding
+and reranking retain their existing instance-managed task routes.
+
 ## Current Problem
 
 Many registry-like concepts are still primarily config-driven:

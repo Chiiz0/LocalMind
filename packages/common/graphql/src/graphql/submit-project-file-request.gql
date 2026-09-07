@@ -1,0 +1,4 @@
+mutation submitProjectFileRequest($requestId: String!, $expectedVersion: Int!, $shareWithProject: Boolean!, $file: Upload!) {
+  submitProjectFileRequest(requestId: $requestId, expectedVersion: $expectedVersion, shareWithProject: $shareWithProject, file: $file) { ...ProjectFileRequestFields }
+}
+#import './fragments/project-file-request-fields.gql'

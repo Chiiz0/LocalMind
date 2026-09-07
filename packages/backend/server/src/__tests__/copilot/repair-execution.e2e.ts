@@ -5376,6 +5376,16 @@ test('standalone Agent Runtime worker leases queued runs and records unsupported
         sideEffectMode: 'workspace_write',
       },
       {
+        workflow: 'agent_runtime_project_office_command',
+        supportedStepTypes: ['approval', 'tool'],
+        sideEffectMode: 'project_write',
+      },
+      {
+        workflow: 'agent_runtime_project_resource',
+        supportedStepTypes: ['tool'],
+        sideEffectMode: 'project_write',
+      },
+      {
         workflow: 'agent_runtime_record_only',
         supportedStepTypes: [
           'approval',
@@ -5787,60 +5797,71 @@ test('standalone Agent Runtime worker completes record-only runs', async t => {
   const { agentRuntimeWorker, agentRuntimeWorkflowRegistry, app, db, owner } =
     t.context;
   const driftActor = await app.createUser();
-  t.deepEqual(agentRuntimeWorkflowRegistry.supportedWorkflows(), [
+  const defaultWorkflows = [
     'agent_runtime_local_completion',
     'agent_runtime_model_completion',
     'agent_runtime_record_only',
-  ]);
+  ];
+  t.deepEqual(
+    agentRuntimeWorkflowRegistry
+      .supportedWorkflows()
+      .filter(workflow => defaultWorkflows.includes(workflow)),
+    defaultWorkflows
+  );
   t.truthy(agentRuntimeWorkflowRegistry.get('agent_runtime_local_completion'));
   t.truthy(agentRuntimeWorkflowRegistry.get('agent_runtime_model_completion'));
   t.truthy(agentRuntimeWorkflowRegistry.get('agent_runtime_record_only'));
-  t.deepEqual(agentRuntimeWorkflowRegistry.adapterCapabilities(), [
-    {
-      workflow: 'agent_runtime_local_completion',
-      capabilities: {
-        version: 'agent-runtime-workflow-adapter-capabilities/v1',
-        supportedStepTypes: [
-          'approval',
-          'codex',
-          'handoff',
-          'mcp',
-          'model',
-          'tool',
-        ],
-        sideEffectMode: 'none',
-        summary:
-          'Completes local Agent Runtime workflows through the generic worker completion contract.',
+  t.deepEqual(
+    agentRuntimeWorkflowRegistry
+      .adapterCapabilities()
+      .filter(adapter => defaultWorkflows.includes(adapter.workflow)),
+    [
+      {
+        workflow: 'agent_runtime_local_completion',
+        capabilities: {
+          version: 'agent-runtime-workflow-adapter-capabilities/v1',
+          supportedStepTypes: [
+            'approval',
+            'codex',
+            'handoff',
+            'mcp',
+            'model',
+            'tool',
+          ],
+          sideEffectMode: 'none',
+          summary:
+            'Completes local Agent Runtime workflows through the generic worker completion contract.',
+        },
       },
-    },
-    {
-      workflow: 'agent_runtime_model_completion',
-      capabilities: {
-        version: 'agent-runtime-workflow-adapter-capabilities/v1',
-        supportedStepTypes: ['model'],
-        sideEffectMode: 'none',
-        summary:
-          'Executes one persisted model step through the DB-routed Copilot prompt/provider stack and records bounded output evidence.',
+      {
+        workflow: 'agent_runtime_model_completion',
+        capabilities: {
+          version: 'agent-runtime-workflow-adapter-capabilities/v1',
+          supportedStepTypes: ['model'],
+          sideEffectMode: 'none',
+          summary:
+            'Executes one persisted model step through the DB-routed Copilot prompt/provider stack and records bounded output evidence.',
+        },
       },
-    },
-    {
-      workflow: 'agent_runtime_record_only',
-      capabilities: {
-        version: 'agent-runtime-workflow-adapter-capabilities/v1',
-        supportedStepTypes: [
-          'approval',
-          'codex',
-          'handoff',
-          'mcp',
-          'model',
-          'tool',
-        ],
-        sideEffectMode: 'none',
-        summary:
-          'Completes already-persisted Agent Runtime records without external side effects.',
+      {
+        workflow: 'agent_runtime_record_only',
+        capabilities: {
+          version: 'agent-runtime-workflow-adapter-capabilities/v1',
+          supportedStepTypes: [
+            'approval',
+            'codex',
+            'handoff',
+            'mcp',
+            'model',
+            'tool',
+          ],
+          sideEffectMode: 'none',
+          summary:
+            'Completes already-persisted Agent Runtime records without external side effects.',
+        },
       },
-    },
-  ]);
+    ]
+  );
   t.throws(
     () =>
       agentRuntimeWorkflowRegistry.register({

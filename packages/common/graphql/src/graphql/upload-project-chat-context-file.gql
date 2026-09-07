@@ -1,0 +1,4 @@
+mutation uploadProjectChatContextFile($projectId: String!, $sessionId: String!, $expectedVersion: Int!, $file: Upload!) {
+  uploadProjectChatContextFile(projectId: $projectId, sessionId: $sessionId, expectedVersion: $expectedVersion, file: $file) { ...ProjectChatContextFields }
+}
+#import './fragments/project-chat-context-fields.gql'

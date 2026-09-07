@@ -106,6 +106,7 @@
     "nestjs-cls": "^6.0.0",
     "nodemailer": "^9.0.0",
     "on-headers": "^1.1.0",
+    "pdfjs-dist": "5.4.624",
     "piscina": "^5.1.4",
     "prisma": "^6.6.0",
     "react": "^19.2.1",

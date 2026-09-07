@@ -1,0 +1,19 @@
+fragment ProjectOfficeRevisionFields on ProjectOfficeRevisionType {
+  id
+  projectId
+  artifactId
+  sequence
+  origin
+  parentRevisionId
+  packageMimeType
+  packageByteSize
+  packageFingerprint
+  stateByteSize
+  stateFingerprint
+  modelVersion
+  operationSummary
+  createdBy
+  createdAt
+  packageUrl
+  stateUrl
+}
