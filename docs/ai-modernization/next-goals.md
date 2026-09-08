@@ -1019,7 +1019,7 @@ Implemented outcome:
   explicit permanent-delete intent, recursive cleanup, retryable Trash manifests,
   idempotency, and sanitized Agent Runtime side-effect evidence;
 - the tool-agent path reuses `ToolRuntime`, carries the delegation task id into
-  document creation, bounds execution to 120 seconds and 20 recorded tool
+  document creation, bounds execution to a configurable 300-second default and 20 recorded tool
   results, polls cancellation and authority, propagates abort, and treats a
   normal stream close after the deadline as `tool_agent_timeout`; explicit
   single-document body mutations carry a v2 completion contract in a v4 task

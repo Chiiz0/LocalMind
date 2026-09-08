@@ -700,6 +700,9 @@ declare global {
       };
       mcpDelegation: {
         callbackAllowedOrigins: ConfigItem<string[]>;
+        totalTimeoutMs: ConfigItem<number>;
+        modelTimeoutMs: ConfigItem<number>;
+        toolTimeoutMs: ConfigItem<number>;
       };
       providers: {
         profiles: ConfigItem<CopilotProviderProfile[]>;
@@ -828,6 +831,24 @@ defineModuleConfig('copilot', {
     desc: 'Exact callback origins that may use HTTP or private network targets for LocalMind MCP delegation events. Keep empty unless a trusted local caller such as SparkClaw requires it.',
     default: [],
     shape: z.array(McpDelegationCallbackOriginShape).max(32),
+  },
+  'mcpDelegation.totalTimeoutMs': {
+    desc: 'Total execution budget for a delegated LocalMind tool agent in milliseconds.',
+    default: 300_000,
+    env: 'LOCALMIND_MCP_TOTAL_TIMEOUT_MS',
+    shape: z.coerce.number().int().min(1_000).max(1_800_000),
+  },
+  'mcpDelegation.modelTimeoutMs': {
+    desc: 'Maximum wait for each delegated model generation phase in milliseconds.',
+    default: 120_000,
+    env: 'LOCALMIND_MCP_MODEL_TIMEOUT_MS',
+    shape: z.coerce.number().int().min(1_000).max(600_000),
+  },
+  'mcpDelegation.toolTimeoutMs': {
+    desc: 'Maximum wait for each delegated tool execution in milliseconds.',
+    default: 60_000,
+    env: 'LOCALMIND_MCP_TOOL_TIMEOUT_MS',
+    shape: z.coerce.number().int().min(1_000).max(600_000),
   },
   'providers.openai': {
     desc: 'The config for the openai provider.',

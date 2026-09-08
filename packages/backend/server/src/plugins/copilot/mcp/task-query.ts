@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import type { AiMcpDelegationRequest, McpCredential } from '@prisma/client';
+import type {
+  AiMcpDelegationRequest,
+  McpCredential,
+  Prisma,
+} from '@prisma/client';
 import { z } from 'zod';
 
 import { PermissionAccess } from '../../../core/permission';
@@ -15,6 +19,7 @@ import {
   MCP_TASK_CONTROL_CAPABILITY,
   MCP_TASK_QUERY_CAPABILITY,
 } from './capabilities';
+import { toolAgentCheckpointEvidence } from './tool-agent-evidence';
 import {
   defineTool,
   READ_ONLY_TOOL,
@@ -441,6 +446,19 @@ export class McpAiTaskQueryService {
       }
     }
 
+    const calls = await this.models.copilotMcpDelegation.listToolCalls(
+      record.id
+    );
+    if (calls.length) {
+      record.result = {
+        ...objectValue(record.result),
+        ...toolAgentCheckpointEvidence(
+          calls,
+          record.workspaceId,
+          objectValue(record.result)
+        ),
+      } as Prisma.JsonObject;
+    }
     const documentAccess = await Promise.all(
       this.referencedDocuments(record).map(
         async ({ workspaceId, documentId }) => ({
@@ -489,6 +507,11 @@ export class McpAiTaskQueryService {
             .forEach(id => add(id, workspaceId));
         }
       });
+    }
+    for (const pending of this.pendingToolCalls(result)) {
+      pending.documentIds.forEach(id =>
+        add(id, pending.workspaceId ?? record.workspaceId)
+      );
     }
     if (Array.isArray(result.artifacts)) {
       result.artifacts.slice(0, 20).forEach(value => {
@@ -608,8 +631,11 @@ export class McpAiTaskQueryService {
     status: PublicTaskStatus,
     plan: LocalMindTaskPlan | null
   ) {
-    if (status !== 'completed') return null;
     const result = objectValue(record.result);
+    const partialToolResult =
+      (result.kind === 'tool_agent' || plan?.kind === 'tool_agent') &&
+      (Array.isArray(result.toolExecutions) || result.executionTiming);
+    if (status !== 'completed' && !partialToolResult) return null;
     if (result.kind === 'answer') {
       const answer = stringValue(result.answer);
       return answer ? { kind: 'answer', answer } : null;
@@ -664,6 +690,18 @@ export class McpAiTaskQueryService {
                 toolName,
                 status: executionStatus,
                 argsFingerprint,
+                ...(typeof execution.sideEffectApplied === 'boolean'
+                  ? { sideEffectApplied: execution.sideEffectApplied }
+                  : {}),
+                ...(typeof execution.durationMs === 'number'
+                  ? { durationMs: execution.durationMs }
+                  : {}),
+                ...(stringValue(execution.startedAt)
+                  ? { startedAt: stringValue(execution.startedAt) }
+                  : {}),
+                ...(stringValue(execution.completedAt)
+                  ? { completedAt: stringValue(execution.completedAt) }
+                  : {}),
                 ...(documentId ? { documentId } : {}),
                 ...(stringValue(execution.workspaceId)
                   ? { workspaceId: stringValue(execution.workspaceId) }
@@ -679,7 +717,18 @@ export class McpAiTaskQueryService {
         : [];
       return {
         kind: 'tool_agent',
-        summary: answer ?? 'LocalMind completed the delegated tool task.',
+        summary:
+          status === 'completed'
+            ? (answer ?? 'LocalMind completed the delegated tool task.')
+            : 'LocalMind has not completed the task. Check confirmed receipts and unconfirmed operations before continuing.',
+        partial: status !== 'completed',
+        pendingToolCalls: this.pendingToolCalls(result),
+        executionTiming: this.executionTiming(result),
+        remainingToolNames: Array.isArray(result.remainingToolNames)
+          ? result.remainingToolNames
+              .filter((name): name is string => typeof name === 'string')
+              .slice(0, 16)
+          : [],
         toolExecutions,
       };
     }
@@ -744,17 +793,19 @@ export class McpAiTaskQueryService {
     return {
       code,
       message: this.failureMessage(code),
-      retryable: [
-        'ai_planning_failed',
-        'request_aborted',
-        'required_read_evidence_missing',
-        'required_side_effect_missing',
-        'required_tool_evidence_missing',
-        'required_tool_unavailable',
-        'tool_execution_limit_exceeded',
-        'tool_snapshot_failed',
-        'tool_agent_timeout',
-      ].includes(code),
+      retryable:
+        this.pendingToolCalls(result).length === 0 &&
+        [
+          'ai_planning_failed',
+          'request_aborted',
+          'required_read_evidence_missing',
+          'required_side_effect_missing',
+          'required_tool_evidence_missing',
+          'required_tool_unavailable',
+          'tool_execution_limit_exceeded',
+          'tool_snapshot_failed',
+          'tool_agent_timeout',
+        ].includes(code),
       ...(Object.keys(details).length ? { details } : {}),
     };
   }
@@ -839,12 +890,69 @@ export class McpAiTaskQueryService {
     return messages[code] ?? messages.task_failed;
   }
 
+  private pendingToolCalls(result: Record<string, unknown>) {
+    return Array.isArray(result.pendingToolCalls)
+      ? result.pendingToolCalls.slice(0, 20).map(value => {
+          const call = objectValue(value);
+          return {
+            toolCallId: stringValue(call.toolCallId),
+            toolName: stringValue(call.toolName),
+            status: 'unconfirmed',
+            startedAt: stringValue(call.startedAt),
+            workspaceId: stringValue(call.workspaceId),
+            documentIds: Array.isArray(call.documentIds)
+              ? call.documentIds
+                  .map(stringValue)
+                  .filter((id): id is string => !!id)
+                  .slice(0, 20)
+              : [],
+          };
+        })
+      : [];
+  }
+
+  private executionTiming(result: Record<string, unknown>) {
+    const timing = objectValue(result.executionTiming);
+    if (!Array.isArray(timing.stages)) return null;
+    const duration = (value: unknown) =>
+      typeof value === 'number' && Number.isFinite(value) && value >= 0
+        ? value
+        : null;
+    return {
+      startedAt: stringValue(timing.startedAt),
+      elapsedMs: duration(timing.elapsedMs),
+      totalTimeoutMs: duration(timing.totalTimeoutMs),
+      modelTimeoutMs: duration(timing.modelTimeoutMs),
+      toolTimeoutMs: duration(timing.toolTimeoutMs),
+      timeoutPhase: ['total', 'model', 'tool'].includes(
+        String(timing.timeoutPhase)
+      )
+        ? timing.timeoutPhase
+        : null,
+      stages: timing.stages.slice(0, 61).flatMap(value => {
+        const stage = objectValue(value);
+        return ['model', 'tool'].includes(String(stage.phase))
+          ? [
+              {
+                phase: stage.phase,
+                startedAt: stringValue(stage.startedAt),
+                completedAt: stringValue(stage.completedAt),
+                durationMs: duration(stage.durationMs),
+                toolName: stringValue(stage.toolName),
+                toolCallId: stringValue(stage.toolCallId),
+              },
+            ]
+          : [];
+      }),
+    };
+  }
+
   private artifacts(
     record: AiMcpDelegationRequest,
     status: PublicTaskStatus,
     plan: LocalMindTaskPlan | null
   ) {
-    if (status !== 'completed') return [];
+    if (status !== 'completed' && plan?.kind !== 'tool_agent') return [];
     const result = objectValue(record.result);
     if (plan?.kind === 'tool_agent') {
       if (!Array.isArray(result.artifacts)) return [];

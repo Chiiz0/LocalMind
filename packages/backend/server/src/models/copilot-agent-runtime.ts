@@ -3313,6 +3313,7 @@ export class CopilotAgentRuntimeModel extends BaseModel {
     id?: string | null;
     workerId: string;
     leaseMs?: number;
+    workflowLease?: { workflow: string; leaseMs: number };
   }): Promise<CopilotAgentRunRecord | null> {
     const leaseMs = input.leaseMs ?? 300000;
     const rows = await this.db.$queryRaw<
@@ -3418,7 +3419,12 @@ export class CopilotAgentRuntimeModel extends BaseModel {
         status = ${'running'},
         queued_at = COALESCE(run.queued_at, run.created_at),
         worker_lease_id = ${input.workerId},
-        worker_lease_expires_at = candidate.wall_clock_at + (${leaseMs} * INTERVAL '1 millisecond'),
+        worker_lease_expires_at = candidate.wall_clock_at + (
+          CASE WHEN run.workflow = ${input.workflowLease?.workflow ?? ''}
+            THEN ${input.workflowLease?.leaseMs ?? leaseMs}
+            ELSE ${leaseMs}
+          END * INTERVAL '1 millisecond'
+        ),
         worker_attempt = run.worker_attempt + 1,
         last_attempt_at = candidate.transition_at,
         completed_at = ${null},

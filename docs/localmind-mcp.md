@@ -167,7 +167,7 @@ The current built-in AI can:
   document content plus all folder placements, and rewrites other affected
   folder Trash manifests so they remain restorable.
 
-The tool-agent path has a 120-second bound and a hard maximum of 20 attempted
+The tool-agent path has a configurable 300-second default total bound and a hard maximum of 20 attempted
 tool executions; the twenty-first executor is not invoked. It
 polls cancellation and authority while running, and returns sanitized result
 and document-artifact evidence. A deadline abort is reported as retryable
@@ -183,6 +183,33 @@ issued by that read. Missing evidence is retryable
 the same task and title. Folder mutations enforce workspace organization/write
 ACLs, require document read access for placements, and persist sanitized
 side-effect evidence only for non-replay writes.
+
+The execution budgets are server settings under `copilot.mcpDelegation`:
+
+| Setting          | Environment variable             | Default |
+| ---------------- | -------------------------------- | ------- |
+| `totalTimeoutMs` | `LOCALMIND_MCP_TOTAL_TIMEOUT_MS` | 300000  |
+| `modelTimeoutMs` | `LOCALMIND_MCP_MODEL_TIMEOUT_MS` | 120000  |
+| `toolTimeoutMs`  | `LOCALMIND_MCP_TOOL_TIMEOUT_MS`  | 60000   |
+
+The total budget spans the model/tool loop. Each model-generation wait and tool
+execution has its own deadline; text streaming does not reset these clocks.
+`result.executionTiming` records bounded phase start/end timestamps, durations,
+and `timeoutPhase` (`total`, `model`, or `tool`). These are orchestration phase
+measurements, including dispatch/wait overhead, not provider-only compute times.
+The client MCP timeout cannot extend these server budgets.
+
+Tool return values are checkpointed before later bookkeeping. Running, failed,
+and cancelled tool tasks may return `result.partial=true`, confirmed
+`toolExecutions`, `artifacts`, and `pendingToolCalls` marked `unconfirmed`.
+A failed task does not mean no write occurred. Check the receipts before
+continuing; an unconfirmed operation requires reconciliation, not blind replay.
+Queries retain live ACL checks for every referenced document and never return
+raw checkpoint arguments or document bodies. Same-task call IDs reuse completed
+checkpoints; uncertain non-idempotent calls are not automatically replayed.
+
+For daily logs, supply the known document ID, ask for a single body merge and
+concise receipt, and delegate folder sorting/verification separately when needed.
 
 Each uploaded file is limited to 10 MiB; one task accepts at most eight files
 and 20 MiB combined. Upload records are immutable and bound to the workspace,

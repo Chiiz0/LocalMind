@@ -711,7 +711,11 @@ test('delegated location waits without creation and resumes two distinct confirm
   t.is(operations.length, 2);
   t.not(operations[0].documentId, operations[1].documentId);
   const resolver = await t.context.app!.resolve(CopilotResolver);
-  const projected = await resolver.copilotTask(owner, { workspaceId }, runId);
+  const projected = await resolver.copilotTask(
+    { ...owner, hasPassword: true, emailVerified: true },
+    { workspaceId },
+    runId
+  );
   t.is(projected?.artifacts.length, 2);
   t.true(
     projected!.artifacts.every(
@@ -748,7 +752,11 @@ test('delegated location waits without creation and resumes two distinct confirm
   });
   const revoked = await (
     await t.context.app!.resolve(CopilotResolver)
-  ).copilotTask(owner, { workspaceId }, runId);
+  ).copilotTask(
+    { ...owner, hasPassword: true, emailVerified: true },
+    { workspaceId },
+    runId
+  );
   t.deepEqual(revoked?.artifacts, []);
   t.is(revoked?.resultSummary, null);
   t.is(revoked?.resultEvidence, null);
@@ -1170,7 +1178,7 @@ test('LocalMind tool agent fails when an explicit document update stops after re
   t.like(task, {
     status: 'failed',
     terminal: true,
-    result: null,
+    result: { partial: true },
     error: {
       code: 'required_tool_evidence_missing',
       retryable: true,
@@ -1246,7 +1254,7 @@ for (const waitingLocation of [false, true]) {
     t.like(task, {
       status: 'failed',
       terminal: true,
-      result: null,
+      result: { partial: true },
       error: {
         code: 'required_tool_evidence_missing',
         retryable: true,
@@ -1487,13 +1495,199 @@ test('LocalMind tool agent records a normal stream close after timeout as failed
   t.like(task, {
     status: 'failed',
     terminal: true,
-    result: null,
+    result: { partial: true, executionTiming: { timeoutPhase: 'model' } },
     error: {
       code: 'tool_agent_timeout',
       retryable: true,
     },
   });
 });
+
+for (const timeoutPhase of ['model', 'tool', 'lost_result'] as const) {
+  test(`LocalMind preserves durable write receipts and pending operations on ${timeoutPhase} timeout`, async t => {
+    const { credentials, models, owner, runtime, worker, app } = t.context;
+    const { docId, workspaceId } = await createDocument(
+      t.context,
+      owner.id,
+      'Original timeout fixture.'
+    );
+    const issued = await credentials.create({
+      userId: owner.id,
+      workspaceId,
+      name: 'Durable timeout receipts',
+      accessMode: McpAccessMode.READ_WRITE,
+      capabilities: [...MCP_CAPABILITIES],
+      expirationDays: 30,
+    });
+    Sinon.stub(runtime, 'generateStructuredValue').resolves({
+      value: {
+        result: plannerResult({
+          kind: 'tool_agent',
+          summary: 'Read and update the supplied document',
+        }),
+      },
+    } as any);
+    let signal: AbortSignal;
+    let notifyStalled!: () => void;
+    const stalled = new Promise<void>(resolve => {
+      notifyStalled = resolve;
+    });
+    const write = Sinon.spy(app!.get(DocWriter), 'updateDoc');
+    Sinon.stub(runtime, 'streamObject').callsFake(((
+      _conditions: unknown,
+      _messages: unknown,
+      options: any
+    ) => {
+      signal = options.signal;
+      return (async function* () {
+        const tools = await app!
+          .get(ToolRuntime)
+          .getTools(options, 'timeout-fixture');
+        const args = {
+          doc_id: docId,
+          content: 'Original timeout fixture.\n\nPersisted timeout write.',
+        };
+        yield {
+          type: 'tool-call',
+          toolCallId: 'durable-write',
+          toolName: 'doc_update',
+          args,
+        };
+        const result = await tools.doc_update.execute!(args, {
+          toolCallId: 'durable-write',
+          signal,
+        });
+        // A replay of the same call must reuse the checkpoint without writing again.
+        await tools.doc_update.execute!(args, {
+          toolCallId: 'durable-write',
+          signal,
+        });
+        if (timeoutPhase !== 'lost_result')
+          yield {
+            type: 'tool-result',
+            toolCallId: 'durable-write',
+            toolName: 'doc_update',
+            args,
+            result,
+          };
+        if (timeoutPhase === 'tool') {
+          await options.onToolExecution(
+            'started',
+            'doc_update',
+            'uncertain-write'
+          );
+          yield {
+            type: 'tool-call',
+            toolCallId: 'uncertain-write',
+            toolName: 'doc_update',
+            args,
+          };
+          await models.copilotMcpDelegation.beginToolCall({
+            requestId: options.taskId,
+            sessionId: options.session,
+            ...options.delegatedExecution,
+            callId: 'uncertain-write',
+            toolName: 'doc_update',
+            args,
+          });
+        }
+        await t.throwsAsync(
+          models.copilotMcpDelegation.checkpointToolAgentProgress({
+            requestId: options.taskId,
+            sessionId: options.session,
+            ...options.delegatedExecution,
+            workerLeaseId: 'stale-worker',
+            result: { answer: 'must not overwrite receipts' },
+          }),
+          { message: /lease is unavailable/ }
+        );
+        notifyStalled();
+        // Deliberately ignore abort to prove the worker deadline is enforced.
+        await new Promise(() => {});
+      })();
+    }) as any);
+    const delegated = await delegate(t.context, issued.token, {
+      request:
+        'Read the supplied document, merge the new entry, and update the document body.',
+      documentIds: [docId],
+      idempotencyKey: `durable-timeout-${timeoutPhase}`,
+    });
+    const clock = Sinon.useFakeTimers({
+      toFake: ['setTimeout', 'clearTimeout'],
+    });
+    try {
+      const running = worker.runStandaloneAgentRuntime({
+        workspaceId,
+        runId: String(delegated.agentRunId),
+      });
+      await stalled;
+      const progress = await getTask(t.context, issued.token, {
+        taskId: String(delegated.taskId),
+        waitMs: 0,
+      });
+      t.is(progress.status, 'running');
+      const leasedRun = await models.copilotAgentRuntime.get(
+        workspaceId,
+        String(delegated.agentRunId)
+      );
+      t.true(
+        leasedRun!.workerLeaseExpiresAt!.getTime() -
+          leasedRun!.lastAttemptAt!.getTime() >=
+          359_000
+      );
+      t.like(progress.artifacts[0], {
+        relation: 'updated',
+        reference: { documentId: docId },
+      });
+      t.is(progress.result.toolExecutions[0].status, 'completed');
+      await clock.tickAsync(timeoutPhase === 'tool' ? 60_000 : 120_000);
+      await running;
+      t.true(signal!.aborted);
+    } finally {
+      clock.restore();
+    }
+    const task = await getTask(t.context, issued.token, {
+      taskId: String(delegated.taskId),
+      waitMs: 0,
+    });
+    t.like(task, {
+      status: 'failed',
+      terminal: true,
+      error: { code: 'tool_agent_timeout' },
+      result: {
+        partial: true,
+        executionTiming: {
+          timeoutPhase: timeoutPhase === 'tool' ? 'tool' : 'model',
+        },
+      },
+    });
+    t.like(task.artifacts[0], {
+      relation: 'updated',
+      reference: { documentId: docId },
+    });
+    t.like(task.result.toolExecutions[0], {
+      toolName: 'doc_update',
+      status: 'completed',
+      sideEffectApplied: true,
+    });
+    t.is(task.result.pendingToolCalls.length, timeoutPhase === 'tool' ? 1 : 0);
+    t.is(task.error.retryable, timeoutPhase !== 'tool');
+    t.deepEqual(task.result.remainingToolNames, []);
+    t.false(JSON.stringify(task).includes('Persisted timeout write.'));
+    t.true(write.calledOnce);
+    const body = await app!
+      .get(DocReader)
+      .getDocMarkdown(workspaceId, docId, true);
+    t.true(body?.markdown.includes('Persisted timeout write.'));
+    const record = await models.copilotMcpDelegation.getRequest(
+      String(delegated.taskId)
+    );
+    t.like(record?.result, {
+      code: 'tool_agent_timeout',
+      execution: 'partial',
+    });
+  });
+}
 
 test('inline delegated attachment is bound to one credential family and becomes a LocalMind document artifact', async t => {
   const { credentials, db, owner, runtime, worker } = t.context;

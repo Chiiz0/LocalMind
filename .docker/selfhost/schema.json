@@ -1374,6 +1374,21 @@
           "description": "Exact callback origins that may use HTTP or private network targets for LocalMind MCP delegation events. Keep empty unless a trusted local caller such as SparkClaw requires it.\n@default []",
           "default": []
         },
+        "mcpDelegation.totalTimeoutMs": {
+          "type": "number",
+          "description": "Total execution budget for a delegated LocalMind tool agent in milliseconds.\n@default 300000\n@environment `LOCALMIND_MCP_TOTAL_TIMEOUT_MS`",
+          "default": 300000
+        },
+        "mcpDelegation.modelTimeoutMs": {
+          "type": "number",
+          "description": "Maximum wait for each delegated model generation phase in milliseconds.\n@default 120000\n@environment `LOCALMIND_MCP_MODEL_TIMEOUT_MS`",
+          "default": 120000
+        },
+        "mcpDelegation.toolTimeoutMs": {
+          "type": "number",
+          "description": "Maximum wait for each delegated tool execution in milliseconds.\n@default 60000\n@environment `LOCALMIND_MCP_TOOL_TIMEOUT_MS`",
+          "default": 60000
+        },
         "providers.openai": {
           "type": "object",
           "description": "The config for the openai provider.\n@default {\"apiKey\":\"\",\"baseURL\":\"https://api.openai.com/v1\"}\n@link https://github.com/openai/openai-node",

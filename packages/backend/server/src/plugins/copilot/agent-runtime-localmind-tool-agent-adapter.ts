@@ -3,7 +3,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { Injectable, Logger } from '@nestjs/common';
 import { Transactional } from '@nestjs-cls/transactional';
 
-import { JobQueue } from '../../base';
+import { Config, JobQueue } from '../../base';
 import { PermissionAccess } from '../../core/permission';
 import { Models } from '../../models';
 import type { CopilotAgentRunRecord } from '../../models/copilot-agent-runtime';
@@ -17,12 +17,24 @@ import {
 } from './mcp/attachments';
 import { MCP_DELEGATE_CAPABILITY } from './mcp/capabilities';
 import {
+  abortableToolAgentStream,
+  ToolAgentBudget,
+} from './mcp/tool-agent-budget';
+import {
   LOCALMIND_TOOL_AGENT_COMPLETION_CONTRACT_LEGACY_VERSION,
   LOCALMIND_TOOL_AGENT_COMPLETION_CONTRACT_PREVIOUS_VERSION,
   type LocalMindToolAgentCompletionContract,
   LocalMindToolAgentCompletionContractSchema,
   type LocalMindToolAgentDestructiveIntent,
 } from './mcp/tool-agent-completion';
+import {
+  type DocumentArtifact,
+  documentArtifacts,
+  toolAgentCheckpointEvidence,
+  toolAgentCheckpointReceipts,
+  type ToolExecutionSummary,
+  toolExecutionSummary,
+} from './mcp/tool-agent-evidence';
 import {
   COPILOT_CHAT_TOOL_CATEGORIES,
   type CopilotChatTools,
@@ -35,10 +47,6 @@ import {
   toolCapabilitySnapshotFingerprint,
 } from './runtime/tool-capability-snapshot';
 import { ToolRuntime } from './runtime/tool-runtime';
-import {
-  WORKSPACE_EFFECT_OPERATIONS,
-  type WorkspaceEffectOperation,
-} from './tools/workspace-organization';
 
 export const AGENT_RUNTIME_LOCALMIND_TOOL_AGENT_WORKFLOW =
   'agent_runtime_localmind_tool_agent';
@@ -78,64 +86,7 @@ const LOCALMIND_TOOL_AGENT_V2_V3_AI_TOOLS = [
 const LOCALMIND_TOOL_AGENT_RESULT_VERSION = 'localmind-tool-agent-result/v1';
 const LOCALMIND_TOOL_AGENT_MAX_RESULT_LENGTH = 6_000;
 const LOCALMIND_TOOL_AGENT_MAX_TOOL_EXECUTIONS = 20;
-const LOCALMIND_TOOL_AGENT_TIMEOUT_MS = 120_000;
 const LOCALMIND_TOOL_AGENT_CANCELLATION_POLL_MS = 1_000;
-const WRITE_TOOL_NAMES = new Set([
-  'doc_create',
-  'doc_update',
-  'doc_update_meta',
-  'workspace_folder_create',
-  'workspace_folder_rename',
-  'workspace_folder_move',
-  'workspace_folder_delete',
-  'workspace_folder_trash',
-  'workspace_folder_restore',
-  'workspace_folder_delete_permanently',
-  'workspace_folder_add_document',
-  'workspace_folder_move_document',
-  'office_command_request',
-  'office_command_batch_request',
-  'doc_trash',
-  'doc_restore',
-  'doc_delete_permanently',
-]);
-
-type ToolExecutionSummary = {
-  workspaceId?: string;
-  toolName: string;
-  status: 'completed' | 'failed';
-  argsFingerprint: string;
-  sideEffectApplied?: boolean;
-  documentId?: string;
-  relation?: 'created' | 'updated';
-  versionFingerprint?: string;
-  documentIds?: string[];
-  workspaceEffect?: {
-    kind: 'workspace_organization';
-    operation: WorkspaceEffectOperation;
-    folderId?: string | null;
-  };
-  enterpriseEffect?: {
-    connectionId: string;
-    provider: string;
-    toolName: string;
-    risk: 'read' | 'write' | 'high';
-  };
-  sparkClawEffect?: {
-    toolName: string;
-    risk: 'read' | 'write' | 'high';
-    idempotentReplay: boolean;
-  };
-};
-
-type DocumentArtifact = {
-  workspaceId?: string;
-  kind: 'document';
-  relation: 'created' | 'updated';
-  documentId: string;
-  versionFingerprint: string;
-};
-
 function objectValue(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -177,34 +128,6 @@ function conditionalDocumentId(contract: LocalMindToolAgentCompletionContract) {
   return readRequirement?.kind === 'tool_success'
     ? (readRequirement.documentId ?? null)
     : null;
-}
-
-function referencedDocumentIds(
-  event: Extract<StreamObject, { type: 'tool-result' }>
-) {
-  const ids = new Set<string>();
-  const add = (value: unknown) => {
-    const id = nonBlankString(value);
-    if (id && ids.size < 20) ids.add(id);
-  };
-  const addRecord = (value: unknown) => {
-    const record = objectValue(value);
-    add(record.docId);
-    add(record.doc_id);
-    add(record.documentId);
-  };
-
-  addRecord(event.args);
-  addRecord(event.result);
-  if (Array.isArray(event.result)) {
-    event.result.forEach(addRecord);
-  } else {
-    const result = objectValue(event.result);
-    addRecord(result.conditionalNoop);
-    if (Array.isArray(result.results)) result.results.forEach(addRecord);
-    if (Array.isArray(result.documents)) result.documents.forEach(addRecord);
-  }
-  return [...ids];
 }
 
 function requireToolAgentStep(run: CopilotAgentRunRecord) {
@@ -497,154 +420,6 @@ function requireToolAgentStep(run: CopilotAgentRunRecord) {
   };
 }
 
-function toolExecutionSummary(
-  event: Extract<StreamObject, { type: 'tool-result' }>
-) {
-  const result = objectValue(event.result);
-  const failed =
-    event.isError === true ||
-    !!event.argumentParseError ||
-    result.type === 'error' ||
-    result.success === false;
-  const documentIds = referencedDocumentIds(event);
-  const documentId = documentIds[0];
-  const creationConfirmed =
-    !failed &&
-    !!nonBlankString(result.docId ?? result.documentId) &&
-    (result.documentCreated === true ||
-      (result.documentCreated === undefined && result.success === true));
-  const relation =
-    creationConfirmed && event.toolName === 'doc_create'
-      ? ('created' as const)
-      : !failed &&
-          (event.toolName === 'doc_update' ||
-            event.toolName === 'doc_update_meta')
-        ? ('updated' as const)
-        : undefined;
-  const versionFingerprint = mcpDelegationFingerprint({
-    version: 'localmind-tool-agent-tool-arguments/v1',
-    toolName: event.toolName,
-    args: event.args,
-  });
-  const rawWorkspaceEffect = objectValue(result.workspaceEffect);
-  const workspaceEffectOperations = new Set<string>(
-    WORKSPACE_EFFECT_OPERATIONS
-  );
-  const workspaceEffectOperation = nonBlankString(rawWorkspaceEffect.operation);
-  const workspaceEffectFolderId = nonBlankString(rawWorkspaceEffect.folderId);
-  const workspaceEffect =
-    !failed &&
-    rawWorkspaceEffect.kind === 'workspace_organization' &&
-    workspaceEffectOperation &&
-    workspaceEffectOperations.has(workspaceEffectOperation)
-      ? {
-          kind: 'workspace_organization' as const,
-          operation: workspaceEffectOperation as NonNullable<
-            ToolExecutionSummary['workspaceEffect']
-          >['operation'],
-          ...(rawWorkspaceEffect.folderId === null
-            ? { folderId: null }
-            : workspaceEffectFolderId
-              ? { folderId: workspaceEffectFolderId }
-              : {}),
-        }
-      : undefined;
-  const rawEnterpriseEffect = objectValue(result.enterpriseEffect);
-  const enterpriseConnectionId = nonBlankString(
-    rawEnterpriseEffect.connectionId
-  );
-  const enterpriseProvider = nonBlankString(rawEnterpriseEffect.provider);
-  const enterpriseToolName = nonBlankString(rawEnterpriseEffect.toolName);
-  const enterpriseRisk = nonBlankString(rawEnterpriseEffect.risk);
-  const enterpriseEffect =
-    !failed &&
-    event.toolName === 'enterprise_cli_execute' &&
-    enterpriseConnectionId &&
-    enterpriseProvider &&
-    enterpriseToolName &&
-    enterpriseRisk &&
-    new Set(['read', 'write', 'high']).has(enterpriseRisk)
-      ? {
-          connectionId: enterpriseConnectionId,
-          provider: enterpriseProvider,
-          toolName: enterpriseToolName,
-          risk: enterpriseRisk as 'read' | 'write' | 'high',
-        }
-      : undefined;
-  const localSideEffectApplied =
-    !failed && WRITE_TOOL_NAMES.has(event.toolName)
-      ? (event.toolName !== 'doc_create' || creationConfirmed) &&
-        result.idempotentReplay !== true &&
-        result.changed !== false
-      : undefined;
-  const enterpriseSideEffectApplied =
-    enterpriseEffect?.risk === 'write' || enterpriseEffect?.risk === 'high'
-      ? rawEnterpriseEffect.sideEffectApplied === true
-      : undefined;
-  const rawSparkClawEffect = objectValue(result.sparkClawEffect);
-  const sparkClawToolName = nonBlankString(rawSparkClawEffect.toolName);
-  const sparkClawRisk = nonBlankString(rawSparkClawEffect.risk);
-  const sparkClawEffect =
-    !failed &&
-    event.toolName === 'sparkclaw_mcp_execute' &&
-    sparkClawToolName &&
-    sparkClawRisk &&
-    new Set(['read', 'write', 'high']).has(sparkClawRisk)
-      ? {
-          toolName: sparkClawToolName,
-          risk: sparkClawRisk as 'read' | 'write' | 'high',
-          idempotentReplay: rawSparkClawEffect.idempotentReplay === true,
-        }
-      : undefined;
-  const sparkClawSideEffectApplied =
-    sparkClawEffect?.risk === 'write' || sparkClawEffect?.risk === 'high'
-      ? rawSparkClawEffect.sideEffectApplied === true
-      : undefined;
-  const sideEffectApplied =
-    localSideEffectApplied ??
-    enterpriseSideEffectApplied ??
-    sparkClawSideEffectApplied;
-  return {
-    toolName: event.toolName,
-    status: failed ? ('failed' as const) : ('completed' as const),
-    argsFingerprint: versionFingerprint,
-    ...(documentId ? { documentId } : {}),
-    ...(documentIds.length ? { documentIds } : {}),
-    ...(relation ? { relation, versionFingerprint } : {}),
-    ...(sideEffectApplied !== undefined ? { sideEffectApplied } : {}),
-    ...(workspaceEffect ? { workspaceEffect } : {}),
-    ...(enterpriseEffect ? { enterpriseEffect } : {}),
-    ...(sparkClawEffect ? { sparkClawEffect } : {}),
-  };
-}
-
-function documentArtifacts(executions: ToolExecutionSummary[]) {
-  const artifacts = new Map<string, DocumentArtifact>();
-  for (const execution of executions) {
-    if (
-      execution.status !== 'completed' ||
-      !execution.documentId ||
-      !execution.relation ||
-      !execution.versionFingerprint
-    ) {
-      continue;
-    }
-    artifacts.set(
-      `${execution.workspaceId ?? ''}:${execution.relation}:${execution.documentId}`,
-      {
-        ...(execution.workspaceId
-          ? { workspaceId: execution.workspaceId }
-          : {}),
-        kind: 'document',
-        relation: execution.relation,
-        documentId: execution.documentId,
-        versionFingerprint: execution.versionFingerprint,
-      }
-    );
-  }
-  return [...artifacts.values()];
-}
-
 type RequirementsContract = Extract<
   LocalMindToolAgentCompletionContract,
   { kind: 'requirements' }
@@ -889,7 +664,8 @@ export class CopilotAgentRuntimeLocalMindToolAgentAdapter {
     private readonly models: Models,
     private readonly jobs: JobQueue,
     private readonly workflowRegistry: CopilotAgentRuntimeWorkflowRegistry,
-    private readonly documentOperations: CopilotDocumentOperationService
+    private readonly documentOperations: CopilotDocumentOperationService,
+    private readonly config: Config
   ) {
     this.workflowRegistry.register({
       workflow: AGENT_RUNTIME_LOCALMIND_TOOL_AGENT_WORKFLOW,
@@ -904,9 +680,13 @@ export class CopilotAgentRuntimeLocalMindToolAgentAdapter {
         try {
           await this.execute(input);
         } catch (error) {
-          await this.failPendingDelegation(input.run.id, {
-            code: 'agent_runtime_adapter_execution_failed',
-          });
+          await this.failPendingDelegation(
+            input.run.id,
+            {
+              code: 'agent_runtime_adapter_execution_failed',
+            },
+            input
+          );
           throw error;
         }
       },
@@ -914,6 +694,15 @@ export class CopilotAgentRuntimeLocalMindToolAgentAdapter {
   }
 
   private async execute(input: CopilotAgentRuntimeWorkflowAdapterInput) {
+    const failDelegation = (
+      agentRunId: string,
+      status:
+        | 'failed'
+        | 'credential_scope_denied'
+        | 'permission_denied'
+        | 'resource_not_accessible',
+      result: Record<string, unknown>
+    ) => this.failDelegation(agentRunId, status, result, input);
     const { run, workerAttempt, workerLeaseId, checkCancellationRequested } =
       input;
     const {
@@ -956,7 +745,7 @@ export class CopilotAgentRuntimeLocalMindToolAgentAdapter {
       delegation
     );
     if (initialAuthorityFailure) {
-      await this.failDelegation(
+      await failDelegation(
         run.id,
         initialAuthorityFailure.status,
         initialAuthorityFailure.result
@@ -974,10 +763,10 @@ export class CopilotAgentRuntimeLocalMindToolAgentAdapter {
       });
     } catch (error) {
       if (error instanceof McpAttachmentReferenceError) {
-        await this.failDelegation(run.id, error.status, error.result);
+        await failDelegation(run.id, error.status, error.result);
         throw new Error(error.message);
       }
-      await this.failDelegation(run.id, 'failed', {
+      await failDelegation(run.id, 'failed', {
         code: 'attachment_materialization_failed',
       });
       throw error;
@@ -990,7 +779,7 @@ export class CopilotAgentRuntimeLocalMindToolAgentAdapter {
         .allowLocal()
         .can('Doc.Read');
       if (!readable) {
-        await this.failDelegation(run.id, 'permission_denied', {
+        await failDelegation(run.id, 'permission_denied', {
           code: 'permission_denied',
           missingPermission: 'Doc.Read',
           documentId,
@@ -1031,7 +820,7 @@ export class CopilotAgentRuntimeLocalMindToolAgentAdapter {
         .allowLocal()
         .can('Doc.Update');
       if (!writable) {
-        await this.failDelegation(run.id, 'permission_denied', {
+        await failDelegation(run.id, 'permission_denied', {
           code: 'permission_denied',
           missingPermission: 'Doc.Update',
           documentId,
@@ -1078,7 +867,7 @@ export class CopilotAgentRuntimeLocalMindToolAgentAdapter {
       toolNames => !toolNames.some(toolName => currentToolNames.has(toolName))
     );
     if (unavailableRequiredGroup) {
-      await this.failDelegation(run.id, 'failed', {
+      await failDelegation(run.id, 'failed', {
         code: 'required_tool_unavailable',
         requiredToolNames: unavailableRequiredGroup,
       });
@@ -1185,20 +974,66 @@ export class CopilotAgentRuntimeLocalMindToolAgentAdapter {
       : '(none supplied)';
     const requiredCompletionInstruction =
       completionInstruction(completionContract);
-    const abortController = new AbortController();
+    const limits = this.config.copilot.mcpDelegation;
+    const budget = new ToolAgentBudget({
+      modelTimeoutMs: limits.modelTimeoutMs,
+      toolTimeoutMs: limits.toolTimeoutMs,
+      totalTimeoutMs: Math.min(
+        limits.totalTimeoutMs,
+        Math.max(
+          1_000,
+          (run.workerLeaseExpiresAt?.getTime() ?? Infinity) -
+            Date.now() -
+            30_000
+        )
+      ),
+    });
+    const abortController = budget.controller;
     const pollerStopController = new AbortController();
     let pollingStopped = false;
     let cancellationConsumed = false;
     let authorityFailure: Awaited<
       ReturnType<typeof this.baseAuthorityFailure>
     > = null;
-    let timedOut = false;
     let toolExecutionLimitExceeded = false;
     let waitingForLocation = false;
-    const timeoutTimer = setTimeout(() => {
-      timedOut = true;
-      abortController.abort();
-    }, LOCALMIND_TOOL_AGENT_TIMEOUT_MS);
+    const checkpointProgress = async () => {
+      const receipts = toolAgentCheckpointReceipts(
+        await this.models.copilotMcpDelegation.listToolCalls(delegation.id),
+        run.workspaceId
+      );
+      for (const receipt of receipts.toolExecutions) {
+        const index = toolExecutions.findIndex(
+          execution => execution.toolCallId === receipt.toolCallId
+        );
+        if (index < 0) toolExecutions.push(receipt);
+        else if (toolExecutions[index].relation !== 'created')
+          toolExecutions[index] = receipt;
+      }
+      await this.models.copilotMcpDelegation.checkpointToolAgentProgress({
+        requestId: delegation.id,
+        sessionId,
+        runId: run.id,
+        workerLeaseId,
+        workerAttempt,
+        result: {
+          kind: 'tool_agent',
+          execution: 'in_progress',
+          pendingToolCalls: receipts.pendingToolCalls,
+          toolExecutions,
+          artifacts: documentArtifacts(toolExecutions),
+          executionTiming: budget.snapshot(),
+          ...(completionContract.kind === 'requirements'
+            ? {
+                remainingToolNames: missingCompletionRequirementToolNames(
+                  completionContract,
+                  toolExecutions
+                ),
+              }
+            : {}),
+        },
+      });
+    };
     const cancellationPoller = (async () => {
       while (!pollingStopped) {
         await delay(LOCALMIND_TOOL_AGENT_CANCELLATION_POLL_MS, undefined, {
@@ -1228,6 +1063,7 @@ export class CopilotAgentRuntimeLocalMindToolAgentAdapter {
     })();
 
     try {
+      await checkpointProgress();
       const stream = this.runtime.streamObject(
         {},
         [
@@ -1244,6 +1080,10 @@ export class CopilotAgentRuntimeLocalMindToolAgentAdapter {
               'Never claim a side effect succeeded unless the corresponding tool returned success.',
               'Document creation is idempotent by tool-call identity. Each new document waits for the user to confirm its workspace and location; report that waiting state without claiming creation.',
               'Recovered tool results are durable execution receipts. Continue only unmet work; do not repeat a confirmed document creation.',
+              'Reuse caller-supplied document IDs directly; do not rediscover a known target through search or folder traversal.',
+              'For a body-only update, read once, merge once, write once, and report the tool receipt. Do not repeat the entire body in the final answer.',
+              'Only inspect or change folder order when explicitly requested. Complete the body write before any requested folder verification.',
+              'For simple reads and exact-title lookups, return the relevant tool data concisely without regenerating the whole document.',
               requiredCompletionInstruction,
               'When the work is complete, give a concise final result that names created or updated documents when available.',
             ].join('\n'),
@@ -1260,11 +1100,20 @@ export class CopilotAgentRuntimeLocalMindToolAgentAdapter {
         {
           signal: abortController.signal,
           ...toolOptions,
+          onToolExecution: async (phase, toolName, toolCallId) => {
+            if (abortController.signal.aborted) return;
+            if (phase === 'started') budget.toolStarted(toolName, toolCallId);
+            else budget.toolCompleted();
+            await checkpointProgress();
+          },
           maxTokens: LOCALMIND_TOOL_AGENT_MAX_RESULT_LENGTH,
         }
       );
 
-      for await (const event of stream) {
+      for await (const event of abortableToolAgentStream(
+        stream,
+        abortController.signal
+      )) {
         if (event.type === 'text-delta') {
           answer = `${answer}${event.textDelta}`.slice(
             0,
@@ -1277,7 +1126,11 @@ export class CopilotAgentRuntimeLocalMindToolAgentAdapter {
             abortController.abort();
             continue;
           }
-          toolExecutions.push(toolExecutionSummary(event));
+          toolExecutions.push({
+            ...toolExecutionSummary(event),
+            workspaceId: nonBlankString(result.workspaceId) ?? run.workspaceId,
+          });
+          await checkpointProgress();
           if (
             await this.models.copilotMcpDelegation.pendingLocation(sessionId)
           ) {
@@ -1302,18 +1155,20 @@ export class CopilotAgentRuntimeLocalMindToolAgentAdapter {
       const currentAuthorityFailure =
         authorityFailure ?? (await this.baseAuthorityFailure(run, delegation));
       if (currentAuthorityFailure) {
-        await this.failDelegation(
+        await failDelegation(
           run.id,
           currentAuthorityFailure.status,
           currentAuthorityFailure.result
         );
         throw new Error(currentAuthorityFailure.message);
       }
-      if (timedOut) {
-        await this.throwToolAgentTimeout(run.id);
+      if (budget.timeout) {
+        budget.stop();
+        await checkpointProgress();
+        await this.throwToolAgentTimeout(run.id, budget, input);
       }
       if (toolExecutionLimitExceeded) {
-        await this.failDelegation(run.id, 'failed', {
+        await failDelegation(run.id, 'failed', {
           code: 'tool_execution_limit_exceeded',
           maxToolExecutions: LOCALMIND_TOOL_AGENT_MAX_TOOL_EXECUTIONS,
         });
@@ -1325,7 +1180,7 @@ export class CopilotAgentRuntimeLocalMindToolAgentAdapter {
     } finally {
       pollingStopped = true;
       pollerStopController.abort();
-      clearTimeout(timeoutTimer);
+      budget.stop();
       await cancellationPoller;
     }
 
@@ -1340,18 +1195,19 @@ export class CopilotAgentRuntimeLocalMindToolAgentAdapter {
     if (await checkCancellationRequested()) return;
     authorityFailure = await this.baseAuthorityFailure(run, delegation);
     if (authorityFailure) {
-      await this.failDelegation(
+      await failDelegation(
         run.id,
         authorityFailure.status,
         authorityFailure.result
       );
       throw new Error(authorityFailure.message);
     }
-    if (timedOut) {
-      await this.throwToolAgentTimeout(run.id);
+    if (budget.timeout) {
+      await checkpointProgress();
+      await this.throwToolAgentTimeout(run.id, budget, input);
     }
     if (toolExecutionLimitExceeded) {
-      await this.failDelegation(run.id, 'failed', {
+      await failDelegation(run.id, 'failed', {
         code: 'tool_execution_limit_exceeded',
         maxToolExecutions: LOCALMIND_TOOL_AGENT_MAX_TOOL_EXECUTIONS,
       });
@@ -1360,6 +1216,7 @@ export class CopilotAgentRuntimeLocalMindToolAgentAdapter {
       );
     }
 
+    await checkpointProgress();
     const artifacts = documentArtifacts(toolExecutions);
     if (completionContract.kind === 'document_update') {
       const updatedRequiredDocument = toolExecutions.some(
@@ -1404,7 +1261,7 @@ export class CopilotAgentRuntimeLocalMindToolAgentAdapter {
             (!updatedRequiredDocument && !completedConditionalNoop))) ||
         (!conditional && (!updatedRequiredDocument || !hasUpdatedArtifact))
       ) {
-        await this.failDelegation(run.id, 'failed', {
+        await failDelegation(run.id, 'failed', {
           code: conditional
             ? 'required_read_evidence_missing'
             : 'required_side_effect_missing',
@@ -1429,7 +1286,7 @@ export class CopilotAgentRuntimeLocalMindToolAgentAdapter {
       );
       const completionDocumentIds =
         completionContractDocumentIds(completionContract);
-      await this.failDelegation(run.id, 'failed', {
+      await failDelegation(run.id, 'failed', {
         code: 'required_tool_evidence_missing',
         completionContractVersion: completionContract.version,
         requiredToolNames,
@@ -1462,6 +1319,7 @@ export class CopilotAgentRuntimeLocalMindToolAgentAdapter {
       workerAttempt,
       delegationId: delegation.id,
       normalizedAnswer,
+      executionTiming: budget.snapshot(),
       toolExecutions,
       artifacts,
       sideEffectsApplied,
@@ -1546,12 +1404,23 @@ export class CopilotAgentRuntimeLocalMindToolAgentAdapter {
     return null;
   }
 
-  private async throwToolAgentTimeout(agentRunId: string): Promise<never> {
-    await this.failDelegation(agentRunId, 'failed', {
-      code: 'tool_agent_timeout',
-    });
+  private async throwToolAgentTimeout(
+    agentRunId: string,
+    budget: ToolAgentBudget,
+    input: CopilotAgentRuntimeWorkflowAdapterInput
+  ): Promise<never> {
+    budget.stop();
+    await this.failDelegation(
+      agentRunId,
+      'failed',
+      {
+        code: 'tool_agent_timeout',
+        executionTiming: budget.snapshot(),
+      },
+      input
+    );
     throw new Error(
-      `LocalMind tool agent timed out after ${LOCALMIND_TOOL_AGENT_TIMEOUT_MS}ms: ${agentRunId}`
+      `LocalMind tool agent ${budget.timeout} deadline exceeded: ${agentRunId}`
     );
   }
 
@@ -1562,6 +1431,7 @@ export class CopilotAgentRuntimeLocalMindToolAgentAdapter {
     workerAttempt: number;
     delegationId: string;
     normalizedAnswer: string;
+    executionTiming: ReturnType<ToolAgentBudget['snapshot']>;
     toolExecutions: ToolExecutionSummary[];
     artifacts: DocumentArtifact[];
     sideEffectsApplied: boolean;
@@ -1591,6 +1461,7 @@ export class CopilotAgentRuntimeLocalMindToolAgentAdapter {
           kind: 'tool_agent',
           execution: 'completed',
           answer: input.normalizedAnswer,
+          executionTiming: input.executionTiming,
           agentRunId: input.run.id,
           toolExecutions: input.toolExecutions,
           artifacts: input.artifacts,
@@ -1606,15 +1477,41 @@ export class CopilotAgentRuntimeLocalMindToolAgentAdapter {
       | 'credential_scope_denied'
       | 'permission_denied'
       | 'resource_not_accessible',
-    result: Record<string, unknown>
+    result: Record<string, unknown>,
+    input?: CopilotAgentRuntimeWorkflowAdapterInput
   ) {
     const delegation =
       await this.models.copilotMcpDelegation.getRequestByAgentRun(agentRunId);
-    if (!delegation) return;
-    const failed = await this.models.copilotMcpDelegation.updateRequest(
-      delegation.id,
-      { status, result }
+    if (!delegation || delegation.status !== 'processing') return;
+    const calls = await this.models.copilotMcpDelegation.listToolCalls(
+      delegation.id
     );
+    const previous = objectValue(delegation.result);
+    const failure = {
+      status,
+      result: {
+        ...previous,
+        ...result,
+        ...(calls.length
+          ? toolAgentCheckpointEvidence(calls, delegation.workspaceId, previous)
+          : {}),
+        execution: 'partial',
+      },
+    };
+    const failed =
+      input && delegation.executionSessionId
+        ? await this.models.copilotMcpDelegation.checkpointToolAgentProgress({
+            ...failure,
+            requestId: delegation.id,
+            sessionId: delegation.executionSessionId,
+            runId: input.run.id,
+            workerLeaseId: input.workerLeaseId,
+            workerAttempt: input.workerAttempt,
+          })
+        : await this.models.copilotMcpDelegation.updateRequest(
+            delegation.id,
+            failure
+          );
     await this.queueCallback(
       delegation.credentialFamilyId,
       failed,
@@ -1624,12 +1521,13 @@ export class CopilotAgentRuntimeLocalMindToolAgentAdapter {
 
   private async failPendingDelegation(
     agentRunId: string,
-    result: Record<string, unknown>
+    result: Record<string, unknown>,
+    input?: CopilotAgentRuntimeWorkflowAdapterInput
   ) {
     const delegation =
       await this.models.copilotMcpDelegation.getRequestByAgentRun(agentRunId);
     if (delegation?.status !== 'processing') return;
-    await this.failDelegation(agentRunId, 'failed', result);
+    await this.failDelegation(agentRunId, 'failed', result, input);
   }
 
   private async queueCallback(

@@ -1773,7 +1773,7 @@ The inbound workspace MCP AI delegation slice is now implemented:
   documents and all placements, validates and rewrites every other affected
   folder Trash manifest, preserves the target fingerprinted manifest until
   physical deletion succeeds, and remains retryable after partial failure;
-- delegated tool-agent runs have a 120-second timeout, poll durable
+- delegated tool-agent runs have a configurable 300-second default total timeout, poll durable
   cancellation and credential/workspace authority during execution, propagate
   the abort signal into the tool loop, enforce a hard maximum of 20 tool
   executions, and now fail with `tool_agent_timeout`

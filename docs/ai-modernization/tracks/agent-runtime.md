@@ -1096,7 +1096,7 @@ Implemented behavior:
    caller-supplied documents before the loop. It polls cancellation and base
    authority every second while running and propagates one AbortSignal into the
    tool loop.
-5. Execution is bounded to 120 seconds and 20 attempted tool executions. The
+5. Execution defaults to a configurable 300-second total budget and 20 attempted tool executions. The
    twenty-first execution is rejected before its executor runs. A timeout
    remains terminal even when the native stream converts abort into a normal
    iterator close, and public task state reports retryable
@@ -1168,6 +1168,52 @@ Implemented behavior:
     `doc_update` or `conditional_noop_complete`, and the no-op must echo the
     exact read fingerprint. Missing evidence projects retryable
     `required_tool_evidence_missing` state.
+
+### Delegated timeout and partial receipts
+
+The tool loop now defaults to 300 seconds total, 120 seconds per model wait,
+and 60 seconds per tool, configured through `copilot.mcpDelegation` and
+`LOCALMIND_MCP_{TOTAL,MODEL,TOOL}_TIMEOUT_MS`. Stream iterator waits are bounded
+even when the producer ignores abort. The worker lease covers the configured total plus a 60-second cleanup margin;
+the active attempt also caps its deadline before lease expiry. Tool timers follow
+actual executor callbacks, including multiple calls announced in one model round.
+The worker snapshots bounded phase start/end/duration evidence under its live lease, without prompts or bodies.
+
+Existing immutable `ai_mcp_delegation_tool_calls` now persist returns before
+post-execution bookkeeping, and touch the request state marker so long polling
+sees progress. Query projection and terminal failure merge those checkpoints
+with later confirmed-location receipts. Partial tasks expose confirmed tools,
+written artifacts, remaining completion tools, and unconfirmed calls under live
+referenced-document ACL. No schema migration is needed. Recovery still refuses
+to replay an uncertain non-idempotent tool; cancellation/timeout cannot forcibly
+roll back a tool that ignores abort, so unconfirmed writes require reconciliation.
+
+Validation (2026-09-08): the existing `localmind-affine:test` image and
+`localmind_project_native_runner` were reused with the isolated
+`localmind_timeout_fix_20260908` database (all 361 existing migrations applied).
+No migration or image rebuild was needed. With `DATABASE_URL` selecting that
+isolated database, the runner executed:
+
+```sh
+NODE_OPTIONS=--import=/workspace/tools/cli/register.js yarn workspace @affine/server ava --serial src/__tests__/copilot/copilot-mcp-delegation.e2e.ts src/__tests__/copilot/tool-agent-budget.spec.ts src/__tests__/copilot/tool-call-loop.spec.ts
+```
+
+All 59 tests passed, including real document updates followed by model/tool
+stall, lost tool-result events, running and failed receipt projection, same-call
+replay without another write, stale lease rejection, extended execution lease,
+cancellation, credential/ACL checks, and confirmed document-location recovery.
+Backend project-reference typechecking, focused test typechecking, oxlint,
+configuration generation and formatting checks also passed. Unknown operations
+remain explicitly unconfirmed and are not advertised as automatically retryable.
+
+The local runtime was backed up and synchronized with `yarn localmind:sync:backend`.
+The script confirmed all 361 migrations were current, bundled the backend,
+restarted `localmind_affine_server` on `localmind-affine:local`, and returned
+HTTP 200. The deployed `main.js` SHA-256 matches the local bundle. This updates
+the running container without rebuilding its image; recreating the container
+requires building the current source into the runtime image. Validation used
+synthetic provider streams and real database/document operations; the original
+user log task was not replayed.
 
 ## Agent Run Source Conflict Evidence Fence Slice
 
@@ -1386,7 +1432,7 @@ There remains a narrow race where a concurrent edit can arrive after the final
 check and before the update is persisted. Close this with a storage-level CAS
 before treating the preview/version fence as atomic.
 
-The tool-agent path has its own bounded execution contract: 120 seconds, 20
+The tool-agent path has its own bounded execution contract: a configurable 300-second total default, 20
 attempted tool executions, one AbortSignal, one-second cancellation/authority
 polling, transactional AgentRun/delegation completion, and sanitized tool plus
 artifact evidence. New v5 requests persist actual available tool names, exact

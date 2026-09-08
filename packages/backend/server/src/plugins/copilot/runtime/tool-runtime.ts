@@ -679,6 +679,7 @@ export class ToolRuntime {
       guarded[name] = {
         ...tool,
         execute: async (args, executeOptions) => {
+          executeOptions.signal?.throwIfAborted();
           if (options.session) {
             const session = await this.models.copilotSession.getMeta(
               options.session
@@ -801,6 +802,7 @@ export class ToolRuntime {
               : null;
           if (options.taskId && options.session && !checkpoint)
             throw new Error('Delegated tool execution requires a worker lease');
+          let replayedResult: { value: unknown } | null = null;
           if (checkpoint) {
             const call = await this.models.copilotMcpDelegation.beginToolCall({
               ...checkpoint,
@@ -808,15 +810,43 @@ export class ToolRuntime {
               args,
             });
             if (call.completedAt)
-              return (call.result as { value: unknown }).value;
+              replayedResult = call.result as { value: unknown };
           }
-          const result = await execute(args, executeOptions);
+          executeOptions.signal?.throwIfAborted();
+          const result = replayedResult
+            ? replayedResult.value
+            : await execute(args, executeOptions);
           const resultObject =
             result && typeof result === 'object' && !Array.isArray(result)
               ? (result as Record<string, unknown>)
               : null;
           const failed =
             resultObject?.type === 'error' || resultObject?.success === false;
+          const readFingerprint =
+            !failed &&
+            name === 'doc_read' &&
+            requestedDocumentId &&
+            requestedDocumentId === conditionalDocumentId
+              ? replayedResult &&
+                typeof resultObject?.readFingerprint === 'string'
+                ? resultObject.readFingerprint
+                : mcpDelegationFingerprint({
+                    version: 'localmind-conditional-document-read/v1',
+                    documentId: requestedDocumentId,
+                    result,
+                  })
+              : null;
+          const checkpointResult = readFingerprint
+            ? resultObject
+              ? { ...resultObject, readFingerprint }
+              : { result, readFingerprint }
+            : result;
+          // Save the executor receipt before provenance/bookkeeping can fail.
+          if (checkpoint && !replayedResult)
+            await this.models.copilotMcpDelegation.completeToolCall({
+              ...checkpoint,
+              result: checkpointResult,
+            });
           if (
             !failed &&
             options.session &&
@@ -903,36 +933,26 @@ export class ToolRuntime {
               ],
             });
           }
-          if (
-            !failed &&
-            name === 'doc_read' &&
-            requestedDocumentId &&
-            requestedDocumentId === conditionalDocumentId
-          ) {
-            const readFingerprint = mcpDelegationFingerprint({
-              version: 'localmind-conditional-document-read/v1',
-              documentId: requestedDocumentId,
-              result,
-            });
+          if (readFingerprint && requestedDocumentId) {
             readFingerprints.set(requestedDocumentId, readFingerprint);
-            const fingerprintedResult = resultObject
-              ? { ...resultObject, readFingerprint }
-              : { result, readFingerprint };
-            if (checkpoint)
-              await this.models.copilotMcpDelegation.completeToolCall({
-                ...checkpoint,
-                result: fingerprintedResult,
-              });
-            return fingerprintedResult;
           }
-          if (checkpoint)
-            await this.models.copilotMcpDelegation.completeToolCall({
-              ...checkpoint,
-              result,
-            });
-          return result;
+          return checkpointResult;
         },
       };
+      const guardedExecute = guarded[name].execute;
+      if (options.onToolExecution && guardedExecute) {
+        const onToolExecution = options.onToolExecution;
+        guarded[name].execute = async (args, executeOptions) => {
+          executeOptions.signal?.throwIfAborted();
+          const callId = executeOptions.toolCallId ?? '';
+          await onToolExecution('started', name, callId);
+          try {
+            return await guardedExecute(args, executeOptions);
+          } finally {
+            await onToolExecution('completed', name, callId);
+          }
+        };
+      }
     }
     return guarded;
   }

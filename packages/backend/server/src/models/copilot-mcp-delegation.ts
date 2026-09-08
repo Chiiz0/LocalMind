@@ -170,6 +170,10 @@ export class CopilotMcpDelegationModel extends BaseModel {
         8 * 1024 * 1024
     )
       throw new Error('Delegated tool checkpoint budget exceeded');
+    await this.db.aiMcpDelegationRequest.update({
+      where: { id: request.id },
+      data: { updatedAt: new Date() },
+    });
     return await this.db.aiMcpDelegationToolCall.create({
       data: {
         requestId: request.id,
@@ -215,6 +219,42 @@ export class CopilotMcpDelegationModel extends BaseModel {
     });
     if (changed.count !== 1)
       throw new Error('Delegated tool checkpoint changed');
+    await this.db.aiMcpDelegationRequest.update({
+      where: { id: input.requestId },
+      data: { updatedAt: new Date() },
+    });
+  }
+
+  @Transactional()
+  async checkpointToolAgentProgress(input: {
+    requestId: string;
+    sessionId: string;
+    runId: string;
+    workerLeaseId: string;
+    workerAttempt: number;
+    result: Record<string, unknown>;
+    status?:
+      | 'processing'
+      | 'failed'
+      | 'credential_scope_denied'
+      | 'permission_denied'
+      | 'resource_not_accessible';
+  }) {
+    await this.db
+      .$queryRaw`SELECT id FROM ai_mcp_delegation_requests WHERE id = ${input.requestId} FOR UPDATE`;
+    const request = await this.assertToolLease(input);
+    const previous =
+      request.result &&
+      typeof request.result === 'object' &&
+      !Array.isArray(request.result)
+        ? request.result
+        : {};
+    if (Buffer.byteLength(JSON.stringify(input.result)) > 128 * 1024)
+      throw new Error('Delegated progress budget exceeded');
+    return this.updateRequest(request.id, {
+      status: input.status ?? 'processing',
+      result: { ...previous, ...input.result },
+    });
   }
 
   async pendingLocation(sessionId: string) {

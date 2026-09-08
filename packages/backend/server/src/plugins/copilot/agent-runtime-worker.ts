@@ -2,9 +2,10 @@ import { randomUUID } from 'node:crypto';
 
 import { Injectable, Logger } from '@nestjs/common';
 
-import { JOB_SIGNAL, OnJob } from '../../base';
+import { Config, JOB_SIGNAL, OnJob } from '../../base';
 import { Models } from '../../models';
 import type { CopilotAgentRunRecord } from '../../models/copilot-agent-runtime';
+import { AGENT_RUNTIME_LOCALMIND_TOOL_AGENT_WORKFLOW } from './agent-runtime-localmind-tool-agent-adapter';
 import {
   type CopilotAgentRuntimeWorkflowAdapter,
   CopilotAgentRuntimeWorkflowRegistry,
@@ -40,7 +41,8 @@ export class CopilotAgentRuntimeWorker {
   constructor(
     private readonly models: Models,
     private readonly workflowRegistry: CopilotAgentRuntimeWorkflowRegistry,
-    private readonly taskControl: McpAiTaskControlService
+    private readonly taskControl: McpAiTaskControlService,
+    private readonly config: Config
   ) {}
 
   @OnJob('copilot.agentRuntime.run')
@@ -52,6 +54,15 @@ export class CopilotAgentRuntimeWorker {
         id: params.runId,
         workerId,
         leaseMs: AGENT_RUNTIME_WORKER_LEASE_MS,
+        workflowLease: {
+          workflow: AGENT_RUNTIME_LOCALMIND_TOOL_AGENT_WORKFLOW,
+          // Keep reconciliation from reclaiming a run before its budget and
+          // terminal receipt persistence have finished.
+          leaseMs: Math.max(
+            AGENT_RUNTIME_WORKER_LEASE_MS,
+            this.config.copilot.mcpDelegation.totalTimeoutMs + 60_000
+          ),
+        },
       });
 
     if (!run) {

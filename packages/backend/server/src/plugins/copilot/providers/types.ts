@@ -337,6 +337,12 @@ const CopilotProviderOptionsSchema = z.object({
     .max(128)
     .optional(),
   maxToolExecutions: z.number().int().min(1).max(100).optional(),
+  // Internal execution hook; functions cannot be supplied over the wire.
+  onToolExecution: z
+    .function()
+    .args(z.enum(['started', 'completed']), z.string(), z.string())
+    .returns(z.promise(z.void()))
+    .optional(),
   conditionalDocumentUpdate: z
     .object({ documentId: z.string().min(1).max(256) })
     .strict()

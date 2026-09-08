@@ -129,7 +129,7 @@ ACL。完成任务所必需的工具如果已不可用，任务会明确失败�
   来自用户明确意图，目标必须已在 Trash，并会递归删除受影响的文档正文和全部目录放置
   关系，同时重写其他受影响文件夹的 Trash manifest，确保它们之后仍可恢复。
 
-工具 Agent 最长运行 120 秒，硬限制最多尝试 20 次工具执行，第 21 个 executor 不会被
+工具 Agent 的默认总时限为 300 秒，可由服务端配置，硬限制最多尝试 20 次工具执行，第 21 个 executor 不会被
 调用；运行中持续检查取消、凭据和工作区权限，只持久化脱敏结果与文档产物证据。即使
 provider 在超时中止后正常关闭流，任务也会返回可重试的 `tool_agent_timeout`，不会误报
 完成。v3 完成契约会明确要求成功的内部工具，以及可选的文档、工作区操作、Enterprise
@@ -140,6 +140,23 @@ fingerprint。证据不足会返回可重试的 `required_tool_evidence_missing`
 相同标题重试新建文档时会复用稳定文档 ID，不会生成重复文档。目录读取、写入和文档放置
 分别检查对应的工作区组织读取、同步与文档读取权限，只有非幂等重放的真实目录写入才记录
 为副作用。
+
+服务端可在 `copilot.mcpDelegation` 配置 `totalTimeoutMs`、`modelTimeoutMs` 和
+`toolTimeoutMs`，默认分别为 300000、120000 和 60000 毫秒；对应环境变量为
+`LOCALMIND_MCP_TOTAL_TIMEOUT_MS`、`LOCALMIND_MCP_MODEL_TIMEOUT_MS` 和
+`LOCALMIND_MCP_TOOL_TIMEOUT_MS`。持续输出文字不会重置单轮预算。
+`result.executionTiming` 返回每个模型等待/工具执行阶段的开始、结束、耗时及
+`timeoutPhase`；这些耗时包含调度和等待，并非模型服务自身的纯计算耗时。
+
+每个工具返回后先保存检查点，再做后续记账。运行中、失败或取消的任务仍可返回
+`result.partial=true`、已确认的 `toolExecutions` 和文档 `artifacts`；
+`pendingToolCalls` 中的 `unconfirmed` 表示尚不能确认操作结果。超时不等于未写入，
+续做前先核对回执；未确认的非幂等操作不得盲目重试。查询继续检查所有引用文档的
+实时 ACL，不输出原始工具参数或正文。同一任务、同一工具调用 ID 的已完成检查点
+会被复用；不能把新任务的重试理解为同一次工具调用的幂等重放。
+
+更新团队日志时传入已知文档 ID，要求一次读取、合并正文和简短回执；目录排序与
+额外核验可单独委托。仅提高客户端 MCP 超时不会改变上述服务端预算。
 
 单个附件上限为 10 MiB；一个任务最多绑定八个附件，合计不超过 20 MiB。上传记录不可
 修改，并绑定工作区、被委托用户和凭据家族。规划与 worker 执行都会重新读取 Blob，

@@ -104,7 +104,7 @@ parser formats are supplied as bounded bytes. A task accepts at most eight
 attachments and 20 MiB combined. Planning and worker execution both reread the
 Blob and verify its size and SHA-256 evidence before use.
 
-The tool loop is bounded to 20 recorded executions and 120 seconds. It polls
+The tool loop is bounded to 20 attempted executions and a configurable 300-second total deadline. It polls
 durable cancellation and credential/workspace authority while running, and
 persists only sanitized summaries, argument fingerprints, referenced document
 ids, created/updated document artifacts, and allowlisted workspace-folder
