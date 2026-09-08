@@ -583,7 +583,10 @@ export const NavigationPanelTreeNode = ({
             )}
         </div>
       </ContextMenu>
-      <Collapsible.Content style={{ display: dragging ? 'none' : undefined }}>
+      {/* Preserve the space so sibling drop targets do not shift during dragging. */}
+      <Collapsible.Content
+        style={{ visibility: dragging ? 'hidden' : undefined }}
+      >
         {/* For lastInGroup check, the placeholder must be placed above all children in the dom */}
         <div className={styles.collapseContentPlaceholder}>
           {childCount === 0 && !collapsed ? childrenPlaceholder : null}

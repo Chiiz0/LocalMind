@@ -167,6 +167,65 @@ test('drag a page from favourites to collection', async ({ page }) => {
   await dragToCollection(page, favouritePage);
 });
 
+test('dragging an expanded sidebar doc keeps the folder drop target in place', async ({
+  page,
+}) => {
+  await page.getByTestId('pin-button').click();
+  const source = page
+    .getByTestId('navigation-panel-favorites')
+    .locator('[data-testid^="navigation-panel-doc-"]')
+    .first();
+  const toggle = source
+    .getByTestId('navigation-panel-collapsed-button')
+    .first();
+  if (
+    (await toggle.locator('svg').getAttribute('data-collapsed')) !== 'false'
+  ) {
+    await toggle.click();
+  }
+  const child = source
+    .locator('[data-testid^="navigation-panel-doc-"]')
+    .first();
+  await expect(child).toBeVisible();
+
+  const sourceLink = source.locator('[data-affine-draggable]').first();
+  const sourceId = getDocIdFromUrl((await sourceLink.getAttribute('href'))!);
+  const folder = page
+    .locator('[data-testid^="navigation-panel-folder-"]')
+    .first();
+  const target = folder.locator('[data-affine-draggable]').first();
+  const start = await sourceLink.boundingBox();
+  const destination = await target.boundingBox();
+  expect(start).not.toBeNull();
+  expect(destination).not.toBeNull();
+  if (!start || !destination) throw new Error('Sidebar drag target missing');
+
+  await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2);
+  await page.mouse.down();
+  try {
+    await page.mouse.move(start.x + start.width / 2 + 16, start.y + 16, {
+      steps: 4,
+    });
+    await expect(child).toBeHidden();
+    // The target must stay under the pointer throughout the drag. Collapsing
+    // the source shifts it onto a document and can create a link instead.
+    await expect
+      .poll(async () => (await target.boundingBox())?.y)
+      .toBe(destination.y);
+    await page.mouse.move(
+      destination.x + destination.width / 2,
+      destination.y + destination.height / 2,
+      { steps: 24 }
+    );
+  } finally {
+    await page.mouse.up();
+  }
+  await expect(
+    folder.getByTestId(`navigation-panel-doc-${sourceId}`)
+  ).toBeVisible();
+  await expect(child).toBeVisible();
+});
+
 test('drag a collection to favourites', async ({ page }) => {
   await clickSideBarAllPageButton(page);
   await page.waitForTimeout(500);
