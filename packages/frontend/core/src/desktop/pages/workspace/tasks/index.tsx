@@ -424,7 +424,7 @@ const TaskDetail = ({
               onClick={() => onOpenArtifact(task, artifact.kind, artifact.id)}
             >
               {artifact.kind === 'office'
-                ? 'Open Office file'
+                ? t['com.affine.ui.open-office-file']()
                 : t['com.affine.localmind.tasks.openDocument']()}
             </Button>
           ))}

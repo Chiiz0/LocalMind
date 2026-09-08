@@ -174,7 +174,7 @@ const MemberItem = ({
       })
       .catch(error => {
         notify.error({
-          title: 'Operation failed',
+          title: t['com.affine.ui.operation-failed'](),
           message: error.message,
         });
       });
@@ -313,6 +313,7 @@ export const MemberListError = ({
   error?: unknown;
   memberCount?: number;
 }) => {
+  const i18n = useI18n();
   const height = useMemo(
     () => getMembersFallbackHeight(memberCount),
     [memberCount]
@@ -328,7 +329,7 @@ export const MemberListError = ({
       <span className={styles.errorStyle}>
         {error
           ? UserFriendlyError.fromAny(error).message
-          : 'Failed to load members'}
+          : i18n['com.affine.ui.failed-to-load-members']()}
       </span>
     </div>
   );

@@ -1,4 +1,5 @@
 import { cn } from '@affine/admin/utils';
+import { useI18n } from '@affine/i18n';
 import { Slot } from '@radix-ui/react-slot';
 import { ChevronRight, MoreHorizontal } from 'lucide-react';
 import * as React from 'react';
@@ -8,7 +9,16 @@ const Breadcrumb = React.forwardRef<
   React.ComponentPropsWithoutRef<'nav'> & {
     separator?: React.ReactNode;
   }
->(({ ...props }, ref) => <nav ref={ref} aria-label="breadcrumb" {...props} />);
+>(({ ...props }, ref) => {
+  const uiI18n = useI18n();
+  return (
+    <nav
+      ref={ref}
+      aria-label={uiI18n['com.affine.admin.breadcrumb']()}
+      {...props}
+    />
+  );
+});
 Breadcrumb.displayName = 'Breadcrumb';
 
 const BreadcrumbList = React.forwardRef<
@@ -90,17 +100,20 @@ BreadcrumbSeparator.displayName = 'BreadcrumbSeparator';
 const BreadcrumbEllipsis = ({
   className,
   ...props
-}: React.ComponentProps<'span'>) => (
-  <span
-    role="presentation"
-    aria-hidden="true"
-    className={cn('flex h-9 w-9 items-center justify-center', className)}
-    {...props}
-  >
-    <MoreHorizontal className="h-4 w-4" />
-    <span className="sr-only">More</span>
-  </span>
-);
+}: React.ComponentProps<'span'>) => {
+  const uiI18n = useI18n();
+  return (
+    <span
+      role="presentation"
+      aria-hidden="true"
+      className={cn('flex h-9 w-9 items-center justify-center', className)}
+      {...props}
+    >
+      <MoreHorizontal className="h-4 w-4" />
+      <span className="sr-only">{uiI18n['com.affine.admin.more']()}</span>
+    </span>
+  );
+};
 BreadcrumbEllipsis.displayName = 'BreadcrumbElipssis';
 
 export {

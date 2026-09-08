@@ -194,7 +194,7 @@ const AttachmentAudioPlayer = ({ block }: { block: AudioAttachmentBlock }) => {
           <div className={styles.error}>{loadingError.message}</div>
           <button className={styles.reloadButton} onClick={reload}>
             <ResetIcon className={styles.reloadButtonIcon} />
-            Reload
+            {t['com.affine.localmind.project-files.reload']()}{' '}
           </button>
         </>
       );
@@ -205,7 +205,7 @@ const AttachmentAudioPlayer = ({ block }: { block: AudioAttachmentBlock }) => {
     }
 
     return <>{bytes(block.props.props.size)}</>;
-  }, [loading, loadingError, error, reload, block.props.props.size]);
+  }, [loading, loadingError, error, reload, block.props.props.size, t]);
 
   return (
     <AudioPlayer

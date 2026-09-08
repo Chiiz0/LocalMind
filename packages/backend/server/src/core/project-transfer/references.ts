@@ -26,7 +26,7 @@ export function isolateImportedReferences(
   if (!ownerId) throw new BadRequest('Imported reference owner is unavailable');
   const url = (id: string) =>
     input.projectId
-      ? `/intelligence?project=${encodeURIComponent(input.projectId)}&resource=${encodeURIComponent(id)}`
+      ? `/project/${encodeURIComponent(input.projectId)}/resources/${encodeURIComponent(id)}`
       : `/workspace/${encodeURIComponent(ownerId)}/${encodeURIComponent(id)}`;
   let visited = 0;
   const visit = (value: unknown, depth = 0): void => {

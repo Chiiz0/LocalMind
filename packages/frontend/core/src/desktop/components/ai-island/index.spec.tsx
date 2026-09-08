@@ -112,7 +112,7 @@ describe('AIIsland navigation', () => {
     });
 
     fireEvent.click(screen.getByTestId('ai-island'));
-    expect(state.navigate).toHaveBeenCalledWith('/intelligence');
+    expect(state.navigate).toHaveBeenCalledWith('/project');
     expect(state.closeSidebar).toHaveBeenCalledTimes(1);
     expect(state.openSidebar).not.toHaveBeenCalled();
   });

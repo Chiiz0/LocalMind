@@ -278,7 +278,7 @@ export const TagsEditor = ({
             onEnter={onEnter}
             autoFocus
             className={styles.searchInput}
-            placeholder="Type here ..."
+            placeholder={t['com.affine.search-tags.placeholder']()}
           />
         </InlineTagList>
 
@@ -302,7 +302,9 @@ export const TagsEditor = ({
             className={styles.tagSelectorTagsScrollContainer}
           >
             {tagOptions.length === 0 && (
-              <div className={styles.tagSelectorEmpty}>Nothing here yet</div>
+              <div className={styles.tagSelectorEmpty}>
+                {t['com.affine.ui.nothing-here-yet']()}
+              </div>
             )}
 
             {tagOptions.map((tag, idx) => {

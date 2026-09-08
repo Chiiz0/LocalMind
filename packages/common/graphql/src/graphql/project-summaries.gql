@@ -1,0 +1,13 @@
+query projectSummaries {
+  currentUser {
+    copilot {
+      contextMemories {
+        id
+        projectId
+        kind
+        content
+        updatedAt
+      }
+    }
+  }
+}

@@ -21,6 +21,7 @@ import {
   updateOfficeCommentMutation,
   updateOfficeCommentReplyMutation,
 } from '@affine/graphql';
+import { I18n, useI18n } from '@affine/i18n';
 import { DeleteIcon } from '@blocksuite/icons/rc';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -34,12 +35,20 @@ import * as styles from './surface.css';
 type OfficeComment = OfficeCommentsQuery['officeComments'][number];
 
 function anchorLabel(anchor: OfficeCommentAnchor | null) {
-  if (!anchor) return 'Select content to anchor this comment.';
+  if (!anchor)
+    return I18n['com.affine.office.select-content-to-anchor-this-comment']();
   switch (anchor.kind) {
     case 'document':
       return anchor.start.blockId === anchor.end.blockId
-        ? `Paragraph ${anchor.start.blockId}, ${anchor.start.offset}-${anchor.end.offset}`
-        : `Document selection across ${anchor.start.blockId} and ${anchor.end.blockId}`;
+        ? I18n['com.affine.office.paragraph-range']({
+            name: anchor.start.blockId,
+            start: String(anchor.start.offset),
+            end: String(anchor.end.offset),
+          })
+        : I18n['com.affine.office.selection-span']({
+            start: anchor.start.blockId,
+            end: anchor.end.blockId,
+          });
     case 'workbook':
       return `${anchor.sheetId} · ${anchor.address}`;
     case 'presentation':
@@ -47,14 +56,16 @@ function anchorLabel(anchor: OfficeCommentAnchor | null) {
         ? `${anchor.slideId} · ${anchor.shapeId}`
         : anchor.slideId;
     case 'pdf':
-      return `Page ${anchor.pageIndex + 1}`;
+      return I18n['com.affine.office.page-number']({
+        number: String(anchor.pageIndex + 1),
+      });
   }
 }
 
 function commentText(comment: OfficeComment) {
   return isOfficeCommentContent(comment.content)
     ? comment.content.text
-    : 'Unsupported comment content';
+    : I18n['com.affine.office.unsupported-comment-content']();
 }
 
 export function OfficeCommentsPanel({
@@ -74,6 +85,7 @@ export function OfficeCommentsPanel({
   realtime: NbstoreService['realtime'];
   onOpenChange: (open: boolean) => void;
 }) {
+  const i18n = useI18n();
   const commentsQuery = useQuery(
     {
       query: officeCommentsQuery,
@@ -172,10 +184,15 @@ export function OfficeCommentsPanel({
   }, [anchor, artifactId, draft, graphql, run, workspaceId]);
 
   return (
-    <Modal open={open} title="Comments" width={440} onOpenChange={onOpenChange}>
+    <Modal
+      open={open}
+      title={i18n['com.affine.comment.comments']()}
+      width={440}
+      onOpenChange={onOpenChange}
+    >
       <div className={styles.commentsPanel}>
         <div className={styles.collaborators}>
-          <span>Collaborators</span>
+          <span>{i18n['com.affine.office.collaborators']()}</span>
           <div className={styles.collaboratorAvatars}>
             {collaboratorsQuery.data?.officeCollaborators.map(user => (
               <Tooltip content={user.name} key={user.id}>
@@ -191,8 +208,8 @@ export function OfficeCommentsPanel({
             className={styles.textarea}
             value={draft}
             maxLength={64 * 1024}
-            aria-label="New Office comment"
-            placeholder="Add a comment"
+            aria-label={i18n['com.affine.office.new-office-comment']()}
+            placeholder={i18n['com.affine.office.add-a-comment']()}
             onChange={event => setDraft(event.target.value)}
           />
           <Button
@@ -201,7 +218,7 @@ export function OfficeCommentsPanel({
             loading={pendingKey === 'create'}
             onClick={() => void createComment()}
           >
-            Comment
+            {i18n['com.affine.office.comment']()}{' '}
           </Button>
         </div>
 
@@ -210,7 +227,7 @@ export function OfficeCommentsPanel({
           {commentsQuery.isLoading && !comments.length ? (
             <div className={styles.commentEmpty}>
               <Loading />
-              <span>Loading comments…</span>
+              <span>{i18n['com.affine.office.loading-comments']()}</span>
             </div>
           ) : commentsQuery.error && !comments.length ? (
             <div className={styles.commentEmpty}>
@@ -220,7 +237,7 @@ export function OfficeCommentsPanel({
                   refresh().catch(console.error);
                 }}
               >
-                Retry
+                {i18n['com.affine.localmind.directoryPermissions.retry']()}{' '}
               </Button>
             </div>
           ) : comments.length ? (
@@ -250,7 +267,9 @@ export function OfficeCommentsPanel({
                     <textarea
                       className={styles.textarea}
                       value={editing.text}
-                      aria-label="Edit Office comment"
+                      aria-label={i18n[
+                        'com.affine.office.edit-office-comment'
+                      ]()}
                       onChange={event =>
                         setEditing({ ...editing, text: event.target.value })
                       }
@@ -267,7 +286,7 @@ export function OfficeCommentsPanel({
                           variant="plain"
                           onClick={() => setEditing(null)}
                         >
-                          Cancel
+                          {i18n['com.affine.localmind.aiContext.cancel']()}{' '}
                         </Button>
                         <Button
                           variant="primary"
@@ -292,7 +311,7 @@ export function OfficeCommentsPanel({
                             }).catch(console.error);
                           }}
                         >
-                          Save
+                          {i18n['com.affine.localmind.aiContext.save']()}{' '}
                         </Button>
                       </>
                     ) : (
@@ -308,7 +327,9 @@ export function OfficeCommentsPanel({
                             })
                           }
                         >
-                          Edit
+                          {i18n[
+                            'com.affine.collection-bar.action.tooltip.edit'
+                          ]()}{' '}
                         </Button>
                         <Button
                           variant="plain"
@@ -327,17 +348,25 @@ export function OfficeCommentsPanel({
                             ).catch(console.error);
                           }}
                         >
-                          {comment.resolved ? 'Reopen' : 'Resolve'}
+                          {comment.resolved
+                            ? i18n['com.affine.office.reopen']()
+                            : i18n[
+                                'com.affine.localmind.workbench.blocker.resolve'
+                              ]()}
                         </Button>
                         <Tooltip content="Delete comment">
                           <IconButton
                             size="24"
-                            aria-label="Delete comment"
+                            aria-label={i18n[
+                              'com.affine.office.delete-comment'
+                            ]()}
                             loading={pendingKey === `delete:${comment.id}`}
                             onClick={() => {
                               if (
                                 !window.confirm(
-                                  'Delete this comment and its replies?'
+                                  i18n[
+                                    'com.affine.office.delete-this-comment-and-its-replies'
+                                  ]()
                                 )
                               )
                                 return;
@@ -381,7 +410,9 @@ export function OfficeCommentsPanel({
                           <textarea
                             className={styles.textarea}
                             value={editing.text}
-                            aria-label="Edit Office comment reply"
+                            aria-label={i18n[
+                              'com.affine.office.edit-office-comment-reply'
+                            ]()}
                             onChange={event =>
                               setEditing({
                                 ...editing,
@@ -391,7 +422,10 @@ export function OfficeCommentsPanel({
                           />
                         ) : (
                           <div className={styles.commentText}>
-                            {replyContent?.text ?? 'Unsupported reply content'}
+                            {replyContent?.text ??
+                              i18n[
+                                'com.affine.office.unsupported-reply-content'
+                              ]()}
                           </div>
                         )}
                         <div className={styles.commentActions}>
@@ -401,7 +435,9 @@ export function OfficeCommentsPanel({
                                 variant="plain"
                                 onClick={() => setEditing(null)}
                               >
-                                Cancel
+                                {i18n[
+                                  'com.affine.localmind.aiContext.cancel'
+                                ]()}{' '}
                               </Button>
                               <Button
                                 variant="primary"
@@ -428,7 +464,9 @@ export function OfficeCommentsPanel({
                                   }).catch(console.error);
                                 }}
                               >
-                                Save
+                                {i18n[
+                                  'com.affine.localmind.aiContext.save'
+                                ]()}{' '}
                               </Button>
                             </>
                           ) : (
@@ -444,17 +482,27 @@ export function OfficeCommentsPanel({
                                   })
                                 }
                               >
-                                Edit
+                                {i18n[
+                                  'com.affine.collection-bar.action.tooltip.edit'
+                                ]()}{' '}
                               </Button>
                               <Tooltip content="Delete reply">
                                 <IconButton
                                   size="24"
-                                  aria-label="Delete reply"
+                                  aria-label={i18n[
+                                    'com.affine.office.delete-reply'
+                                  ]()}
                                   loading={
                                     pendingKey === `delete-reply:${reply.id}`
                                   }
                                   onClick={() => {
-                                    if (!window.confirm('Delete this reply?'))
+                                    if (
+                                      !window.confirm(
+                                        i18n[
+                                          'com.affine.comment.reply.delete.confirm.title'
+                                        ]()
+                                      )
+                                    )
                                       return;
                                     run(`delete-reply:${reply.id}`, () =>
                                       graphql.gql({
@@ -478,8 +526,10 @@ export function OfficeCommentsPanel({
                     <input
                       className={styles.field}
                       value={replyDraft}
-                      aria-label={`Reply to ${comment.user.name}`}
-                      placeholder="Reply"
+                      aria-label={I18n['com.affine.office.reply-to']({
+                        name: comment.user.name,
+                      })}
+                      placeholder={i18n['com.affine.comment.reply']()}
                       onChange={event =>
                         setReplyDrafts(current => ({
                           ...current,
@@ -533,14 +583,16 @@ export function OfficeCommentsPanel({
                         }).catch(console.error);
                       }}
                     >
-                      Reply
+                      {i18n['com.affine.comment.reply']()}{' '}
                     </Button>
                   </div>
                 </article>
               );
             })
           ) : (
-            <div className={styles.commentEmpty}>No comments yet.</div>
+            <div className={styles.commentEmpty}>
+              {i18n['com.affine.office.no-comments-yet']()}
+            </div>
           )}
         </div>
       </div>

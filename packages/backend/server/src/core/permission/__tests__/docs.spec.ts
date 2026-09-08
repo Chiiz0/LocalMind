@@ -402,16 +402,6 @@ test('project grants authorize active members without granting document manageme
       ['project-write', 'write'],
       ['project-only', 'read'],
     ] as const) {
-      await tx.aiContextProjectDoc.create({
-        data: {
-          projectId: project.id,
-          workspaceId: workspace.id,
-          docId,
-          status: 'granted',
-          requestedLevel: level,
-          addedByUserId: sourceOwner.id,
-        },
-      });
       await tx.aiContextProjectGrant.create({
         data: {
           projectId: project.id,
@@ -514,16 +504,6 @@ test('project grants authorize active members without granting document manageme
         revokerUserIdSnapshot: sourceOwner.id,
         revokedAt: new Date(),
       },
-    }),
-    db.aiContextProjectDoc.update({
-      where: {
-        projectId_workspaceId_docId: {
-          projectId: project.id,
-          workspaceId: workspace.id,
-          docId: 'project-write',
-        },
-      },
-      data: { status: 'revoked', revokedAt: new Date() },
     }),
   ]);
   t.false(

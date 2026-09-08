@@ -1,3 +1,5 @@
+import { I18nController } from '@affine/core/modules/i18n/lit-controller';
+import { I18n } from '@affine/i18n';
 import { WithDisposable } from '@blocksuite/affine/global/lit';
 import { WidgetComponent, WidgetViewExtension } from '@blocksuite/affine/std';
 import type { Store } from '@blocksuite/affine/store';
@@ -13,6 +15,8 @@ export const AFFINE_BLOCK_DIFF_PLAYGROUND_MODAL =
   'affine-block-diff-playground-modal';
 
 export class BlockDiffPlaygroundModal extends WithDisposable(LitElement) {
+  readonly languageController = new I18nController(this);
+
   static override styles = css`
     .playground-modal {
       z-index: 10000;
@@ -136,10 +140,10 @@ export class BlockDiffPlaygroundModal extends WithDisposable(LitElement) {
               Insert Current Doc MD
             </button>
             <button class="playground-btn" @click=${this.handleClear}>
-              Clear
+              ${I18n['com.affine.office.clear']()}
             </button>
             <button class="playground-btn primary" @click=${this.handleConfirm}>
-              Confirm
+              ${I18n['com.affine.localmind.fileRequest.confirm']()}
             </button>
           </div>
         </div>

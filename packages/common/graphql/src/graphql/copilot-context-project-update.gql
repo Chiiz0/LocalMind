@@ -1,6 +1,4 @@
-mutation copilotContextProjectUpdate(
-  $input: UpdateCopilotContextProjectInput!
-) {
+mutation copilotContextProjectUpdate($input: UpdateCopilotContextProjectInput!) {
   updateCopilotContextProject(input: $input) {
     id
     createdByUserId
@@ -17,20 +15,6 @@ mutation copilotContextProjectUpdate(
       role
       createdAt
     }
-    documents {
-      workspaceId
-      docId
-      title
-      groupId
-      sortOrder
-      status
-      requestedLevel
-      accessRequestId
-      addedByMe
-      createdAt
-      updatedAt
-    }
-    documentCount
     canManage
     createdAt
     updatedAt

@@ -1,3 +1,5 @@
+import { useI18n } from '@affine/i18n';
+
 import { ImportStatus, type ParsedUser } from '../utils/csv-utils';
 
 interface UserTableProps {
@@ -8,22 +10,25 @@ interface UserTableProps {
  * Displays a table of users with their import status
  */
 export const UserTable: React.FC<UserTableProps> = ({ users }) => {
+  const i18n = useI18n();
   return (
     <div className="max-h-[300px] overflow-y-auto rounded-xl border border-border/60 bg-card shadow-sm">
       <table className="w-full border-collapse">
         <thead className="sticky top-0 bg-muted/40">
           <tr>
             <th className="border-b border-border px-4 py-2 text-left text-xs font-medium tracking-wider text-muted-foreground">
-              Name
+              {i18n['com.affine.integration.external-mcp.field.name']()}{' '}
             </th>
             <th className="border-b border-border px-4 py-2 text-left text-xs font-medium tracking-wider text-muted-foreground">
-              Email
+              {i18n['com.affine.settings.email']()}{' '}
             </th>
             <th className="border-b border-border px-4 py-2 text-left text-xs font-medium tracking-wider text-muted-foreground">
-              Password
+              {i18n[
+                'com.affine.integration.calendar.caldav.field.password'
+              ]()}{' '}
             </th>
             <th className="border-b border-border px-4 py-2 text-left text-xs font-medium tracking-wider text-muted-foreground">
-              Status
+              {i18n['com.affine.admin.status']()}{' '}
             </th>
           </tr>
         </thead>
@@ -64,27 +69,31 @@ export const UserTable: React.FC<UserTableProps> = ({ users }) => {
                 {user.importStatus === ImportStatus.Success ? (
                   <span className="text-foreground">
                     <span className="mr-2 inline-block h-2 w-2 rounded-full bg-[var(--affine-v2-status-success)]" />
-                    Success
+                    {i18n['com.affine.admin.success']()}{' '}
                   </span>
                 ) : user.importStatus === ImportStatus.Failed ? (
                   <span className="text-destructive" title={user.importError}>
                     <span className="mr-2 inline-block h-2 w-2 rounded-full bg-destructive" />
-                    Failed ({user.importError})
+                    {i18n['com.affine.admin.import-failed-reason']({
+                      reason: user.importError ?? '',
+                    })}
                   </span>
                 ) : user.importStatus === ImportStatus.Processing ? (
                   <span className="text-primary">
                     <span className="mr-2 inline-block h-2 w-2 rounded-full bg-primary" />
-                    Processing...
+                    {i18n['com.affine.admin.processing']()}{' '}
                   </span>
                 ) : user.valid === false ? (
                   <span className="text-destructive" title={user.error}>
                     <span className="mr-2 inline-block h-2 w-2 rounded-full bg-destructive" />
-                    Invalid ({user.error})
+                    {i18n['com.affine.admin.import-invalid-reason']({
+                      reason: user.error ?? '',
+                    })}
                   </span>
                 ) : (
                   <span className="text-foreground">
                     <span className="mr-2 inline-block h-2 w-2 rounded-full bg-foreground" />
-                    Valid
+                    {i18n['com.affine.admin.valid']()}{' '}
                   </span>
                 )}
               </td>

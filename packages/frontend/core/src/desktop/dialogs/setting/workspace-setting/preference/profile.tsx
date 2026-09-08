@@ -114,16 +114,18 @@ export const ProfilePanel = () => {
     (file: File) => {
       setWorkspaceAvatar(file)
         .then(() => {
-          notify.success({ title: 'Update workspace avatar success' });
+          notify.success({
+            title: t['com.affine.ui.update-workspace-avatar-success'](),
+          });
         })
         .catch(error => {
           notify.error({
-            title: 'Update workspace avatar failed',
+            title: t['com.affine.ui.update-workspace-avatar-failed'](),
             message: error,
           });
         });
     },
-    [setWorkspaceAvatar]
+    [setWorkspaceAvatar, t]
   );
 
   const canAdjustAvatar = workspaceIsReady && isOwner;

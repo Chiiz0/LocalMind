@@ -1,4 +1,5 @@
 import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hooks';
+import { useI18n } from '@affine/i18n';
 import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -27,6 +28,7 @@ export function useImportUsersState({
   passwordLimits,
   onClose,
 }: ImportUsersStateProps) {
+  const i18n = useI18n();
   const [isImporting, setIsImporting] = useState(false);
   const [parsedUsers, setParsedUsers] = useState<ParsedUser[]>([]);
   const [isPreviewMode, setIsPreviewMode] = useState(false);
@@ -117,12 +119,12 @@ export function useImportUsersState({
           }
         );
       } catch (error) {
-        console.error('Failed to process file', error);
+        console.error(i18n['com.affine.admin.failed-to-process-file'](), error);
         setIsImporting(false);
         setIsFormatError(true);
       }
     },
-    [passwordLimits]
+    [passwordLimits, i18n]
   );
 
   const confirmImport = useAsyncCallback(async () => {
@@ -139,11 +141,11 @@ export function useImportUsersState({
 
       await importUsers({ users: validUsersToImport }, importUsersCallback);
     } catch (error) {
-      console.error('Failed to import users', error);
-      toast.error('Failed to import users');
+      console.error(i18n['com.affine.admin.failed-to-import-users'](), error);
+      toast.error(i18n['com.affine.admin.failed-to-import-users']());
       setIsImporting(false);
     }
-  }, [importUsers, importUsersCallback, parsedUsers]);
+  }, [importUsers, importUsersCallback, parsedUsers, i18n]);
 
   const cancelImport = useCallback(() => {
     setIsPreviewMode(false);

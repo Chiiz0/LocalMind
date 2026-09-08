@@ -1,0 +1,3 @@
+fragment ProjectWorkspaceImportTask on ProjectWorkspaceImportTaskType {
+  id title status resourceId accessRequestId failureCode
+}

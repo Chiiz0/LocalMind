@@ -1,0 +1,4 @@
+#import './fragments/project-edit-lease-fields.gql'
+query projectResourceEditLease($input: ProjectEditLeaseInput!) {
+  projectResourceEditLease(input: $input) { ...ProjectEditLeaseFields }
+}

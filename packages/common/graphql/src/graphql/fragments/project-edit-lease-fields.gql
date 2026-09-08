@@ -1,0 +1,3 @@
+fragment ProjectEditLeaseFields on ProjectEditLeaseType {
+  resourceId projectId kind holderId holderName owned leaseId acquiredAt expiresAt
+}

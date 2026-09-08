@@ -1,4 +1,6 @@
 import type { FeatureFlagService } from '@affine/core/modules/feature-flag';
+import { I18nController } from '@affine/core/modules/i18n/lit-controller';
+import { I18n } from '@affine/i18n';
 import { WithDisposable } from '@blocksuite/affine/global/lit';
 import type { ColorScheme } from '@blocksuite/affine/model';
 import { unsafeCSSVarV2 } from '@blocksuite/affine/shared/theme';
@@ -45,6 +47,8 @@ interface SectionEditToolResult {
 }
 
 export class SectionEditTool extends WithDisposable(ShadowlessElement) {
+  readonly languageController = new I18nController(this);
+
   static override styles = css`
     .section-edit-result {
       padding: 12px;
@@ -158,7 +162,9 @@ export class SectionEditTool extends WithDisposable(ShadowlessElement) {
           <div class="section-edit-header">
             <div class="section-edit-title">
               ${PageIcon()}
-              <span>Edited Content</span>
+              <span
+                >${I18n['com.affine.ai.action-label.edited-content']()}</span
+              >
             </div>
             <div class="section-edit-actions">
               <div
@@ -166,12 +172,16 @@ export class SectionEditTool extends WithDisposable(ShadowlessElement) {
                 @click=${async () => {
                   const success = await copyText(result.content);
                   if (success) {
-                    this.notifySuccess('Copied to clipboard');
+                    this.notifySuccess(
+                      I18n['com.affine.ui.copied-to-clipboard']()
+                    );
                   }
                 }}
               >
                 ${CopyIcon()}
-                <affine-tooltip>Copy</affine-tooltip>
+                <affine-tooltip
+                  >${I18n['com.affine.ai.action-label.copy']()}</affine-tooltip
+                >
               </div>
               ${this.independentMode
                 ? nothing
@@ -181,7 +191,11 @@ export class SectionEditTool extends WithDisposable(ShadowlessElement) {
                       if (!this.host) return;
                       if (this.host.std.store.readonly$.value) {
                         this.notificationService.notify({
-                          title: 'Cannot insert in read-only mode',
+                          get title() {
+                            return I18n[
+                              'com.affine.ui.cannot-insert-in-read-only-mode'
+                            ]();
+                          },
                           accent: 'error',
                           onClose: () => {},
                         });
@@ -203,7 +217,11 @@ export class SectionEditTool extends WithDisposable(ShadowlessElement) {
                     }}
                   >
                     ${InsertBleowIcon()}
-                    <affine-tooltip>Insert below</affine-tooltip>
+                    <affine-tooltip
+                      >${I18n[
+                        'com.affine.ai.action-label.insert-below'
+                      ]()}</affine-tooltip
+                    >
                   </div>`}
               ${this.independentMode
                 ? nothing
@@ -215,7 +233,11 @@ export class SectionEditTool extends WithDisposable(ShadowlessElement) {
                     }}
                   >
                     ${LinkedPageIcon()}
-                    <affine-tooltip>Create new doc</affine-tooltip>
+                    <affine-tooltip
+                      >${I18n[
+                        'com.affine.ai.action-label.create-new-doc'
+                      ]()}</affine-tooltip
+                    >
                   </div>`}
             </div>
           </div>

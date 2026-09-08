@@ -3,6 +3,7 @@ import {
   AvatarFallback,
   AvatarImage,
 } from '@affine/admin/components/ui/avatar';
+import { useI18n } from '@affine/i18n';
 import { AccountIcon, LinkIcon } from '@blocksuite/icons/rc';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useMemo } from 'react';
@@ -12,11 +13,16 @@ import { formatBytes } from '../utils';
 import { DataTableRowActions } from './data-table-row-actions';
 
 export const useColumns = () => {
+  const i18n = useI18n();
   const columns: ColumnDef<WorkspaceListItem>[] = useMemo(() => {
     return [
       {
         accessorKey: 'workspace',
-        header: () => <div className="text-xs font-medium">Workspace</div>,
+        header: () => (
+          <div className="text-xs font-medium">
+            {i18n['com.affine.localmind.tasks.authorization.workspace']()}
+          </div>
+        ),
         cell: ({ row }) => {
           const workspace = row.original;
           return (
@@ -28,7 +34,7 @@ export const useColumns = () => {
                 {workspace.public ? (
                   <span className="inline-flex items-center gap-1 rounded-md border border-border/60 bg-chip-white px-2 py-0.5 text-xxs">
                     <LinkIcon fontSize={14} />
-                    Public
+                    {i18n['com.affine.admin.public']()}{' '}
                   </span>
                 ) : null}
               </div>
@@ -41,11 +47,19 @@ export const useColumns = () => {
       },
       {
         accessorKey: 'owner',
-        header: () => <div className="text-xs font-medium">Owner</div>,
+        header: () => (
+          <div className="text-xs font-medium">
+            {i18n['com.affine.localmind.workbench.project.role.owner']()}
+          </div>
+        ),
         cell: ({ row }) => {
           const owner = row.original.owner;
           if (!owner) {
-            return <div className="text-xs text-muted-foreground">Unknown</div>;
+            return (
+              <div className="text-xs text-muted-foreground">
+                {i18n['com.affine.ui.unknown']()}
+              </div>
+            );
           }
           return (
             <div className="flex items-center gap-3 min-w-0">
@@ -67,19 +81,28 @@ export const useColumns = () => {
       },
       {
         accessorKey: 'usage',
-        header: () => <div className="text-xs font-medium">Usage</div>,
+        header: () => (
+          <div className="text-xs font-medium">
+            {i18n['com.affine.admin.usage']()}
+          </div>
+        ),
         cell: ({ row }) => {
           const ws = row.original;
           return (
             <div className="flex flex-col gap-1 text-xs">
               <div className="flex gap-3">
-                <span>Snapshot {formatBytes(ws.snapshotSize)}</span>
+                <span>
+                  {i18n['com.affine.import.snapshot']()}{' '}
+                  {formatBytes(ws.snapshotSize)}
+                </span>
                 <span className="text-muted-foreground">
                   ({ws.snapshotCount})
                 </span>
               </div>
               <div className="flex gap-3">
-                <span>Blobs {formatBytes(ws.blobSize)}</span>
+                <span>
+                  {i18n['com.affine.admin.blobs']()} {formatBytes(ws.blobSize)}
+                </span>
                 <span className="text-muted-foreground">({ws.blobCount})</span>
               </div>
             </div>
@@ -88,18 +111,26 @@ export const useColumns = () => {
       },
       {
         accessorKey: 'members',
-        header: () => <div className="text-xs font-medium">Active Members</div>,
+        header: () => (
+          <div className="text-xs font-medium">
+            {i18n['com.affine.admin.active-members']()}
+          </div>
+        ),
         cell: ({ row }) => {
           const ws = row.original;
           return (
             <div className="flex flex-col text-xs gap-1">
               <div className="flex gap-2">
                 <span className="font-medium">{ws.memberCount}</span>
-                <span className="text-muted-foreground">active members</span>
+                <span className="text-muted-foreground">
+                  {i18n['com.affine.admin.active-members-2']()}
+                </span>
               </div>
               <div className="flex gap-2">
                 <span className="font-medium">{ws.publicPageCount}</span>
-                <span className="text-muted-foreground">shared pages</span>
+                <span className="text-muted-foreground">
+                  {i18n['com.affine.admin.shared-pages']()}
+                </span>
               </div>
             </div>
           );
@@ -111,7 +142,9 @@ export const useColumns = () => {
           className: 'w-[190px] justify-end',
         },
         header: () => (
-          <div className="text-xs font-medium text-right">Actions</div>
+          <div className="text-xs font-medium text-right">
+            {i18n['com.affine.admin.actions']()}
+          </div>
         ),
         cell: ({ row }) => (
           <div className="flex justify-end w-full">
@@ -120,7 +153,7 @@ export const useColumns = () => {
         ),
       },
     ];
-  }, []);
+  }, [i18n]);
 
   return columns;
 };

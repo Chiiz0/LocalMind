@@ -68,7 +68,8 @@ import {
 import { ProjectFileRequestModel } from './project-file-request';
 import { ProjectPublicationModel } from './project-publication';
 import { ProjectResourceModel } from './project-resource';
-import { ProjectResourceMigrationModel } from './project-resource-migration';
+import { ProjectResourceEditLeaseModel } from './project-resource-edit-lease';
+import { ProjectWorkspaceImportModel } from './project-workspace-import';
 import { MODELS_SYMBOL } from './provider';
 import { SessionModel } from './session';
 import { UserModel } from './user';
@@ -102,8 +103,9 @@ const MODELS = {
   officeArtifact: OfficeArtifactModel,
   officeCommandRequest: OfficeCommandRequestModel,
   projectResource: ProjectResourceModel,
+  projectWorkspaceImport: ProjectWorkspaceImportModel,
+  projectResourceEditLease: ProjectResourceEditLeaseModel,
   projectFileRequest: ProjectFileRequestModel,
-  projectResourceMigration: ProjectResourceMigrationModel,
   iscp: IscpModel,
   intelligenceWorkbenchAuthorization: IntelligenceWorkbenchAuthorizationModel,
   intelligenceWorkbenchBlocker: IntelligenceWorkbenchBlockerModel,

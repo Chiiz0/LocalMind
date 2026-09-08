@@ -7,6 +7,7 @@ import { static as serveStatic } from 'express';
 import isMobile from 'is-mobile';
 
 import { Config } from '../../base';
+import { registerProjectRedirects } from '../project/redirect';
 import { SetupMiddleware } from './setup';
 
 @Injectable()
@@ -26,6 +27,7 @@ export class StaticFilesResolver implements OnModuleInit {
     const app = this.adapterHost.httpAdapter.getInstance<Application>();
     // for example, '/affine' in host [//host.com/affine]
     const basePath = this.config.server.path;
+    registerProjectRedirects(app, basePath);
     const staticPath = join(env.projectRoot, 'static');
 
     // web => {

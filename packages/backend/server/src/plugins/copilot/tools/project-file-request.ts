@@ -78,7 +78,7 @@ export function createProjectFileRequestTools(
             fileName: request.title,
             notificationSent: true,
             taskCreated: true,
-            url: `/intelligence?fileRequest=${encodeURIComponent(request.id)}`,
+            url: `/project?fileRequest=${encodeURIComponent(request.id)}`,
           };
         },
       }),

@@ -3,6 +3,7 @@ import {
   type QueryResponse,
   SubscriptionStatus,
 } from '@affine/graphql';
+import { I18n } from '@affine/i18n';
 import type { Signal } from '@blocksuite/affine/shared/utils';
 import { signal } from '@preact/signals-core';
 import { LiveData, Service } from '@toeverything/infra';
@@ -843,9 +844,14 @@ const TASK_ROUTE_REASON_METADATA: Record<
   Omit<AIModelTaskRouteReasonMetadata, 'code'>
 > = {
   prompt_default_unavailable: {
-    label: 'Prompt default unavailable',
-    description:
-      'The prompt default model is not routable, so the active default uses a fallback route.',
+    get label() {
+      return I18n['com.affine.ui.prompt-default-unavailable']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.the-prompt-default-model-is-not-routable-so-the-active-default-uses-a-fallback-route'
+      ]();
+    },
     phase: 'prompt',
     severity: 'warning',
     actionKind: 'check_prompt_default',
@@ -853,15 +859,27 @@ const TASK_ROUTE_REASON_METADATA: Record<
       'Update the prompt default model or prompt default policy to a model alias that is routable in the current provider registry and workspace policy.',
   },
   candidate_allowed: {
-    label: 'Policy allowed',
-    description: 'The provider candidate passed route policy checks.',
+    get label() {
+      return I18n['com.affine.ui.policy-allowed']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.the-provider-candidate-passed-route-policy-checks'
+      ]();
+    },
     phase: 'policy',
     severity: 'info',
     actionKind: 'none',
   },
   provider_unavailable: {
-    label: 'Provider unavailable',
-    description: 'The provider is not currently available for routing.',
+    get label() {
+      return I18n['com.affine.ui.provider-unavailable']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.the-provider-is-not-currently-available-for-routing'
+      ]();
+    },
     phase: 'policy',
     severity: 'error',
     actionKind: 'configure_provider',
@@ -869,8 +887,14 @@ const TASK_ROUTE_REASON_METADATA: Record<
       'Check that the provider is enabled, healthy, and has the required credentials or local endpoint configured.',
   },
   provider_blocked: {
-    label: 'Provider blocked',
-    description: 'The route policy explicitly blocks this provider.',
+    get label() {
+      return I18n['com.affine.ui.provider-blocked']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.the-route-policy-explicitly-blocks-this-provider'
+      ]();
+    },
     phase: 'policy',
     severity: 'warning',
     actionKind: 'check_policy',
@@ -878,9 +902,14 @@ const TASK_ROUTE_REASON_METADATA: Record<
       'Review the route policy blocked-provider list or select a different provider.',
   },
   provider_not_allowed: {
-    label: 'Provider not allowed',
-    description:
-      'The route policy allowed-provider list excludes this provider.',
+    get label() {
+      return I18n['com.affine.ui.provider-not-allowed']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.the-route-policy-allowed-provider-list-excludes-this-provider'
+      ]();
+    },
     phase: 'policy',
     severity: 'warning',
     actionKind: 'check_policy',
@@ -888,8 +917,14 @@ const TASK_ROUTE_REASON_METADATA: Record<
       'Add the provider to the allowed-provider policy list or choose a provider already allowed for this feature.',
   },
   privacy_not_allowed: {
-    label: 'Privacy not allowed',
-    description: 'The provider privacy class is not allowed by route policy.',
+    get label() {
+      return I18n['com.affine.ui.privacy-not-allowed']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.the-provider-privacy-class-is-not-allowed-by-route-policy'
+      ]();
+    },
     phase: 'policy',
     severity: 'warning',
     actionKind: 'check_privacy_policy',
@@ -897,15 +932,27 @@ const TASK_ROUTE_REASON_METADATA: Record<
       'Allow this privacy class in route policy or route the task to a provider with an allowed privacy class.',
   },
   privacy_preferred: {
-    label: 'Preferred privacy',
-    description: 'The provider privacy class matches a preferred route policy.',
+    get label() {
+      return I18n['com.affine.ui.preferred-privacy']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.the-provider-privacy-class-matches-a-preferred-route-policy'
+      ]();
+    },
     phase: 'policy',
     severity: 'info',
     actionKind: 'none',
   },
   privacy_not_preferred: {
-    label: 'Privacy not preferred',
-    description: 'The provider privacy class is allowed but not preferred.',
+    get label() {
+      return I18n['com.affine.ui.privacy-not-preferred']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.the-provider-privacy-class-is-allowed-but-not-preferred'
+      ]();
+    },
     phase: 'policy',
     severity: 'info',
     actionKind: 'check_privacy_policy',
@@ -913,24 +960,41 @@ const TASK_ROUTE_REASON_METADATA: Record<
       'If this provider should be prioritized, add its privacy class to the preferred privacy policy.',
   },
   registry_selected: {
-    label: 'Registry selected',
-    description: 'This registry branch produced a selected route candidate.',
+    get label() {
+      return I18n['com.affine.ui.registry-selected']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.this-registry-branch-produced-a-selected-route-candidate'
+      ]();
+    },
     phase: 'resolution',
     severity: 'info',
     actionKind: 'none',
   },
   registry_shadowed_by_byok: {
-    label: 'Legacy platform route disabled',
-    description:
-      'This legacy platform candidate is not eligible for BYOK-only execution.',
+    get label() {
+      return I18n['com.affine.ui.legacy-platform-route-disabled']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.this-legacy-platform-candidate-is-not-eligible-for-byok-only-execution'
+      ]();
+    },
     phase: 'resolution',
     severity: 'info',
     actionKind: 'check_registry',
     remediation: 'Configure an eligible BYOK provider and model for this task.',
   },
   registry_unavailable: {
-    label: 'Registry unavailable',
-    description: 'The registry branch is unavailable for this request.',
+    get label() {
+      return I18n['com.affine.ui.registry-unavailable']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.the-registry-branch-is-unavailable-for-this-request'
+      ]();
+    },
     phase: 'resolution',
     severity: 'warning',
     actionKind: 'check_registry',
@@ -938,25 +1002,41 @@ const TASK_ROUTE_REASON_METADATA: Record<
       'Check whether the BYOK registry has an eligible, enabled provider profile for this request.',
   },
   quota_exceeded_fallback_candidate: {
-    label: 'Legacy quota candidate',
-    description:
-      'An older diagnostic identified a platform route that is disabled under BYOK-only execution.',
+    get label() {
+      return I18n['com.affine.ui.legacy-quota-candidate']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.an-older-diagnostic-identified-a-platform-route-that-is-disabled-under-byok-only-execution'
+      ]();
+    },
     phase: 'resolution',
     severity: 'warning',
     actionKind: 'check_quota',
     remediation: 'Configure an eligible BYOK provider and model for this task.',
   },
   profile_model_matched: {
-    label: 'Profile model matched',
-    description: 'A configured provider profile model matched the request.',
+    get label() {
+      return I18n['com.affine.ui.profile-model-matched']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.a-configured-provider-profile-model-matched-the-request'
+      ]();
+    },
     phase: 'resolution',
     severity: 'info',
     actionKind: 'none',
   },
   profile_model_not_allowed: {
-    label: 'Profile model not allowed',
-    description:
-      'The requested model is outside the provider profile allowlist.',
+    get label() {
+      return I18n['com.affine.ui.profile-model-not-allowed']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.the-requested-model-is-outside-the-provider-profile-allowlist'
+      ]();
+    },
     phase: 'resolution',
     severity: 'warning',
     actionKind: 'check_model_profile',
@@ -964,9 +1044,14 @@ const TASK_ROUTE_REASON_METADATA: Record<
       'Add the requested model or alias to the provider profile allowlist, or update the task model request.',
   },
   no_profile_model_match: {
-    label: 'No profile model match',
-    description:
-      'No configured profile model matched the requested capability.',
+    get label() {
+      return I18n['com.affine.ui.no-profile-model-match']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.no-configured-profile-model-matched-the-requested-capability'
+      ]();
+    },
     phase: 'resolution',
     severity: 'warning',
     actionKind: 'check_model_profile',
@@ -974,16 +1059,27 @@ const TASK_ROUTE_REASON_METADATA: Record<
       'Add a provider profile model with the requested capability or change the task default model.',
   },
   capability_matched: {
-    label: 'Capability matched',
-    description: 'The provider model satisfies the requested capability.',
+    get label() {
+      return I18n['com.affine.ui.capability-matched']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.the-provider-model-satisfies-the-requested-capability'
+      ]();
+    },
     phase: 'resolution',
     severity: 'info',
     actionKind: 'none',
   },
   capability_mismatch: {
-    label: 'Capability mismatch',
-    description:
-      'The provider model does not satisfy the requested capability.',
+    get label() {
+      return I18n['com.affine.ui.capability-mismatch']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.the-provider-model-does-not-satisfy-the-requested-capability'
+      ]();
+    },
     phase: 'resolution',
     severity: 'warning',
     actionKind: 'check_model_capability',
@@ -991,8 +1087,14 @@ const TASK_ROUTE_REASON_METADATA: Record<
       'Update model capability metadata or choose a model that supports the requested input, output, and attachment requirements.',
   },
   capability_match_error: {
-    label: 'Capability match error',
-    description: 'Capability matching failed before route preparation.',
+    get label() {
+      return I18n['com.affine.ui.capability-match-error']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.capability-matching-failed-before-route-preparation'
+      ]();
+    },
     phase: 'resolution',
     severity: 'error',
     actionKind: 'check_provider_runtime',
@@ -1000,8 +1102,14 @@ const TASK_ROUTE_REASON_METADATA: Record<
       'Inspect provider model metadata and runtime logs for capability matching errors.',
   },
   provider_runtime_unavailable: {
-    label: 'Provider runtime unavailable',
-    description: 'The provider runtime is unavailable for this candidate.',
+    get label() {
+      return I18n['com.affine.ui.provider-runtime-unavailable']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.the-provider-runtime-is-unavailable-for-this-candidate'
+      ]();
+    },
     phase: 'resolution',
     severity: 'error',
     actionKind: 'check_provider_runtime',
@@ -1009,8 +1117,14 @@ const TASK_ROUTE_REASON_METADATA: Record<
       'Check that the provider runtime adapter is registered and supports this provider type.',
   },
   capability_not_declared: {
-    label: 'Capability not declared',
-    description: 'The provider model has no declared capability metadata.',
+    get label() {
+      return I18n['com.affine.ui.capability-not-declared']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.the-provider-model-has-no-declared-capability-metadata'
+      ]();
+    },
     phase: 'resolution',
     severity: 'warning',
     actionKind: 'check_model_capability',
@@ -1018,9 +1132,14 @@ const TASK_ROUTE_REASON_METADATA: Record<
       'Declare capability metadata for this model in the model registry or provider profile.',
   },
   output_not_supported: {
-    label: 'Output not supported',
-    description:
-      'The provider model does not support the requested output type.',
+    get label() {
+      return I18n['com.affine.ui.output-not-supported']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.the-provider-model-does-not-support-the-requested-output-type'
+      ]();
+    },
     phase: 'resolution',
     severity: 'warning',
     actionKind: 'check_model_capability',
@@ -1028,9 +1147,14 @@ const TASK_ROUTE_REASON_METADATA: Record<
       'Use a model that supports the requested output type or update the model capability declaration.',
   },
   input_not_supported: {
-    label: 'Input not supported',
-    description:
-      'The provider model does not support the requested input type.',
+    get label() {
+      return I18n['com.affine.ui.input-not-supported']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.the-provider-model-does-not-support-the-requested-input-type'
+      ]();
+    },
     phase: 'resolution',
     severity: 'warning',
     actionKind: 'check_model_capability',
@@ -1038,9 +1162,14 @@ const TASK_ROUTE_REASON_METADATA: Record<
       'Use a model that supports the requested input type or update the model capability declaration.',
   },
   attachment_not_supported: {
-    label: 'Attachment not supported',
-    description:
-      'The provider model does not support attachments for this route.',
+    get label() {
+      return I18n['com.affine.ui.attachment-not-supported']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.the-provider-model-does-not-support-attachments-for-this-route'
+      ]();
+    },
     phase: 'resolution',
     severity: 'warning',
     actionKind: 'check_model_capability',
@@ -1048,9 +1177,14 @@ const TASK_ROUTE_REASON_METADATA: Record<
       'Use a model with attachment support or disable attachment-dependent routing for this task.',
   },
   attachment_kind_not_supported: {
-    label: 'Attachment kind not supported',
-    description:
-      'The provider model does not support the requested attachment kind.',
+    get label() {
+      return I18n['com.affine.ui.attachment-kind-not-supported']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.the-provider-model-does-not-support-the-requested-attachment-kind'
+      ]();
+    },
     phase: 'resolution',
     severity: 'warning',
     actionKind: 'check_model_capability',
@@ -1058,9 +1192,14 @@ const TASK_ROUTE_REASON_METADATA: Record<
       'Use a model that supports this attachment kind or adjust the task attachment requirements.',
   },
   attachment_source_not_supported: {
-    label: 'Attachment source not supported',
-    description:
-      'The provider model does not support the requested attachment source.',
+    get label() {
+      return I18n['com.affine.ui.attachment-source-not-supported']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.the-provider-model-does-not-support-the-requested-attachment-source'
+      ]();
+    },
     phase: 'resolution',
     severity: 'warning',
     actionKind: 'check_model_capability',
@@ -1068,8 +1207,14 @@ const TASK_ROUTE_REASON_METADATA: Record<
       'Use a model that supports this attachment source or normalize the attachment before routing.',
   },
   remote_attachment_not_supported: {
-    label: 'Remote attachment not supported',
-    description: 'The provider model does not allow remote attachment URLs.',
+    get label() {
+      return I18n['com.affine.ui.remote-attachment-not-supported']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.the-provider-model-does-not-allow-remote-attachment-urls'
+      ]();
+    },
     phase: 'resolution',
     severity: 'warning',
     actionKind: 'check_model_capability',
@@ -1077,24 +1222,40 @@ const TASK_ROUTE_REASON_METADATA: Record<
       'Use a provider that accepts remote attachments or proxy/download attachments before dispatch.',
   },
   prepared_route_available: {
-    label: 'Prepared route available',
-    description: 'The matched candidate produced a prepared native route.',
+    get label() {
+      return I18n['com.affine.ui.prepared-route-available']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.the-matched-candidate-produced-a-prepared-native-route'
+      ]();
+    },
     phase: 'prepared',
     severity: 'info',
     actionKind: 'none',
   },
   prepared_model_resolved: {
-    label: 'Prepared model resolved',
-    description:
-      'The prepared native route resolved a model alias or raw model.',
+    get label() {
+      return I18n['com.affine.ui.prepared-model-resolved']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.the-prepared-native-route-resolved-a-model-alias-or-raw-model'
+      ]();
+    },
     phase: 'prepared',
     severity: 'info',
     actionKind: 'none',
   },
   prepared_route_not_selected: {
-    label: 'Prepared route not selected',
-    description:
-      'The matched candidate belongs to a registry branch not selected.',
+    get label() {
+      return I18n['com.affine.ui.prepared-route-not-selected']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.the-matched-candidate-belongs-to-a-registry-branch-not-selected'
+      ]();
+    },
     phase: 'prepared',
     severity: 'info',
     actionKind: 'check_registry',
@@ -1102,9 +1263,14 @@ const TASK_ROUTE_REASON_METADATA: Record<
       'Review registry branch selection if this candidate was expected to become the active prepared route.',
   },
   prepared_route_filtered: {
-    label: 'Prepared route filtered',
-    description:
-      'A matched candidate did not appear in the prepared route list.',
+    get label() {
+      return I18n['com.affine.ui.prepared-route-filtered']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.a-matched-candidate-did-not-appear-in-the-prepared-route-list'
+      ]();
+    },
     phase: 'prepared',
     severity: 'warning',
     actionKind: 'inspect_prepare_trace',
@@ -1112,15 +1278,27 @@ const TASK_ROUTE_REASON_METADATA: Record<
       'Inspect prepare candidates to determine whether provider prepare returned empty, failed, or was not selected.',
   },
   provider_prepare_succeeded: {
-    label: 'Provider prepare succeeded',
-    description: 'The provider runtime prepare boundary produced a route.',
+    get label() {
+      return I18n['com.affine.ui.provider-prepare-succeeded']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.the-provider-runtime-prepare-boundary-produced-a-route'
+      ]();
+    },
     phase: 'prepared',
     severity: 'info',
     actionKind: 'none',
   },
   provider_prepare_returned_empty: {
-    label: 'Provider prepare returned empty',
-    description: 'The provider runtime prepare boundary returned no route.',
+    get label() {
+      return I18n['com.affine.ui.provider-prepare-returned-empty']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.the-provider-runtime-prepare-boundary-returned-no-route'
+      ]();
+    },
     phase: 'prepared',
     severity: 'warning',
     actionKind: 'inspect_prepare_trace',
@@ -1128,9 +1306,14 @@ const TASK_ROUTE_REASON_METADATA: Record<
       'Check provider prepare support for this task and model, including request layer and model capability metadata.',
   },
   provider_prepare_error: {
-    label: 'Provider prepare error',
-    description:
-      'The provider runtime prepare boundary threw a sanitized error.',
+    get label() {
+      return I18n['com.affine.ui.provider-prepare-error']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.the-provider-runtime-prepare-boundary-threw-a-sanitized-error'
+      ]();
+    },
     phase: 'prepared',
     severity: 'error',
     actionKind: 'check_provider_runtime',
@@ -1138,9 +1321,14 @@ const TASK_ROUTE_REASON_METADATA: Record<
       'Inspect the sanitized prepare error code and provider runtime logs; credentials and raw endpoint details are intentionally not exposed here.',
   },
   provider_prepare_auth_error: {
-    label: 'Prepare auth error',
-    description:
-      'The sanitized prepare error category points to credentials or authorization.',
+    get label() {
+      return I18n['com.affine.ui.prepare-auth-error']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.the-sanitized-prepare-error-category-points-to-credentials-or-authorization'
+      ]();
+    },
     phase: 'prepared',
     severity: 'error',
     actionKind: 'configure_provider',
@@ -1148,9 +1336,14 @@ const TASK_ROUTE_REASON_METADATA: Record<
       'Check provider credentials, BYOK lease availability, and server-side authorization settings without exposing secrets in diagnostics.',
   },
   provider_prepare_model_error: {
-    label: 'Prepare model error',
-    description:
-      'The sanitized prepare error category points to model or alias resolution.',
+    get label() {
+      return I18n['com.affine.ui.prepare-model-error']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.the-sanitized-prepare-error-category-points-to-model-or-alias-resolution'
+      ]();
+    },
     phase: 'prepared',
     severity: 'error',
     actionKind: 'check_model_profile',
@@ -1158,9 +1351,14 @@ const TASK_ROUTE_REASON_METADATA: Record<
       'Check provider profile model IDs, aliases, and default task model settings for this feature.',
   },
   provider_prepare_network_error: {
-    label: 'Prepare network error',
-    description:
-      'The sanitized prepare error category points to network, endpoint, timeout, or abort handling.',
+    get label() {
+      return I18n['com.affine.ui.prepare-network-error']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.the-sanitized-prepare-error-category-points-to-network-endpoint-timeout-or-abort-handling'
+      ]();
+    },
     phase: 'prepared',
     severity: 'error',
     actionKind: 'check_provider_runtime',
@@ -1168,9 +1366,14 @@ const TASK_ROUTE_REASON_METADATA: Record<
       'Check local endpoint reachability, container networking, timeout settings, and provider runtime logs.',
   },
   provider_prepare_runtime_error: {
-    label: 'Prepare runtime error',
-    description:
-      'The sanitized prepare error category points to an uncategorized provider runtime failure.',
+    get label() {
+      return I18n['com.affine.ui.prepare-runtime-error']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.the-sanitized-prepare-error-category-points-to-an-uncategorized-provider-runtime-failure'
+      ]();
+    },
     phase: 'prepared',
     severity: 'error',
     actionKind: 'check_provider_runtime',
@@ -1178,9 +1381,14 @@ const TASK_ROUTE_REASON_METADATA: Record<
       'Inspect provider runtime logs for the sanitized error code; raw endpoint, headers, and response bodies are intentionally not exposed here.',
   },
   provider_prepare_schema_error: {
-    label: 'Prepare schema error',
-    description:
-      'The sanitized prepare error category points to schema, JSON, validation, or parsing.',
+    get label() {
+      return I18n['com.affine.ui.prepare-schema-error']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.the-sanitized-prepare-error-category-points-to-schema-json-validation-or-parsing'
+      ]();
+    },
     phase: 'prepared',
     severity: 'error',
     actionKind: 'check_model_capability',
@@ -1195,63 +1403,113 @@ const TASK_ROUTE_REMEDIATION_TARGETS: Record<
 > = {
   check_prompt_default: {
     kind: 'prompt_registry',
-    label: 'Prompt registry',
-    description:
-      'Prompt default model, default policy, category defaults, overrides, and prompt catalog metadata.',
+    get label() {
+      return I18n['com.affine.ui.prompt-registry']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.prompt-default-model-default-policy-category-defaults-overrides-and-prompt-catalog-metadata'
+      ]();
+    },
   },
   check_model_capability: {
     kind: 'model_registry',
-    label: 'Model registry',
-    description:
-      'Model capability metadata, embedding dimensions, aliases, and output/input support.',
+    get label() {
+      return I18n['com.affine.ui.model-registry']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.model-capability-metadata-embedding-dimensions-aliases-and-output-input-support'
+      ]();
+    },
   },
   check_model_profile: {
     kind: 'model_registry',
-    label: 'Model registry',
-    description:
-      'Provider profile model IDs, aliases, task defaults, and model allowlists.',
+    get label() {
+      return I18n['com.affine.ui.model-registry']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.provider-profile-model-ids-aliases-task-defaults-and-model-allowlists'
+      ]();
+    },
   },
   check_policy: {
     kind: 'route_policy',
-    label: 'Route policy',
-    description:
-      'Allowed providers, blocked providers, workspace policy, and feature policy.',
+    get label() {
+      return I18n['com.affine.ui.route-policy']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.allowed-providers-blocked-providers-workspace-policy-and-feature-policy'
+      ]();
+    },
   },
   check_privacy_policy: {
     kind: 'route_policy',
-    label: 'Route policy',
-    description:
-      'Allowed privacy classes, preferred privacy classes, and local/cloud routing policy.',
+    get label() {
+      return I18n['com.affine.ui.route-policy']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.allowed-privacy-classes-preferred-privacy-classes-and-local-cloud-routing-policy'
+      ]();
+    },
   },
   check_provider_runtime: {
     kind: 'provider_runtime_logs',
-    label: 'Provider runtime logs',
-    description:
-      'Runtime adapter registration, container networking, native prepare, and provider logs.',
+    get label() {
+      return I18n['com.affine.ui.provider-runtime-logs']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.runtime-adapter-registration-container-networking-native-prepare-and-provider-logs'
+      ]();
+    },
   },
   check_quota: {
     kind: 'quota',
-    label: 'Legacy quota diagnostics',
-    description:
-      'Compatibility quota evidence; runtime provider execution is BYOK-only and does not enforce platform quota.',
+    get label() {
+      return I18n['com.affine.ui.legacy-quota-diagnostics']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.compatibility-quota-evidence-runtime-provider-execution-is-byok-only-and-does-not-enforce-platform-q'
+      ]();
+    },
   },
   check_registry: {
     kind: 'provider_registry',
-    label: 'Provider registry',
-    description:
-      'BYOK route selection, provider priority, model binding, and disabled legacy platform branches.',
+    get label() {
+      return I18n['com.affine.ui.provider-registry']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.byok-route-selection-provider-priority-model-binding-and-disabled-legacy-platform-branches'
+      ]();
+    },
   },
   configure_provider: {
     kind: 'provider_profiles',
-    label: 'Provider profiles',
-    description:
-      'Provider enablement, credentials, endpoint, health, privacy, and profile configuration.',
+    get label() {
+      return I18n['com.affine.ui.provider-profiles']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.provider-enablement-credentials-endpoint-health-privacy-and-profile-configuration'
+      ]();
+    },
   },
   inspect_prepare_trace: {
     kind: 'prepare_trace',
-    label: 'Prepare trace',
-    description:
-      'Matched route candidates, prepare candidates, sanitized prepare errors, and prepared native routes.',
+    get label() {
+      return I18n['com.affine.ui.prepare-trace']();
+    },
+    get description() {
+      return I18n[
+        'com.affine.ui.matched-route-candidates-prepare-candidates-sanitized-prepare-errors-and-prepared-native-routes'
+      ]();
+    },
   },
 };
 
@@ -1331,7 +1589,9 @@ export function getAIModelTaskRouteReasonMetadata(
     code,
     ...(metadata ?? {
       label: code,
-      description: 'Unrecognized route diagnostic reason.',
+      get description() {
+        return I18n['com.affine.ui.unrecognized-route-diagnostic-reason']();
+      },
       phase: 'unknown' as const,
       severity: 'info' as const,
     }),

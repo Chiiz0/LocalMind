@@ -1,5 +1,21 @@
+import { UserFriendlyError } from '@affine/error';
+import { I18n } from '@affine/i18n';
 import { openDB } from 'idb';
 import { applyUpdate, type Doc, encodeStateAsUpdate } from 'yjs';
+
+function contentConflict() {
+  return new UserFriendlyError({
+    status: 409,
+    code: 'Conflict',
+    type: 'BAD_REQUEST',
+    name: 'BAD_REQUEST',
+    get message() {
+      return I18n[
+        'com.affine.ui.project-content-changed-compare-or-discard-the-local-draft'
+      ]();
+    },
+  });
+}
 
 type SaveRequest = {
   expectedContentVersion: number;
@@ -7,24 +23,34 @@ type SaveRequest = {
   snapshotBase64: string;
 };
 type Draft = {
+  savedAt?: number;
+  version: number;
   bytes: Uint8Array;
   pending: SaveRequest | null;
   changeCounter: number;
   savedCounter: number;
   pendingCounter: number;
 };
+export type ProjectRecoverableDraft = {
+  cacheKey: string[];
+  version: number;
+  savedAt: number | null;
+};
 export type ProjectDocumentState = {
   phase: 'loading' | 'saved' | 'unsaved' | 'saving' | 'error';
   version: number;
-  error: string | null;
+  error: UserFriendlyError | null;
 };
 type DocumentSessionOptions = {
   doc: Doc;
   cacheKey: string[];
+  recoverFrom?: string[];
+  onRecoverableDrafts?: (drafts: ProjectRecoverableDraft[]) => void;
   read: () => Promise<{ bytes: Uint8Array; version: number }>;
   save: (request: SaveRequest) => Promise<{ sequence: number }>;
   onState: (state: ProjectDocumentState) => void;
   onSaved: () => void;
+  isWritable?: () => boolean;
 };
 
 const REMOTE = Symbol('project-remote');
@@ -56,6 +82,7 @@ export class ProjectDocumentSession {
   private disposed = false;
   private stopped = false;
   private loaded = false;
+  private suspended = false;
 
   constructor(private readonly options: DocumentSessionOptions) {}
 
@@ -69,25 +96,65 @@ export class ProjectDocumentSession {
     const remote = await this.options.read();
     if (this.disposed) return;
     this.version = remote.version;
-    applyUpdate(this.options.doc, remote.bytes, REMOTE);
     const database = await draftDatabase();
+    const recoveryKey = this.options.recoverFrom;
+    if (
+      recoveryKey &&
+      (recoveryKey.length !== this.options.cacheKey.length ||
+        recoveryKey
+          .slice(0, -1)
+          .some((part, index) => part !== this.options.cacheKey[index]))
+    ) {
+      database.close();
+      throw new Error('Project draft scope does not match');
+    }
     const draft: Draft | undefined = await database.get(
       'drafts',
-      this.options.cacheKey
+      recoveryKey ?? this.options.cacheKey
     );
+    const recoverable: ProjectRecoverableDraft[] = [];
+    if (this.options.onRecoverableDrafts) {
+      for (const key of await database.getAllKeys('drafts')) {
+        if (
+          !Array.isArray(key) ||
+          key.length !== this.options.cacheKey.length ||
+          key.some(part => typeof part !== 'string') ||
+          key
+            .slice(0, -1)
+            .some((part, index) => part !== this.options.cacheKey[index]) ||
+          key.at(-1) === this.options.cacheKey.at(-1)
+        )
+          continue;
+        const stored: Draft = await database.get('drafts', key);
+        recoverable.push({
+          cacheKey: key as string[],
+          version: stored.version ?? 0,
+          savedAt: stored.savedAt ?? null,
+        });
+      }
+    }
     database.close();
     if (this.disposed) return;
+    this.options.onRecoverableDrafts?.(
+      recoverable.sort((a, b) => (b.savedAt ?? 0) - (a.savedAt ?? 0))
+    );
     if (draft) {
+      this.version =
+        draft.version ?? draft.pending?.expectedContentVersion ?? 0;
       applyUpdate(this.options.doc, draft.bytes, REMOTE);
       this.pending = draft.pending;
       this.changeCounter = draft.changeCounter;
       this.savedCounter = draft.savedCounter;
       this.pendingCounter = draft.pendingCounter;
-    }
+    } else applyUpdate(this.options.doc, remote.bytes, REMOTE);
     this.options.doc.on('update', this.onUpdate);
     this.loaded = true;
-    this.emit(draft ? 'unsaved' : 'saved');
-    if (draft) this.schedule();
+    if (recoveryKey && draft) await this.persist();
+    if (draft && this.version !== remote.version) this.fail(contentConflict());
+    else {
+      this.emit(draft ? 'unsaved' : 'saved');
+      if (draft) this.schedule();
+    }
   }
 
   private readonly onUpdate = (_update: Uint8Array, origin: unknown) => {
@@ -101,7 +168,7 @@ export class ProjectDocumentSession {
 
   private emit(
     phase: ProjectDocumentState['phase'],
-    error: string | null = null
+    error: UserFriendlyError | null = null
   ) {
     if (!this.disposed)
       this.options.onState({ phase, version: this.version, error });
@@ -109,11 +176,13 @@ export class ProjectDocumentSession {
 
   private fail(error: unknown) {
     this.stopped = true;
-    this.emit('error', error instanceof Error ? error.message : String(error));
+    this.emit('error', UserFriendlyError.fromAny(error));
   }
 
   private persist() {
     const draft: Draft = {
+      savedAt: Date.now(),
+      version: this.version,
       bytes: encodeStateAsUpdate(this.options.doc),
       pending: this.pending,
       changeCounter: this.changeCounter,
@@ -136,7 +205,13 @@ export class ProjectDocumentSession {
   }
 
   private schedule() {
-    if (this.disposed || this.stopped) return;
+    if (
+      this.disposed ||
+      this.stopped ||
+      this.suspended ||
+      this.options.isWritable?.() === false
+    )
+      return;
     clearTimeout(this.timer);
     this.timer = setTimeout(() => {
       this.flush().catch(error => this.fail(error));
@@ -145,7 +220,13 @@ export class ProjectDocumentSession {
 
   async flush() {
     clearTimeout(this.timer);
-    if (this.disposed || this.stopped) return;
+    if (
+      this.disposed ||
+      this.stopped ||
+      this.suspended ||
+      this.options.isWritable?.() === false
+    )
+      return;
     if (this.saving) return this.saving;
     this.saving = this.saveNext();
     try {
@@ -190,6 +271,10 @@ export class ProjectDocumentSession {
       const remote = await this.options.read();
       if (this.disposed || this.saving || this.stopped) return;
       if (remote.version > this.version) {
+        if (this.hasUnsavedChanges) {
+          this.fail(contentConflict());
+          return;
+        }
         applyUpdate(this.options.doc, remote.bytes, REMOTE);
         this.version = remote.version;
       }
@@ -199,7 +284,8 @@ export class ProjectDocumentSession {
   }
 
   async retry() {
-    if (this.disposed || this.saving) return;
+    if (this.disposed || this.saving || this.options.isWritable?.() === false)
+      return;
     // A version conflict proves that the frozen request did not commit.
     // First replay it to recover a possible success whose response was lost.
     if (this.pending) {
@@ -209,12 +295,8 @@ export class ProjectDocumentSession {
         this.savedCounter = this.pendingCounter;
         this.pending = null;
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        if (!/Project content changed/i.test(message)) {
-          this.fail(error);
-          return;
-        }
-        this.pending = null;
+        this.fail(error);
+        return;
       }
     }
     this.stopped = false;
@@ -224,6 +306,37 @@ export class ProjectDocumentSession {
     await this.flush();
     if (!this.stopped && this.changeCounter === this.savedCounter)
       this.emit('saved');
+  }
+
+  suspend() {
+    this.suspended = true;
+    clearTimeout(this.timer);
+  }
+
+  resume() {
+    this.suspended = false;
+    if (this.hasUnsavedChanges) this.schedule();
+  }
+
+  async saveChanges() {
+    if (this.options.isWritable?.() === false)
+      throw new Error('Project edit lease is unavailable');
+    this.suspended = false;
+    await this.retry();
+    while (this.hasUnsavedChanges && !this.stopped && !this.disposed)
+      await this.flush();
+    if (this.hasUnsavedChanges)
+      throw new Error('Project changes remain unsaved');
+  }
+
+  async discardChanges() {
+    this.suspend();
+    await this.saving;
+    this.pending = null;
+    this.savedCounter = this.changeCounter;
+    this.stopped = false;
+    await this.persist();
+    this.emit('saved');
   }
 
   dispose() {

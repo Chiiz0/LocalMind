@@ -96,7 +96,7 @@ export const SignInWithEmailStep = ({
       console.error(err);
       const error = UserFriendlyError.fromAny(err);
       notify.error({
-        title: 'Failed to sign in',
+        title: t['com.affine.ui.failed-to-sign-in'](),
         message: t[`error.${error.name}`](error.data),
       });
       captchaService.revalidate();

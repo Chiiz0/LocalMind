@@ -16,7 +16,14 @@ import type {
   ReactElement,
 } from 'react';
 import { useEffect } from 'react';
-import { MemoryRouter, useLocation } from 'react-router-dom';
+import {
+  BrowserRouter,
+  MemoryRouter,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
@@ -27,10 +34,10 @@ const state = vi.hoisted(() => ({
   layoutReady: vi.fn(),
   notifyError: vi.fn(),
   openWorkspaceDialog: vi.fn(),
-  projectDocumentGranted: true,
   projectAvailable: true,
   projectsLoading: false,
   projectsResolved: true,
+  projectsError: undefined as Error | undefined,
   quickSearchToggle: vi.fn(),
   project: {
     id: 'project-1',
@@ -40,34 +47,6 @@ const state = vi.hoisted(() => ({
     status: 'active',
     aiPolicy: 'read_only',
     role: 'owner',
-    documents: [
-      {
-        workspaceId: 'workspace-a',
-        docId: 'doc-existing',
-        title: 'Existing document',
-        groupId: 'group-a',
-        sortOrder: 2,
-        status: 'granted',
-        requestedLevel: 'read',
-        accessRequestId: null,
-        addedByMe: true,
-        createdAt: '2026-09-04T00:00:00.000Z',
-        updatedAt: '2026-09-04T00:00:00.000Z',
-      },
-      {
-        workspaceId: 'workspace-b',
-        docId: 'doc-1',
-        title: 'Source document',
-        groupId: null,
-        sortOrder: 0,
-        status: 'granted',
-        requestedLevel: 'read',
-        accessRequestId: null,
-        addedByMe: true,
-        createdAt: '2026-09-04T00:00:00.000Z',
-        updatedAt: '2026-09-04T00:00:00.000Z',
-      },
-    ],
     members: [
       {
         userId: 'user-1',
@@ -78,7 +57,6 @@ const state = vi.hoisted(() => ({
         createdAt: '2026-09-04T00:00:00.000Z',
       },
     ],
-    documentCount: 2,
     canManage: true,
     createdAt: '2026-09-04T00:00:00.000Z',
     updatedAt: '2026-09-04T00:00:00.000Z',
@@ -105,8 +83,9 @@ const tokens = vi.hoisted(() => ({
   WorkspaceDialogService: class WorkspaceDialogService {},
   WorkspacesService: class WorkspacesService {},
   projectsQuery: Symbol('projectsQuery'),
+  resourceQuery: Symbol('resourceQuery'),
+  resourcePathQuery: Symbol('resourcePathQuery'),
   tasksQuery: Symbol('tasksQuery'),
-  addDocumentMutation: Symbol('addDocumentMutation'),
   confirmBlockerSuggestionMutation: Symbol('confirmBlockerSuggestion'),
   createBlockerMutation: Symbol('createBlocker'),
   updateProjectMutation: Symbol('updateProject'),
@@ -117,6 +96,9 @@ const tokens = vi.hoisted(() => ({
 }));
 
 vi.mock('@affine/component', () => ({
+  Button: (props: ButtonHTMLAttributes<HTMLButtonElement>) => (
+    <button {...props} />
+  ),
   IconButton: ({
     icon,
     size: _size,
@@ -141,7 +123,27 @@ vi.mock('@affine/core/components/hooks/use-query', () => ({
     request: { query: unknown; variables: unknown },
     config: unknown
   ) => {
+    if (!request) return { mutate: state.refreshProjects };
     state.query(request, config);
+    if (request.query === tokens.resourceQuery)
+      return {
+        data: {
+          projectResource: {
+            id: 'native-doc',
+            title: 'Native document',
+            kind: 'page',
+            parentId: null,
+          },
+        },
+        mutate: state.refreshProjects,
+      };
+    if (request.query === tokens.resourcePathQuery)
+      return {
+        data: {
+          projectResourcePath: [{ id: 'native-doc', title: 'Native document' }],
+        },
+        mutate: state.refreshProjects,
+      };
     if (request.query === tokens.projectsQuery) {
       if (!state.projectsResolved) {
         return {
@@ -155,29 +157,11 @@ vi.mock('@affine/core/components/hooks/use-query', () => ({
         data: {
           currentUser: {
             copilot: {
-              contextProjects: state.projectAvailable
-                ? [
-                    state.projectDocumentGranted
-                      ? state.project
-                      : {
-                          ...state.project,
-                          documents: state.project.documents.map(document =>
-                            document.docId === 'doc-1'
-                              ? {
-                                  ...document,
-                                  docId: null,
-                                  title: null,
-                                  status: 'revoked',
-                                }
-                              : document
-                          ),
-                        },
-                  ]
-                : [],
+              contextProjects: state.projectAvailable ? [state.project] : [],
             },
           },
         },
-        error: undefined,
+        error: state.projectsError,
         isLoading: state.projectsLoading,
         mutate: state.refreshProjects,
       };
@@ -243,16 +227,25 @@ vi.mock('@affine/core/components/root-app-sidebar/notification-button', () => ({
   NotificationButton: () => <button type="button">Notifications</button>,
 }));
 
+vi.mock('@affine/core/modules/project-resources/realtime', () => ({
+  useProjectRefresh: vi.fn(),
+}));
+vi.mock('@affine/core/modules/quicksearch', () => ({
+  QuickSearchService: tokens.QuickSearchService,
+  ProjectsQuickSearchSession: class {},
+  QuickSearchContainer: () => null,
+}));
+vi.mock('./project-shell-settings', () => ({
+  ProjectShellSettings: ({ open }: { open: boolean }) =>
+    open ? <div data-testid="project-settings" /> : null,
+}));
+vi.mock('./project-summary', () => ({ ProjectSummary: () => null }));
 vi.mock('@affine/core/modules/notification', () => ({
   NotificationCountService: tokens.NotificationCountService,
 }));
 
 vi.mock('@affine/core/components/root-app-sidebar/user-info', () => ({
   default: () => <div>User</div>,
-}));
-
-vi.mock('@affine/core/desktop/route-paths', () => ({
-  getWorkspaceDocPath: (workspaceId: string) => `/workspace/${workspaceId}/all`,
 }));
 
 vi.mock('@affine/core/desktop/dialogs', () => ({
@@ -265,11 +258,6 @@ vi.mock('@affine/core/modules/app-sidebar/views', () => ({
     ...props
   }: PropsWithChildren<ButtonHTMLAttributes<HTMLButtonElement>>) => (
     <button {...props}>{children}</button>
-  ),
-  QuickSearchInput: (props: ButtonHTMLAttributes<HTMLButtonElement>) => (
-    <button type="button" {...props}>
-      Search
-    </button>
   ),
 }));
 
@@ -287,10 +275,6 @@ vi.mock('@affine/core/modules/desktop-api', () => ({
   useAppLayoutReady: state.layoutReady,
 }));
 
-vi.mock('@affine/core/modules/quicksearch', () => ({
-  QuickSearchContainer: () => null,
-}));
-
 vi.mock('@affine/core/modules/quicksearch/services/cmdk', () => ({
   CMDKQuickSearchService: tokens.QuickSearchService,
 }));
@@ -304,21 +288,20 @@ vi.mock('@affine/error', () => ({
 }));
 
 vi.mock('@affine/graphql', () => ({
+  projectResourceQuery: tokens.resourceQuery,
+  projectResourcePathQuery: tokens.resourcePathQuery,
   acceptCopilotProjectInvitationMutation: Symbol('acceptInvitation'),
   approveCopilotAccessRequestMutation: Symbol('approveAccess'),
   controlCopilotTaskMutation: Symbol('controlTask'),
   confirmCopilotBlockerSuggestionMutation:
     tokens.confirmBlockerSuggestionMutation,
   copilotContextProjectCreateMutation: Symbol('createProject'),
-  copilotContextProjectDocumentAddMutation: tokens.addDocumentMutation,
-  copilotContextProjectDocumentRemoveMutation: Symbol('removeDocument'),
   copilotContextProjectUpdateMutation: tokens.updateProjectMutation,
   copilotWorkbenchProjectsGetQuery: tokens.projectsQuery,
   copilotWorkbenchTaskPanelGetQuery: tokens.tasksQuery,
   createCopilotBlockerMutation: tokens.createBlockerMutation,
   declineCopilotProjectInvitationMutation: Symbol('declineInvitation'),
   leaveCopilotContextProjectMutation: Symbol('leaveProject'),
-  reRequestCopilotProjectDocumentAccessMutation: Symbol('rerequestAccess'),
   rejectCopilotAccessRequestMutation: Symbol('rejectAccess'),
   removeCopilotContextProjectMemberMutation: Symbol('removeMember'),
   sendCopilotProjectInvitationMutation: Symbol('sendInvitation'),
@@ -329,6 +312,7 @@ vi.mock('@affine/graphql', () => ({
 }));
 
 vi.mock('@affine/i18n', () => ({
+  getOrCreateI18n: () => ({ t: (key: string) => key }),
   useI18n: () =>
     new Proxy(
       {},
@@ -339,14 +323,19 @@ vi.mock('@affine/i18n', () => ({
 }));
 
 vi.mock('@blocksuite/icons/rc', () => ({
+  AiIcon: () => <svg />,
+  FolderIcon: () => <svg />,
   ArrowLeftSmallIcon: () => <svg />,
+  ArrowRightSmallIcon: () => <svg />,
   CloseIcon: () => <svg />,
+  SearchIcon: () => <svg />,
   SettingsIcon: () => <svg />,
   SidebarIcon: () => <svg />,
   WarningIcon: () => <svg />,
 }));
 
 vi.mock('@toeverything/infra', () => ({
+  useFramework: () => ({ createEntity: vi.fn() }),
   FrameworkScope: ({
     children,
     scope,
@@ -372,6 +361,8 @@ vi.mock('@toeverything/infra', () => ({
       };
     }
     if (token === tokens.GraphQLService) return { gql: state.gql };
+    if (token === tokens.QuickSearchService)
+      return { quickSearch: { show: state.quickSearchToggle, hide: vi.fn() } };
     if (token === tokens.DefaultServerService) {
       return { server: { scope: 'default-server-scope' } };
     }
@@ -402,17 +393,35 @@ vi.mock('@toeverything/infra', () => ({
 }));
 
 vi.mock('./project-resource-preview', () => ({
-  ProjectResourcePreview: () => <div data-testid="project-resource-preview" />,
+  ProjectResourcePreview: ({
+    onClose,
+    onToggleFullscreen,
+  }: {
+    onClose: () => void;
+    onToggleFullscreen: () => void;
+  }) => (
+    <div data-testid="project-resource-preview">
+      <button onClick={onClose}>Close resource</button>
+      <button onClick={onToggleFullscreen}>Fullscreen</button>
+    </div>
+  ),
+}));
+vi.mock('./project-files', () => ({
+  ProjectFiles: ({ onOpen }: { onOpen: (id: string) => void }) => (
+    <div data-testid="project-main-files">
+      <button onClick={() => onOpen('native-doc')}>Open native resource</button>
+    </div>
+  ),
+}));
+
+vi.mock('@affine/core/components/project-file-request/detail', () => ({
+  ProjectFileRequestModal: () => null,
 }));
 
 vi.mock('./project-tree', () => ({
   ProjectTree: ({
-    onAddDocuments,
-    onSelectDocument,
     onSelectProject,
   }: {
-    onAddDocuments: (project: object, level: 'read' | 'write') => void;
-    onSelectDocument: (projectId: string, document: object) => void;
     onSelectProject: (projectId: string | null) => void;
   }) => (
     <>
@@ -422,50 +431,17 @@ vi.mock('./project-tree', () => ({
       <button type="button" onClick={() => onSelectProject('project-1')}>
         Select project
       </button>
-      <button
-        type="button"
-        onClick={() =>
-          onSelectDocument('project-1', {
-            workspaceId: 'workspace-b',
-            docId: 'doc-1',
-            title: 'Source document',
-            groupId: null,
-            sortOrder: 0,
-            status: 'granted',
-            requestedLevel: 'read',
-            accessRequestId: null,
-            addedByMe: true,
-            createdAt: '2026-09-04T00:00:00.000Z',
-            updatedAt: '2026-09-04T00:00:00.000Z',
-          })
-        }
-      >
-        Open source document
-      </button>
-      <button
-        type="button"
-        onClick={() => onAddDocuments(state.project, 'read')}
-      >
-        Add project documents
-      </button>
     </>
   ),
 }));
 
 vi.mock('./task-panel', () => ({
   TaskPanel: ({
-    navigationToggle,
     onOpenTask,
     onViewAll,
     onCreateBlocker,
     selectedProjectId,
   }: {
-    navigationToggle: {
-      expanded: boolean;
-      controls: string;
-      label: string;
-      onClick: () => void;
-    };
     onOpenTask: (task: object) => void;
     onViewAll: (segment: 'todo' | 'in-progress' | 'done') => void;
     onCreateBlocker: (
@@ -480,13 +456,6 @@ vi.mock('./task-panel', () => ({
     selectedProjectId: string | null;
   }) => (
     <>
-      <button
-        type="button"
-        aria-label={navigationToggle.label}
-        aria-controls={navigationToggle.controls}
-        aria-expanded={navigationToggle.expanded}
-        onClick={navigationToggle.onClick}
-      />
       <button
         type="button"
         onClick={() =>
@@ -596,17 +565,18 @@ vi.mock('./workbench-conversation', () => ({
   },
 }));
 
-vi.mock('./source-document-peek', () => ({
-  SourceDocumentPeek: (props: {
-    docId: string;
-    requestedLevel: 'read' | 'write';
-  }) => {
-    state.sourcePeek(props);
-    return <div data-testid="source-peek">{props.docId}</div>;
-  },
-}));
+import { Component as ProjectComponent } from './index';
 
-import { Component } from './index';
+const Component = () => (
+  <Routes>
+    <Route path="/project/:projectId?" element={<ProjectComponent />} />
+    <Route
+      path="/project/:projectId/resources/:resourceId"
+      element={<ProjectComponent />}
+    />
+    <Route path="*" element={<ProjectComponent />} />
+  </Routes>
+);
 
 const LocationProbe = () => {
   const location = useLocation();
@@ -617,7 +587,7 @@ const LocationProbe = () => {
   );
 };
 
-const renderWorkbench = (route = '/intelligence?project=project-1') =>
+const renderWorkbench = (route = '/project/project-1') =>
   render(
     <MemoryRouter initialEntries={[route]}>
       <Component />
@@ -631,16 +601,15 @@ describe('Intelligence workbench shell', () => {
     state.conversationUnmounts = 0;
     state.frameworkScopes.length = 0;
     state.gql.mockReset();
-    state.gql.mockResolvedValue({
-      addCopilotContextProjectDocument: { outcome: 'granted' },
-    });
+    state.gql.mockResolvedValue({});
     state.layoutReady.mockReset();
     state.notifyError.mockReset();
     state.openWorkspaceDialog.mockReset();
-    state.projectDocumentGranted = true;
     state.projectAvailable = true;
     state.projectsLoading = false;
     state.projectsResolved = true;
+    state.projectsError = undefined;
+    state.project.status = 'active';
     state.openWorkspaceDialog.mockImplementation(
       (_name, _options, onSelect: (ids: string[]) => void) => {
         onSelect?.(['doc-new']);
@@ -671,8 +640,56 @@ describe('Intelligence workbench shell', () => {
 
   afterEach(cleanup);
 
-  test('shows aggregate tasks without mounting chat in All projects', () => {
-    renderWorkbench('/intelligence');
+  test('a direct resource entry creates a Project parent for browser Back without writing', async () => {
+    const original = window.history.state;
+    const originalUrl = window.location.href;
+    window.history.replaceState(
+      { idx: 0 },
+      '',
+      '/project/project-1/resources/native-doc?source=share'
+    );
+    const Back = () => {
+      const navigate = useNavigate();
+      const location = useLocation();
+      return (
+        <button
+          onClick={() => navigate(-1)}
+          disabled={!location.state?.projectHistorySeeded}
+        >
+          Browser back
+        </button>
+      );
+    };
+    try {
+      render(
+        <BrowserRouter>
+          <Component />
+          <LocationProbe />
+          <Back />
+        </BrowserRouter>
+      );
+      await waitFor(() =>
+        expect(
+          screen.getByRole('button', { name: 'Browser back' })
+        ).toHaveProperty('disabled', false)
+      );
+      expect(screen.getByTestId('location').textContent).toBe(
+        '/project/project-1/resources/native-doc?source=share'
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Browser back' }));
+      await waitFor(() =>
+        expect(screen.getByTestId('location').textContent).toBe(
+          '/project/project-1'
+        )
+      );
+      expect(state.gql).not.toHaveBeenCalled();
+    } finally {
+      window.history.replaceState(original, '', originalUrl);
+    }
+  });
+
+  test('lists projects above aggregate tasks and opens a project from the overview', () => {
+    renderWorkbench('/project');
 
     expect(screen.queryByTestId('conversation')).toBeNull();
     expect(state.conversationMounts).toBe(0);
@@ -687,14 +704,73 @@ describe('Intelligence workbench shell', () => {
       screen.getByRole('button', { name: 'View all Todo' })
     ).not.toBeNull();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Select project' }));
+    const overview = within(screen.getByTestId('project-overview'));
+    const projectLink = overview.getByRole('link', { name: 'Project one' });
+    expect(projectLink.getAttribute('href')).toBe('/project/project-1');
+    expect(
+      projectLink.compareDocumentPosition(
+        screen.getByRole('button', { name: 'View all Todo' })
+      ) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    fireEvent.click(projectLink);
+    expect(screen.getByTestId('location').textContent).toBe(
+      '/project/project-1'
+    );
+    expect(screen.queryByTestId('project-overview')).toBeNull();
+    expect(screen.getByTestId('project-main-files')).not.toBeNull();
     expect(screen.queryByTestId('conversation')).not.toBeNull();
     expect(state.conversationMounts).toBe(1);
 
     fireEvent.click(screen.getByRole('button', { name: 'All projects' }));
     expect(screen.queryByTestId('conversation')).toBeNull();
     expect(state.conversationUnmounts).toBe(1);
-    expect(screen.getByTestId('location').textContent).toBe('/intelligence');
+    expect(screen.getByTestId('location').textContent).toBe('/project');
+    expect(
+      within(screen.getByTestId('project-overview')).getByRole('link', {
+        name: 'Project one',
+      })
+    ).not.toBeNull();
+  });
+
+  test('shows project overview loading before an empty result is available', () => {
+    state.projectAvailable = false;
+    state.projectsLoading = true;
+    renderWorkbench('/project');
+    const overview = within(screen.getByTestId('project-overview'));
+    expect(overview.getByRole('status').textContent).toContain(
+      'com.affine.loading'
+    );
+    expect(
+      overview.queryByText('com.affine.localmind.workbench.projects.emptyTitle')
+    ).toBeNull();
+  });
+
+  test.each(['empty', 'archived'])(
+    'shows the empty project overview for %s results',
+    stateName => {
+      state.projectAvailable = stateName !== 'empty';
+      if (stateName === 'archived') state.project.status = 'archived';
+      renderWorkbench('/project');
+      const overview = within(screen.getByTestId('project-overview'));
+      expect(
+        overview.getByText('com.affine.localmind.workbench.projects.emptyTitle')
+      ).not.toBeNull();
+      expect(overview.queryByRole('link')).toBeNull();
+    }
+  );
+
+  test('retries a failed project query from the main overview', () => {
+    state.projectsError = new Error('Network unavailable');
+    renderWorkbench('/project');
+    const overview = within(screen.getByTestId('project-overview'));
+    expect(overview.getByRole('alert')).not.toBeNull();
+    expect(overview.queryByRole('link')).toBeNull();
+    fireEvent.click(
+      overview.getByRole('button', {
+        name: 'com.affine.localmind.workbench.retry',
+      })
+    );
+    expect(state.refreshProjects).toHaveBeenCalledOnce();
   });
 
   test('does not mount chat before the selected project is available', () => {
@@ -708,7 +784,7 @@ describe('Intelligence workbench shell', () => {
     state.projectAvailable = true;
     state.projectsLoading = false;
     view.rerender(
-      <MemoryRouter initialEntries={['/intelligence?project=project-1']}>
+      <MemoryRouter initialEntries={['/project/project-1']}>
         <Component />
         <LocationProbe />
       </MemoryRouter>
@@ -716,18 +792,41 @@ describe('Intelligence workbench shell', () => {
     expect(screen.queryByTestId('conversation')).not.toBeNull();
   });
 
-  test('preserves the Project and resource URL while a suspended query has no resolved data', () => {
-    state.projectsResolved = false;
-    const view = renderWorkbench(
-      '/intelligence?project=project-1&resource=native-doc'
+  test('opens native resources in the main area with chat mounted and fullscreen as a UI action', () => {
+    renderWorkbench();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Open native resource' })
     );
     expect(screen.getByTestId('location').textContent).toBe(
-      '/intelligence?project=project-1&resource=native-doc'
+      '/project/project-1/resources/native-doc'
+    );
+    expect(screen.getByTestId('conversation').closest('[hidden]')).toBeNull();
+    expect(state.conversationMounts).toBe(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Fullscreen' }));
+    expect(
+      screen.getByTestId('conversation').closest('[hidden]')
+    ).not.toBeNull();
+    expect(screen.getByTestId('location').textContent).toBe(
+      '/project/project-1/resources/native-doc'
+    );
+    expect(state.gql).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Close resource' }));
+    expect(screen.getByTestId('location').textContent).toBe(
+      '/project/project-1'
+    );
+    expect(state.conversationMounts).toBe(1);
+  });
+
+  test('preserves the Project and resource URL while a suspended query has no resolved data', () => {
+    state.projectsResolved = false;
+    const view = renderWorkbench('/project/project-1/resources/native-doc');
+    expect(screen.getByTestId('location').textContent).toBe(
+      '/project/project-1/resources/native-doc'
     );
     state.projectsResolved = true;
     view.rerender(
       <MemoryRouter
-        initialEntries={['/intelligence?project=project-1&resource=native-doc']}
+        initialEntries={['/project/project-1/resources/native-doc']}
       >
         <Component />
         <LocationProbe />
@@ -735,18 +834,21 @@ describe('Intelligence workbench shell', () => {
     );
     expect(screen.queryByTestId('conversation')).not.toBeNull();
     expect(screen.getByTestId('location').textContent).toBe(
-      '/intelligence?project=project-1&resource=native-doc'
+      '/project/project-1/resources/native-doc'
     );
   });
 
   test('does not mount chat for an unavailable project in the URL', async () => {
-    renderWorkbench('/intelligence?project=unavailable-project');
+    renderWorkbench('/project/unavailable-project');
 
     expect(state.conversationMounts).toBe(0);
     await waitFor(() => {
-      expect(screen.getByTestId('location').textContent).toBe('/intelligence');
+      expect(screen.getByTestId('location').textContent).toBe('/project');
     });
     expect(screen.queryByTestId('conversation')).toBeNull();
+    expect(state.notifyError).toHaveBeenCalledWith({
+      title: 'com.affine.localmind.project-error.permission',
+    });
   });
 
   test('unmounts chat when the selected project is no longer accessible', async () => {
@@ -755,7 +857,7 @@ describe('Intelligence workbench shell', () => {
 
     state.projectAvailable = false;
     view.rerender(
-      <MemoryRouter initialEntries={['/intelligence?project=project-1']}>
+      <MemoryRouter initialEntries={['/project/project-1']}>
         <Component />
         <LocationProbe />
       </MemoryRouter>
@@ -764,33 +866,31 @@ describe('Intelligence workbench shell', () => {
     expect(screen.queryByTestId('conversation')).toBeNull();
     expect(state.conversationUnmounts).toBe(1);
     await waitFor(() => {
-      expect(screen.getByTestId('location').textContent).toBe('/intelligence');
+      expect(screen.getByTestId('location').textContent).toBe('/project');
     });
   });
 
-  test('falls back to an accessible execution host and sends project filtering to the server', async () => {
+  test('uses the default server and sends project filtering without constructing a Workspace host', async () => {
     localStorage.setItem('last_workspace_id', 'missing-workspace');
     renderWorkbench();
 
-    expect(screen.getByTestId('host-workspace').textContent).toBe(
-      'workspace-a'
-    );
-    expect(state.revalidateWorkspaces).toHaveBeenCalled();
+    expect(screen.queryByTestId('host-workspace')).toBeNull();
+    expect(state.revalidateWorkspaces).not.toHaveBeenCalled();
     expect(state.layoutReady).toHaveBeenCalled();
-    expect(state.frameworkScopes).toContain('server-scope:workspace-a');
+    expect(state.frameworkScopes).toContain('default-server-scope');
     expect(state.query).toHaveBeenCalledWith(
       {
         query: tokens.projectsQuery,
         variables: { includeArchived: false },
       },
-      expect.objectContaining({ refreshInterval: 5000 })
+      expect.not.objectContaining({ refreshInterval: expect.anything() })
     );
     expect(state.query).toHaveBeenCalledWith(
       {
         query: tokens.tasksQuery,
         variables: { projectId: 'project-1' },
       },
-      expect.objectContaining({ refreshInterval: 5000 })
+      expect.not.objectContaining({ refreshInterval: expect.anything() })
     );
   });
 
@@ -817,105 +917,30 @@ describe('Intelligence workbench shell', () => {
     expect(state.layoutReady).toHaveBeenCalled();
   });
 
-  test('re-hosts the existing workspace shell affordances in the project rail', () => {
+  test('provides independent search, appearance, account and Workspace return controls', () => {
     renderWorkbench();
 
-    expect(state.workspaceSelector).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workspaceMetadata: expect.objectContaining({ id: 'workspace-a' }),
-        showSyncStatus: true,
-      })
-    );
+    expect(state.workspaceSelector).not.toHaveBeenCalled();
     expect(screen.getByText('User')).not.toBeNull();
     expect(
       screen.getByRole('button', { name: 'Notifications' })
     ).not.toBeNull();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Search' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Quick search' }));
     expect(state.quickSearchToggle).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'com.affine.settingSidebar.title' })
+    );
+    expect(screen.getByTestId('project-settings')).not.toBeNull();
+    expect(state.gql).not.toHaveBeenCalled();
 
     fireEvent.click(
       screen.getByRole('button', {
         name: 'com.affine.localmind.workbench.returnToWorkspace',
       })
     );
-    expect(screen.getByTestId('location').textContent).toBe(
-      '/workspace/workspace-a/all'
-    );
-
-    fireEvent.click(
-      screen.getByRole('button', { name: 'com.affine.settingSidebar.title' })
-    );
-    expect(state.openWorkspaceDialog).toHaveBeenCalledWith('setting', {
-      activeTab: 'appearance',
-    });
-  });
-
-  test('uses a single-column mobile drawer without remounting conversation for document peek', async () => {
-    Object.defineProperty(window, 'innerWidth', {
-      configurable: true,
-      value: 375,
-    });
-    renderWorkbench();
-
-    const navigation = screen.getByRole('complementary', {
-      name: 'com.affine.localmind.workbench.navigation',
-    });
-    const workArea = screen.getByTestId('intelligence-work-area');
-    const toggle = screen.getByRole('button', {
-      name: 'com.affine.sidebarSwitch.expand',
-    });
-
-    expect(navigation.dataset.mobileOpen).toBe('false');
-    fireEvent.click(toggle);
-    expect(navigation.dataset.mobileOpen).toBe('true');
-    expect(workArea.hasAttribute('inert')).toBe(true);
-
-    fireEvent.click(
-      within(navigation).getByRole('button', { name: 'Open source document' })
-    );
-    await waitFor(() => {
-      expect(screen.getByTestId('source-peek').textContent).toBe('doc-1');
-    });
-    expect(state.sourcePeek).toHaveBeenCalledWith(
-      expect.objectContaining({ docId: 'doc-1', requestedLevel: 'read' })
-    );
-    expect(navigation.dataset.mobileOpen).toBe('false');
-    expect(state.conversationMounts).toBe(1);
-    expect(state.conversationUnmounts).toBe(0);
-
-    fireEvent.click(toggle);
-    for (const role of ['dialog', 'menu']) {
-      const overlay = document.createElement('div');
-      overlay.setAttribute('role', role);
-      const control = document.createElement('button');
-      overlay.append(control);
-      document.body.append(overlay);
-      fireEvent.keyDown(control, { key: 'Escape' });
-      expect(navigation.dataset.mobileOpen).toBe('true');
-      overlay.remove();
-    }
-    fireEvent.keyDown(document, { key: 'Escape' });
-    expect(navigation.dataset.mobileOpen).toBe('false');
-  });
-
-  test('closes an open preview when project polling reports its grant revoked', async () => {
-    const view = renderWorkbench();
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Open source document' })
-    );
-    expect(await screen.findByTestId('source-peek')).not.toBeNull();
-
-    state.projectDocumentGranted = false;
-    view.rerender(
-      <MemoryRouter initialEntries={['/intelligence?project=project-1']}>
-        <Component />
-        <LocationProbe />
-      </MemoryRouter>
-    );
-
-    await waitFor(() => expect(screen.queryByTestId('source-peek')).toBeNull());
-    expect(state.conversationUnmounts).toBe(0);
+    expect(screen.getByTestId('location').textContent).toBe('/');
   });
 
   test('routes task cards and capped segments into the global full history', () => {
@@ -944,49 +969,6 @@ describe('Intelligence workbench shell', () => {
     expect(screen.getByTestId('location').textContent).toBe(
       '/tasks?filter=completed'
     );
-  });
-
-  test('adds a workspace document through the server two-branch mutation', async () => {
-    renderWorkbench();
-
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Add project documents' })
-    );
-
-    await waitFor(() => {
-      expect(state.gql).toHaveBeenCalledTimes(1);
-      expect(state.gql).toHaveBeenCalledWith({
-        query: tokens.addDocumentMutation,
-        variables: {
-          input: {
-            projectId: 'project-1',
-            workspaceId: 'workspace-a',
-            docId: 'doc-new',
-            requestedLevel: 'read',
-            requestedTitle: 'New document',
-            sortOrder: 3,
-          },
-        },
-      });
-      expect(state.refreshProjects).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  test('does not refresh after a denied two-branch add', async () => {
-    state.gql.mockRejectedValueOnce(new Error('Permission changed'));
-    renderWorkbench();
-
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Add project documents' })
-    );
-
-    await waitFor(() => {
-      expect(state.gql).toHaveBeenCalledTimes(1);
-      expect(state.notifyError).toHaveBeenCalledWith(
-        expect.objectContaining({ message: 'Permission changed' })
-      );
-    });
-    expect(state.refreshProjects).not.toHaveBeenCalled();
   });
 
   test('creates a manual blocker only after the panel submits and refreshes the projection', async () => {

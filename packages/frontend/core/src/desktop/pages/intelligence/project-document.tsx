@@ -1,4 +1,10 @@
-import { Button, IconButton, Loading } from '@affine/component';
+import {
+  Button,
+  IconButton,
+  Loading,
+  Modal,
+  useConfirmModal,
+} from '@affine/component';
 import { getViewManager } from '@affine/core/blocksuite/manager/view';
 import { getPreviewThemeExtension } from '@affine/core/blocksuite/view-extensions/theme/preview-theme';
 import {
@@ -11,8 +17,21 @@ import { ProjectBlobEngine } from '@affine/core/modules/project-resources/blob';
 import {
   ProjectDocumentSession,
   type ProjectDocumentState,
+  type ProjectRecoverableDraft,
 } from '@affine/core/modules/project-resources/document-session';
+import { projectDraftTabId } from '@affine/core/modules/project-resources/draft-tab';
+import {
+  useProjectEditGuard,
+  useProjectUnsavedConfirmation,
+} from '@affine/core/modules/project-resources/edit-guard';
+import { useProjectEditLease } from '@affine/core/modules/project-resources/edit-lease';
+import {
+  projectErrorMessage,
+  reportProjectError as reportError,
+} from '@affine/core/modules/project-resources/error';
+import { useProjectRefresh } from '@affine/core/modules/project-resources/realtime';
 import { WorkspaceImpl } from '@affine/core/modules/workspace/impls/workspace';
+import { UserFriendlyError } from '@affine/error';
 import { saveProjectDocumentMutation } from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
 import { ViewportElementExtension } from '@blocksuite/affine/shared/services';
@@ -23,7 +42,6 @@ import { useEffect, useRef, useState } from 'react';
 import { Doc } from 'yjs';
 
 import * as styles from './project-files.css';
-import { projectFilesChanged } from './project-files-data';
 
 export function ProjectDocument({
   projectId,
@@ -45,6 +63,24 @@ export function ProjectDocument({
   const accountId = account?.id;
   const container = useRef<HTMLDivElement>(null);
   const sessionRef = useRef<ProjectDocumentSession | null>(null);
+  const editLease = useProjectEditLease();
+  const proofRef = useRef(editLease?.proof);
+  proofRef.current = editLease?.proof;
+  const editorRef = useRef<BlockStdScope | null>(null);
+  useEffect(() => {
+    if (editorRef.current) editorRef.current.store.readonly = !editLease?.proof;
+    if (!editLease?.proof) sessionRef.current?.suspend();
+    else sessionRef.current?.resume();
+  }, [editLease?.proof]);
+  useProjectEditGuard({
+    get hasUnsavedChanges() {
+      return sessionRef.current?.hasUnsavedChanges ?? false;
+    },
+    save: async () => sessionRef.current?.saveChanges(),
+    discard: async () => sessionRef.current?.discardChanges(),
+    suspend: () => sessionRef.current?.suspend(),
+    resume: () => sessionRef.current?.resume(),
+  });
   const [state, setState] = useState<ProjectDocumentState>({
     phase: 'loading',
     version: 0,
@@ -52,14 +88,13 @@ export function ProjectDocument({
   });
   const initialTitle = useRef(title);
   const [reload, setReload] = useState(0);
-  const [tabId] = useState(() => {
-    const key = 'localmind-project-editor-tab';
-    const existing = sessionStorage.getItem(key);
-    if (existing) return existing;
-    const id = crypto.randomUUID();
-    sessionStorage.setItem(key, id);
-    return id;
-  });
+  useProjectRefresh(projectId, 'resource', () => sessionRef.current?.refresh());
+  const [tabId] = useState(projectDraftTabId);
+  const [recoverable, setRecoverable] = useState<ProjectRecoverableDraft[]>([]);
+  const recoveryKey = useRef<string[] | undefined>(undefined);
+  const [recoveryOpen, setRecoveryOpen] = useState(false);
+  const confirmUnsaved = useProjectUnsavedConfirmation();
+  const { openConfirmModal } = useConfirmModal();
 
   useEffect(() => {
     if (!accountId || !container.current) return;
@@ -86,8 +121,14 @@ export function ProjectDocument({
     const doc = collection.getDoc(resourceId);
     if (!doc)
       throw new Error('Project document editor could not be initialized');
+    const recoverFrom = recoveryKey.current;
+    recoveryKey.current = undefined;
     const session = new ProjectDocumentSession({
       doc: doc.spaceDoc,
+      recoverFrom,
+      onRecoverableDrafts: drafts => {
+        if (!disposed) setRecoverable(drafts);
+      },
       cacheKey: [
         server.serverMetadata.baseUrl,
         accountId,
@@ -106,9 +147,13 @@ export function ProjectDocument({
         return { bytes: new Uint8Array(await result.arrayBuffer()), version };
       },
       save: async input => {
+        const proof = proofRef.current;
+        if (!proof) throw new Error('Project edit lease is unavailable');
         const result = await graphql.gql({
           query: saveProjectDocumentMutation,
-          variables: { input: { projectId, resourceId, ...input } },
+          variables: {
+            input: { projectId, resourceId, ...input, editLease: proof },
+          },
         });
         return result.saveProjectDocument;
       },
@@ -117,8 +162,8 @@ export function ProjectDocument({
       },
       onSaved: () => {
         blobs.clearPending();
-        projectFilesChanged(projectId);
       },
+      isWritable: () => !!proofRef.current,
     });
     sessionRef.current = session;
     const mount = async () => {
@@ -133,6 +178,8 @@ export function ProjectDocument({
           getPreviewThemeExtension(framework),
         ],
       });
+      std.store.readonly = !proofRef.current;
+      editorRef.current = std;
       element.replaceChildren(std.render());
     };
     void mount().catch(caught => {
@@ -140,18 +187,11 @@ export function ProjectDocument({
         setState({
           phase: 'error',
           version: 0,
-          error: caught instanceof Error ? caught.message : String(caught),
+          error: UserFriendlyError.fromAny(caught),
         });
     });
-    const interval = setInterval(() => {
-      if (document.visibilityState === 'visible')
-        session.refresh().catch(console.error);
-    }, 10000);
     const reconnect = () => {
-      session.retry().catch(console.error);
-    };
-    const flush = () => {
-      session.flush().catch(console.error);
+      session.retry().catch(reportError);
     };
     const beforeUnload = (event: BeforeUnloadEvent) => {
       if (session.hasUnsavedChanges) {
@@ -160,19 +200,17 @@ export function ProjectDocument({
       }
     };
     window.addEventListener('online', reconnect);
-    window.addEventListener('pagehide', flush);
     window.addEventListener('beforeunload', beforeUnload);
     return () => {
       disposed = true;
-      clearInterval(interval);
       window.removeEventListener('online', reconnect);
-      window.removeEventListener('pagehide', flush);
       window.removeEventListener('beforeunload', beforeUnload);
       element.replaceChildren();
       sessionRef.current = null;
+      editorRef.current = null;
       void session
         .dispose()
-        .catch(console.error)
+        .catch(reportError)
         .finally(() => {
           collection.dispose();
           root.destroy();
@@ -203,22 +241,72 @@ export function ProjectDocument({
                 ? t['com.affine.localmind.project-files.unsaved']()
                 : null}
         </span>
+        {recoverable.length ? (
+          <Button onClick={() => setRecoveryOpen(true)}>
+            {t['com.affine.localmind.project-draft.local']({
+              count: String(recoverable.length),
+            })}
+          </Button>
+        ) : null}
         <IconButton
           size="20"
           icon={<SaveIcon />}
-          disabled={state.phase !== 'unsaved'}
+          disabled={state.phase !== 'unsaved' || !editLease?.proof}
           tooltip={t['com.affine.localmind.project-files.save']()}
           aria-label={t['com.affine.localmind.project-files.save']()}
           onClick={() => void sessionRef.current?.flush()}
         />
       </div>
+      <Modal
+        open={recoveryOpen}
+        onOpenChange={setRecoveryOpen}
+        title={t['com.affine.localmind.project-draft.recover']()}
+        width={480}
+      >
+        {recoverable.map((draft, index) => (
+          <div className={styles.toolbar} key={JSON.stringify(draft.cacheKey)}>
+            <span>
+              {t['com.affine.localmind.project-files.version']({
+                version: String(draft.version),
+              })}{' '}
+              ·{' '}
+              {draft.savedAt
+                ? new Date(draft.savedAt).toLocaleString()
+                : t['com.affine.localmind.project-draft.earlier']({
+                    number: String(index + 1),
+                  })}
+            </span>
+            <Button
+              disabled={!editLease?.proof}
+              onClick={() =>
+                openConfirmModal({
+                  title: t['com.affine.localmind.project-draft.recover'](),
+                  description:
+                    t['com.affine.localmind.project-draft.confirm'](),
+                  confirmText:
+                    t['com.affine.localmind.project-draft.recover'](),
+                  cancelText: t['Cancel'](),
+                  autoFocusConfirm: false,
+                  onConfirm: async () => {
+                    if (!(await confirmUnsaved())) return;
+                    recoveryKey.current = draft.cacheKey;
+                    setReload(value => value + 1);
+                    setRecoveryOpen(false);
+                  },
+                })
+              }
+            >
+              {t['com.affine.localmind.project-draft.recover']()}
+            </Button>
+          </div>
+        ))}
+      </Modal>
       {state.error ? (
         <div className={styles.state} role="alert">
-          <span>{state.error}</span>
+          <span>{projectErrorMessage(state.error)}</span>
           <Button
             onClick={() => {
-              if (state.version)
-                sessionRef.current?.retry().catch(console.error);
+              if (state.version) sessionRef.current?.retry().catch(reportError);
               else setReload(value => value + 1);
             }}
           >

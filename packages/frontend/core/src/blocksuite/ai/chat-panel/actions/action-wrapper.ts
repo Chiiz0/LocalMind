@@ -1,3 +1,5 @@
+import { I18nController } from '@affine/core/modules/i18n/lit-controller';
+import { I18n } from '@affine/i18n';
 import { WithDisposable } from '@blocksuite/affine/global/lit';
 import { unsafeCSSVar, unsafeCSSVarV2 } from '@blocksuite/affine/shared/theme';
 import type { EditorHost } from '@blocksuite/affine/std';
@@ -61,6 +63,8 @@ const icons: Record<string, TemplateResult<1>> = {
 };
 
 export class ActionWrapper extends WithDisposable(LitElement) {
+  readonly languageController = new I18nController(this);
+
   static override styles = css`
     .action-name {
       display: flex;
@@ -155,7 +159,9 @@ export class ActionWrapper extends WithDisposable(LitElement) {
       ${this.promptShow
         ? html`
             <div class="answer-prompt" data-testid="answer-prompt">
-              <div class="subtitle">Answer</div>
+              <div class="subtitle">
+                ${I18n['com.affine.ai.action-label.answer']()}
+              </div>
               ${HISTORY_IMAGE_ACTIONS.includes(item.action)
                 ? images &&
                   html`<chat-content-images
@@ -171,7 +177,9 @@ export class ActionWrapper extends WithDisposable(LitElement) {
                   })(answer)
                 : nothing}
               ${originalText
-                ? html`<div class="subtitle prompt">Prompt</div>
+                ? html`<div class="subtitle prompt">
+                      ${I18n['com.affine.admin.prompt']()}
+                    </div>
                     ${createTextRenderer({
                       customHeading: true,
                       testId: 'chat-message-action-prompt',

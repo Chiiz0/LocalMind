@@ -1,5 +1,6 @@
 import { DebugLogger } from '@affine/debug';
 import { UserFriendlyError } from '@affine/error';
+import { I18n } from '@affine/i18n';
 import { fromPromise, Service } from '@toeverything/infra';
 
 import type { ServerService } from './server';
@@ -94,7 +95,9 @@ export class FetchService extends Service {
           code: 'NETWORK_ERROR',
           type: 'NETWORK_ERROR',
           name: 'NETWORK_ERROR',
-          message: 'Gateway Timeout',
+          get message() {
+            return I18n['com.affine.ui.gateway-timeout']();
+          },
           stacktrace: error.stack,
         });
       } else {

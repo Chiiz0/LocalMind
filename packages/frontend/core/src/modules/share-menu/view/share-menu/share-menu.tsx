@@ -174,7 +174,7 @@ export const ShareMenuContent = (props: ShareMenuProps) => {
             value={ShareMenuTab.Members}
             style={{ display: 'none' }}
           >
-            members
+            {t['com.affine.ui.members']()}{' '}
           </Tabs.Trigger>
         </Tabs.List>
         <Tabs.Content value={ShareMenuTab.Share}>

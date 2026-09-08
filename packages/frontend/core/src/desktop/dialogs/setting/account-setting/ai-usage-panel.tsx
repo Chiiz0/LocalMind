@@ -62,7 +62,7 @@ export const AIUsagePanel = ({
           spreadCol={false}
         >
           {/* TODO(@catsjuice): i18n */}
-          <ErrorMessage>Load error</ErrorMessage>
+          <ErrorMessage>{t['com.affine.ui.load-error']()}</ErrorMessage>
         </SettingRow>
       );
     }

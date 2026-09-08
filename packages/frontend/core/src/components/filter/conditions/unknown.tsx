@@ -1,4 +1,5 @@
 import type { FilterParams } from '@affine/core/modules/collection-rules';
+import { useI18n } from '@affine/i18n';
 import { WarningIcon } from '@blocksuite/icons/rc';
 import { useEffect } from 'react';
 
@@ -14,6 +15,7 @@ export const UnknownFilterCondition = ({
   isDraft?: boolean;
   onDraftCompleted?: () => void;
 }) => {
+  const i18n = useI18n();
   useEffect(() => {
     if (isDraft) {
       // should not reach here
@@ -25,7 +27,11 @@ export const UnknownFilterCondition = ({
     <Condition
       filter={filter}
       icon={<WarningIcon className={styles.filterTypeIconUnknownStyle} />}
-      name={<span className={styles.filterTypeUnknownNameStyle}>Unknown</span>}
+      name={
+        <span className={styles.filterTypeUnknownNameStyle}>
+          {i18n['com.affine.ui.unknown']()}
+        </span>
+      }
     />
   );
 };

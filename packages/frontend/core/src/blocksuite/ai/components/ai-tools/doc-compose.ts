@@ -1,5 +1,6 @@
 import { getStoreManager } from '@affine/core/blocksuite/manager/store';
 import { getAFFiNEWorkspaceSchema } from '@affine/core/modules/workspace';
+import { I18n } from '@affine/i18n';
 import { getEmbedLinkedDocIcons } from '@blocksuite/affine/blocks/embed-doc';
 import { RefNodeSlotsProvider } from '@blocksuite/affine/inlines/reference';
 import type { ColorScheme } from '@blocksuite/affine/model';
@@ -149,7 +150,9 @@ export class DocComposeTool extends ArtifactTool<
       await navigator.clipboard
         .writeText(successResult.markdown)
         .catch(console.error);
-      this.notificationService.toast('Copied markdown to clipboard');
+      this.notificationService.toast(
+        I18n['com.affine.ui.copied-markdown-to-clipboard']()
+      );
     };
 
     const saveAsDoc = async () => {
@@ -168,10 +171,22 @@ export class DocComposeTool extends ArtifactTool<
         });
         if (docId) {
           const open = await this.notificationService.confirm({
-            title: 'Open the doc you just created',
-            message: 'Doc saved successfully! Would you like to open it now?',
-            cancelText: 'Cancel',
-            confirmText: 'Open',
+            get title() {
+              return I18n['com.affine.ui.open-the-doc-you-just-created']();
+            },
+            get message() {
+              return I18n[
+                'com.affine.ui.doc-saved-successfully-would-you-like-to-open-it-now'
+              ]();
+            },
+            get cancelText() {
+              return I18n['com.affine.localmind.aiContext.cancel']();
+            },
+            get confirmText() {
+              return I18n[
+                'com.affine.editor.edgeless-embed-synced-doc-header.open'
+              ]();
+            },
           });
           if (open) {
             refNodeSlots?.docLinkClicked.next({
@@ -181,11 +196,15 @@ export class DocComposeTool extends ArtifactTool<
             });
           }
         } else {
-          this.notificationService.toast('Failed to create document');
+          this.notificationService.toast(
+            I18n['com.affine.ui.failed-to-create-document']()
+          );
         }
       } catch (e) {
         console.error(e);
-        this.notificationService.toast('Failed to create document');
+        this.notificationService.toast(
+          I18n['com.affine.ui.failed-to-create-document']()
+        );
       }
     };
 

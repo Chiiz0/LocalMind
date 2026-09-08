@@ -383,11 +383,11 @@ const CreateWorkspaceDialog = ({
       name
     );
     notify.success({
-      title: 'Workspace Created',
+      title: t['com.affine.ui.workspace-created'](),
     });
     onSelect(newWorkspace.meta);
     onOpenChange(false);
-  }, [name, onOpenChange, onSelect, workspacesService]);
+  }, [name, onOpenChange, onSelect, workspacesService, t]);
 
   const onBeforeCheckout = useAsyncCallback(async () => {
     await onCreate();

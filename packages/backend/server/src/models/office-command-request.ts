@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Transactional } from '@nestjs-cls/transactional';
 import { type OfficeCommandRequest, Prisma } from '@prisma/client';
 
+import { ResourceConflict } from '../base';
 import { BaseModel } from './base';
 import {
   type OfficeOwner,
@@ -179,9 +180,7 @@ export class OfficeCommandRequestModel extends BaseModel {
       },
     });
     if (!revision || revision.id !== expectedRevisionId) {
-      throw new Error(
-        `Office artifact revision conflict: expected ${expectedRevisionId}`
-      );
+      throw new ResourceConflict('Office artifact revision conflict');
     }
     await this.requireCommandBlob(owner, {
       key: commandBlobKey,

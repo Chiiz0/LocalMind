@@ -14,6 +14,7 @@ import {
   Scroller,
   ScrollSeekPlaceholder,
 } from '@affine/core/modules/pdf/views';
+import { useI18n } from '@affine/i18n';
 import track from '@affine/track';
 import {
   CollapseIcon,
@@ -346,6 +347,7 @@ type PDFViewerStatusProps = {
 };
 
 function PDFViewerStatusMenuItems({ message, reload }: PDFViewerStatusProps) {
+  const i18n = useI18n();
   const onClick = useCallback(
     (e: MouseEvent) => {
       e.stopPropagation();
@@ -364,7 +366,7 @@ function PDFViewerStatusMenuItems({ message, reload }: PDFViewerStatusProps) {
           className={styles.pdfReloadButton}
           onClick={onClick}
         >
-          Reload
+          {i18n['com.affine.localmind.project-files.reload']()}{' '}
         </button>
       </div>
     </div>

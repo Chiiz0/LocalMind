@@ -77,6 +77,22 @@ function actor(context: { projectId: string; actorId: string }) {
   return { projectId: context.projectId, actorId: context.actorId };
 }
 
+async function editProof(
+  models: Models,
+  scope: { projectId: string; actorId: string },
+  resourceId: string
+) {
+  const identity = { kind: 'user' as const, tabId: randomUUID() };
+  const result = await models.projectResourceEditLease.acquire({
+    ...scope,
+    ...identity,
+    resourceId,
+  });
+  if (!result.acquired || !result.lease)
+    throw new Error('Fixture lease denied');
+  return { ...identity, leaseId: result.lease.leaseId };
+}
+
 test('Project text search follows committed versions, excludes trashed ancestors and checks current membership', async t => {
   const { resources, models, db, outsiderId } = t.context;
   const scope = actor(t.context);
@@ -109,6 +125,7 @@ test('Project text search follows committed versions, excludes trashed ancestors
     resourceId: doc.id,
     expectedContentVersion: 1,
     requestKey: 'search-update',
+    editLease: await editProof(models, scope, doc.id),
     origin: 'user',
     markdown: 'needlereplacement updated text',
   });
@@ -271,6 +288,7 @@ test('Two ordinary Project-only members collaborate on real Yjs documents with z
     resourceId: document.id,
   });
   const ydoc = new Doc();
+  const firstLease = await editProof(models, scope, document.id);
   try {
     applyUpdate(ydoc, opened.bytes);
     t.true(ydoc.getMap('blocks').size > 0);
@@ -281,11 +299,17 @@ test('Two ordinary Project-only members collaborate on real Yjs documents with z
       bytes: Buffer.from(encodeStateAsUpdate(ydoc)),
       expectedContentVersion: 1,
       requestKey: 'member-save',
+      editLease: firstLease,
     });
     t.is(revision.sequence, 2);
     t.is(revision.parentId, opened.revision.id);
   } finally {
     ydoc.destroy();
+    await models.projectResourceEditLease.release({
+      ...scope,
+      resourceId: document.id,
+      ...firstLease,
+    });
   }
   const reopened = await resources.readDocument({
     ...scope,
@@ -304,6 +328,11 @@ test('Two ordinary Project-only members collaborate on real Yjs documents with z
       bytes: Buffer.from(encodeStateAsUpdate(reloaded)),
       expectedContentVersion: 2,
       requestKey: 'second-member-save',
+      editLease: await editProof(
+        models,
+        { ...scope, actorId: outsiderId },
+        document.id
+      ),
     });
     t.is(revision.sequence, 3);
     const latest = await resources.readDocument({
@@ -377,6 +406,7 @@ test('Markdown retries and tree retries preserve their committed version and syn
     requestKey: 'markdown',
     markdown: 'Saved',
     origin: 'user' as const,
+    editLease: await editProof(models, scope, document.id),
   };
   const saved = await resources.updateMarkdown(save);
   t.is((await resources.updateMarkdown(save)).id, saved.id);
@@ -389,6 +419,7 @@ test('Markdown retries and tree retries preserve their committed version and syn
     expectedVersion: document.version,
     requestKey: 'rename',
     title: 'Renamed',
+    editLease: save.editLease,
   };
   const renamed = await resources.change(rename);
   t.is((await resources.change(rename)).version, renamed.version);
@@ -527,6 +558,7 @@ test('concurrent content saves reject stale versions and preserve immutable hist
     markdown: 'Old content',
     requestKey: 'doc',
   });
+  const editLease = await editProof(models, scope, doc.id);
   const results = await Promise.allSettled(
     ['first', 'second'].map(requestKey =>
       resources.updateMarkdown({
@@ -536,6 +568,7 @@ test('concurrent content saves reject stale versions and preserve immutable hist
         expectedContentVersion: 1,
         requestKey,
         origin: 'user',
+        editLease,
       })
     )
   );

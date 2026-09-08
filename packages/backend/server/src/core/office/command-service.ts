@@ -7,7 +7,7 @@ import {
 import { Injectable } from '@nestjs/common';
 import { OfficeRevisionOrigin, type Prisma } from '@prisma/client';
 
-import { readBufferWithLimit } from '../../base';
+import { readBufferWithLimit, ResourceConflict } from '../../base';
 import { Models } from '../../models';
 import {
   type OfficeOwner,
@@ -15,6 +15,7 @@ import {
   type OfficeOwnerInput,
   officeOwnerToInput,
 } from '../../models/office-owner';
+import type { ProjectEditLeaseProof } from '../../models/project-resource-edit-lease';
 import { PermissionAccess } from '../permission';
 import { officeFingerprint, officeJsonFingerprint } from './evidence';
 import {
@@ -40,12 +41,14 @@ type PreparedOfficeCommandResult = {
 };
 
 export type ExecuteOfficeCommandInput = OfficeOwnerInput & {
+  editLease?: ProjectEditLeaseProof;
   actorId: string;
   sourceSessionId?: string | null;
   command: unknown;
 };
 
 export type ExecuteOfficeCommandBatchInput = OfficeOwnerInput & {
+  editLease?: ProjectEditLeaseProof;
   actorId: string;
   sourceSessionId?: string | null;
   batch: unknown;
@@ -427,6 +430,10 @@ export class OfficeCommandService {
   }
 
   async execute(input: ExecuteOfficeCommandInput) {
+    return (await this.prepareExecution(input))();
+  }
+
+  async prepareExecution(input: ExecuteOfficeCommandInput) {
     const { owner, actorId, command, artifact, parent, policy, result } =
       await this.prepare(input, true);
     const idempotencyFingerprint = officeJsonFingerprint({
@@ -447,22 +454,28 @@ export class OfficeCommandService {
       ...boundedCommandEvidence(command),
       operation: command.operation,
     } satisfies Prisma.InputJsonObject;
-    return await this.persistPrepared({
-      owner,
-      actorId,
-      artifact,
-      parent,
-      policy,
-      result,
-      source: command.source,
-      idempotencyKey: command.idempotencyKey,
-      idempotencyFingerprint,
-      operationSummary,
-      sourceSessionId: input.sourceSessionId,
-    });
+    return () =>
+      this.persistPrepared({
+        owner,
+        actorId,
+        artifact,
+        parent,
+        policy,
+        result,
+        source: command.source,
+        idempotencyKey: command.idempotencyKey,
+        idempotencyFingerprint,
+        operationSummary,
+        sourceSessionId: input.sourceSessionId,
+        editLease: input.editLease,
+      });
   }
 
   async executeBatch(input: ExecuteOfficeCommandBatchInput) {
+    return (await this.prepareBatchExecution(input))();
+  }
+
+  async prepareBatchExecution(input: ExecuteOfficeCommandBatchInput) {
     const { owner, actorId, batch, artifact, parent, policy, result } =
       await this.prepareBatch(input, true);
     const idempotencyFingerprint = officeJsonFingerprint({
@@ -480,22 +493,25 @@ export class OfficeCommandService {
       source: batch.source,
       ...result.summary,
     } satisfies Prisma.InputJsonObject;
-    return await this.persistPrepared({
-      owner,
-      actorId,
-      artifact,
-      parent,
-      policy,
-      result,
-      source: batch.source,
-      idempotencyKey: batch.idempotencyKey,
-      idempotencyFingerprint,
-      operationSummary,
-      sourceSessionId: input.sourceSessionId,
-    });
+    return () =>
+      this.persistPrepared({
+        owner,
+        actorId,
+        artifact,
+        parent,
+        policy,
+        result,
+        source: batch.source,
+        idempotencyKey: batch.idempotencyKey,
+        idempotencyFingerprint,
+        operationSummary,
+        sourceSessionId: input.sourceSessionId,
+        editLease: input.editLease,
+      });
   }
 
   private async persistPrepared(input: {
+    editLease?: ProjectEditLeaseProof;
     owner: OfficeOwner;
     actorId: string;
     artifact: Awaited<ReturnType<Models['officeArtifact']['get']>> & {};
@@ -513,12 +529,23 @@ export class OfficeCommandService {
     if (typeof input.owner !== 'string') {
       const projectId = input.owner.projectId;
       const execute = async () => {
-        await this.models.projectResource.assertOfficeResource({
+        const resource = await this.models.projectResource.assertOfficeResource(
+          {
+            projectId,
+            actorId: input.actorId,
+            artifactId: input.artifact.id,
+          }
+        );
+        const leaseInput = {
           projectId,
+          resourceId: resource.id,
           actorId: input.actorId,
-          artifactId: input.artifact.id,
-        });
-        return this.persistAuthorized(input);
+          editLease: input.editLease,
+        };
+        await this.models.projectResourceEditLease.assertHeld(leaseInput);
+        const result = await this.persistAuthorized(input);
+        await this.models.projectResourceEditLease.assertHeld(leaseInput);
+        return result;
       };
       if (input.source === 'ai') {
         if (!input.sourceSessionId)
@@ -680,9 +707,7 @@ export class OfficeCommandService {
       allowReplay
     );
     if (!parent || parent.id !== command.expectedRevisionId) {
-      throw new Error(
-        `Office artifact revision conflict: expected ${command.expectedRevisionId}`
-      );
+      throw new ResourceConflict('Office artifact revision conflict');
     }
     if (parent.packageMimeType !== policy.mimeType) {
       throw new Error(
@@ -753,9 +778,7 @@ export class OfficeCommandService {
       allowReplay
     );
     if (!parent || parent.id !== batch.expectedRevisionId) {
-      throw new Error(
-        `Office artifact revision conflict: expected ${batch.expectedRevisionId}`
-      );
+      throw new ResourceConflict('Office artifact revision conflict');
     }
     if (parent.packageMimeType !== policy.mimeType) {
       throw new Error(

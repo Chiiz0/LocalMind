@@ -63,6 +63,9 @@ export interface ProjectAgentRuntimeWorkflowAdapter {
   readonly workflow: string;
   readonly capabilities: CopilotAgentRuntimeWorkflowAdapterCapabilities;
   execute(run: ProjectAgentRun): Promise<Prisma.InputJsonObject>;
+  prepare?(
+    run: ProjectAgentRun
+  ): Promise<(run: ProjectAgentRun) => Promise<Prisma.InputJsonObject>>;
 }
 
 function requireAdapterString(

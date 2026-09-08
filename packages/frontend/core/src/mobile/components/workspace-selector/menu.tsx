@@ -142,7 +142,7 @@ const WorkspaceServerInfo = ({
       <div className={styles.serverName}>{name}</div>
       {isCloud ? (
         <div className={styles.serverAccount}>
-          - {account ? account.email : 'Not signed in'}
+          - {account ? account.email : t['com.affine.ui.not-signed-in']()}
         </div>
       ) : null}
       <div className={styles.spaceX} />
@@ -276,6 +276,7 @@ const AddServer = () => {
 };
 
 export const SelectorMenu = ({ onClose }: { onClose?: () => void }) => {
+  const i18n = useI18n();
   const currentWorkspace = useService(WorkspaceService).workspace;
   const workspacesService = useService(WorkspacesService);
   const workspaces = useLiveData(workspacesService.list.workspaces$);
@@ -322,7 +323,7 @@ export const SelectorMenu = ({ onClose }: { onClose?: () => void }) => {
   return (
     <div className={styles.root}>
       <header className={styles.head}>
-        Workspace
+        {i18n['com.affine.localmind.tasks.authorization.workspace']()}{' '}
         <div className={styles.headActions}>
           <AddServer />
           <IconButton onClick={onClose} size="24" icon={<CloseIcon />} />

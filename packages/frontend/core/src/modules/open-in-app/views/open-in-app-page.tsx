@@ -71,7 +71,7 @@ export const OpenInAppPage = ({
             rel="noreferrer"
             className={styles.topNavLink}
           >
-            Official Website
+            {t['com.affine.ui.official-website']()}{' '}
           </a>
           <a
             href={`${BUILD_CONFIG.githubUrl}/blob/main/docs/localmind-user-guide.zh-CN.md`}
@@ -79,7 +79,7 @@ export const OpenInAppPage = ({
             rel="noreferrer"
             className={styles.topNavLink}
           >
-            Blog
+            {t['com.affine.other-page.nav.blog']()}{' '}
           </a>
           <a
             href={`${BUILD_CONFIG.githubUrl}/issues`}
@@ -87,7 +87,7 @@ export const OpenInAppPage = ({
             rel="noreferrer"
             className={styles.topNavLink}
           >
-            Contact us
+            {t['com.affine.other-page.nav.contact-us']()}{' '}
           </a>
         </div>
 

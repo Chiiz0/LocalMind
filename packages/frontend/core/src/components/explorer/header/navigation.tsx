@@ -1,5 +1,5 @@
 import { WorkbenchLink } from '@affine/core/modules/workbench';
-import { useI18n } from '@affine/i18n';
+import { I18n, useI18n } from '@affine/i18n';
 import track from '@affine/track';
 
 import * as styles from './navigation.css';
@@ -19,7 +19,9 @@ const items = [
   },
   {
     value: 'tags',
-    label: 'Tags',
+    get label() {
+      return I18n['com.affine.editor.at-menu.tags']();
+    },
     testId: 'workspace-tags-button',
     to: '/tag',
   },

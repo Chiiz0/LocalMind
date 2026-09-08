@@ -9,7 +9,6 @@ type WorkbenchProjects = NonNullable<
 >['copilot']['contextProjects'];
 
 export type WorkbenchProject = WorkbenchProjects[number];
-export type WorkbenchDocument = WorkbenchProject['documents'][number];
 export type WorkbenchProjectMember = WorkbenchProject['members'][number];
 
 export type WorkbenchTaskAction =
@@ -21,7 +20,6 @@ export type WorkbenchTaskAction =
   | 'approve_access_request'
   | 'reject_access_request'
   | 'withdraw_access_request'
-  | 'request_project_access'
   | 'accept_project_invitation'
   | 'decline_project_invitation'
   | 'withdraw_project_invitation';
@@ -46,17 +44,6 @@ export type WorkbenchBlockerDraft = {
 
 export type WorkbenchTask = CopilotWorkbenchTaskItemFieldsFragment;
 export type WorkbenchRun = NonNullable<WorkbenchTask['run']>;
-
-export const isWorkbenchDocumentOpenable = (
-  document: WorkbenchDocument
-): document is WorkbenchDocument & {
-  docId: string;
-  status: 'granted';
-  requestedLevel: 'read' | 'write';
-} =>
-  document.status === 'granted' &&
-  document.docId !== null &&
-  (document.requestedLevel === 'read' || document.requestedLevel === 'write');
 
 export type WorkbenchTaskPanelData = NonNullable<
   CopilotWorkbenchTaskPanelGetQuery['currentUser']

@@ -19,7 +19,7 @@ export const Preferences = () => {
           'com.affine.settings.editorSettings.preferences.export.description'
         ]()}
       >
-        <Button>Export</Button>
+        <Button>{t['com.affine.ui.export']()}</Button>
       </SettingRow>
       <SettingRow
         name={t[
@@ -29,7 +29,9 @@ export const Preferences = () => {
           'com.affine.settings.editorSettings.preferences.import.description'
         ]()}
       >
-        <Button>Import</Button>
+        <Button>
+          {t['com.affine.integration.readwise.setting.start-import-button']()}
+        </Button>
       </SettingRow>
     </SettingWrapper>
   );

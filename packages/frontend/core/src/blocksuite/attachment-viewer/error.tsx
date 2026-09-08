@@ -111,7 +111,7 @@ export const AttachmentFallback = ({ model, ext }: ErrorProps) => {
             download(model).catch(console.error);
           }}
         >
-          Download
+          {t['com.affine.localmind.project-files.download']()}{' '}
         </Button>,
       ]}
     />

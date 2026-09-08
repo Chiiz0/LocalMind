@@ -1,4 +1,6 @@
+import { I18nController } from '@affine/core/modules/i18n/lit-controller';
 import { WorkspaceImpl } from '@affine/core/modules/workspace/impls/workspace.js';
+import { I18n } from '@affine/i18n';
 import type { SurfaceBlockModel } from '@blocksuite/affine/blocks/surface';
 import {
   MindmapStyleFour,
@@ -34,6 +36,8 @@ const mindmapStyles = [
 type Unpacked<T> = T extends (infer U)[] ? U : T;
 
 export class MiniMindmapPreview extends WithDisposable(LitElement) {
+  readonly languageController = new I18nController(this);
+
   static override styles = css`
     mini-mindmap-root-block,
     mini-mindmap-surface-block,
@@ -185,7 +189,9 @@ export class MiniMindmapPreview extends WithDisposable(LitElement) {
       </div>
 
       ${this.templateShow
-        ? html` <div class="select-template-title">Select template</div>
+        ? html` <div class="select-template-title">
+              ${I18n['com.affine.ai.action-label.select-template']()}
+            </div>
             <div class="template">
               ${repeat(
                 mindmapStyles,

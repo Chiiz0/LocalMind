@@ -1,6 +1,7 @@
 import { Button } from '@affine/admin/components/ui/button';
 import { Input } from '@affine/admin/components/ui/input';
 import { AdminWorkspaceSort } from '@affine/graphql';
+import { I18n, useI18n } from '@affine/i18n';
 import type { Table } from '@tanstack/react-table';
 import {
   type ChangeEvent,
@@ -30,13 +31,48 @@ interface DataTableToolbarProps<TData> {
 }
 
 const sortOptions: { value: AdminWorkspaceSort; label: string }[] = [
-  { value: AdminWorkspaceSort.CreatedAt, label: 'Created time' },
-  { value: AdminWorkspaceSort.BlobCount, label: 'Blob count' },
-  { value: AdminWorkspaceSort.BlobSize, label: 'Blob size' },
-  { value: AdminWorkspaceSort.SnapshotCount, label: 'Snapshot count' },
-  { value: AdminWorkspaceSort.SnapshotSize, label: 'Snapshot size' },
-  { value: AdminWorkspaceSort.MemberCount, label: 'Member count' },
-  { value: AdminWorkspaceSort.PublicPageCount, label: 'Public pages' },
+  {
+    value: AdminWorkspaceSort.CreatedAt,
+    get label() {
+      return I18n['com.affine.admin.created-time']();
+    },
+  },
+  {
+    value: AdminWorkspaceSort.BlobCount,
+    get label() {
+      return I18n['com.affine.admin.blob-count']();
+    },
+  },
+  {
+    value: AdminWorkspaceSort.BlobSize,
+    get label() {
+      return I18n['com.affine.admin.blob-size']();
+    },
+  },
+  {
+    value: AdminWorkspaceSort.SnapshotCount,
+    get label() {
+      return I18n['com.affine.admin.snapshot-count']();
+    },
+  },
+  {
+    value: AdminWorkspaceSort.SnapshotSize,
+    get label() {
+      return I18n['com.affine.admin.snapshot-size']();
+    },
+  },
+  {
+    value: AdminWorkspaceSort.MemberCount,
+    get label() {
+      return I18n['com.affine.admin.member-count']();
+    },
+  },
+  {
+    value: AdminWorkspaceSort.PublicPageCount,
+    get label() {
+      return I18n['com.affine.admin.public-pages']();
+    },
+  },
 ];
 
 export function DataTableToolbar<TData>({
@@ -48,6 +84,7 @@ export function DataTableToolbar<TData>({
   onSortChange,
   disabled = false,
 }: DataTableToolbarProps<TData>) {
+  const i18n = useI18n();
   const [value, setValue] = useState(keyword);
   const debouncedValue = useDebouncedValue(value, 400);
 
@@ -73,16 +110,28 @@ export function DataTableToolbar<TData>({
   const selectedSortLabel = useMemo(
     () =>
       sortOptions.find(option => option.value === sort)?.label ??
-      'Created time',
-    [sort]
+      i18n['com.affine.admin.created-time'](),
+    [sort, i18n]
   );
 
   const flagOptions: { key: keyof WorkspaceFlagFilter; label: string }[] = [
-    { key: 'public', label: 'Public' },
-    { key: 'enableSharing', label: 'Enable sharing' },
-    { key: 'enableAi', label: 'Enable AI' },
-    { key: 'enableUrlPreview', label: 'Enable URL preview' },
-    { key: 'enableDocEmbedding', label: 'Enable doc embedding' },
+    { key: 'public', label: i18n['com.affine.admin.public']() },
+    { key: 'enableSharing', label: i18n['com.affine.admin.enable-sharing']() },
+    {
+      key: 'enableAi',
+      label:
+        i18n[
+          'com.affine.settings.workspace.experimental-features.enable-ai.name'
+        ](),
+    },
+    {
+      key: 'enableUrlPreview',
+      label: i18n['com.affine.admin.enable-url-preview'](),
+    },
+    {
+      key: 'enableDocEmbedding',
+      label: i18n['com.affine.admin.enable-doc-embedding'](),
+    },
   ];
 
   const flagLabel = (value: boolean | undefined) => {
@@ -117,7 +166,7 @@ export function DataTableToolbar<TData>({
               className="h-8 px-2 lg:px-3"
               disabled={disabled}
             >
-              Sort: {selectedSortLabel}
+              {i18n['com.affine.admin.sort']()} {selectedSortLabel}
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-[220px] p-2">
@@ -145,7 +194,7 @@ export function DataTableToolbar<TData>({
               className="h-8 px-2 lg:px-3"
               disabled={disabled}
             >
-              Flags
+              {i18n['com.affine.admin.flags']()}{' '}
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-[260px] p-2">
@@ -170,7 +219,7 @@ export function DataTableToolbar<TData>({
         </Popover>
         <div className="flex">
           <Input
-            placeholder="Search Workspace / Owner"
+            placeholder={i18n['com.affine.admin.search-workspace-owner']()}
             value={value}
             onChange={onValueChange}
             className="h-8 w-[150px] lg:w-[250px]"

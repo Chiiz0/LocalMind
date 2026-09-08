@@ -1,0 +1,6 @@
+query projectImportWorkspaces($projectId: String!, $cursor: String) {
+  projectImportWorkspaces(projectId: $projectId, cursor: $cursor) {
+    items { id name }
+    nextCursor
+  }
+}

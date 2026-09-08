@@ -1,8 +1,9 @@
 /**
  * @vitest-environment happy-dom
  */
-
+import { getOrCreateI18n } from '@affine/i18n';
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -10,9 +11,18 @@ import {
   waitFor,
 } from '@testing-library/react';
 import type { ButtonHTMLAttributes, PropsWithChildren } from 'react';
-import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  test,
+  vi,
+} from 'vitest';
 
 import type { PptxSemanticState } from '../../../../modules/office';
+import type { OfficeEditorDraft } from './edit-draft';
 import { PresentationEditor } from './presentation';
 import type * as SharedModule from './shared';
 import { executeAndReloadOfficeCommand } from './shared';
@@ -139,6 +149,107 @@ describe('PresentationEditor', () => {
     vi.clearAllMocks();
   });
 
+  test('Project close saves text and notes in revision order; discard sends no command', async () => {
+    const guards = new Set<OfficeEditorDraft>();
+    render(
+      <PresentationEditor
+        state={state}
+        revision={
+          {
+            id: 'revision-1',
+            sequence: 1,
+            packageUrl: '/presentation.pptx',
+          } as never
+        }
+        artifactId="artifact-1"
+        owner={{ kind: 'project', projectId: 'project-1' }}
+        graphql={{} as never}
+        readOnly={false}
+        onRevision={vi.fn()}
+        onCommentAnchorChange={vi.fn()}
+        onAiSelectionChange={vi.fn()}
+        registerDraft={guard => {
+          guards.add(guard);
+          return () => {
+            guards.delete(guard);
+          };
+        }}
+      />
+    );
+    const guard = [...guards][0];
+    fireEvent.change(screen.getByLabelText('Shape text'), {
+      target: { value: 'Draft title' },
+    });
+    fireEvent.change(screen.getByLabelText('Speaker notes'), {
+      target: { value: 'Draft notes' },
+    });
+    expect(guard.hasUnsavedChanges).toBe(true);
+    await act(() => guard.discard());
+    expect(guard.hasUnsavedChanges).toBe(false);
+    expect(executeAndReloadOfficeCommand).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText('Shape text'), {
+      target: { value: 'Saved title' },
+    });
+    fireEvent.change(screen.getByLabelText('Speaker notes'), {
+      target: { value: 'Saved notes' },
+    });
+    await act(() => guard.save());
+    expect(
+      vi
+        .mocked(executeAndReloadOfficeCommand)
+        .mock.calls.map(([input]) => input.command)
+    ).toEqual([
+      expect.objectContaining({
+        expectedRevisionId: 'revision-1',
+        operation: 'office.presentation.shape.text.set',
+        text: 'Saved title',
+      }),
+      expect.objectContaining({
+        expectedRevisionId: 'revision-2',
+        operation: 'office.presentation.notes.text.set',
+        text: 'Saved notes',
+      }),
+    ]);
+    expect(guard.hasUnsavedChanges).toBe(false);
+  });
+
+  test('Project save failure retains the draft for retry or discard', async () => {
+    const guards = new Set<OfficeEditorDraft>();
+    render(
+      <PresentationEditor
+        state={state}
+        revision={
+          {
+            id: 'revision-1',
+            sequence: 1,
+            packageUrl: '/presentation.pptx',
+          } as never
+        }
+        artifactId="artifact-1"
+        owner={{ kind: 'project', projectId: 'project-1' }}
+        graphql={{} as never}
+        readOnly={false}
+        onRevision={vi.fn()}
+        onCommentAnchorChange={vi.fn()}
+        onAiSelectionChange={vi.fn()}
+        registerDraft={guard => {
+          guards.add(guard);
+          return () => {
+            guards.delete(guard);
+          };
+        }}
+      />
+    );
+    fireEvent.change(screen.getByLabelText('Shape text'), {
+      target: { value: 'Unsaved title' },
+    });
+    vi.mocked(executeAndReloadOfficeCommand).mockRejectedValueOnce(
+      new Error('conflict')
+    );
+    await expect([...guards][0].save()).rejects.toThrow('conflict');
+    expect([...guards][0].hasUnsavedChanges).toBe(true);
+  });
+
   test('loads the selected theme slot and sends it through the command bus', async () => {
     const props = {
       state,
@@ -209,4 +320,8 @@ describe('PresentationEditor', () => {
       color: '#abcdef',
     });
   });
+});
+
+beforeAll(async () => {
+  await getOrCreateI18n().changeLanguage('en');
 });

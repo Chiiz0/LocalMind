@@ -8,7 +8,9 @@ import {
 } from '@localmind/office/testing';
 import { PrismaClient } from '@prisma/client';
 import test from 'ava';
+import Sinon from 'sinon';
 
+import { ResourceConflict } from '../../base';
 import {
   OFFICE_FORMATS,
   OfficeArtifactService,
@@ -27,13 +29,13 @@ const deployment = env.DEPLOYMENT_TYPE;
 
 test.before(async () => {
   app = await createTestingApp();
-  env.DEPLOYMENT_TYPE = 'selfhosted';
+  Object.assign(env, { DEPLOYMENT_TYPE: 'selfhosted' });
 });
 test.beforeEach(async () => {
   await app.initTestingDB();
 });
 test.after.always(async () => {
-  env.DEPLOYMENT_TYPE = deployment;
+  Object.assign(env, { DEPLOYMENT_TYPE: deployment });
   await app.close();
 });
 
@@ -182,12 +184,21 @@ test.serial(
       );
       t.truthy(tools.office_read);
       t.truthy(tools.office_command_request);
-      const rejected = await tools.office_command_request.execute({ command });
+      const rejected = await tools.office_command_request.execute!(
+        { command },
+        { toolCallId: 'request-before-read', messages: [] }
+      );
       t.true(JSON.stringify(rejected).includes('Call office_read'));
-      await tools.office_read.execute({});
-      const requested = (await tools.office_command_request.execute({
-        command,
-      })) as { taskId: string; taskStatus: string };
+      await tools.office_read.execute!(
+        {},
+        { toolCallId: 'read', messages: [] }
+      );
+      const requested = (await tools.office_command_request.execute!(
+        {
+          command,
+        },
+        { toolCallId: 'request-after-read', messages: [] }
+      )) as { taskId: string; taskStatus: string };
       t.is(requested.taskStatus, 'waiting_approval', JSON.stringify(requested));
       const run = await runtime.get({ ...scope, runId: requested.taskId });
       t.is(
@@ -345,6 +356,110 @@ test.serial(
 );
 
 test.serial(
+  'a long Office preparation renews real leases and cancellation fences its late result',
+  async t => {
+    t.timeout(90000);
+    const { db, ...scope } = await aiFixture();
+    const service = app.get(ProjectOfficeAgentCommandService);
+    const runtime = app.models.copilotProjectAgentRuntime;
+    const item = (await formats())[0];
+    const source = await app.get(ProjectBlobStorage).put({
+      ...scope,
+      bytes: Buffer.from(item.bytes),
+      mimeType: OFFICE_FORMATS[item.format].mimeType,
+    });
+    const imported = await app.get(OfficeImportService).import({
+      ...scope,
+      title: 'Long Office edit',
+      sourceFileName: `long.${item.format}`,
+      sourceBlobKey: source.key,
+      importIdempotencyKey: 'long-office',
+    });
+    const requested = await service.request({
+      ...scope,
+      command: {
+        version: 'localmind-office-command/v1',
+        commandId: 'long-edit',
+        idempotencyKey: 'long-edit',
+        artifactId: imported.artifact.id,
+        expectedRevisionId: imported.revision.id,
+        source: 'ai',
+        ...item.edit,
+      },
+      readProof: {
+        artifactId: imported.artifact.id,
+        revisionId: imported.revision.id,
+      },
+    });
+    const run = await runtime.get({ ...scope, runId: requested.taskId });
+    await runtime.approve({
+      ...scope,
+      runId: run.id,
+      targetFingerprint: run.targetFingerprint,
+    });
+    let ready!: () => void;
+    let release!: () => void;
+    const started = new Promise<void>(resolve => {
+      ready = resolve;
+    });
+    const gate = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    const prepare = service.prepareExecution.bind(service);
+    const delayed = Sinon.stub(service, 'prepareExecution').callsFake(
+      async run => {
+        const commit = await prepare(run);
+        ready();
+        await gate;
+        return commit;
+      }
+    );
+    const working = app
+      .get(CopilotProjectAgentRuntimeWorker)
+      .run({ projectId: scope.projectId, runId: run.id });
+    try {
+      await started;
+      const initial = await db.projectResourceEditLease.findFirstOrThrow({
+        where: { taskId: run.id },
+      });
+      await new Promise(resolve => setTimeout(resolve, 22000));
+      const renewed = await db.projectResourceEditLease.findFirstOrThrow({
+        where: { taskId: run.id },
+      });
+      t.true(renewed.expiresAt > initial.expiresAt);
+      t.true(
+        (await runtime.get({ ...scope, runId: run.id })).timelineEvents.some(
+          event =>
+            (event.payload as { action?: string }).action ===
+            'worker_lease_renewed'
+        )
+      );
+      await runtime.cancel({ ...scope, runId: run.id });
+      await working;
+      release();
+      t.is(
+        (await runtime.get({ ...scope, runId: run.id })).status,
+        'cancelled'
+      );
+      t.is(
+        await db.projectResourceEditLease.count({ where: { taskId: run.id } }),
+        0
+      );
+      t.is(
+        await db.officeRevision.count({
+          where: { artifactId: imported.artifact.id },
+        }),
+        1
+      );
+    } finally {
+      release();
+      delayed.restore();
+      await working;
+    }
+  }
+);
+
+test.serial(
   'Project Office AI cancellation, batch conflicts and live member revocation preserve the original package',
   async t => {
     const { db, ...scope } = await aiFixture();
@@ -416,14 +531,34 @@ test.serial(
         targetFingerprint: run.targetFingerprint,
       });
     }
+    const manualLease = (
+      await app.models.projectResourceEditLease.acquire({
+        ...scope,
+        resourceId: command.artifactId,
+        kind: 'user',
+        tabId: 'manual-office',
+      })
+    ).lease!;
     await app.get(OfficeCommandService).execute({
       ...scope,
+      editLease: {
+        kind: 'user',
+        tabId: 'manual-office',
+        leaseId: manualLease.leaseId,
+      },
       command: {
         ...command,
         source: 'user',
         commandId: 'manual',
         idempotencyKey: 'manual',
       },
+    });
+    await app.models.projectResourceEditLease.release({
+      ...scope,
+      resourceId: command.artifactId,
+      kind: 'user',
+      tabId: 'manual-office',
+      leaseId: manualLease.leaseId,
     });
     await worker.run({ projectId: scope.projectId, runId: requested.taskId });
     t.is(
@@ -503,8 +638,32 @@ test.serial(
         source: 'user',
         ...item.edit,
       };
-      const edited = await commands.execute({ ...scope, command });
-      const replay = await commands.execute({ ...scope, command });
+      const held = (
+        await app.models.projectResourceEditLease.acquire({
+          ...scope,
+          resourceId: imported.artifact.id,
+          kind: 'user',
+          tabId: 'office-editor',
+        })
+      ).lease!;
+      const editLease = {
+        kind: 'user' as const,
+        tabId: held.tabId,
+        leaseId: held.leaseId,
+      };
+      await t.throwsAsync(commands.execute({ ...scope, command }), {
+        message: /edit lease/,
+      });
+      await t.throwsAsync(
+        commands.execute({
+          ...scope,
+          command,
+          editLease: { ...editLease, tabId: 'other-tab' },
+        }),
+        { message: /edit lease/ }
+      );
+      const edited = await commands.execute({ ...scope, command, editLease });
+      const replay = await commands.execute({ ...scope, command, editLease });
       t.is(replay.revision.id, edited.revision.id);
       t.false(replay.created);
       t.is(edited.revision.sequence, 2);
@@ -532,9 +691,35 @@ test.serial(
       await t.throwsAsync(
         commands.execute({
           ...scope,
+          editLease,
           command: { ...command, idempotencyKey: `stale-${item.format}` },
         }),
-        { message: /revision conflict/ }
+        { instanceOf: ResourceConflict, message: /revision conflict/ }
+      );
+      const conflict = await app.POST('/graphql').send({
+        query: `mutation($input: ProjectOfficeCommandInput!) {
+          executeProjectOfficeCommand(input: $input) { created }
+        }`,
+        variables: {
+          input: {
+            projectId: scope.projectId,
+            editLease: { tabId: editLease.tabId, leaseId: editLease.leaseId },
+            command: { ...command, idempotencyKey: `api-stale-${item.format}` },
+          },
+        },
+      });
+      t.is(conflict.body.errors?.[0]?.extensions.status, 409);
+      t.is(
+        conflict.body.errors?.[0]?.message,
+        'Office artifact revision conflict'
+      );
+      t.is(
+        (
+          await db.officeArtifact.findUniqueOrThrow({
+            where: { id: imported.artifact.id },
+          })
+        ).revisionCounter,
+        2
       );
       await t.throwsAsync(
         commands.execute({

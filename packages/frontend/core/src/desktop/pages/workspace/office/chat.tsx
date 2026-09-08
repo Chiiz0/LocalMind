@@ -47,7 +47,7 @@ import {
   controlCopilotTaskMutation,
   copilotTasksGetQuery,
 } from '@affine/graphql';
-import { useI18n } from '@affine/i18n';
+import { I18n, useI18n } from '@affine/i18n';
 import { AiIcon, CloseIcon, PageIcon, ResetIcon } from '@blocksuite/icons/rc';
 import type { OfficeAiContext, OfficeSelection } from '@localmind/office';
 import { parseOfficeAiContext } from '@localmind/office';
@@ -102,43 +102,68 @@ export function officeSelectionLabel(selection: OfficeSelection) {
       const target = selection.target;
       if (target.type === 'text_range') {
         return target.start.blockId === target.end.blockId
-          ? `Text ${target.start.blockId} (${target.start.offset}-${target.end.offset})`
-          : `Text ${target.start.blockId} to ${target.end.blockId}`;
+          ? I18n['com.affine.office.text-range']({
+              name: target.start.blockId,
+              start: String(target.start.offset),
+              end: String(target.end.offset),
+            })
+          : I18n['com.affine.office.text-span']({
+              start: target.start.blockId,
+              end: target.end.blockId,
+            });
       }
       if (target.type === 'section')
-        return `Section ${target.sectionIndex + 1}`;
+        return I18n['com.affine.office.section-number']({
+          number: String(target.sectionIndex + 1),
+        });
       if (target.type === 'run') {
-        return `Run ${target.runIndex + 1} in ${target.blockId}`;
+        return I18n['com.affine.office.run-number']({
+          number: String(target.runIndex + 1),
+          name: target.blockId,
+        });
       }
-      return `Paragraph ${target.blockId}`;
+      return I18n['com.affine.office.paragraph-name']({ name: target.blockId });
     }
     case 'workbook': {
       const target = selection.target;
       if (target.type === 'cell') return `${target.sheetId} ${target.address}`;
       if (target.type === 'cell_range')
         return `${target.sheetId} ${target.range}`;
-      if (target.type === 'table') return `Table ${target.tableId}`;
-      if (target.type === 'chart') return `Chart ${target.chartId}`;
-      return `Sheet ${target.sheetId}`;
+      if (target.type === 'table')
+        return I18n['com.affine.office.table-name']({ name: target.tableId });
+      if (target.type === 'chart')
+        return I18n['com.affine.office.chart-name']({ name: target.chartId });
+      return I18n['com.affine.office.sheet-name']({ name: target.sheetId });
     }
     case 'presentation': {
       const target = selection.target;
       if (target.type === 'shape' || target.type === 'placeholder') {
         return `${target.slideId} / ${target.shapeId}`;
       }
-      if (target.type === 'notes') return `Notes for ${target.slideId}`;
-      return `Slide ${target.slideId}`;
+      if (target.type === 'notes')
+        return I18n['com.affine.office.slide-notes']({ name: target.slideId });
+      return I18n['com.affine.office.slide-name']({ name: target.slideId });
     }
     case 'pdf': {
       const target = selection.target;
-      if (target.type === 'form_field') return `Form field ${target.fieldName}`;
+      if (target.type === 'form_field')
+        return I18n['com.affine.office.named-form-field']({
+          name: target.fieldName,
+        });
       if (target.type === 'annotation') {
-        return `Page ${target.pageIndex + 1} / ${target.annotationId}`;
+        return I18n['com.affine.office.page-annotation']({
+          number: String(target.pageIndex + 1),
+          name: target.annotationId,
+        });
       }
       if (target.type === 'page_region') {
-        return `Region on page ${target.pageIndex + 1}`;
+        return I18n['com.affine.office.page-region']({
+          number: String(target.pageIndex + 1),
+        });
       }
-      return `Page ${target.pageIndex + 1}`;
+      return I18n['com.affine.office.page-number']({
+        number: String(target.pageIndex + 1),
+      });
     }
   }
 }
@@ -261,6 +286,7 @@ function OfficeTaskPanel({
   autoRefreshEnabled: boolean;
   onTaskRevision: (evidence: OfficeTaskRevisionEvidence) => Promise<void>;
 }) {
+  const i18n = useI18n();
   const graphql = useService(GraphQLService);
   const [pending, setPending] = useState<{
     taskId: string;
@@ -311,13 +337,21 @@ function OfficeTaskPanel({
         .catch(caught => {
           const friendly = UserFriendlyError.fromAny(caught);
           notify.error({
-            title: 'Unable to refresh Office revision',
+            title:
+              i18n['com.affine.office.unable-to-refresh-office-revision'](),
             message: friendly.message,
           });
         })
         .finally(() => inFlightRef.current.delete(key));
     }
-  }, [artifactId, autoRefreshEnabled, currentRevision, onTaskRevision, tasks]);
+  }, [
+    artifactId,
+    autoRefreshEnabled,
+    currentRevision,
+    onTaskRevision,
+    tasks,
+    i18n,
+  ]);
 
   const control = useCallback(
     async (task: CopilotTask, action: CopilotTaskAction) => {
@@ -343,7 +377,9 @@ function OfficeTaskPanel({
       } catch (caught) {
         const friendly = UserFriendlyError.fromAny(caught);
         notify.error({
-          title: `Office task ${action} failed`,
+          title: I18n['com.affine.office.task-action-failed']({
+            action: I18n.t('com.affine.office.task-action.' + action),
+          }),
           message: friendly.message,
         });
       } finally {
@@ -354,13 +390,16 @@ function OfficeTaskPanel({
   );
 
   return (
-    <section className={styles.taskRegion} aria-label="Office AI changes">
+    <section
+      className={styles.taskRegion}
+      aria-label={i18n['com.affine.office.office-ai-changes']()}
+    >
       <header className={styles.taskHeader}>
-        <span>Office changes</span>
+        <span>{i18n['com.affine.office.office-changes']()}</span>
         <IconButton
           size="20"
-          tooltip="Refresh Office changes"
-          aria-label="Refresh Office changes"
+          tooltip={i18n['com.affine.office.refresh-office-changes']()}
+          aria-label={i18n['com.affine.office.refresh-office-changes']()}
           onClick={() => void mutate()}
         >
           <ResetIcon />
@@ -369,12 +408,14 @@ function OfficeTaskPanel({
       {isLoading ? (
         <div className={styles.taskState}>
           <Loading size={18} />
-          <span>Loading changes</span>
+          <span>{i18n['com.affine.office.loading-changes']()}</span>
         </div>
       ) : error ? (
         <div className={styles.taskState}>
           <span>{error.message}</span>
-          <Button onClick={() => void mutate()}>Retry</Button>
+          <Button onClick={() => void mutate()}>
+            {i18n['com.affine.localmind.directoryPermissions.retry']()}
+          </Button>
         </div>
       ) : tasks.length ? (
         <div className={styles.taskList}>
@@ -385,7 +426,9 @@ function OfficeTaskPanel({
               <article key={task.id} className={styles.task}>
                 <div className={styles.taskTopline}>
                   <span className={styles.taskTitle}>
-                    {task.title ?? details.operation ?? 'Office change'}
+                    {task.title ??
+                      details.operation ??
+                      i18n['com.affine.office.office-change']()}
                   </span>
                   <span className={styles.taskStatus} data-status={status}>
                     {status.replace('_', ' ')}
@@ -393,10 +436,16 @@ function OfficeTaskPanel({
                 </div>
                 <div className={styles.taskMeta}>
                   {details.revisionSequence !== null ? (
-                    <span>From revision {details.revisionSequence}</span>
+                    <span>
+                      {i18n['com.affine.office.from-revision']()}{' '}
+                      {details.revisionSequence}
+                    </span>
                   ) : null}
                   {details.commandCount !== null ? (
-                    <span>{details.commandCount} command(s)</span>
+                    <span>
+                      {details.commandCount}{' '}
+                      {i18n['com.affine.office.command-s']()}
+                    </span>
                   ) : null}
                   {details.operation ? <span>{details.operation}</span> : null}
                   {details.impact.map(item => (
@@ -448,7 +497,9 @@ function OfficeTaskPanel({
           })}
         </div>
       ) : (
-        <div className={styles.taskState}>No Office AI changes yet</div>
+        <div className={styles.taskState}>
+          {i18n['com.affine.office.no-office-ai-changes-yet']()}
+        </div>
       )}
     </section>
   );
@@ -622,11 +673,16 @@ export function OfficeChatPanel({
   return (
     <div className={styles.root}>
       <header className={styles.header}>
-        <span className={styles.title}>LocalMind AI</span>
+        <span className={styles.title}>
+          {t['com.affine.settings.workspace.affine-ai.title']()}
+        </span>
         <div className={styles.tabs} ref={tabsRef} />
         <div ref={setToolbarRef} />
       </header>
-      <section className={styles.context} aria-label="Office AI context">
+      <section
+        className={styles.context}
+        aria-label={t['com.affine.office.office-ai-context']()}
+      >
         <div className={styles.contextChips}>
           <span className={styles.contextChip} title={artifact.sourceFileName}>
             <PageIcon />
@@ -636,7 +692,10 @@ export function OfficeChatPanel({
             <span>{titleCase(artifact.kind)}</span>
           </span>
           <span className={styles.contextChip}>
-            <span>Revision {revision.sequence}</span>
+            <span>
+              {t['com.affine.localmind.tasks.approval.revision']()}{' '}
+              {revision.sequence}
+            </span>
           </span>
           {compatibleSelection ? (
             <span className={styles.selectionChip}>
@@ -644,8 +703,12 @@ export function OfficeChatPanel({
               <button
                 type="button"
                 className={styles.clearSelection}
-                aria-label="Remove Office selection from AI context"
-                title="Remove selection from AI context"
+                aria-label={t[
+                  'com.affine.office.remove-office-selection-from-ai-context'
+                ]()}
+                title={t[
+                  'com.affine.office.remove-selection-from-ai-context'
+                ]()}
                 onClick={onClearSelection}
               >
                 <CloseIcon />
@@ -660,8 +723,9 @@ export function OfficeChatPanel({
         ) : null}
         {artifact.kind === 'pdf' ? (
           <div className={styles.pdfBoundary}>
-            PDF is fixed-layout. AI changes are limited to annotations, forms,
-            page operations, signature appearances, and redaction.
+            {t[
+              'com.affine.office.pdf-is-fixed-layout-ai-changes-are-limited-to-annotations-forms-page-operations-signature-appearance'
+            ]()}{' '}
           </div>
         ) : null}
       </section>
@@ -678,7 +742,7 @@ export function OfficeChatPanel({
       ) : (
         <div className={styles.loading}>
           <AiIcon />
-          <span>Loading chat history</span>
+          <span>{t['com.affine.office.loading-chat-history']()}</span>
         </div>
       )}
     </div>

@@ -1,4 +1,5 @@
 import { Avatar, uniReactRoot } from '@affine/component';
+import { useI18n } from '@affine/i18n';
 import {
   createGroupByConfig,
   type GroupRenderProps,
@@ -21,6 +22,7 @@ const MemberPreview = ({
   memberId: string;
   userService: UserService | null | undefined;
 }) => {
+  const i18n = useI18n();
   const userInfo = useMemberInfo(memberId, userService);
   if (!userInfo) {
     return null;
@@ -34,7 +36,9 @@ const MemberPreview = ({
         size={20}
       />
       <div className={memberName}>
-        {userInfo.removed ? 'Deleted user' : userInfo.name || 'Unnamed'}
+        {userInfo.removed
+          ? i18n['com.affine.ui.deleted-user']()
+          : userInfo.name || i18n['com.affine.ui.unnamed']()}
       </div>
     </div>
   );

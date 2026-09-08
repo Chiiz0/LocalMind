@@ -155,13 +155,13 @@ const CustomConfirmButton = ({
     } catch (e) {
       console.error(e);
       notify.error({
-        title: 'Failed to create workspace',
-        message: 'please try again later.',
+        title: t['com.affine.ui.failed-to-create-workspace'](),
+        message: t['com.affine.ui.please-try-again-later'](),
       });
     } finally {
       setLoading(false);
     }
-  }, [loading, onCreated, server, workspaceName, workspacesService]);
+  }, [loading, onCreated, server, workspaceName, workspacesService, t]);
 
   const handleCheckSessionAndConfirm = useCallback(() => {
     if (server && loginStatus !== 'authenticated') {

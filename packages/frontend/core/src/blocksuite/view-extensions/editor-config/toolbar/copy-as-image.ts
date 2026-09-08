@@ -219,7 +219,9 @@ export function copyAsImage(std: BlockStdScope) {
 export function createCopyAsPngMenuItem(framework: FrameworkProvider) {
   return {
     icon: CopyAsImgaeIcon({ width: '20', height: '20' }),
-    label: 'Copy as Image',
+    get label() {
+      return I18n['com.affine.ui.copy-as-image']();
+    },
     type: 'copy-as-image',
     when: (ctx: MenuContext) => {
       if (ctx.isEmpty()) return false;

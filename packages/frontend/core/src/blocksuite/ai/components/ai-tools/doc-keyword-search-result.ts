@@ -1,4 +1,5 @@
 import type { PeekViewService } from '@affine/core/modules/peek-view';
+import { I18n } from '@affine/i18n';
 import { WithDisposable } from '@blocksuite/global/lit';
 import { PageIcon, SearchIcon } from '@blocksuite/icons/lit';
 import { ShadowlessElement } from '@blocksuite/std';
@@ -6,9 +7,8 @@ import type { Signal } from '@preact/signals-core';
 import { html, nothing } from 'lit';
 import { property } from 'lit/decorators.js';
 
-import type { ToolResult } from './tool-result-card';
+import { parseDocSearchResults } from './doc-search-result';
 import { getToolErrorDisplayName, isToolError } from './tool-result-utils';
-import type { ToolError } from './type';
 
 interface DocKeywordSearchToolCall {
   type: 'tool-call';
@@ -22,7 +22,7 @@ interface DocKeywordSearchToolResult {
   toolCallId: string;
   toolName: string;
   args: { query: string };
-  result: Array<{ title: string; docId: string }> | ToolError | null;
+  result: unknown;
 }
 
 export class DocKeywordSearchResult extends WithDisposable(ShadowlessElement) {
@@ -51,7 +51,10 @@ export class DocKeywordSearchResult extends WithDisposable(ShadowlessElement) {
       return nothing;
     }
     const result = this.data.result;
-    if (!result || isToolError(result)) {
+    const parsed = isToolError(result)
+      ? null
+      : parseDocSearchResults(result, 'keyword');
+    if (!parsed) {
       return html`<tool-call-failed
         .name=${getToolErrorDisplayName(
           isToolError(result) ? result : null,
@@ -64,28 +67,30 @@ export class DocKeywordSearchResult extends WithDisposable(ShadowlessElement) {
         .icon=${SearchIcon()}
       ></tool-call-failed>`;
     }
-    let results: ToolResult[] = [];
-    try {
-      results = result.map(item => ({
-        title: item.title,
-        icon: PageIcon(),
-        onClick: () => {
-          this.peekViewService.peekView
-            .open({
-              type: 'doc',
-              docRef: { docId: item.docId },
-            })
-            .catch(console.error);
-        },
-      }));
-    } catch (err) {
-      console.error('Failed to parse result', err);
-    }
     return html`<tool-result-card
-      .name=${`Found ${result.length} pages for "${this.data.args.query}"`}
+      .name=${parsed.scope === 'project'
+        ? I18n.t('com.affine.localmind.project-search.results', {
+            count: parsed.items.length,
+            query: this.data.args.query,
+          })
+        : `Found ${parsed.items.length} pages for "${this.data.args.query}"`}
       .icon=${SearchIcon()}
       .width=${this.width}
-      .results=${results}
+      .results=${parsed.items.map(item => ({
+        title: item.title || I18n.t('Untitled'),
+        icon: PageIcon(),
+        content: item.content,
+        onClick: () => {
+          if (!item.docId) return;
+          if (parsed.scope === 'project' || !this.peekViewService) {
+            this.onOpenDoc?.(item.docId);
+            return;
+          }
+          this.peekViewService.peekView
+            .open({ type: 'doc', docRef: { docId: item.docId } })
+            .catch(console.error);
+        },
+      }))}
     ></tool-result-card>`;
   }
 

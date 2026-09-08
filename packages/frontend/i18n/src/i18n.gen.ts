@@ -36,6 +36,159 @@ function createProxy(initValue: (key: string) => any) {
 }
 export function useAFFiNEI18N(): {
     /**
+      * `Project files found for "{{query}}": {{count}}`
+      */
+    ["com.affine.localmind.project-search.results"](options: Readonly<{
+        query: string;
+        count: string;
+    }>): string;
+    /**
+      * `The file could not be read. Reopen it and try again.`
+      */
+    ["com.affine.localmind.office-tool.readFailed"](): string;
+    /**
+      * `The change request could not be prepared. Check the file and try again.`
+      */
+    ["com.affine.localmind.office-tool.requestFailed"](): string;
+    /**
+      * `Revision {{sequence}}`
+      */
+    ["com.affine.localmind.office-tool.revision"](options: {
+        readonly sequence: string;
+    }): string;
+    /**
+      * `Read revision {{sequence}}`
+      */
+    ["com.affine.localmind.office-tool.read"](options: {
+        readonly sequence: string;
+    }): string;
+    /**
+      * `The file was read successfully.`
+      */
+    ["com.affine.localmind.office-tool.readComplete"](): string;
+    /**
+      * `Part of the file was read. Select a smaller section to read more.`
+      */
+    ["com.affine.localmind.office-tool.readPartial"](): string;
+    /**
+      * `Office change awaiting approval`
+      */
+    ["com.affine.localmind.office-tool.waiting"](): string;
+    /**
+      * `Office change request saved`
+      */
+    ["com.affine.localmind.office-tool.saved"](): string;
+    /**
+      * `Approval required`
+      */
+    ["com.affine.localmind.office-tool.approval"](): string;
+    /**
+      * `Change request`
+      */
+    ["com.affine.localmind.office-tool.request"](): string;
+    /**
+      * `The file has not changed. The request is awaiting approval.`
+      */
+    ["com.affine.localmind.office-tool.notExecuted"](): string;
+    /**
+      * `The change request was saved. Execution is not yet confirmed.`
+      */
+    ["com.affine.localmind.office-tool.pending"](): string;
+    /**
+      * `Change preview`
+      */
+    ["com.affine.localmind.office-tool.preview"](): string;
+    /**
+      * `Local drafts ({{count}})`
+      */
+    ["com.affine.localmind.project-draft.local"](options: {
+        readonly count: string;
+    }): string;
+    /**
+      * `Recover draft`
+      */
+    ["com.affine.localmind.project-draft.recover"](): string;
+    /**
+      * `Earlier draft {{number}}`
+      */
+    ["com.affine.localmind.project-draft.earlier"](options: {
+        readonly number: string;
+    }): string;
+    /**
+      * `Open a copy of this device's draft. If the resource has changed, saving remains blocked until the conflict is resolved.`
+      */
+    ["com.affine.localmind.project-draft.confirm"](): string;
+    /**
+      * `Version {{version}}`
+      */
+    ["com.affine.localmind.project-files.version"](options: {
+        readonly version: string;
+    }): string;
+    /**
+      * `Connection lost. Your draft is kept on this device. Reconnect and retry.`
+      */
+    ["com.affine.localmind.project-error.network"](): string;
+    /**
+      * `You no longer have permission for this action. Contact the project or resource owner.`
+      */
+    ["com.affine.localmind.project-error.permission"](): string;
+    /**
+      * `This resource is unavailable. It may have been deleted or your access may have changed.`
+      */
+    ["com.affine.localmind.project-error.unavailable"](): string;
+    /**
+      * `The resource changed. Your draft is kept on this device. Review the latest version before retrying.`
+      */
+    ["com.affine.localmind.project-error.conflict"](): string;
+    /**
+      * `The action could not be completed. Check your connection, editing permission and the current resource version, then retry.`
+      */
+    ["com.affine.localmind.project-error.failed"](): string;
+    /**
+      * `Project AI is not configured or is disabled.`
+      */
+    ["com.affine.localmind.project-byok.missing"](): string;
+    /**
+      * `Project AI configuration could not be loaded.`
+      */
+    ["com.affine.localmind.project-byok.error"](): string;
+    /**
+      * `Configure Project AI`
+      */
+    ["com.affine.localmind.project-byok.configure"](): string;
+    /**
+      * `Contact your administrator`
+      */
+    ["com.affine.localmind.project-byok.contactAdmin"](): string;
+    /**
+      * `Reject`
+      */
+    ["com.affine.localmind.project-tasks.reject"](): string;
+    /**
+      * `Already handled by {{name}}`
+      */
+    ["com.affine.localmind.project-tasks.alreadyProcessed"](options: {
+        readonly name: string;
+    }): string;
+    /**
+      * `Delete permanently`
+      */
+    ["com.affine.localmind.project-files.permanentlyDelete"](): string;
+    /**
+      * `Permanently delete {{title}} and everything inside it? This cannot be undone. Published copies remain available.`
+      */
+    ["com.affine.localmind.project-files.permanentlyDeleteConfirm"](options: {
+        readonly title: string;
+    }): string;
+    /**
+      * `Waiting for editing to finish`
+      */
+    ["com.affine.localmind.project-tasks.waitingLease"](): string;
+    /**
+      * `Waiting for editing to finish`
+      */
+    ["com.affine.localmind.tasks.status.waiting_lease"](): string;
+    /**
       * `File request`
       */
     ["com.affine.localmind.fileRequest.title"](): string;
@@ -146,42 +299,6 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.fileRequest.tooLarge"](): string;
     /**
-      * `No historical requests`
-      */
-    ["com.affine.localmind.legacy.empty"](): string;
-    /**
-      * `This message exceeds the display limit. Only the first 8,000 characters are shown.`
-      */
-    ["com.affine.localmind.legacy.truncated"](): string;
-    /**
-      * `No historical conversations`
-      */
-    ["com.affine.localmind.legacy.emptyConversations"](): string;
-    /**
-      * `Historical requests and conversations`
-      */
-    ["com.affine.localmind.legacy.title"](): string;
-    /**
-      * `Conversation history`
-      */
-    ["com.affine.localmind.legacy.conversations"](): string;
-    /**
-      * `External result preserved`
-      */
-    ["com.affine.localmind.legacy.external"](): string;
-    /**
-      * `Source authorization needs review`
-      */
-    ["com.affine.localmind.legacy.blocked"](): string;
-    /**
-      * `Pending internal recovery`
-      */
-    ["com.affine.localmind.legacy.pending"](): string;
-    /**
-      * `Restore project draft`
-      */
-    ["com.affine.localmind.legacy.recover"](): string;
-    /**
       * `Read latest source`
       */
     ["com.affine.localmind.source-refresh.title"](): string;
@@ -200,58 +317,6 @@ export function useAFFiNEI18N(): {
       * `Update project copy`
       */
     ["com.affine.localmind.source-refresh.apply"](): string;
-    /**
-      * `Historical imports`
-      */
-    ["com.affine.localmind.migrations.title"](): string;
-    /**
-      * `Historical reference`
-      */
-    ["com.affine.localmind.migrations.source"](): string;
-    /**
-      * `No historical imports`
-      */
-    ["com.affine.localmind.migrations.empty"](): string;
-    /**
-      * `Waiting to import`
-      */
-    ["com.affine.localmind.migrations.pending"](): string;
-    /**
-      * `Importing`
-      */
-    ["com.affine.localmind.migrations.running"](): string;
-    /**
-      * `Source copy permission required`
-      */
-    ["com.affine.localmind.migrations.authorization"](): string;
-    /**
-      * `Import failed; check source access and retry`
-      */
-    ["com.affine.localmind.migrations.failed"](): string;
-    /**
-      * `Imported to Project`
-      */
-    ["com.affine.localmind.migrations.complete"](): string;
-    /**
-      * `Import cancelled`
-      */
-    ["com.affine.localmind.migrations.cancelled"](): string;
-    /**
-      * `Request copy permission`
-      */
-    ["com.affine.localmind.migrations.request"](): string;
-    /**
-      * `Copy permission requested`
-      */
-    ["com.affine.localmind.migrations.permissionPending"](): string;
-    /**
-      * `Copy permission approved; retry import`
-      */
-    ["com.affine.localmind.migrations.permissionApproved"](): string;
-    /**
-      * `Copy permission request was declined`
-      */
-    ["com.affine.localmind.migrations.permissionRejected"](): string;
     /**
       * `Workspace publications`
       */
@@ -441,6 +506,50 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.project-files.upload"](): string;
     /**
+      * `This action could not be completed. Check your access and connection, then try again.`
+      */
+    ["com.affine.localmind.project-files.operationFailed"](): string;
+    /**
+      * `Queued`
+      */
+    ["com.affine.localmind.project-files.upload.queued"](): string;
+    /**
+      * `Uploading`
+      */
+    ["com.affine.localmind.project-files.upload.uploading"](): string;
+    /**
+      * `Processing`
+      */
+    ["com.affine.localmind.project-files.upload.processing"](): string;
+    /**
+      * `Uploaded`
+      */
+    ["com.affine.localmind.project-files.upload.completed"](): string;
+    /**
+      * `Upload failed`
+      */
+    ["com.affine.localmind.project-files.upload.failed"](): string;
+    /**
+      * `Expand resource`
+      */
+    ["com.affine.localmind.project-files.fullscreen"](): string;
+    /**
+      * `Show chat alongside`
+      */
+    ["com.affine.localmind.project-files.exitFullscreen"](): string;
+    /**
+      * `Discard changes`
+      */
+    ["com.affine.localmind.project-files.discard"](): string;
+    /**
+      * `Save changes before closing?`
+      */
+    ["com.affine.localmind.project-files.unsavedConfirm"](): string;
+    /**
+      * `There are changes that have not been saved to this project.`
+      */
+    ["com.affine.localmind.project-files.unsavedDescription"](): string;
+    /**
       * `Trash`
       */
     ["com.affine.localmind.project-files.trash"](): string;
@@ -548,6 +657,203 @@ export function useAFFiNEI18N(): {
       * `Search this folder`
       */
     ["com.affine.localmind.project-files.search"](): string;
+    /**
+      * `Folder`
+      */
+    ["com.affine.localmind.workspace-import.kind.folder"](): string;
+    /**
+      * `Document`
+      */
+    ["com.affine.localmind.workspace-import.kind.page"](): string;
+    /**
+      * `Canvas`
+      */
+    ["com.affine.localmind.workspace-import.kind.edgeless"](): string;
+    /**
+      * `File`
+      */
+    ["com.affine.localmind.workspace-import.kind.file"](): string;
+    /**
+      * `Word document`
+      */
+    ["com.affine.localmind.workspace-import.kind.document"](): string;
+    /**
+      * `Spreadsheet`
+      */
+    ["com.affine.localmind.workspace-import.kind.workbook"](): string;
+    /**
+      * `Presentation`
+      */
+    ["com.affine.localmind.workspace-import.kind.presentation"](): string;
+    /**
+      * `PDF`
+      */
+    ["com.affine.localmind.workspace-import.kind.pdf"](): string;
+    /**
+      * `Import from workspace`
+      */
+    ["com.affine.localmind.workspace-import.title"](): string;
+    /**
+      * `Import steps`
+      */
+    ["com.affine.localmind.workspace-import.steps"](): string;
+    /**
+      * `Choose workspace`
+      */
+    ["com.affine.localmind.workspace-import.workspace"](): string;
+    /**
+      * `Choose file`
+      */
+    ["com.affine.localmind.workspace-import.file"](): string;
+    /**
+      * `Only workspaces and files you can view are shown. A copy will be saved in the current Project folder.`
+      */
+    ["com.affine.localmind.workspace-import.scope"](): string;
+    /**
+      * `Search workspace files`
+      */
+    ["com.affine.localmind.workspace-import.search"](): string;
+    /**
+      * `Could not load this list. Retry to check your current access.`
+      */
+    ["com.affine.localmind.workspace-import.loadFailed"](): string;
+    /**
+      * `No selectable files on this page. Try another search or continue to the next page.`
+      */
+    ["com.affine.localmind.workspace-import.noFiles"](): string;
+    /**
+      * `No accessible workspaces on this page. Check that you have joined the workspace.`
+      */
+    ["com.affine.localmind.workspace-import.noWorkspaces"](): string;
+    /**
+      * `Ready to import`
+      */
+    ["com.affine.localmind.workspace-import.direct"](): string;
+    /**
+      * `Sharing approval required`
+      */
+    ["com.affine.localmind.workspace-import.approval"](): string;
+    /**
+      * `Copying is disabled by source policy`
+      */
+    ["com.affine.localmind.workspace-import.blocked"](): string;
+    /**
+      * `The Project will own an independent copy that members can edit. Changes will not update the source file.`
+      */
+    ["com.affine.localmind.workspace-import.copyHint"](): string;
+    /**
+      * `A notification will ask an authorized approver for permission. The Project Todo will wait for approval, then import an independent copy automatically. Approval cannot be withdrawn.`
+      */
+    ["com.affine.localmind.workspace-import.approvalHint"](): string;
+    /**
+      * `Request approval to import`
+      */
+    ["com.affine.localmind.workspace-import.request"](): string;
+    /**
+      * `Import file`
+      */
+    ["com.affine.localmind.workspace-import.import"](): string;
+    /**
+      * `Next page`
+      */
+    ["com.affine.localmind.workspace-import.next"](): string;
+    /**
+      * `Could not submit. Retry, or reselect the file if permissions changed. Retrying will not create duplicate copies.`
+      */
+    ["com.affine.localmind.workspace-import.submitFailed"](): string;
+    /**
+      * `Approval requested. The file will import automatically after approval.`
+      */
+    ["com.affine.localmind.workspace-import.requested"](): string;
+    /**
+      * `Import queued. You can continue working in the Project.`
+      */
+    ["com.affine.localmind.workspace-import.queued"](): string;
+    /**
+      * `Waiting for sharing approval`
+      */
+    ["com.affine.localmind.workspace-import.waiting"](): string;
+    /**
+      * `Importing`
+      */
+    ["com.affine.localmind.workspace-import.processing"](): string;
+    /**
+      * `Imported`
+      */
+    ["com.affine.localmind.workspace-import.completed"](): string;
+    /**
+      * `Import failed`
+      */
+    ["com.affine.localmind.workspace-import.failed"](): string;
+    /**
+      * `Not imported`
+      */
+    ["com.affine.localmind.workspace-import.cancelled"](): string;
+    /**
+      * `Cannot retry yet. Check source read and sharing permissions, and the destination folder.`
+      */
+    ["com.affine.localmind.workspace-import.retryFailed"](): string;
+    /**
+      * `Could not load import status. Refreshing will not repeat the import.`
+      */
+    ["com.affine.localmind.workspace-import.statusFailed"](): string;
+    /**
+      * `Import history`
+      */
+    ["com.affine.localmind.workspace-import.history"](): string;
+    /**
+      * `Open file`
+      */
+    ["com.affine.localmind.workspace-import.open"](): string;
+    /**
+      * `If an import fails, check source permissions, file availability and the destination folder, then retry the task. Retries will not duplicate the copy.`
+      */
+    ["com.affine.localmind.workspace-import.failureHint"](): string;
+    /**
+      * `{{count}} of {{limit}} files selected`
+      */
+    ["com.affine.localmind.project-files.selectionCount"](options: Readonly<{
+        count: string;
+        limit: string;
+    }>): string;
+    /**
+      * `Opening in read-only mode while checking edit access...`
+      */
+    ["com.affine.localmind.project-lease.acquiring"](): string;
+    /**
+      * `{{name}} is editing. This resource is read-only.`
+      */
+    ["com.affine.localmind.project-lease.heldBy"](options: {
+        readonly name: string;
+    }): string;
+    /**
+      * `An AI task is writing. This resource is read-only.`
+      */
+    ["com.affine.localmind.project-lease.aiWriting"](): string;
+    /**
+      * `Notify me when editing ends`
+      */
+    ["com.affine.localmind.project-lease.notify"](): string;
+    /**
+      * `Editing has ended. You can now request edit access.`
+      */
+    ["com.affine.localmind.project-lease.available"](): string;
+    /**
+      * `Start editing`
+      */
+    ["com.affine.localmind.project-lease.edit"](): string;
+    /**
+      * `Could not confirm edit access. Check your connection and retry.`
+      */
+    ["com.affine.localmind.project-lease.failed"](): string;
+    /**
+      * `Edit access has ended. Your unsaved changes are retained.`
+      */
+    ["com.affine.localmind.project-lease.lost"](): string;
+    /**
+      * `Project access has changed. Contact a project member.`
+      */
+    ["com.affine.localmind.project-lease.accessLost"](): string;
     /**
       * `Parent folder`
       */
@@ -2523,9 +2829,9 @@ export function useAFFiNEI18N(): {
     ["com.affine.delete-tags.confirm.title"](): string;
     /**
       * `{{count}} tag deleted`
-    
+
       * - com.affine.delete-tags.count_one: `{{count}} tag deleted`
-    
+
       * - com.affine.delete-tags.count_other: `{{count}} tags deleted`
       */
     ["com.affine.delete-tags.count"](options: {
@@ -7870,11 +8176,11 @@ export function useAFFiNEI18N(): {
     ["com.affine.syncing"](): string;
     /**
       * `{{count}} doc`
-    
+
       * - com.affine.tags.count_one: `{{count}} doc`
-    
+
       * - com.affine.tags.count_other: `{{count}} docs`
-    
+
       * - com.affine.tags.count_zero: `{{count}} doc`
       */
     ["com.affine.tags.count"](options: {
@@ -8597,6 +8903,10 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.workbench.projects.all"](): string;
     /**
+      * `No projects yet`
+      */
+    ["com.affine.localmind.workbench.projects.emptyTitle"](): string;
+    /**
       * `Create a project to collect documents, tasks, and conversations.`
       */
     ["com.affine.localmind.workbench.projects.empty"](): string;
@@ -8612,18 +8922,6 @@ export function useAFFiNEI18N(): {
       * `Project actions`
       */
     ["com.affine.localmind.workbench.project.actions"](): string;
-    /**
-      * `Add documents`
-      */
-    ["com.affine.localmind.workbench.project.addDocument"](): string;
-    /**
-      * `Add with read access`
-      */
-    ["com.affine.localmind.workbench.project.addDocument.read"](): string;
-    /**
-      * `Add with write access`
-      */
-    ["com.affine.localmind.workbench.project.addDocument.write"](): string;
     /**
       * `Project access and members`
       */
@@ -9126,7 +9424,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.workbench.closePreview"](): string;
     /**
-      * `Request read access`
+      * `Request copy to project`
       */
     ["com.affine.localmind.accessRequest.request"](): string;
     /**
@@ -9138,7 +9436,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.accessRequest.failed"](): string;
     /**
-      * `Projects with access`
+      * `Project copy permissions`
       */
     ["com.affine.localmind.share.projectAccess.title"](): string;
     /**
@@ -9146,11 +9444,11 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.share.projectAccess.requests"](): string;
     /**
-      * `Active project grants`
+      * `Approved projects`
       */
     ["com.affine.localmind.share.projectAccess.grants"](): string;
     /**
-      * `Project access request`
+      * `Project copy request`
       */
     ["com.affine.localmind.share.projectAccess.projectRequest"](): string;
     /**
@@ -9192,7 +9490,7 @@ export function useAFFiNEI18N(): {
         time: string;
     }>): string;
     /**
-      * `No project currently has access.`
+      * `No project copy permissions have been approved.`
       */
     ["com.affine.localmind.share.projectAccess.empty"](): string;
     /**
@@ -9211,24 +9509,6 @@ export function useAFFiNEI18N(): {
       * `Access rejected`
       */
     ["com.affine.localmind.share.projectAccess.rejected"](): string;
-    /**
-      * `Revoke`
-      */
-    ["com.affine.localmind.share.projectAccess.revoke"](): string;
-    /**
-      * `Revoke this project grant?`
-      */
-    ["com.affine.localmind.share.projectAccess.revokeConfirm"](): string;
-    /**
-      * `{{project}} will immediately lose this document and its derived memory.`
-      */
-    ["com.affine.localmind.share.projectAccess.revokeDescription"](options: {
-        readonly project: string;
-    }): string;
-    /**
-      * `Project access revoked`
-      */
-    ["com.affine.localmind.share.projectAccess.revoked"](): string;
     /**
       * `Could not update project access`
       */
@@ -11701,7 +11981,7 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.localmind.accessNotification.personal"](): string;
     /**
-      * `Requested permission: {{level}}. Approving grants access to the entire Project {{project}}, including all its members.`
+      * `Requested permission: {{level}}. Approving allows a copy in Project {{project}} that all its members can access. Approval cannot be withdrawn; the Project manages the independent copy.`
       */
     ["com.affine.localmind.accessNotification.projectConfirmation"](options: Readonly<{
         level: string;
@@ -12414,6 +12694,6326 @@ export function useAFFiNEI18N(): {
       * `Directory permissions are available to active workspace owners and administrators in synced workspaces.`
       */
     ["com.affine.localmind.directoryPermissions.unavailable"](): string;
+    /**
+      * `Optional for local endpoints`
+      */
+    ["com.affine.admin.optional-for-local-endpoints"](): string;
+    /**
+      * `Office task revision sequence evidence does not match.`
+      */
+    ["com.affine.office.office-task-revision-sequence-evidence-does-not-match"](): string;
+    /**
+      * `Prepared route available`
+      */
+    ["com.affine.ui.prepared-route-available"](): string;
+    /**
+      * `Create User`
+      */
+    ["com.affine.admin.create-user"](): string;
+    /**
+      * `No step behavior flag pairs`
+      */
+    ["com.affine.admin.no-step-behavior-flag-pairs"](): string;
+    /**
+      * `Run, workflow, source, failure, lease, or fingerprint`
+      */
+    ["com.affine.admin.run-workflow-source-failure-lease-or-fingerprint"](): string;
+    /**
+      * `Provider secrets stay encrypted on the server and are never copied to user records.`
+      */
+    ["com.affine.admin.provider-secrets-stay-encrypted-on-the-server-and-are-never-copied-to-user-records"](): string;
+    /**
+      * `Changes to this workspace will not be saved.`
+      */
+    ["com.affine.admin.changes-to-this-workspace-will-not-be-saved"](): string;
+    /**
+      * `Registry unavailable`
+      */
+    ["com.affine.ui.registry-unavailable"](): string;
+    /**
+      * `Repair execution request error`
+      */
+    ["com.affine.admin.repair-execution-request-error"](): string;
+    /**
+      * `Rectangle`
+      */
+    ["com.affine.office.rectangle"](): string;
+    /**
+      * `Request`
+      */
+    ["com.affine.admin.request"](): string;
+    /**
+      * `Attachment source not supported`
+      */
+    ["com.affine.ui.attachment-source-not-supported"](): string;
+    /**
+      * `No step dimension evidence`
+      */
+    ["com.affine.admin.no-step-dimension-evidence"](): string;
+    /**
+      * `{{count}} page`
+      */
+    ["com.affine.office.page-count_one"](options: {
+        readonly count: (string | number | bigint) & (string | number | bigint);
+    }): string;
+    /**
+      * `Text {{name}} ({{start}}–{{end}})`
+      */
+    ["com.affine.office.text-range"](options: Readonly<{
+        name: string;
+        start: string;
+        end: string;
+    }>): string;
+    /**
+      * `Copy as Image`
+      */
+    ["com.affine.ui.copy-as-image"](): string;
+    /**
+      * `Could not reload Project BYOK.`
+      */
+    ["com.affine.admin.could-not-reload-project-byok"](): string;
+    /**
+      * `A matched candidate did not appear in the prepared route list.`
+      */
+    ["com.affine.ui.a-matched-candidate-did-not-appear-in-the-prepared-route-list"](): string;
+    /**
+      * `All runs`
+      */
+    ["com.affine.admin.all-runs"](): string;
+    /**
+      * `{{operation}} saved in revision {{version}}`
+      */
+    ["com.affine.office.operation-saved"](options: Readonly<{
+        operation: string;
+        version: string;
+    }>): string;
+    /**
+      * `Page width (pt)`
+      */
+    ["com.affine.office.page-width-pt"](): string;
+    /**
+      * `Write a blog post about this`
+      */
+    ["com.affine.ai.action-label.write-a-blog-post-about-this"](): string;
+    /**
+      * `New shape type`
+      */
+    ["com.affine.office.new-shape-type"](): string;
+    /**
+      * `Last used`
+      */
+    ["com.affine.admin.last-used"](): string;
+    /**
+      * `Registry selected`
+      */
+    ["com.affine.ui.registry-selected"](): string;
+    /**
+      * `No members or invitations.`
+      */
+    ["com.affine.admin.no-members-or-invitations"](): string;
+    /**
+      * `AI disabled`
+      */
+    ["com.affine.admin.ai-disabled"](): string;
+    /**
+      * `Series`
+      */
+    ["com.affine.office.series"](): string;
+    /**
+      * `Agent runtime run status gaps none`
+      */
+    ["com.affine.admin.agent-runtime-run-status-gaps-none"](): string;
+    /**
+      * `Choose image`
+      */
+    ["com.affine.office.choose-image"](): string;
+    /**
+      * `Select an option`
+      */
+    ["com.affine.admin.select-an-option"](): string;
+    /**
+      * `Built-in default`
+      */
+    ["com.affine.admin.built-in-default"](): string;
+    /**
+      * `Started`
+      */
+    ["com.affine.admin.started"](): string;
+    /**
+      * `Provider credentials`
+      */
+    ["com.affine.admin.provider-credentials"](): string;
+    /**
+      * `Go to Workspaces`
+      */
+    ["com.affine.admin.go-to-workspaces"](): string;
+    /**
+      * `No`
+      */
+    ["com.affine.admin.no"](): string;
+    /**
+      * `Delete shape`
+      */
+    ["com.affine.office.delete-shape"](): string;
+    /**
+      * `Keep saved key`
+      */
+    ["com.affine.admin.keep-saved-key"](): string;
+    /**
+      * `Network not available`
+      */
+    ["com.affine.ui.network-not-available"](): string;
+    /**
+      * `Allowed providers, blocked providers, workspace policy, and feature policy.`
+      */
+    ["com.affine.ui.allowed-providers-blocked-providers-workspace-policy-and-feature-policy"](): string;
+    /**
+      * `Default AI Profile`
+      */
+    ["com.affine.admin.default-ai-profile"](): string;
+    /**
+      * `Allowed privacy Any`
+      */
+    ["com.affine.admin.allowed-privacy-any"](): string;
+    /**
+      * `Prompt`
+      */
+    ["com.affine.admin.prompt"](): string;
+    /**
+      * `Coming soon...`
+      */
+    ["com.affine.ui.coming-soon"](): string;
+    /**
+      * `Ledger`
+      */
+    ["com.affine.admin.ledger"](): string;
+    /**
+      * `Load error`
+      */
+    ["com.affine.ui.load-error"](): string;
+    /**
+      * `Profile model matched`
+      */
+    ["com.affine.ui.profile-model-matched"](): string;
+    /**
+      * `Immutable Office revisions`
+      */
+    ["com.affine.office.immutable-office-revisions"](): string;
+    /**
+      * `Route reasons`
+      */
+    ["com.affine.admin.route-reasons"](): string;
+    /**
+      * `Size`
+      */
+    ["com.affine.office.size"](): string;
+    /**
+      * `Loading chat history`
+      */
+    ["com.affine.office.loading-chat-history"](): string;
+    /**
+      * `Recommendation`
+      */
+    ["com.affine.admin.recommendation"](): string;
+    /**
+      * `animated`
+      */
+    ["com.affine.office.animated"](): string;
+    /**
+      * `The matched candidate produced a prepared native route.`
+      */
+    ["com.affine.ui.the-matched-candidate-produced-a-prepared-native-route"](): string;
+    /**
+      * `Download native Office file`
+      */
+    ["com.affine.office.download-native-office-file"](): string;
+    /**
+      * `Column width`
+      */
+    ["com.affine.office.column-width"](): string;
+    /**
+      * `Leave blank to keep the current key`
+      */
+    ["com.affine.admin.leave-blank-to-keep-the-current-key"](): string;
+    /**
+      * `Select template`
+      */
+    ["com.affine.ai.action-label.select-template"](): string;
+    /**
+      * `No Office AI changes yet`
+      */
+    ["com.affine.office.no-office-ai-changes-yet"](): string;
+    /**
+      * `Primary`
+      */
+    ["com.affine.admin.primary"](): string;
+    /**
+      * `Free text`
+      */
+    ["com.affine.office.annotation-type.FreeText"](): string;
+    /**
+      * `Width (pt)`
+      */
+    ["com.affine.office.width-pt"](): string;
+    /**
+      * `Global Project BYOK`
+      */
+    ["com.affine.admin.global-project-byok"](): string;
+    /**
+      * `Latest control`
+      */
+    ["com.affine.admin.latest-control"](): string;
+    /**
+      * `Select a shape on the slide.`
+      */
+    ["com.affine.office.select-a-shape-on-the-slide"](): string;
+    /**
+      * `Model registry`
+      */
+    ["com.affine.ui.model-registry"](): string;
+    /**
+      * `Action run route trace`
+      */
+    ["com.affine.admin.action-run-route-trace"](): string;
+    /**
+      * `Copilot storage`
+      */
+    ["com.affine.admin.copilot-storage"](): string;
+    /**
+      * `Provider profiles`
+      */
+    ["com.affine.ui.provider-profiles"](): string;
+    /**
+      * `Edited Content`
+      */
+    ["com.affine.ai.action-label.edited-content"](): string;
+    /**
+      * `Failed to process file`
+      */
+    ["com.affine.admin.failed-to-process-file"](): string;
+    /**
+      * `Import cancelled`
+      */
+    ["com.affine.ui.import-cancelled"](): string;
+    /**
+      * `These revisions have the same native semantic state.`
+      */
+    ["com.affine.office.these-revisions-have-the-same-native-semantic-state"](): string;
+    /**
+      * `Make it real`
+      */
+    ["com.affine.ai.action-label.make-it-real"](): string;
+    /**
+      * `Optional compatible endpoint`
+      */
+    ["com.affine.admin.optional-compatible-endpoint"](): string;
+    /**
+      * `Actions`
+      */
+    ["com.affine.admin.actions"](): string;
+    /**
+      * `Capability mismatch`
+      */
+    ["com.affine.ui.capability-mismatch"](): string;
+    /**
+      * `Selection removed from AI context.`
+      */
+    ["com.affine.office.selection-removed-from-ai-context"](): string;
+    /**
+      * `Step`
+      */
+    ["com.affine.admin.step"](): string;
+    /**
+      * `Workspace options:`
+      */
+    ["com.affine.admin.workspace-options"](): string;
+    /**
+      * `Verify and save`
+      */
+    ["com.affine.admin.verify-and-save"](): string;
+    /**
+      * `OpenAI-compatible base URL is required when an API key is set.`
+      */
+    ["com.affine.admin.openai-compatible-base-url-is-required-when-an-api-key-is-set"](): string;
+    /**
+      * `Repair execution approval decision error`
+      */
+    ["com.affine.admin.repair-execution-approval-decision-error"](): string;
+    /**
+      * `Categories`
+      */
+    ["com.affine.office.categories"](): string;
+    /**
+      * `Allowed tool names`
+      */
+    ["com.affine.admin.allowed-tool-names"](): string;
+    /**
+      * ` / disabled`
+      */
+    ["com.affine.admin.disabled"](): string;
+    /**
+      * `Review`
+      */
+    ["com.affine.office.review"](): string;
+    /**
+      * `Changes will not be saved.`
+      */
+    ["com.affine.admin.changes-will-not-be-saved"](): string;
+    /**
+      * `OpenAI-compatible`
+      */
+    ["com.affine.admin.openai-compatible"](): string;
+    /**
+      * `Signing key deleted`
+      */
+    ["com.affine.admin.signing-key-deleted"](): string;
+    /**
+      * `Agent runtime timeline entries none`
+      */
+    ["com.affine.admin.agent-runtime-timeline-entries-none"](): string;
+    /**
+      * `Failed to import users`
+      */
+    ["com.affine.admin.failed-to-import-users"](): string;
+    /**
+      * `All categories`
+      */
+    ["com.affine.admin.all-categories"](): string;
+    /**
+      * `blocking`
+      */
+    ["com.affine.admin.blocking-2"](): string;
+    /**
+      * `AI configuration is up to date`
+      */
+    ["com.affine.admin.ai-configuration-is-up-to-date"](): string;
+    /**
+      * `Regenerate mind map`
+      */
+    ["com.affine.ai.action-label.regenerate-mind-map"](): string;
+    /**
+      * `No request layers`
+      */
+    ["com.affine.admin.no-request-layers"](): string;
+    /**
+      * `PDF page {{number}}, {{count}} annotations`
+      */
+    ["com.affine.office.pdf-page-label_other"](options: Readonly<{
+        number: (string & string) & string;
+        count: (string | number | bigint) & (string | number | bigint);
+    }>): string;
+    /**
+      * `Reject execution`
+      */
+    ["com.affine.admin.reject-execution"](): string;
+    /**
+      * `password strength`
+      */
+    ["com.affine.ui.password-strength"](): string;
+    /**
+      * `Copied to clipboard.`
+      */
+    ["com.affine.ui.copied-to-clipboard-2"](): string;
+    /**
+      * `Paste an action run id`
+      */
+    ["com.affine.admin.paste-an-action-run-id"](): string;
+    /**
+      * `The sanitized prepare error category points to model or alias resolution.`
+      */
+    ["com.affine.ui.the-sanitized-prepare-error-category-points-to-model-or-alias-resolution"](): string;
+    /**
+      * `Logged out successfully`
+      */
+    ["com.affine.admin.logged-out-successfully"](): string;
+    /**
+      * `From revision`
+      */
+    ["com.affine.office.from-revision"](): string;
+    /**
+      * `Upgrade to Pro`
+      */
+    ["com.affine.ui.upgrade-to-pro"](): string;
+    /**
+      * `Return to latest Office revision v{{version}}`
+      */
+    ["com.affine.office.return-latest"](options: {
+        readonly version: string;
+    }): string;
+    /**
+      * `Form fields`
+      */
+    ["com.affine.office.form-fields"](): string;
+    /**
+      * `Agent runtime target timeline event types none`
+      */
+    ["com.affine.admin.agent-runtime-target-timeline-event-types-none"](): string;
+    /**
+      * `PDF pages`
+      */
+    ["com.affine.office.pdf-pages"](): string;
+    /**
+      * `Repair execution request`
+      */
+    ["com.affine.admin.repair-execution-request"](): string;
+    /**
+      * `Rotate key`
+      */
+    ["com.affine.admin.rotate-key"](): string;
+    /**
+      * `Output not supported`
+      */
+    ["com.affine.ui.output-not-supported"](): string;
+    /**
+      * `Cannot pin a chat while generating an answer`
+      */
+    ["com.affine.ui.cannot-pin-a-chat-while-generating-an-answer"](): string;
+    /**
+      * `Search PDF`
+      */
+    ["com.affine.office.search-pdf"](): string;
+    /**
+      * `Enable workspace BYOK`
+      */
+    ["com.affine.admin.enable-workspace-byok"](): string;
+    /**
+      * `Heading 2`
+      */
+    ["com.affine.office.heading-2"](): string;
+    /**
+      * `Enabled`
+      */
+    ["com.affine.admin.enabled"](): string;
+    /**
+      * `Save as block`
+      */
+    ["com.affine.ui.save-as-block"](): string;
+    /**
+      * `Test connection`
+      */
+    ["com.affine.admin.test-connection"](): string;
+    /**
+      * `Rotate signing key?`
+      */
+    ["com.affine.admin.rotate-signing-key"](): string;
+    /**
+      * `Add User`
+      */
+    ["com.affine.admin.add-user"](): string;
+    /**
+      * `Repair gate manifest artifact`
+      */
+    ["com.affine.admin.repair-gate-manifest-artifact"](): string;
+    /**
+      * `No requested model sources`
+      */
+    ["com.affine.admin.no-requested-model-sources"](): string;
+    /**
+      * `Account created successfully`
+      */
+    ["com.affine.admin.account-created-successfully"](): string;
+    /**
+      * `Insert rows`
+      */
+    ["com.affine.office.insert-rows"](): string;
+    /**
+      * `Failed to create workspace`
+      */
+    ["com.affine.ui.failed-to-create-workspace"](): string;
+    /**
+      * `More`
+      */
+    ["com.affine.admin.more"](): string;
+    /**
+      * `Agent runtime target schema components none`
+      */
+    ["com.affine.admin.agent-runtime-target-schema-components-none"](): string;
+    /**
+      * `Copy manifest metadata`
+      */
+    ["com.affine.admin.copy-manifest-metadata"](): string;
+    /**
+      * `Department routing policy or ownership notes`
+      */
+    ["com.affine.admin.department-routing-policy-or-ownership-notes"](): string;
+    /**
+      * `AI chat block`
+      */
+    ["com.affine.ai.action-label.ai-chat-block"](): string;
+    /**
+      * `Heading 3`
+      */
+    ["com.affine.office.heading-3"](): string;
+    /**
+      * `The provider privacy class matches a preferred route policy.`
+      */
+    ["com.affine.ui.the-provider-privacy-class-matches-a-preferred-route-policy"](): string;
+    /**
+      * `Paragraph style`
+      */
+    ["com.affine.office.paragraph-style"](): string;
+    /**
+      * `copilot.prompts.defaults: text, structured, image, and transcript default model policies.`
+      */
+    ["com.affine.admin.copilot-prompts-defaults-text-structured-image-and-transcript-default-model-policies"](): string;
+    /**
+      * `Model ID`
+      */
+    ["com.affine.admin.model-id"](): string;
+    /**
+      * `The maximum size per file is 100MB`
+      */
+    ["com.affine.ui.the-maximum-size-per-file-is-100mb"](): string;
+    /**
+      * `Reload Project BYOK`
+      */
+    ["com.affine.admin.reload-project-byok"](): string;
+    /**
+      * `No Selection`
+      */
+    ["com.affine.ui.no-selection"](): string;
+    /**
+      * `Please send this recovery link to the user and instruct them to complete it.`
+      */
+    ["com.affine.admin.please-send-this-recovery-link-to-the-user-and-instruct-them-to-complete-it"](): string;
+    /**
+      * `Discard the AI result`
+      */
+    ["com.affine.ui.discard-the-ai-result"](): string;
+    /**
+      * `Simplified Chinese`
+      */
+    ["com.affine.ai.action-label.simplified-chinese"](): string;
+    /**
+      * `Prompt default unavailable`
+      */
+    ["com.affine.ui.prompt-default-unavailable"](): string;
+    /**
+      * `Get Started`
+      */
+    ["com.affine.ui.get-started"](): string;
+    /**
+      * `Lets instance administrators assign approved server credentials to department workspaces.`
+      */
+    ["com.affine.admin.lets-instance-administrators-assign-approved-server-credentials-to-department-workspaces"](): string;
+    /**
+      * `Requested`
+      */
+    ["com.affine.admin.requested"](): string;
+    /**
+      * `selected`
+      */
+    ["com.affine.ui.selected"](): string;
+    /**
+      * `Go to first page`
+      */
+    ["com.affine.admin.go-to-first-page"](): string;
+    /**
+      * `Successfully imported a native Office document.`
+      */
+    ["com.affine.ui.successfully-imported-a-native-office-document"](): string;
+    /**
+      * `Page deletion`
+      */
+    ["com.affine.office.page-deletion"](): string;
+    /**
+      * `Refreshing`
+      */
+    ["com.affine.admin.refreshing"](): string;
+    /**
+      * `Document pages`
+      */
+    ["com.affine.office.document-pages"](): string;
+    /**
+      * `Agent Runtime run status`
+      */
+    ["com.affine.admin.agent-runtime-run-status"](): string;
+    /**
+      * `Save cell`
+      */
+    ["com.affine.office.save-cell"](): string;
+    /**
+      * `Unsplash key`
+      */
+    ["com.affine.admin.unsplash-key"](): string;
+    /**
+      * `Gate remediations`
+      */
+    ["com.affine.admin.gate-remediations"](): string;
+    /**
+      * `Issued At`
+      */
+    ["com.affine.admin.issued-at"](): string;
+    /**
+      * `AI enabled`
+      */
+    ["com.affine.admin.ai-enabled"](): string;
+    /**
+      * `unchanged`
+      */
+    ["com.affine.office.unchanged"](): string;
+    /**
+      * `License Ends At`
+      */
+    ["com.affine.admin.license-ends-at"](): string;
+    /**
+      * `Prompt default model, default policy, category defaults, overrides, and prompt catalog metadata.`
+      */
+    ["com.affine.ui.prompt-default-model-default-policy-category-defaults-overrides-and-prompt-catalog-metadata"](): string;
+    /**
+      * `Input color`
+      */
+    ["com.affine.ui.input-color"](): string;
+    /**
+      * `Provider runtime unavailable`
+      */
+    ["com.affine.ui.provider-runtime-unavailable"](): string;
+    /**
+      * `step`
+      */
+    ["com.affine.admin.step-2"](): string;
+    /**
+      * `Merge`
+      */
+    ["com.affine.office.merge"](): string;
+    /**
+      * `Move worksheet right`
+      */
+    ["com.affine.office.move-worksheet-right"](): string;
+    /**
+      * `Prompt and task models`
+      */
+    ["com.affine.admin.prompt-and-task-models"](): string;
+    /**
+      * `Check code error`
+      */
+    ["com.affine.ai.action-label.check-code-error"](): string;
+    /**
+      * `No search matches`
+      */
+    ["com.affine.office.no-search-matches"](): string;
+    /**
+      * `No canonical model keys`
+      */
+    ["com.affine.admin.no-canonical-model-keys"](): string;
+    /**
+      * `Revision fingerprint`
+      */
+    ["com.affine.admin.revision-fingerprint"](): string;
+    /**
+      * `Phase trace`
+      */
+    ["com.affine.admin.phase-trace"](): string;
+    /**
+      * `Select a workspace scope before viewing repair executions.`
+      */
+    ["com.affine.admin.select-a-workspace-scope-before-viewing-repair-executions"](): string;
+    /**
+      * `Page {{number}} / {{name}}`
+      */
+    ["com.affine.office.page-annotation"](options: Readonly<{
+        number: string;
+        name: string;
+    }>): string;
+    /**
+      * `Select a workspace scope before viewing Agent Runtime runs.`
+      */
+    ["com.affine.admin.select-a-workspace-scope-before-viewing-agent-runtime-runs"](): string;
+    /**
+      * `Recent changes`
+      */
+    ["com.affine.admin.recent-changes"](): string;
+    /**
+      * `Agent runtime timeline gaps none`
+      */
+    ["com.affine.admin.agent-runtime-timeline-gaps-none"](): string;
+    /**
+      * `No prepared route trace`
+      */
+    ["com.affine.admin.no-prepared-route-trace"](): string;
+    /**
+      * `Capability matched`
+      */
+    ["com.affine.ui.capability-matched"](): string;
+    /**
+      * `AI outputs can be misleading or wrong`
+      */
+    ["com.affine.ai.action-label.ai-outputs-can-be-misleading-or-wrong"](): string;
+    /**
+      * `Failed to unpin the chat`
+      */
+    ["com.affine.ui.failed-to-unpin-the-chat"](): string;
+    /**
+      * `Document not found`
+      */
+    ["com.affine.office.document-not-found"](): string;
+    /**
+      * `The provider model does not support the requested input type.`
+      */
+    ["com.affine.ui.the-provider-model-does-not-support-the-requested-input-type"](): string;
+    /**
+      * `Copied link to clipboard`
+      */
+    ["com.affine.ui.copied-link-to-clipboard"](): string;
+    /**
+      * `Test route`
+      */
+    ["com.affine.admin.test-route"](): string;
+    /**
+      * `Download manifest metadata JSON`
+      */
+    ["com.affine.admin.download-manifest-metadata-json"](): string;
+    /**
+      * `Page height (pt)`
+      */
+    ["com.affine.office.page-height-pt"](): string;
+    /**
+      * `settings`
+      */
+    ["com.affine.admin.settings"](): string;
+    /**
+      * `Failed to disable user: `
+      */
+    ["com.affine.admin.failed-to-disable-user"](): string;
+    /**
+      * `Enter an action run ID or select a recent run to inspect prepared route diagnostics.`
+      */
+    ["com.affine.admin.enter-an-action-run-id-or-select-a-recent-run-to-inspect-prepared-route-diagnostics"](): string;
+    /**
+      * `Prompt registry`
+      */
+    ["com.affine.ui.prompt-registry"](): string;
+    /**
+      * `Runtime metadata`
+      */
+    ["com.affine.admin.runtime-metadata"](): string;
+    /**
+      * `Worksheet deletion`
+      */
+    ["com.affine.office.worksheet-deletion"](): string;
+    /**
+      * `Cost`
+      */
+    ["com.affine.admin.cost"](): string;
+    /**
+      * `Update failed. Reload the settings and check the provider connection.`
+      */
+    ["com.affine.admin.update-failed-reload-the-settings-and-check-the-provider-connection"](): string;
+    /**
+      * `Office task revision evidence could not be verified.`
+      */
+    ["com.affine.office.office-task-revision-evidence-could-not-be-verified"](): string;
+    /**
+      * `go forward`
+      */
+    ["com.affine.ui.go-forward"](): string;
+    /**
+      * `Provider, revision, request, profile, or result fingerprint`
+      */
+    ["com.affine.admin.provider-revision-request-profile-or-result-fingerprint"](): string;
+    /**
+      * `Legacy platform route disabled`
+      */
+    ["com.affine.ui.legacy-platform-route-disabled"](): string;
+    /**
+      * `Delete slide`
+      */
+    ["com.affine.office.delete-slide"](): string;
+    /**
+      * `Action route dry-run not checked`
+      */
+    ["com.affine.admin.action-route-dry-run-not-checked"](): string;
+    /**
+      * `Copy`
+      */
+    ["com.affine.ai.action-label.copy"](): string;
+    /**
+      * `Access token signing keys`
+      */
+    ["com.affine.admin.access-token-signing-keys"](): string;
+    /**
+      * `Enter at least one chart category.`
+      */
+    ["com.affine.office.enter-at-least-one-chart-category"](): string;
+    /**
+      * `Odd page section`
+      */
+    ["com.affine.office.odd-page-section"](): string;
+    /**
+      * `Rotation`
+      */
+    ["com.affine.office.rotation"](): string;
+    /**
+      * `Incorrect import format`
+      */
+    ["com.affine.admin.incorrect-import-format"](): string;
+    /**
+      * `Persisted repair request state, audit history, and side-effect ledger`
+      */
+    ["com.affine.admin.persisted-repair-request-state-audit-history-and-side-effect-ledger"](): string;
+    /**
+      * `Diagnostics text`
+      */
+    ["com.affine.admin.diagnostics-text"](): string;
+    /**
+      * `active members`
+      */
+    ["com.affine.admin.active-members-2"](): string;
+    /**
+      * `Enable experimental edgeless turbo renderer`
+      */
+    ["com.affine.ui.enable-experimental-edgeless-turbo-renderer"](): string;
+    /**
+      * `added`
+      */
+    ["com.affine.office.added"](): string;
+    /**
+      * `Heading 1`
+      */
+    ["com.affine.office.heading-1"](): string;
+    /**
+      * `Cloud`
+      */
+    ["com.affine.ui.cloud"](): string;
+    /**
+      * `Document font`
+      */
+    ["com.affine.office.document-font"](): string;
+    /**
+      * `Custom endpoints are disabled`
+      */
+    ["com.affine.admin.custom-endpoints-are-disabled"](): string;
+    /**
+      * `No fallback order`
+      */
+    ["com.affine.admin.no-fallback-order"](): string;
+    /**
+      * `Failed to create admin`
+      */
+    ["com.affine.admin.failed-to-create-admin"](): string;
+    /**
+      * `Failed to load invoices`
+      */
+    ["com.affine.ui.failed-to-load-invoices"](): string;
+    /**
+      * `Provider registry`
+      */
+    ["com.affine.ui.provider-registry"](): string;
+    /**
+      * `Managed by`
+      */
+    ["com.affine.admin.managed-by"](): string;
+    /**
+      * `PDF page {{number}}, {{count}} annotation`
+      */
+    ["com.affine.office.pdf-page-label_one"](options: Readonly<{
+        number: string;
+        count: string | number | bigint;
+    }>): string;
+    /**
+      * `Shared on`
+      */
+    ["com.affine.admin.shared-on"](): string;
+    /**
+      * `Page type`
+      */
+    ["com.affine.office.page-type"](): string;
+    /**
+      * `Workspace indexing model alias`
+      */
+    ["com.affine.admin.workspace-indexing-model-alias"](): string;
+    /**
+      * `Prompt model candidates`
+      */
+    ["com.affine.admin.prompt-model-candidates"](): string;
+    /**
+      * `Deleted user`
+      */
+    ["com.affine.ui.deleted-user"](): string;
+    /**
+      * `copilot.providers.geminiVertex: location, project, baseURL, and googleAuthOptions.`
+      */
+    ["com.affine.admin.copilot-providers-geminivertex-location-project-baseurl-and-googleauthoptions"](): string;
+    /**
+      * `No prepared routes returned.`
+      */
+    ["com.affine.admin.no-prepared-routes-returned"](): string;
+    /**
+      * `Agent runtime steps none`
+      */
+    ["com.affine.admin.agent-runtime-steps-none"](): string;
+    /**
+      * `Shape geometry`
+      */
+    ["com.affine.office.shape-geometry"](): string;
+    /**
+      * `paragraph(s),`
+      */
+    ["com.affine.office.paragraph-s"](): string;
+    /**
+      * `Edit Office comment reply`
+      */
+    ["com.affine.office.edit-office-comment-reply"](): string;
+    /**
+      * `Add a comment for this page`
+      */
+    ["com.affine.office.add-a-comment-for-this-page"](): string;
+    /**
+      * `Download metadata JSON`
+      */
+    ["com.affine.admin.download-metadata-json"](): string;
+    /**
+      * `Apply permanent redaction to this page? The page will be flattened and its original text and objects removed in a new revision.`
+      */
+    ["com.affine.office.apply-permanent-redaction-to-this-page-the-page-will-be-flattened-and-its-original-text-and-objects-"](): string;
+    /**
+      * `Saved revision has no editable Office state`
+      */
+    ["com.affine.office.saved-revision-has-no-editable-office-state"](): string;
+    /**
+      * `Latest v{{version}}`
+      */
+    ["com.affine.office.latest-version"](options: {
+        readonly version: string;
+    }): string;
+    /**
+      * `CSV file includes username, email, and password.`
+      */
+    ["com.affine.admin.csv-file-includes-username-email-and-password"](): string;
+    /**
+      * `Snapshot Size`
+      */
+    ["com.affine.admin.snapshot-size-2"](): string;
+    /**
+      * `Even pages`
+      */
+    ["com.affine.office.even-pages"](): string;
+    /**
+      * `Delete expired key`
+      */
+    ["com.affine.admin.delete-expired-key"](): string;
+    /**
+      * `Experimental export PDFs support, it may contain the wrong style.`
+      */
+    ["com.affine.ui.experimental-export-pdfs-support-it-may-contain-the-wrong-style"](): string;
+    /**
+      * `Reset Password`
+      */
+    ["com.affine.admin.reset-password"](): string;
+    /**
+      * `edit text`
+      */
+    ["com.affine.ai.action-label.edit-text"](): string;
+    /**
+      * `Cleaning`
+      */
+    ["com.affine.admin.cleaning"](): string;
+    /**
+      * `Edit Description`
+      */
+    ["com.affine.ui.edit-description"](): string;
+    /**
+      * `page(s)`
+      */
+    ["com.affine.office.page-s"](): string;
+    /**
+      * `Underline`
+      */
+    ["com.affine.office.annotation-type.Underline"](): string;
+    /**
+      * `Subtitle`
+      */
+    ["com.affine.office.subtitle"](): string;
+    /**
+      * `No provider health probe attempts returned.`
+      */
+    ["com.affine.admin.no-provider-health-probe-attempts-returned"](): string;
+    /**
+      * `Attachment kind not supported`
+      */
+    ["com.affine.ui.attachment-kind-not-supported"](): string;
+    /**
+      * `Executor payload JSON is invalid.`
+      */
+    ["com.affine.admin.executor-payload-json-is-invalid"](): string;
+    /**
+      * `shapes`
+      */
+    ["com.affine.office.shapes"](): string;
+    /**
+      * `The provider model satisfies the requested capability.`
+      */
+    ["com.affine.ui.the-provider-model-satisfies-the-requested-capability"](): string;
+    /**
+      * `Failed to copy users`
+      */
+    ["com.affine.admin.failed-to-copy-users"](): string;
+    /**
+      * `BYOK private endpoints`
+      */
+    ["com.affine.admin.byok-private-endpoints"](): string;
+    /**
+      * `Explain this image`
+      */
+    ["com.affine.ai.action-label.explain-this-image"](): string;
+    /**
+      * `PDF annotations and forms`
+      */
+    ["com.affine.office.pdf-annotations-and-forms"](): string;
+    /**
+      * `Provider health probes`
+      */
+    ["com.affine.admin.provider-health-probes"](): string;
+    /**
+      * `PDF document viewer`
+      */
+    ["com.affine.office.pdf-document-viewer"](): string;
+    /**
+      * `PDF is fixed-layout. AI changes are limited to annotations, forms, page operations, signature appearances, and redaction.`
+      */
+    ["com.affine.office.pdf-is-fixed-layout-ai-changes-are-limited-to-annotations-forms-page-operations-signature-appearance"](): string;
+    /**
+      * `Inspect`
+      */
+    ["com.affine.admin.inspect"](): string;
+    /**
+      * `Model route not checked`
+      */
+    ["com.affine.admin.model-route-not-checked"](): string;
+    /**
+      * `[Edgeless]`
+      */
+    ["com.affine.ui.edgeless"](): string;
+    /**
+      * `Failed to reset password: `
+      */
+    ["com.affine.admin.failed-to-reset-password"](): string;
+    /**
+      * `Filter by feature`
+      */
+    ["com.affine.admin.filter-by-feature"](): string;
+    /**
+      * `Signature name is required`
+      */
+    ["com.affine.office.signature-name-is-required"](): string;
+    /**
+      * `Beta`
+      */
+    ["com.affine.ui.beta"](): string;
+    /**
+      * `Provider profile model IDs, aliases, task defaults, and model allowlists.`
+      */
+    ["com.affine.ui.provider-profile-model-ids-aliases-task-defaults-and-model-allowlists"](): string;
+    /**
+      * `Project AI disabled.`
+      */
+    ["com.affine.admin.project-ai-disabled"](): string;
+    /**
+      * `Import results`
+      */
+    ["com.affine.admin.import-results"](): string;
+    /**
+      * `Priority`
+      */
+    ["com.affine.admin.priority"](): string;
+    /**
+      * `Print PDF`
+      */
+    ["com.affine.office.print-pdf"](): string;
+    /**
+      * `Provider prepare returned empty`
+      */
+    ["com.affine.ui.provider-prepare-returned-empty"](): string;
+    /**
+      * `Revision status`
+      */
+    ["com.affine.admin.revision-status"](): string;
+    /**
+      * `Allowed privacy`
+      */
+    ["com.affine.admin.allowed-privacy"](): string;
+    /**
+      * `Enables chat, actions, search, indexing, rerank, and runtime workers.`
+      */
+    ["com.affine.admin.enables-chat-actions-search-indexing-rerank-and-runtime-workers"](): string;
+    /**
+      * `Move worksheet left`
+      */
+    ["com.affine.office.move-worksheet-left"](): string;
+    /**
+      * `Gate issues`
+      */
+    ["com.affine.admin.gate-issues"](): string;
+    /**
+      * `Provider verified.`
+      */
+    ["com.affine.admin.provider-verified"](): string;
+    /**
+      * `Top`
+      */
+    ["com.affine.office.top"](): string;
+    /**
+      * `Page height`
+      */
+    ["com.affine.office.page-height"](): string;
+    /**
+      * `Blob count`
+      */
+    ["com.affine.admin.blob-count"](): string;
+    /**
+      * `Blocked providers None`
+      */
+    ["com.affine.admin.blocked-providers-none"](): string;
+    /**
+      * `Manual workspace ID`
+      */
+    ["com.affine.admin.manual-workspace-id"](): string;
+    /**
+      * `Notes for {{name}}`
+      */
+    ["com.affine.office.slide-notes"](options: {
+        readonly name: string;
+    }): string;
+    /**
+      * `The server returned an unsupported Office state`
+      */
+    ["com.affine.office.the-server-returned-an-unsupported-office-state"](): string;
+    /**
+      * `Form field {{name}}`
+      */
+    ["com.affine.office.named-form-field"](options: {
+        readonly name: string;
+    }): string;
+    /**
+      * `Deleted`
+      */
+    ["com.affine.ai.action-label.deleted"](): string;
+    /**
+      * `No data`
+      */
+    ["com.affine.admin.no-data"](): string;
+    /**
+      * `Different first page`
+      */
+    ["com.affine.office.different-first-page"](): string;
+    /**
+      * `Row height`
+      */
+    ["com.affine.office.row-height"](): string;
+    /**
+      * `Prompt catalog diagnostics`
+      */
+    ["com.affine.admin.prompt-catalog-diagnostics"](): string;
+    /**
+      * `Document header`
+      */
+    ["com.affine.ui.document-header"](): string;
+    /**
+      * `Search workspace name, owner, or ID`
+      */
+    ["com.affine.admin.search-workspace-name-owner-or-id"](): string;
+    /**
+      * `Header position`
+      */
+    ["com.affine.office.header-position"](): string;
+    /**
+      * `Active prompt`
+      */
+    ["com.affine.admin.active-prompt"](): string;
+    /**
+      * `Select a workspace scope before creating or viewing support bundles.`
+      */
+    ["com.affine.admin.select-a-workspace-scope-before-creating-or-viewing-support-bundles"](): string;
+    /**
+      * `Add appearance`
+      */
+    ["com.affine.office.add-appearance"](): string;
+    /**
+      * `error`
+      */
+    ["com.affine.ui.error"](): string;
+    /**
+      * `Humorous`
+      */
+    ["com.affine.ai.action-label.humorous"](): string;
+    /**
+      * `Instance policy is the maximum capability. Users authorize and manage only their own platform connections.`
+      */
+    ["com.affine.admin.instance-policy-is-the-maximum-capability-users-authorize-and-manage-only-their-own-platform-connect"](): string;
+    /**
+      * `Empty history`
+      */
+    ["com.affine.ai.action-label.empty-history"](): string;
+    /**
+      * `Provider model identifier`
+      */
+    ["com.affine.admin.provider-model-identifier"](): string;
+    /**
+      * `This registry branch produced a selected route candidate.`
+      */
+    ["com.affine.ui.this-registry-branch-produced-a-selected-route-candidate"](): string;
+    /**
+      * `Do you want to discard the results the AI just generated?`
+      */
+    ["com.affine.ui.do-you-want-to-discard-the-results-the-ai-just-generated"](): string;
+    /**
+      * `Chart`
+      */
+    ["com.affine.office.chart"](): string;
+    /**
+      * `Write a tweet about this`
+      */
+    ["com.affine.ai.action-label.write-a-tweet-about-this"](): string;
+    /**
+      * `Workspace scope`
+      */
+    ["com.affine.admin.workspace-scope"](): string;
+    /**
+      * `Project content changed; compare or discard the local draft`
+      */
+    ["com.affine.ui.project-content-changed-compare-or-discard-the-local-draft"](): string;
+    /**
+      * `Capability matching failed before route preparation.`
+      */
+    ["com.affine.ui.capability-matching-failed-before-route-preparation"](): string;
+    /**
+      * `Highlight`
+      */
+    ["com.affine.office.annotation-type.highlight"](): string;
+    /**
+      * `Unsupported comment content`
+      */
+    ["com.affine.office.unsupported-comment-content"](): string;
+    /**
+      * `Base URL`
+      */
+    ["com.affine.admin.base-url"](): string;
+    /**
+      * `All run statuses`
+      */
+    ["com.affine.admin.all-run-statuses"](): string;
+    /**
+      * `Failed to save chat to a block`
+      */
+    ["com.affine.ui.failed-to-save-chat-to-a-block"](): string;
+    /**
+      * `Syncing...`
+      */
+    ["com.affine.ui.syncing"](): string;
+    /**
+      * `Upgrade`
+      */
+    ["com.affine.ai.action-label.upgrade"](): string;
+    /**
+      * `Provider prepare succeeded`
+      */
+    ["com.affine.ui.provider-prepare-succeeded"](): string;
+    /**
+      * `All Project conversations`
+      */
+    ["com.affine.admin.all-project-conversations"](): string;
+    /**
+      * `Bottom`
+      */
+    ["com.affine.office.bottom"](): string;
+    /**
+      * `Experimental Features`
+      */
+    ["com.affine.ui.experimental-features"](): string;
+    /**
+      * `Go to previous page`
+      */
+    ["com.affine.admin.go-to-previous-page"](): string;
+    /**
+      * `Privacy not preferred`
+      */
+    ["com.affine.ui.privacy-not-preferred"](): string;
+    /**
+      * `Slide canvas`
+      */
+    ["com.affine.office.slide-canvas"](): string;
+    /**
+      * `Image processing`
+      */
+    ["com.affine.ai.action-label.image-processing"](): string;
+    /**
+      * `Workspace AI credential deleted.`
+      */
+    ["com.affine.admin.workspace-ai-credential-deleted"](): string;
+    /**
+      * `Add a file or image`
+      */
+    ["com.affine.ui.add-a-file-or-image"](): string;
+    /**
+      * `Reason`
+      */
+    ["com.affine.office.reason"](): string;
+    /**
+      * `Horizontal alignment`
+      */
+    ["com.affine.office.horizontal-alignment"](): string;
+    /**
+      * `Agent runtime schema readiness gaps none`
+      */
+    ["com.affine.admin.agent-runtime-schema-readiness-gaps-none"](): string;
+    /**
+      * `LocalMind brings docs, whiteboards and databases together in one workspace.`
+      */
+    ["com.affine.ui.onboarding-workspace"](): string;
+    /**
+      * `Provider unavailable`
+      */
+    ["com.affine.ui.provider-unavailable"](): string;
+    /**
+      * `{{count}} tracked change`
+      */
+    ["com.affine.office.tracked-change-count_one"](options: {
+        readonly count: (string | number | bigint) & (string | number | bigint);
+    }): string;
+    /**
+      * `Unable to open this document`
+      */
+    ["com.affine.office.unable-to-open-this-document"](): string;
+    /**
+      * `charts`
+      */
+    ["com.affine.office.charts"](): string;
+    /**
+      * `Agent runtime target run statuses none`
+      */
+    ["com.affine.admin.agent-runtime-target-run-statuses-none"](): string;
+    /**
+      * `Failed to clear history`
+      */
+    ["com.affine.ui.failed-to-clear-history"](): string;
+    /**
+      * `Storage Trend (Workspace + Blob)`
+      */
+    ["com.affine.admin.storage-trend-workspace-blob"](): string;
+    /**
+      * `Blob:`
+      */
+    ["com.affine.admin.blob-2"](): string;
+    /**
+      * `You are not an admin`
+      */
+    ["com.affine.admin.you-are-not-an-admin"](): string;
+    /**
+      * `Strikeout`
+      */
+    ["com.affine.office.annotation-type.Strikeout"](): string;
+    /**
+      * `The provider runtime prepare boundary produced a route.`
+      */
+    ["com.affine.ui.the-provider-runtime-prepare-boundary-produced-a-route"](): string;
+    /**
+      * `First page`
+      */
+    ["com.affine.office.first-page"](): string;
+    /**
+      * `Write an article about this`
+      */
+    ["com.affine.ai.action-label.write-an-article-about-this"](): string;
+    /**
+      * `Created time`
+      */
+    ["com.affine.admin.created-time"](): string;
+    /**
+      * `Snapshot Count`
+      */
+    ["com.affine.admin.snapshot-count-2"](): string;
+    /**
+      * `Worksheets`
+      */
+    ["com.affine.office.worksheets"](): string;
+    /**
+      * `Add shape`
+      */
+    ["com.affine.office.add-shape"](): string;
+    /**
+      * `Copilot storage JSON`
+      */
+    ["com.affine.admin.copilot-storage-json"](): string;
+    /**
+      * `Failed to copy link to clipboard`
+      */
+    ["com.affine.ui.failed-to-copy-link-to-clipboard"](): string;
+    /**
+      * `Bottom margin`
+      */
+    ["com.affine.office.bottom-margin"](): string;
+    /**
+      * `Pro models require a LocalMind AI subscription.`
+      */
+    ["com.affine.ui.pro-models-require-a-localmind-ai-subscription"](): string;
+    /**
+      * `Workspaces`
+      */
+    ["com.affine.admin.workspaces"](): string;
+    /**
+      * `Task routes 0`
+      */
+    ["com.affine.admin.task-routes-0"](): string;
+    /**
+      * `Logged in successfully`
+      */
+    ["com.affine.admin.logged-in-successfully"](): string;
+    /**
+      * `Self-host Document`
+      */
+    ["com.affine.admin.self-host-document"](): string;
+    /**
+      * `Office draft could not be saved`
+      */
+    ["com.affine.office.office-draft-could-not-be-saved"](): string;
+    /**
+      * `digital signatures`
+      */
+    ["com.affine.office.digital-signatures"](): string;
+    /**
+      * `Untitled workspace`
+      */
+    ["com.affine.admin.untitled-workspace"](): string;
+    /**
+      * `Route policy`
+      */
+    ["com.affine.ui.route-policy"](): string;
+    /**
+      * `Korean`
+      */
+    ["com.affine.ai.action-label.korean"](): string;
+    /**
+      * `No step route order`
+      */
+    ["com.affine.admin.no-step-route-order"](): string;
+    /**
+      * `Theme color`
+      */
+    ["com.affine.office.theme-color"](): string;
+    /**
+      * `Speaker notes`
+      */
+    ["com.affine.office.speaker-notes"](): string;
+    /**
+      * `No action required`
+      */
+    ["com.affine.admin.no-action-required"](): string;
+    /**
+      * `Rerank`
+      */
+    ["com.affine.admin.rerank"](): string;
+    /**
+      * `Profile name`
+      */
+    ["com.affine.admin.profile-name"](): string;
+    /**
+      * `Unsupported document object:`
+      */
+    ["com.affine.office.unsupported-document-object"](): string;
+    /**
+      * `Add image`
+      */
+    ["com.affine.office.add-image"](): string;
+    /**
+      * `Logout`
+      */
+    ["com.affine.admin.logout"](): string;
+    /**
+      * `Signature appearance (not cryptographic)`
+      */
+    ["com.affine.office.signature-appearance-not-cryptographic"](): string;
+    /**
+      * `Messages`
+      */
+    ["com.affine.admin.messages"](): string;
+    /**
+      * `Failed to reorder workspace AI credentials.`
+      */
+    ["com.affine.admin.failed-to-reorder-workspace-ai-credentials"](): string;
+    /**
+      * `Shape {{name}}`
+      */
+    ["com.affine.office.named-shape"](options: {
+        readonly name: string;
+    }): string;
+    /**
+      * `User name`
+      */
+    ["com.affine.admin.user-name"](): string;
+    /**
+      * `Allow pages in this workspace to be shared publicly`
+      */
+    ["com.affine.admin.allow-pages-in-this-workspace-to-be-shared-publicly"](): string;
+    /**
+      * `Go to Collection List`
+      */
+    ["com.affine.ui.go-to-collection-list"](): string;
+    /**
+      * `Failed to update account: `
+      */
+    ["com.affine.admin.failed-to-update-account"](): string;
+    /**
+      * `No publish gate verdict returned for`
+      */
+    ["com.affine.admin.no-publish-gate-verdict-returned-for"](): string;
+    /**
+      * `Signing key update failed`
+      */
+    ["com.affine.admin.signing-key-update-failed"](): string;
+    /**
+      * `Image insertion`
+      */
+    ["com.affine.office.image-insertion"](): string;
+    /**
+      * `New worksheet name`
+      */
+    ["com.affine.office.new-worksheet-name"](): string;
+    /**
+      * `Agent runtime projected timeline event types none`
+      */
+    ["com.affine.admin.agent-runtime-projected-timeline-event-types-none"](): string;
+    /**
+      * `The provider model does not support attachments for this route.`
+      */
+    ["com.affine.ui.the-provider-model-does-not-support-attachments-for-this-route"](): string;
+    /**
+      * `Control`
+      */
+    ["com.affine.admin.control"](): string;
+    /**
+      * `Prepared routes`
+      */
+    ["com.affine.admin.prepared-routes"](): string;
+    /**
+      * `Russian`
+      */
+    ["com.affine.ai.action-label.russian"](): string;
+    /**
+      * `Enable AI Button on mobile`
+      */
+    ["com.affine.ui.enable-ai-button-on-mobile"](): string;
+    /**
+      * `Enter a valid cell address before changing rows or columns.`
+      */
+    ["com.affine.office.enter-a-valid-cell-address-before-changing-rows-or-columns"](): string;
+    /**
+      * `Kind`
+      */
+    ["com.affine.admin.kind"](): string;
+    /**
+      * `Account updated successfully`
+      */
+    ["com.affine.admin.account-updated-successfully"](): string;
+    /**
+      * `Refresh Office changes`
+      */
+    ["com.affine.office.refresh-office-changes"](): string;
+    /**
+      * `The sanitized prepare error category points to schema, JSON, validation, or parsing.`
+      */
+    ["com.affine.ui.the-sanitized-prepare-error-category-points-to-schema-json-validation-or-parsing"](): string;
+    /**
+      * `Override`
+      */
+    ["com.affine.admin.override"](): string;
+    /**
+      * `Agent runtime timeline event types none`
+      */
+    ["com.affine.admin.agent-runtime-timeline-event-types-none"](): string;
+    /**
+      * `Invalid ({{reason}})`
+      */
+    ["com.affine.admin.import-invalid-reason"](options: {
+        readonly reason: string;
+    }): string;
+    /**
+      * `Loading changes`
+      */
+    ["com.affine.office.loading-changes"](): string;
+    /**
+      * `Unsaved AI configuration changes`
+      */
+    ["com.affine.admin.unsaved-ai-configuration-changes"](): string;
+    /**
+      * `Shared Links`
+      */
+    ["com.affine.admin.shared-links-2"](): string;
+    /**
+      * `Save failed. Check the endpoint, model and key, or reload if another administrator changed the settings.`
+      */
+    ["com.affine.admin.save-failed-check-the-endpoint-model-and-key-or-reload-if-another-administrator-changed-the-settings"](): string;
+    /**
+      * `Provider default model`
+      */
+    ["com.affine.admin.provider-default-model"](): string;
+    /**
+      * `Allowed privacy classes, preferred privacy classes, and local/cloud routing policy.`
+      */
+    ["com.affine.ui.allowed-privacy-classes-preferred-privacy-classes-and-local-cloud-routing-policy"](): string;
+    /**
+      * `All executions`
+      */
+    ["com.affine.admin.all-executions"](): string;
+    /**
+      * `{{hours}} hours, grouped by minute`
+      */
+    ["com.affine.admin.sync-window"](options: {
+        readonly hours: string;
+    }): string;
+    /**
+      * `Delete Account ?`
+      */
+    ["com.affine.admin.delete-account"](): string;
+    /**
+      * `Agent runtime unsupported run statuses none`
+      */
+    ["com.affine.admin.agent-runtime-unsupported-run-statuses-none"](): string;
+    /**
+      * `Enable sharing`
+      */
+    ["com.affine.admin.enable-sharing"](): string;
+    /**
+      * `Please select at least one user to export`
+      */
+    ["com.affine.admin.please-select-at-least-one-user-to-export"](): string;
+    /**
+      * `Update workspace avatar success`
+      */
+    ["com.affine.ui.update-workspace-avatar-success"](): string;
+    /**
+      * `The provider privacy class is allowed but not preferred.`
+      */
+    ["com.affine.ui.the-provider-privacy-class-is-allowed-but-not-preferred"](): string;
+    /**
+      * `Strikeout`
+      */
+    ["com.affine.office.strikeout"](): string;
+    /**
+      * `Prompt overrides`
+      */
+    ["com.affine.admin.prompt-overrides"](): string;
+    /**
+      * `Provider test failed.`
+      */
+    ["com.affine.admin.provider-test-failed"](): string;
+    /**
+      * `Users exported successfully`
+      */
+    ["com.affine.admin.users-exported-successfully"](): string;
+    /**
+      * `Workspace AI disabled`
+      */
+    ["com.affine.admin.workspace-ai-disabled"](): string;
+    /**
+      * `Delete comment`
+      */
+    ["com.affine.office.delete-comment"](): string;
+    /**
+      * `Updated at`
+      */
+    ["com.affine.admin.updated-at"](): string;
+    /**
+      * `The member has already been selected`
+      */
+    ["com.affine.ui.the-member-has-already-been-selected"](): string;
+    /**
+      * `The latest Office revision has no editable state.`
+      */
+    ["com.affine.office.the-latest-office-revision-has-no-editable-state"](): string;
+    /**
+      * `Select content to anchor this comment.`
+      */
+    ["com.affine.office.select-content-to-anchor-this-comment"](): string;
+    /**
+      * `Worksheet rename`
+      */
+    ["com.affine.office.worksheet-rename"](): string;
+    /**
+      * `Saving...`
+      */
+    ["com.affine.admin.saving"](): string;
+    /**
+      * `Select Icon`
+      */
+    ["com.affine.ui.select-icon"](): string;
+    /**
+      * `Unmerge`
+      */
+    ["com.affine.office.unmerge"](): string;
+    /**
+      * `Translation coverage: {{percent}}%`
+      */
+    ["com.affine.settings.language.coverage"](options: {
+        readonly percent: string;
+    }): string;
+    /**
+      * `Brazilian Portuguese`
+      */
+    ["com.affine.ai.action-label.brazilian-portuguese"](): string;
+    /**
+      * `Insert table`
+      */
+    ["com.affine.office.insert-table"](): string;
+    /**
+      * `{{count}} pages`
+      */
+    ["com.affine.office.page-count_other"](options: {
+        readonly count: string | number | bigint;
+    }): string;
+    /**
+      * `All probe statuses`
+      */
+    ["com.affine.admin.all-probe-statuses"](): string;
+    /**
+      * `Repair execution control error`
+      */
+    ["com.affine.admin.repair-execution-control-error"](): string;
+    /**
+      * `License ID`
+      */
+    ["com.affine.admin.license-id"](): string;
+    /**
+      * `Office task {{action}} failed`
+      */
+    ["com.affine.office.task-action-failed"](options: {
+        readonly action: string;
+    }): string;
+    /**
+      * `All Settings Done`
+      */
+    ["com.affine.admin.all-settings-done"](): string;
+    /**
+      * `Active default`
+      */
+    ["com.affine.admin.active-default"](): string;
+    /**
+      * `Failed to delete user: `
+      */
+    ["com.affine.admin.failed-to-delete-user"](): string;
+    /**
+      * `Dimension mismatch`
+      */
+    ["com.affine.admin.dimension-mismatch"](): string;
+    /**
+      * `Office changes`
+      */
+    ["com.affine.office.office-changes"](): string;
+    /**
+      * `Use repair execution controls`
+      */
+    ["com.affine.admin.use-repair-execution-controls"](): string;
+    /**
+      * `Failed to load Workspace AI Profiles.`
+      */
+    ["com.affine.admin.failed-to-load-workspace-ai-profiles"](): string;
+    /**
+      * `The registry branch is unavailable for this request.`
+      */
+    ["com.affine.ui.the-registry-branch-is-unavailable-for-this-request"](): string;
+    /**
+      * `Unsupported Office state`
+      */
+    ["com.affine.office.unsupported-office-state"](): string;
+    /**
+      * `Sort:`
+      */
+    ["com.affine.admin.sort"](): string;
+    /**
+      * `Executor payload JSON must be an object.`
+      */
+    ["com.affine.admin.executor-payload-json-must-be-an-object"](): string;
+    /**
+      * `Switch Chat`
+      */
+    ["com.affine.ui.switch-chat"](): string;
+    /**
+      * `Office task result targets a different artifact.`
+      */
+    ["com.affine.office.office-task-result-targets-a-different-artifact"](): string;
+    /**
+      * `Default`
+      */
+    ["com.affine.office.default"](): string;
+    /**
+      * `Configure the server-side provider credentials inherited by each department workspace. Workspace members cannot read or change these secrets.`
+      */
+    ["com.affine.admin.configure-the-server-side-provider-credentials-inherited-by-each-department-workspace-workspace-memb"](): string;
+    /**
+      * `Blocked`
+      */
+    ["com.affine.admin.blocked"](): string;
+    /**
+      * `Insert`
+      */
+    ["com.affine.ui.insert"](): string;
+    /**
+      * `Height (pt)`
+      */
+    ["com.affine.office.height-pt"](): string;
+    /**
+      * `Remove table`
+      */
+    ["com.affine.office.remove-table"](): string;
+    /**
+      * `No Agent Runtime workflow adapters are registered for standalone execution.`
+      */
+    ["com.affine.admin.no-agent-runtime-workflow-adapters-are-registered-for-standalone-execution"](): string;
+    /**
+      * `Save chat to a block`
+      */
+    ["com.affine.ui.save-chat-to-a-block"](): string;
+    /**
+      * `Show All`
+      */
+    ["com.affine.ui.show-all"](): string;
+    /**
+      * `No persisted Agent Runtime runs have been created for this workspace.`
+      */
+    ["com.affine.admin.no-persisted-agent-runtime-runs-have-been-created-for-this-workspace"](): string;
+    /**
+      * `Slide deletion`
+      */
+    ["com.affine.office.slide-deletion"](): string;
+    /**
+      * `Insert columns`
+      */
+    ["com.affine.office.insert-columns"](): string;
+    /**
+      * `draft from text`
+      */
+    ["com.affine.ai.action-label.draft-from-text"](): string;
+    /**
+      * `Preview ready:`
+      */
+    ["com.affine.office.preview-ready"](): string;
+    /**
+      * `Default model route`
+      */
+    ["com.affine.admin.default-model-route"](): string;
+    /**
+      * `This feature is not available in the page editor. Switch to edgeless mode.`
+      */
+    ["com.affine.ui.this-feature-is-not-available-in-the-page-editor-switch-to-edgeless-mode"](): string;
+    /**
+      * `Task route policy source`
+      */
+    ["com.affine.admin.task-route-policy-source"](): string;
+    /**
+      * `Delete annotation`
+      */
+    ["com.affine.office.delete-annotation"](): string;
+    /**
+      * `Enter at least one series.`
+      */
+    ["com.affine.office.enter-at-least-one-series"](): string;
+    /**
+      * `Allowed providers`
+      */
+    ["com.affine.admin.allowed-providers"](): string;
+    /**
+      * `Resume with payload`
+      */
+    ["com.affine.admin.resume-with-payload"](): string;
+    /**
+      * `Setup Account`
+      */
+    ["com.affine.admin.setup-account"](): string;
+    /**
+      * `Trace`
+      */
+    ["com.affine.admin.trace"](): string;
+    /**
+      * `Thank you!`
+      */
+    ["com.affine.ui.thank-you"](): string;
+    /**
+      * `Answer`
+      */
+    ["com.affine.ai.action-label.answer"](): string;
+    /**
+      * `Stale`
+      */
+    ["com.affine.admin.stale"](): string;
+    /**
+      * `LocalMind will gradually support more file types for import.&nbsp;`
+      */
+    ["com.affine.ui.localmind-will-gradually-support-more-file-types-for-import-nbsp"](): string;
+    /**
+      * `Success`
+      */
+    ["com.affine.admin.success"](): string;
+    /**
+      * `Could not test Project BYOK.`
+      */
+    ["com.affine.admin.could-not-test-project-byok"](): string;
+    /**
+      * `Discard Changes`
+      */
+    ["com.affine.admin.discard-changes"](): string;
+    /**
+      * `Public`
+      */
+    ["com.affine.admin.public"](): string;
+    /**
+      * `Unknown error occurred`
+      */
+    ["com.affine.ui.unknown-error-occurred"](): string;
+    /**
+      * `Provider profiles JSON`
+      */
+    ["com.affine.admin.provider-profiles-json"](): string;
+    /**
+      * `Workspace ID`
+      */
+    ["com.affine.admin.workspace-id"](): string;
+    /**
+      * `Agent runtime step statuses none`
+      */
+    ["com.affine.admin.agent-runtime-step-statuses-none"](): string;
+    /**
+      * `Close sidebar`
+      */
+    ["com.affine.ui.close-sidebar"](): string;
+    /**
+      * `Project AI enabled.`
+      */
+    ["com.affine.admin.project-ai-enabled-2"](): string;
+    /**
+      * `slides`
+      */
+    ["com.affine.office.slides"](): string;
+    /**
+      * `The provider model has no declared capability metadata.`
+      */
+    ["com.affine.ui.the-provider-model-has-no-declared-capability-metadata"](): string;
+    /**
+      * `Explain selection`
+      */
+    ["com.affine.ai.action-label.explain-selection"](): string;
+    /**
+      * `Ask AI`
+      */
+    ["com.affine.ai.action-label.ask-ai"](): string;
+    /**
+      * `members`
+      */
+    ["com.affine.ui.members"](): string;
+    /**
+      * `Editable document paragraph`
+      */
+    ["com.affine.office.editable-document-paragraph"](): string;
+    /**
+      * `Runtime adapter registration, container networking, native prepare, and provider logs.`
+      */
+    ["com.affine.ui.runtime-adapter-registration-container-networking-native-prepare-and-provider-logs"](): string;
+    /**
+      * `Lets workspace BYOK profiles use custom compatible endpoints.`
+      */
+    ["com.affine.admin.lets-workspace-byok-profiles-use-custom-compatible-endpoints"](): string;
+    /**
+      * `Next page section`
+      */
+    ["com.affine.office.next-page-section"](): string;
+    /**
+      * `Replay`
+      */
+    ["com.affine.admin.replay"](): string;
+    /**
+      * `Prepare model error`
+      */
+    ["com.affine.ui.prepare-model-error"](): string;
+    /**
+      * `Provider health probe filter`
+      */
+    ["com.affine.admin.provider-health-probe-filter"](): string;
+    /**
+      * `Search result`
+      */
+    ["com.affine.ui.search-result"](): string;
+    /**
+      * `Could not load the language files. Please try again.`
+      */
+    ["com.affine.settings.language.load-failed"](): string;
+    /**
+      * `Username (optional): any text.`
+      */
+    ["com.affine.admin.username-optional-any-text"](): string;
+    /**
+      * `A profile with no credentials intentionally disables AI routing for users assigned to it.`
+      */
+    ["com.affine.admin.a-profile-with-no-credentials-intentionally-disables-ai-routing-for-users-assigned-to-it"](): string;
+    /**
+      * `Move page up`
+      */
+    ["com.affine.office.move-page-up"](): string;
+    /**
+      * `Left margin`
+      */
+    ["com.affine.office.left-margin"](): string;
+    /**
+      * `Preferred privacy Any`
+      */
+    ["com.affine.admin.preferred-privacy-any"](): string;
+    /**
+      * `Config fallback`
+      */
+    ["com.affine.admin.config-fallback"](): string;
+    /**
+      * `Retiring`
+      */
+    ["com.affine.admin.retiring"](): string;
+    /**
+      * `Prompt policy`
+      */
+    ["com.affine.admin.prompt-policy"](): string;
+    /**
+      * `Ink`
+      */
+    ["com.affine.office.annotation-type.ink"](): string;
+    /**
+      * `Apply permanent redaction`
+      */
+    ["com.affine.office.apply-permanent-redaction"](): string;
+    /**
+      * `Select a font`
+      */
+    ["com.affine.ui.select-a-font"](): string;
+    /**
+      * `copilot.providers.routePolicy: global, per-feature, and per-workspace allow/block/privacy routing policy.`
+      */
+    ["com.affine.admin.copilot-providers-routepolicy-global-per-feature-and-per-workspace-allow-block-privacy-routing-polic"](): string;
+    /**
+      * `No results.`
+      */
+    ["com.affine.admin.no-results"](): string;
+    /**
+      * `Repair recommendations`
+      */
+    ["com.affine.admin.repair-recommendations"](): string;
+    /**
+      * `Use the new Mermaid renderer backend. Web uses WASM, desktop uses native, and mobile always uses native. The native renderer is more than 10x faster, but its styling/aesthetic quality and the types of graphics it supports are not as good as the JS version.`
+      */
+    ["com.affine.ui.use-the-new-mermaid-renderer-backend-web-uses-wasm-desktop-uses-native-and-mobile-always-uses-native"](): string;
+    /**
+      * `Move page down`
+      */
+    ["com.affine.office.move-page-down"](): string;
+    /**
+      * `Selection preserved on revision {{version}}.`
+      */
+    ["com.affine.office.selection-preserved"](options: {
+        readonly version: string;
+    }): string;
+    /**
+      * `Account Recovery Link`
+      */
+    ["com.affine.admin.account-recovery-link"](): string;
+    /**
+      * `The test email has been successfully sent.`
+      */
+    ["com.affine.admin.the-test-email-has-been-successfully-sent"](): string;
+    /**
+      * `No active signing key is available. Restart the server to retry automatic initialization.`
+      */
+    ["com.affine.admin.no-active-signing-key-is-available-restart-the-server-to-retry-automatic-initialization"](): string;
+    /**
+      * `(pt)`
+      */
+    ["com.affine.office.pt"](): string;
+    /**
+      * `Issues`
+      */
+    ["com.affine.admin.issues"](): string;
+    /**
+      * `Enter password`
+      */
+    ["com.affine.admin.enter-password"](): string;
+    /**
+      * `Loading PDF document…`
+      */
+    ["com.affine.office.loading-pdf-document"](): string;
+    /**
+      * `No routes`
+      */
+    ["com.affine.admin.no-routes"](): string;
+    /**
+      * `The completed Office task artifact is unavailable.`
+      */
+    ["com.affine.office.the-completed-office-task-artifact-is-unavailable"](): string;
+    /**
+      * `Chart deletion`
+      */
+    ["com.affine.office.chart-deletion"](): string;
+    /**
+      * `Models returned for`
+      */
+    ["com.affine.admin.models-returned-for"](): string;
+    /**
+      * `Action run ID`
+      */
+    ["com.affine.admin.action-run-id"](): string;
+    /**
+      * `Disable & Delete data`
+      */
+    ["com.affine.admin.disable-delete-data"](): string;
+    /**
+      * `False`
+      */
+    ["com.affine.ui.false"](): string;
+    /**
+      * `New Version`
+      */
+    ["com.affine.admin.new-version"](): string;
+    /**
+      * `Enable mobile database editing`
+      */
+    ["com.affine.ui.enable-mobile-database-editing"](): string;
+    /**
+      * `Enables governed user connections for enterprise platforms.`
+      */
+    ["com.affine.admin.enables-governed-user-connections-for-enterprise-platforms"](): string;
+    /**
+      * `Prepare network error`
+      */
+    ["com.affine.ui.prepare-network-error"](): string;
+    /**
+      * `{{count}} matches`
+
+      * - com.affine.office.match-count_other: `{{count}} matches`
+
+      * - com.affine.office.match-count_one: `{{count}} match`
+      */
+    ["com.affine.office.match-count"](options: {
+        readonly count: string | number | bigint;
+    }): string;
+    /**
+      * `Artifact`
+      */
+    ["com.affine.admin.artifact"](): string;
+    /**
+      * `Edit AI Profile`
+      */
+    ["com.affine.admin.edit-ai-profile"](): string;
+    /**
+      * `Enable Email`
+      */
+    ["com.affine.admin.enable-email"](): string;
+    /**
+      * `Brainstorm ideas about this`
+      */
+    ["com.affine.ai.action-label.brainstorm-ideas-about-this"](): string;
+    /**
+      * `Provider metadata unavailable`
+      */
+    ["com.affine.admin.provider-metadata-unavailable"](): string;
+    /**
+      * `Provider credential verified.`
+      */
+    ["com.affine.admin.provider-credential-verified"](): string;
+    /**
+      * `rejection`
+      */
+    ["com.affine.office.task-action.reject"](): string;
+    /**
+      * `AI configuration saved.`
+      */
+    ["com.affine.admin.ai-configuration-saved"](): string;
+    /**
+      * `Use workspace default`
+      */
+    ["com.affine.admin.use-workspace-default"](): string;
+    /**
+      * `Please restart the app manually to upgrade.`
+      */
+    ["com.affine.ui.please-restart-the-app-manually-to-upgrade"](): string;
+    /**
+      * `Prompt registry publish gate`
+      */
+    ["com.affine.admin.prompt-registry-publish-gate"](): string;
+    /**
+      * `Square`
+      */
+    ["com.affine.office.annotation-type.Square"](): string;
+    /**
+      * `Underline`
+      */
+    ["com.affine.office.annotation-type.underline"](): string;
+    /**
+      * `Office dialog changes could not be saved`
+      */
+    ["com.affine.office.office-dialog-changes-could-not-be-saved"](): string;
+    /**
+      * `Prompt name`
+      */
+    ["com.affine.admin.prompt-name"](): string;
+    /**
+      * `Failed to delete Workspace AI Profile.`
+      */
+    ["com.affine.admin.failed-to-delete-workspace-ai-profile"](): string;
+    /**
+      * `Goto Admin Panel`
+      */
+    ["com.affine.admin.goto-admin-panel"](): string;
+    /**
+      * `Creating`
+      */
+    ["com.affine.admin.creating"](): string;
+    /**
+      * `Download JSON`
+      */
+    ["com.affine.admin.download-json"](): string;
+    /**
+      * `This account can also be used to log in to LocalMind.`
+      */
+    ["com.affine.admin.this-account-can-also-be-used-to-log-in-to-localmind"](): string;
+    /**
+      * `Page {{current}} of {{total}}`
+      */
+    ["com.affine.office.page-position"](options: Readonly<{
+        current: string;
+        total: string;
+    }>): string;
+    /**
+      * `Enter your email below to login to your account`
+      */
+    ["com.affine.admin.enter-your-email-below-to-login-to-your-account"](): string;
+    /**
+      * `Previous slide`
+      */
+    ["com.affine.admin.previous-slide"](): string;
+    /**
+      * `Repair execution status`
+      */
+    ["com.affine.admin.repair-execution-status"](): string;
+    /**
+      * `Enable profile`
+      */
+    ["com.affine.admin.enable-profile"](): string;
+    /**
+      * `shared pages`
+      */
+    ["com.affine.admin.shared-pages"](): string;
+    /**
+      * `This workbook has no worksheets.`
+      */
+    ["com.affine.office.this-workbook-has-no-worksheets"](): string;
+    /**
+      * `Fingerprint`
+      */
+    ["com.affine.admin.fingerprint"](): string;
+    /**
+      * `New shape text`
+      */
+    ["com.affine.office.new-shape-text"](): string;
+    /**
+      * `The route policy allowed-provider list excludes this provider.`
+      */
+    ["com.affine.ui.the-route-policy-allowed-provider-list-excludes-this-provider"](): string;
+    /**
+      * `Use OpenAI legacy API style`
+      */
+    ["com.affine.admin.use-openai-legacy-api-style"](): string;
+    /**
+      * `Candidates`
+      */
+    ["com.affine.admin.candidates"](): string;
+    /**
+      * `Bookmarks`
+      */
+    ["com.affine.office.bookmarks"](): string;
+    /**
+      * `Model`
+      */
+    ["com.affine.admin.model"](): string;
+    /**
+      * `Delete {{type}} annotation`
+      */
+    ["com.affine.office.delete-typed-annotation"](options: {
+        readonly type: string;
+    }): string;
+    /**
+      * `API token`
+      */
+    ["com.affine.admin.api-token"](): string;
+    /**
+      * `Save text`
+      */
+    ["com.affine.office.save-text"](): string;
+    /**
+      * `Edit {{type}} annotation`
+      */
+    ["com.affine.office.edit-typed-annotation"](options: {
+        readonly type: string;
+    }): string;
+    /**
+      * `Search Email / UUID`
+      */
+    ["com.affine.admin.search-email-uuid"](): string;
+    /**
+      * `Continue writing`
+      */
+    ["com.affine.ai.action-label.continue-writing"](): string;
+    /**
+      * `Operation failed`
+      */
+    ["com.affine.ui.operation-failed"](): string;
+    /**
+      * `Auto-generated`
+      */
+    ["com.affine.admin.auto-generated"](): string;
+    /**
+      * `New Page`
+      */
+    ["com.affine.ui.new-page"](): string;
+    /**
+      * `No mail deliveries in this window`
+      */
+    ["com.affine.admin.no-mail-deliveries-in-this-window"](): string;
+    /**
+      * `Selection cleared because its stable target is not present in the new revision.`
+      */
+    ["com.affine.office.selection-cleared-because-its-stable-target-is-not-present-in-the-new-revision"](): string;
+    /**
+      * `Friendly`
+      */
+    ["com.affine.ai.action-label.friendly"](): string;
+    /**
+      * `Repair execution control`
+      */
+    ["com.affine.admin.repair-execution-control"](): string;
+    /**
+      * `Remove selection from AI context`
+      */
+    ["com.affine.office.remove-selection-from-ai-context"](): string;
+    /**
+      * `Enter a value or start a formula with =`
+      */
+    ["com.affine.office.enter-a-value-or-start-a-formula-with"](): string;
+    /**
+      * `Loading support bundle requests.`
+      */
+    ["com.affine.admin.loading-support-bundle-requests"](): string;
+    /**
+      * `Workspace indexing`
+      */
+    ["com.affine.admin.workspace-indexing"](): string;
+    /**
+      * `Choose a workspace.`
+      */
+    ["com.affine.ui.choose-a-workspace"](): string;
+    /**
+      * `Repair execution approval decision`
+      */
+    ["com.affine.admin.repair-execution-approval-decision"](): string;
+    /**
+      * `No prepared step targets`
+      */
+    ["com.affine.admin.no-prepared-step-targets"](): string;
+    /**
+      * `Sketch style`
+      */
+    ["com.affine.ai.action-label.sketch-style"](): string;
+    /**
+      * `copilot.providers.anthropicVertex: location, project, baseURL, and googleAuthOptions.`
+      */
+    ["com.affine.admin.copilot-providers-anthropicvertex-location-project-baseurl-and-googleauthoptions"](): string;
+    /**
+      * `{{count}} matches`
+      */
+    ["com.affine.office.match-count_other"](options: {
+        readonly count: string | number | bigint;
+    }): string;
+    /**
+      * `Task route`
+      */
+    ["com.affine.admin.task-route"](): string;
+    /**
+      * `The sanitized prepare error category points to an uncategorized provider runtime failure.`
+      */
+    ["com.affine.ui.the-sanitized-prepare-error-category-points-to-an-uncategorized-provider-runtime-failure"](): string;
+    /**
+      * `Apply and save`
+      */
+    ["com.affine.office.apply-and-save"](): string;
+    /**
+      * `Managed Storage`
+      */
+    ["com.affine.admin.managed-storage"](): string;
+    /**
+      * `Disable Account ?`
+      */
+    ["com.affine.admin.disable-account"](): string;
+    /**
+      * `Unable to load document contents`
+      */
+    ["com.affine.office.unable-to-load-document-contents"](): string;
+    /**
+      * `Annotation color`
+      */
+    ["com.affine.office.annotation-color"](): string;
+    /**
+      * `Filter values, comma separated`
+      */
+    ["com.affine.office.filter-values-comma-separated"](): string;
+    /**
+      * `Comparing against v{{version}}`
+      */
+    ["com.affine.office.comparing-version"](options: {
+        readonly version: string;
+    }): string;
+    /**
+      * `No configured profile model matched the requested capability.`
+      */
+    ["com.affine.ui.no-configured-profile-model-matched-the-requested-capability"](): string;
+    /**
+      * `approval`
+      */
+    ["com.affine.office.task-action.approve"](): string;
+    /**
+      * `Repair execution request not checked`
+      */
+    ["com.affine.admin.repair-execution-request-not-checked"](): string;
+    /**
+      * `Search prompts, actions, or models`
+      */
+    ["com.affine.admin.search-prompts-actions-or-models"](): string;
+    /**
+      * `Provider health probe retry error`
+      */
+    ["com.affine.admin.provider-health-probe-retry-error"](): string;
+    /**
+      * `The provider is not currently available for routing.`
+      */
+    ["com.affine.ui.the-provider-is-not-currently-available-for-routing"](): string;
+    /**
+      * `No persisted timeline events`
+      */
+    ["com.affine.admin.no-persisted-timeline-events"](): string;
+    /**
+      * `Member already exists`
+      */
+    ["com.affine.ui.member-already-exists"](): string;
+    /**
+      * `Success / failure`
+      */
+    ["com.affine.admin.success-failure"](): string;
+    /**
+      * `The expired key will be permanently removed.`
+      */
+    ["com.affine.admin.the-expired-key-will-be-permanently-removed"](): string;
+    /**
+      * `Blocked providers`
+      */
+    ["com.affine.admin.blocked-providers"](): string;
+    /**
+      * `Latest created bundle`
+      */
+    ["com.affine.admin.latest-created-bundle"](): string;
+    /**
+      * `Insert below`
+      */
+    ["com.affine.ai.action-label.insert-below"](): string;
+    /**
+      * `Success rate`
+      */
+    ["com.affine.admin.success-rate"](): string;
+    /**
+      * `Presentation editing`
+      */
+    ["com.affine.office.presentation-editing"](): string;
+    /**
+      * `Invalid email address.`
+      */
+    ["com.affine.admin.invalid-email-address"](): string;
+    /**
+      * `English`
+      */
+    ["com.affine.ai.action-label.english"](): string;
+    /**
+      * `Recommended checks`
+      */
+    ["com.affine.admin.recommended-checks"](): string;
+    /**
+      * `True`
+      */
+    ["com.affine.ui.true"](): string;
+    /**
+      * `Loading preview…`
+      */
+    ["com.affine.office.loading-preview"](): string;
+    /**
+      * `Report an Issue`
+      */
+    ["com.affine.admin.report-an-issue"](): string;
+    /**
+      * `Prev`
+      */
+    ["com.affine.ui.prev"](): string;
+    /**
+      * `Legacy quota candidate`
+      */
+    ["com.affine.ui.legacy-quota-candidate"](): string;
+    /**
+      * `Anime style`
+      */
+    ["com.affine.ai.action-label.anime-style"](): string;
+    /**
+      * `Official Website`
+      */
+    ["com.affine.ui.official-website"](): string;
+    /**
+      * `Allow URL previews in shared pages`
+      */
+    ["com.affine.admin.allow-url-previews-in-shared-pages"](): string;
+    /**
+      * `cells`
+      */
+    ["com.affine.office.cells"](): string;
+    /**
+      * `Failed to generate invitation link`
+      */
+    ["com.affine.ui.failed-to-generate-invitation-link"](): string;
+    /**
+      * `Document navigation`
+      */
+    ["com.affine.office.document-navigation"](): string;
+    /**
+      * `Add credential`
+      */
+    ["com.affine.admin.add-credential"](): string;
+    /**
+      * `Comma-separated exact tool names. Use * only to allow the full discovered catalog for this provider.`
+      */
+    ["com.affine.admin.comma-separated-exact-tool-names-use-only-to-allow-the-full-discovered-catalog-for-this-provider"](): string;
+    /**
+      * `Workspace:`
+      */
+    ["com.affine.admin.workspace"](): string;
+    /**
+      * `Search results`
+      */
+    ["com.affine.office.search-results"](): string;
+    /**
+      * `Workspace Global`
+      */
+    ["com.affine.admin.workspace-global"](): string;
+    /**
+      * `Stale check`
+      */
+    ["com.affine.admin.stale-check"](): string;
+    /**
+      * `Policy candidates`
+      */
+    ["com.affine.admin.policy-candidates"](): string;
+    /**
+      * `Generate a caption`
+      */
+    ["com.affine.ai.action-label.generate-a-caption"](): string;
+    /**
+      * `Repair execution filter`
+      */
+    ["com.affine.admin.repair-execution-filter"](): string;
+    /**
+      * `Add chart`
+      */
+    ["com.affine.office.add-chart"](): string;
+    /**
+      * `Update user avatar success`
+      */
+    ["com.affine.ui.update-user-avatar-success"](): string;
+    /**
+      * `OpenAI-compatible request API style`
+      */
+    ["com.affine.admin.openai-compatible-request-api-style"](): string;
+    /**
+      * `Discussion about this feature`
+      */
+    ["com.affine.ui.discussion-about-this-feature"](): string;
+    /**
+      * `No Result`
+      */
+    ["com.affine.ai.action-label.no-result"](): string;
+    /**
+      * `with your docs`
+      */
+    ["com.affine.ai.action-label.with-your-docs"](): string;
+    /**
+      * `Prepared route filtered`
+      */
+    ["com.affine.ui.prepared-route-filtered"](): string;
+    /**
+      * `No step canonical model pairs`
+      */
+    ["com.affine.admin.no-step-canonical-model-pairs"](): string;
+    /**
+      * `Failed to save AI configuration.`
+      */
+    ["com.affine.admin.failed-to-save-ai-configuration"](): string;
+    /**
+      * `Failed to preview license.`
+      */
+    ["com.affine.admin.failed-to-preview-license"](): string;
+    /**
+      * `Invalid Office package URL`
+      */
+    ["com.affine.office.invalid-office-package-url"](): string;
+    /**
+      * `Account created, but AI Profile assignment failed: `
+      */
+    ["com.affine.admin.account-created-but-ai-profile-assignment-failed"](): string;
+    /**
+      * `Prepare auth error`
+      */
+    ["com.affine.ui.prepare-auth-error"](): string;
+    /**
+      * `More pages`
+      */
+    ["com.affine.admin.more-pages"](): string;
+    /**
+      * `LocalMind is ready to use.`
+      */
+    ["com.affine.admin.localmind-is-ready-to-use"](): string;
+    /**
+      * `The attachment is being downloaded to your computer.`
+      */
+    ["com.affine.ui.the-attachment-is-being-downloaded-to-your-computer"](): string;
+    /**
+      * `Timeline`
+      */
+    ["com.affine.admin.timeline"](): string;
+    /**
+      * `Highest severity:`
+      */
+    ["com.affine.admin.highest-severity"](): string;
+    /**
+      * `Column`
+      */
+    ["com.affine.office.column"](): string;
+    /**
+      * `Select a variable to edit`
+      */
+    ["com.affine.ui.select-a-variable-to-edit"](): string;
+    /**
+      * `Group approved credentials into reusable routing profiles. A user assignment takes priority in this workspace, followed by the workspace default.`
+      */
+    ["com.affine.admin.group-approved-credentials-into-reusable-routing-profiles-a-user-assignment-takes-priority-in-this-w"](): string;
+    /**
+      * `Agent runtime target step types none`
+      */
+    ["com.affine.admin.agent-runtime-target-step-types-none"](): string;
+    /**
+      * `Copy metadata`
+      */
+    ["com.affine.admin.copy-metadata"](): string;
+    /**
+      * `Settings changed; please restart the app.`
+      */
+    ["com.affine.ui.settings-changed-please-restart-the-app"](): string;
+    /**
+      * `command(s)`
+      */
+    ["com.affine.office.command-s"](): string;
+    /**
+      * `Support bundle object-storage webhooks JSON`
+      */
+    ["com.affine.admin.support-bundle-object-storage-webhooks-json"](): string;
+    /**
+      * `Limits`
+      */
+    ["com.affine.admin.limits"](): string;
+    /**
+      * `Privacy Policy`
+      */
+    ["com.affine.ui.privacy-policy"](): string;
+    /**
+      * `New profile`
+      */
+    ["com.affine.admin.new-profile"](): string;
+    /**
+      * `Available`
+      */
+    ["com.affine.admin.available"](): string;
+    /**
+      * `Search, assets, storage, and support bundles`
+      */
+    ["com.affine.admin.search-assets-storage-and-support-bundles"](): string;
+    /**
+      * `The provider model does not support the requested output type.`
+      */
+    ["com.affine.ui.the-provider-model-does-not-support-the-requested-output-type"](): string;
+    /**
+      * `Pro models`
+      */
+    ["com.affine.admin.pro-models"](): string;
+    /**
+      * `Document selection across {{start}} and {{end}}`
+      */
+    ["com.affine.office.selection-span"](options: Readonly<{
+        start: string;
+        end: string;
+    }>): string;
+    /**
+      * `Columns`
+      */
+    ["com.affine.office.columns"](): string;
+    /**
+      * `Profile`
+      */
+    ["com.affine.admin.profile"](): string;
+    /**
+      * `(optional)`
+      */
+    ["com.affine.admin.optional"](): string;
+    /**
+      * `Allow BYOK custom endpoint`
+      */
+    ["com.affine.admin.allow-byok-custom-endpoint"](): string;
+    /**
+      * `Add annotation`
+      */
+    ["com.affine.office.add-annotation"](): string;
+    /**
+      * `Agent runtime step types none`
+      */
+    ["com.affine.admin.agent-runtime-step-types-none"](): string;
+    /**
+      * `Free`
+      */
+    ["com.affine.ui.free"](): string;
+    /**
+      * `Signer name`
+      */
+    ["com.affine.office.signer-name"](): string;
+    /**
+      * `Historical revision, read only`
+      */
+    ["com.affine.office.historical-revision-read-only"](): string;
+    /**
+      * `Previous`
+      */
+    ["com.affine.admin.previous"](): string;
+    /**
+      * `Failed to upload attachment`
+      */
+    ["com.affine.ui.failed-to-upload-attachment"](): string;
+    /**
+      * `Run`
+      */
+    ["com.affine.admin.run"](): string;
+    /**
+      * `Not entitled`
+      */
+    ["com.affine.admin.not-entitled"](): string;
+    /**
+      * `Chat History`
+      */
+    ["com.affine.ai.action-label.chat-history"](): string;
+    /**
+      * `No candidate diagnostics returned.`
+      */
+    ["com.affine.admin.no-candidate-diagnostics-returned"](): string;
+    /**
+      * `Routes`
+      */
+    ["com.affine.admin.routes"](): string;
+    /**
+      * `Provider enablement, credentials, endpoint, health, privacy, and profile configuration.`
+      */
+    ["com.affine.ui.provider-enablement-credentials-endpoint-health-privacy-and-profile-configuration"](): string;
+    /**
+      * `User deleted successfully`
+      */
+    ["com.affine.admin.user-deleted-successfully"](): string;
+    /**
+      * `Traditional Chinese`
+      */
+    ["com.affine.ai.action-label.traditional-chinese"](): string;
+    /**
+      * `The sanitized prepare error category points to network, endpoint, timeout, or abort handling.`
+      */
+    ["com.affine.ui.the-sanitized-prepare-error-category-points-to-network-endpoint-timeout-or-abort-handling"](): string;
+    /**
+      * `Preferred privacy`
+      */
+    ["com.affine.ui.preferred-privacy"](): string;
+    /**
+      * `Update User`
+      */
+    ["com.affine.admin.update-user"](): string;
+    /**
+      * `Not delivered`
+      */
+    ["com.affine.admin.not-delivered"](): string;
+    /**
+      * `Slide image`
+      */
+    ["com.affine.office.slide-image"](): string;
+    /**
+      * `The provider privacy class is not allowed by route policy.`
+      */
+    ["com.affine.ui.the-provider-privacy-class-is-not-allowed-by-route-policy"](): string;
+    /**
+      * `Annotation comment`
+      */
+    ["com.affine.office.annotation-comment"](): string;
+    /**
+      * `Rows per page`
+      */
+    ["com.affine.admin.rows-per-page"](): string;
+    /**
+      * `Cannot insert in read-only mode`
+      */
+    ["com.affine.ui.cannot-insert-in-read-only-mode"](): string;
+    /**
+      * `Agent runtime step status gaps none`
+      */
+    ["com.affine.admin.agent-runtime-step-status-gaps-none"](): string;
+    /**
+      * `Configure prompt model defaults, prompt-specific overrides, embedding, workspace indexing, and rerank aliases.`
+      */
+    ["com.affine.admin.configure-prompt-model-defaults-prompt-specific-overrides-embedding-workspace-indexing-and-rerank-al"](): string;
+    /**
+      * `Agent runtime runs`
+      */
+    ["com.affine.admin.agent-runtime-runs"](): string;
+    /**
+      * `BYOK route selection, provider priority, model binding, and disabled legacy platform branches.`
+      */
+    ["com.affine.ui.byok-route-selection-provider-priority-model-binding-and-disabled-legacy-platform-branches"](): string;
+    /**
+      * `Rotate page clockwise`
+      */
+    ["com.affine.office.rotate-page-clockwise"](): string;
+    /**
+      * `The route policy explicitly blocks this provider.`
+      */
+    ["com.affine.ui.the-route-policy-explicitly-blocks-this-provider"](): string;
+    /**
+      * `Linear equation`
+      */
+    ["com.affine.office.linear-equation"](): string;
+    /**
+      * `Unexpected error occurred, please try again.`
+      */
+    ["com.affine.ui.unexpected-error-occurred-please-try-again"](): string;
+    /**
+      * `Switch Chat? Current chat is pinned`
+      */
+    ["com.affine.ui.switch-chat-current-chat-is-pinned"](): string;
+    /**
+      * `Parsing...`
+      */
+    ["com.affine.admin.parsing"](): string;
+    /**
+      * `pagination`
+      */
+    ["com.affine.admin.pagination"](): string;
+    /**
+      * `Highlight`
+      */
+    ["com.affine.office.annotation-type.Highlight"](): string;
+    /**
+      * `go back`
+      */
+    ["com.affine.ui.go-back"](): string;
+    /**
+      * `Generate headings`
+      */
+    ["com.affine.ai.action-label.generate-headings"](): string;
+    /**
+      * `Export PDF`
+      */
+    ["com.affine.office.export-pdf"](): string;
+    /**
+      * `Go to Tag List`
+      */
+    ["com.affine.ui.go-to-tag-list"](): string;
+    /**
+      * `Improve writing`
+      */
+    ["com.affine.ai.action-label.improve-writing"](): string;
+    /**
+      * `Permanent redaction`
+      */
+    ["com.affine.office.permanent-redaction"](): string;
+    /**
+      * `No Workspace AI credentials configured.`
+      */
+    ["com.affine.admin.no-workspace-ai-credentials-configured"](): string;
+    /**
+      * `Provider prepare error`
+      */
+    ["com.affine.ui.provider-prepare-error"](): string;
+    /**
+      * `Allow AI features in this workspace`
+      */
+    ["com.affine.admin.allow-ai-features-in-this-workspace"](): string;
+    /**
+      * `Requested model`
+      */
+    ["com.affine.admin.requested-model"](): string;
+    /**
+      * `AI is generating content. Do you want to stop generating?`
+      */
+    ["com.affine.ui.ai-is-generating-content-do-you-want-to-stop-generating"](): string;
+    /**
+      * `Successfully disabled`
+      */
+    ["com.affine.ui.successfully-disabled"](): string;
+    /**
+      * `This key can be deleted after its verification window ends.`
+      */
+    ["com.affine.admin.this-key-can-be-deleted-after-its-verification-window-ends"](): string;
+    /**
+      * `Top {{count}} links in the last {{days}} days`
+      */
+    ["com.affine.admin.top-links-window"](options: Readonly<{
+        count: string;
+        days: string;
+    }>): string;
+    /**
+      * `No dimension evidence`
+      */
+    ["com.affine.admin.no-dimension-evidence"](): string;
+    /**
+      * `Account updated, but AI Profile assignment failed: `
+      */
+    ["com.affine.admin.account-updated-but-ai-profile-assignment-failed"](): string;
+    /**
+      * `Embedding disabled`
+      */
+    ["com.affine.admin.embedding-disabled"](): string;
+    /**
+      * `Upload your CSV file or drag it here`
+      */
+    ["com.affine.admin.upload-your-csv-file-or-drag-it-here"](): string;
+    /**
+      * `Drop to attach`
+      */
+    ["com.affine.ai.action-label.drop-to-attach"](): string;
+    /**
+      * `tracked change(s)`
+      */
+    ["com.affine.office.tracked-change-s"](): string;
+    /**
+      * `Enable Cloud`
+      */
+    ["com.affine.ui.enable-cloud"](): string;
+    /**
+      * `Header and footer`
+      */
+    ["com.affine.office.header-and-footer"](): string;
+    /**
+      * `Paragraph {{name}}, {{start}}–{{end}}`
+      */
+    ["com.affine.office.paragraph-range"](options: Readonly<{
+        name: string;
+        start: string;
+        end: string;
+    }>): string;
+    /**
+      * `Recover`
+      */
+    ["com.affine.ui.recover"](): string;
+    /**
+      * `{{days}} days, grouped by day`
+      */
+    ["com.affine.admin.storage-window"](options: {
+        readonly days: string;
+    }): string;
+    /**
+      * `Global policy`
+      */
+    ["com.affine.admin.global-policy"](): string;
+    /**
+      * `Attachment not supported`
+      */
+    ["com.affine.ui.attachment-not-supported"](): string;
+    /**
+      * `Failed to copy reset password link: `
+      */
+    ["com.affine.admin.failed-to-copy-reset-password-link"](): string;
+    /**
+      * `German`
+      */
+    ["com.affine.ai.action-label.german"](): string;
+    /**
+      * `copilot.storage: provider, bucket, and storage provider config used by copilot artifacts.`
+      */
+    ["com.affine.admin.copilot-storage-provider-bucket-and-storage-provider-config-used-by-copilot-artifacts"](): string;
+    /**
+      * `Workspace AI credential scope`
+      */
+    ["com.affine.admin.workspace-ai-credential-scope"](): string;
+    /**
+      * `No license file selected.`
+      */
+    ["com.affine.admin.no-license-file-selected"](): string;
+    /**
+      * `No step fallback order`
+      */
+    ["com.affine.admin.no-step-fallback-order"](): string;
+    /**
+      * `Copy to clipboard`
+      */
+    ["com.affine.ui.copy-to-clipboard"](): string;
+    /**
+      * `Rerank model alias`
+      */
+    ["com.affine.admin.rerank-model-alias"](): string;
+    /**
+      * `No step route counts`
+      */
+    ["com.affine.admin.no-step-route-counts"](): string;
+    /**
+      * `No step backend pairs`
+      */
+    ["com.affine.admin.no-step-backend-pairs"](): string;
+    /**
+      * `Stale reasons none`
+      */
+    ["com.affine.admin.stale-reasons-none"](): string;
+    /**
+      * `Circle`
+      */
+    ["com.affine.office.annotation-type.circle"](): string;
+    /**
+      * `Worksheet order`
+      */
+    ["com.affine.office.worksheet-order"](): string;
+    /**
+      * `Bar`
+      */
+    ["com.affine.office.bar"](): string;
+    /**
+      * `Enable Enterprise CLI`
+      */
+    ["com.affine.admin.enable-enterprise-cli"](): string;
+    /**
+      * `BYOK allowed providers`
+      */
+    ["com.affine.admin.byok-allowed-providers"](): string;
+    /**
+      * `Fix grammar`
+      */
+    ["com.affine.ai.action-label.fix-grammar"](): string;
+    /**
+      * `Activity`
+      */
+    ["com.affine.admin.activity"](): string;
+    /**
+      * `Comma-separated provider ids available for per-workspace BYOK routing.`
+      */
+    ["com.affine.admin.comma-separated-provider-ids-available-for-per-workspace-byok-routing"](): string;
+    /**
+      * `No prepared kinds`
+      */
+    ["com.affine.admin.no-prepared-kinds"](): string;
+    /**
+      * `Workspace metadata`
+      */
+    ["com.affine.admin.workspace-metadata"](): string;
+    /**
+      * `The sanitized prepare error category points to credentials or authorization.`
+      */
+    ["com.affine.ui.the-sanitized-prepare-error-category-points-to-credentials-or-authorization"](): string;
+    /**
+      * `Remove background`
+      */
+    ["com.affine.ai.action-label.remove-background"](): string;
+    /**
+      * `Copy manifest JSON`
+      */
+    ["com.affine.admin.copy-manifest-json"](): string;
+    /**
+      * `Download account information`
+      */
+    ["com.affine.admin.download-account-information"](): string;
+    /**
+      * `Checking request gate`
+      */
+    ["com.affine.admin.checking-request-gate"](): string;
+    /**
+      * `The provider runtime is unavailable for this candidate.`
+      */
+    ["com.affine.ui.the-provider-runtime-is-unavailable-for-this-candidate"](): string;
+    /**
+      * `Agent runtime unsupported step types none`
+      */
+    ["com.affine.admin.agent-runtime-unsupported-step-types-none"](): string;
+    /**
+      * `Open the doc you just created`
+      */
+    ["com.affine.ui.open-the-doc-you-just-created"](): string;
+    /**
+      * `copilot.supportBundles.objectStorageWebhooks: HMAC webhook definitions for support bundle direct-download notifications.`
+      */
+    ["com.affine.admin.copilot-supportbundles-objectstoragewebhooks-hmac-webhook-definitions-for-support-bundle-direct-down"](): string;
+    /**
+      * `Support bundle forwarding status`
+      */
+    ["com.affine.admin.support-bundle-forwarding-status"](): string;
+    /**
+      * `No configurable features.`
+      */
+    ["com.affine.admin.no-configurable-features"](): string;
+    /**
+      * `No comments yet.`
+      */
+    ["com.affine.office.no-comments-yet"](): string;
+    /**
+      * `Save profile`
+      */
+    ["com.affine.admin.save-profile"](): string;
+    /**
+      * `Not configured`
+      */
+    ["com.affine.admin.not-configured"](): string;
+    /**
+      * `Retry execution`
+      */
+    ["com.affine.admin.retry-execution"](): string;
+    /**
+      * `Page rotation`
+      */
+    ["com.affine.office.page-rotation"](): string;
+    /**
+      * `Could not update Project BYOK.`
+      */
+    ["com.affine.admin.could-not-update-project-byok"](): string;
+    /**
+      * `Right margin`
+      */
+    ["com.affine.office.right-margin"](): string;
+    /**
+      * `Prompt search`
+      */
+    ["com.affine.admin.prompt-search"](): string;
+    /**
+      * `Line`
+      */
+    ["com.affine.office.line"](): string;
+    /**
+      * `Page setup`
+      */
+    ["com.affine.office.page-setup"](): string;
+    /**
+      * `Provider defaults`
+      */
+    ["com.affine.admin.provider-defaults"](): string;
+    /**
+      * `Enable Account`
+      */
+    ["com.affine.admin.enable-account"](): string;
+    /**
+      * `Saved`
+      */
+    ["com.affine.admin.saved"](): string;
+    /**
+      * `Failed to save workspace AI credential.`
+      */
+    ["com.affine.admin.failed-to-save-workspace-ai-credential"](): string;
+    /**
+      * `Table {{name}}`
+      */
+    ["com.affine.office.table-name"](options: {
+        readonly name: string;
+    }): string;
+    /**
+      * `Add chat`
+      */
+    ["com.affine.ai.action-label.add-chat"](): string;
+    /**
+      * `No shared links.`
+      */
+    ["com.affine.admin.no-shared-links"](): string;
+    /**
+      * `Exa web search key`
+      */
+    ["com.affine.admin.exa-web-search-key"](): string;
+    /**
+      * `Views`
+      */
+    ["com.affine.admin.views"](): string;
+    /**
+      * `Global`
+      */
+    ["com.affine.admin.global"](): string;
+    /**
+      * `Search Docs, Collections`
+      */
+    ["com.affine.ui.search-docs-collections"](): string;
+    /**
+      * `Retention`
+      */
+    ["com.affine.admin.retention"](): string;
+    /**
+      * `Move slide down`
+      */
+    ["com.affine.office.move-slide-down"](): string;
+    /**
+      * `Validation list values`
+      */
+    ["com.affine.office.validation-list-values"](): string;
+    /**
+      * `Office change`
+      */
+    ["com.affine.office.office-change"](): string;
+    /**
+      * `Limit indexing and other compute-intensive tasks on this device, may experience longer loading time and latency in search and other features, in exchange for quietness.`
+      */
+    ["com.affine.ui.limit-indexing-and-other-compute-intensive-tasks-on-this-device-may-experience-longer-loading-time-a"](): string;
+    /**
+      * `Failed to open license file picker.`
+      */
+    ["com.affine.admin.failed-to-open-license-file-picker"](): string;
+    /**
+      * `Create Administrator Account`
+      */
+    ["com.affine.admin.create-administrator-account"](): string;
+    /**
+      * `This email is not available for sign in.`
+      */
+    ["com.affine.ui.this-email-is-not-available-for-sign-in"](): string;
+    /**
+      * `Check request gate`
+      */
+    ["com.affine.admin.check-request-gate"](): string;
+    /**
+      * `No route backends`
+      */
+    ["com.affine.admin.no-route-backends"](): string;
+    /**
+      * `No requested target pairs`
+      */
+    ["com.affine.admin.no-requested-target-pairs"](): string;
+    /**
+      * `Selected cell range`
+      */
+    ["com.affine.office.selected-cell-range"](): string;
+    /**
+      * `Copied markdown to clipboard`
+      */
+    ["com.affine.ui.copied-markdown-to-clipboard"](): string;
+    /**
+      * `Justify`
+      */
+    ["com.affine.office.justify"](): string;
+    /**
+      * `Definition`
+      */
+    ["com.affine.admin.definition"](): string;
+    /**
+      * `Circle`
+      */
+    ["com.affine.office.annotation-type.Circle"](): string;
+    /**
+      * `Policy candidate`
+      */
+    ["com.affine.admin.policy-candidate"](): string;
+    /**
+      * `Free text`
+      */
+    ["com.affine.office.annotation-type.freeText"](): string;
+    /**
+      * `Provider not allowed`
+      */
+    ["com.affine.ui.provider-not-allowed"](): string;
+    /**
+      * `Strikeout`
+      */
+    ["com.affine.office.annotation-type.strikeout"](): string;
+    /**
+      * `Update user avatar failed`
+      */
+    ["com.affine.ui.update-user-avatar-failed"](): string;
+    /**
+      * `Delete signing key?`
+      */
+    ["com.affine.admin.delete-signing-key"](): string;
+    /**
+      * `Next slide`
+      */
+    ["com.affine.admin.next-slide"](): string;
+    /**
+      * `Unknown`
+      */
+    ["com.affine.ui.unknown"](): string;
+    /**
+      * `Annotations`
+      */
+    ["com.affine.office.annotations"](): string;
+    /**
+      * `Generate presentation`
+      */
+    ["com.affine.ai.action-label.generate-presentation"](): string;
+    /**
+      * `Show the View analytics tab in the right sidebar.`
+      */
+    ["com.affine.ui.show-the-view-analytics-tab-in-the-right-sidebar"](): string;
+    /**
+      * `No results found.`
+      */
+    ["com.affine.ui.no-results-found"](): string;
+    /**
+      * `Open sidebar`
+      */
+    ["com.affine.ui.open-sidebar"](): string;
+    /**
+      * `Edit credential`
+      */
+    ["com.affine.admin.edit-credential"](): string;
+    /**
+      * `Shape properties`
+      */
+    ["com.affine.office.shape-properties"](): string;
+    /**
+      * `Allowed values, comma separated`
+      */
+    ["com.affine.office.allowed-values-comma-separated"](): string;
+    /**
+      * `No recent action runs returned for this workspace.`
+      */
+    ["com.affine.admin.no-recent-action-runs-returned-for-this-workspace"](): string;
+    /**
+      * `Test`
+      */
+    ["com.affine.admin.test"](): string;
+    /**
+      * `Go to next page`
+      */
+    ["com.affine.admin.go-to-next-page"](): string;
+    /**
+      * `Agent Runtime run filter`
+      */
+    ["com.affine.admin.agent-runtime-run-filter"](): string;
+    /**
+      * `Continue in AI Chat`
+      */
+    ["com.affine.ai.action-label.continue-in-ai-chat"](): string;
+    /**
+      * `Create as a linked doc`
+      */
+    ["com.affine.ui.create-as-a-linked-doc"](): string;
+    /**
+      * `Enter email address`
+      */
+    ["com.affine.admin.enter-email-address"](): string;
+    /**
+      * `Right Panel`
+      */
+    ["com.affine.admin.right-panel"](): string;
+    /**
+      * `Delete {{name}} chart`
+      */
+    ["com.affine.office.delete-named-chart"](options: {
+        readonly name: string;
+    }): string;
+    /**
+      * `Processing...`
+      */
+    ["com.affine.admin.processing"](): string;
+    /**
+      * `Professional`
+      */
+    ["com.affine.ai.action-label.professional"](): string;
+    /**
+      * `Top margin`
+      */
+    ["com.affine.office.top-margin"](): string;
+    /**
+      * `Slide duplication`
+      */
+    ["com.affine.office.slide-duplication"](): string;
+    /**
+      * `Capability not declared`
+      */
+    ["com.affine.ui.capability-not-declared"](): string;
+    /**
+      * `Data tools`
+      */
+    ["com.affine.office.data-tools"](): string;
+    /**
+      * `Could not load the latest settings. Reload before saving.`
+      */
+    ["com.affine.admin.could-not-load-the-latest-settings-reload-before-saving"](): string;
+    /**
+      * `Alt text`
+      */
+    ["com.affine.office.alt-text"](): string;
+    /**
+      * `Test email sent`
+      */
+    ["com.affine.admin.test-email-sent"](): string;
+    /**
+      * `Save notes`
+      */
+    ["com.affine.office.save-notes"](): string;
+    /**
+      * `This document changed in another session. Reload the latest revision and try again.`
+      */
+    ["com.affine.office.this-document-changed-in-another-session-reload-the-latest-revision-and-try-again"](): string;
+    /**
+      * `Download archive`
+      */
+    ["com.affine.admin.download-archive"](): string;
+    /**
+      * `favorite`
+      */
+    ["com.affine.ui.favorite"](): string;
+    /**
+      * `Recent action runs`
+      */
+    ["com.affine.admin.recent-action-runs"](): string;
+    /**
+      * `Office editor is not writable`
+      */
+    ["com.affine.office.office-editor-is-not-writable"](): string;
+    /**
+      * `Sheet {{name}}`
+      */
+    ["com.affine.office.sheet-name"](options: {
+        readonly name: string;
+    }): string;
+    /**
+      * `Open Office file`
+      */
+    ["com.affine.ui.open-office-file"](): string;
+    /**
+      * `Searching...`
+      */
+    ["com.affine.admin.searching"](): string;
+    /**
+      * `Rendering PDF page…`
+      */
+    ["com.affine.office.rendering-pdf-page"](): string;
+    /**
+      * `Informal`
+      */
+    ["com.affine.ai.action-label.informal"](): string;
+    /**
+      * `Text note`
+      */
+    ["com.affine.office.annotation-type.Text"](): string;
+    /**
+      * `{{count}} user detected in the CSV file. Confirm the list below to import.`
+      */
+    ["com.affine.admin.import-preview-count_one"](options: {
+        readonly count: (string | number | bigint) & (string | number | bigint);
+    }): string;
+    /**
+      * `Global Project BYOK saved.`
+      */
+    ["com.affine.admin.global-project-byok-saved"](): string;
+    /**
+      * `No route order`
+      */
+    ["com.affine.admin.no-route-order"](): string;
+    /**
+      * `Errors`
+      */
+    ["com.affine.admin.errors"](): string;
+    /**
+      * `Failed to load Workspace AI credential scopes.`
+      */
+    ["com.affine.admin.failed-to-load-workspace-ai-credential-scopes"](): string;
+    /**
+      * `No shared links in this window`
+      */
+    ["com.affine.admin.no-shared-links-in-this-window"](): string;
+    /**
+      * `Square`
+      */
+    ["com.affine.office.annotation-type.square"](): string;
+    /**
+      * `Optional shape text`
+      */
+    ["com.affine.office.optional-shape-text"](): string;
+    /**
+      * `Failed to update user name.`
+      */
+    ["com.affine.ui.failed-to-update-user-name"](): string;
+    /**
+      * `Critical`
+      */
+    ["com.affine.ai.action-label.critical"](): string;
+    /**
+      * `Model capability metadata, embedding dimensions, aliases, and output/input support.`
+      */
+    ["com.affine.ui.model-capability-metadata-embedding-dimensions-aliases-and-output-input-support"](): string;
+    /**
+      * `Agent runtime target step statuses none`
+      */
+    ["com.affine.admin.agent-runtime-target-step-statuses-none"](): string;
+    /**
+      * `{{count}} tracked changes`
+      */
+    ["com.affine.office.tracked-change-count_other"](options: {
+        readonly count: string | number | bigint;
+    }): string;
+    /**
+      * `Generate outline`
+      */
+    ["com.affine.ai.action-label.generate-outline"](): string;
+    /**
+      * `Valid`
+      */
+    ["com.affine.admin.valid"](): string;
+    /**
+      * `Model source`
+      */
+    ["com.affine.admin.model-source"](): string;
+    /**
+      * `Preview license`
+      */
+    ["com.affine.admin.preview-license"](): string;
+    /**
+      * `Select prompt`
+      */
+    ["com.affine.admin.select-prompt"](): string;
+    /**
+      * `Nothing here yet`
+      */
+    ["com.affine.ui.nothing-here-yet"](): string;
+    /**
+      * `Reset password link copied to clipboard`
+      */
+    ["com.affine.admin.reset-password-link-copied-to-clipboard"](): string;
+    /**
+      * `Enterprise CLI governance`
+      */
+    ["com.affine.admin.enterprise-cli-governance"](): string;
+    /**
+      * `Candidate models`
+      */
+    ["com.affine.admin.candidate-models"](): string;
+    /**
+      * `Footer`
+      */
+    ["com.affine.office.footer"](): string;
+    /**
+      * `Wait for the current save to finish before editing another paragraph.`
+      */
+    ["com.affine.office.wait-for-the-current-save-to-finish-before-editing-another-paragraph"](): string;
+    /**
+      * `Translate to`
+      */
+    ["com.affine.ai.action-label.translate-to"](): string;
+    /**
+      * `Blocking`
+      */
+    ["com.affine.admin.blocking"](): string;
+    /**
+      * `Rendered PDF page {{number}}`
+      */
+    ["com.affine.office.rendered-pdf-page"](options: {
+        readonly number: string;
+    }): string;
+    /**
+      * `Delete reply`
+      */
+    ["com.affine.office.delete-reply"](): string;
+    /**
+      * `Spanish`
+      */
+    ["com.affine.ai.action-label.spanish"](): string;
+    /**
+      * `Use this credential in routing`
+      */
+    ["com.affine.admin.use-this-credential-in-routing"](): string;
+    /**
+      * `Slide order`
+      */
+    ["com.affine.office.slide-order"](): string;
+    /**
+      * `An older diagnostic identified a platform route that is disabled under BYOK-only execution.`
+      */
+    ["com.affine.ui.an-older-diagnostic-identified-a-platform-route-that-is-disabled-under-byok-only-execution"](): string;
+    /**
+      * `Current Sync Active Users`
+      */
+    ["com.affine.admin.current-sync-active-users"](): string;
+    /**
+      * `Pie`
+      */
+    ["com.affine.office.pie"](): string;
+    /**
+      * `Header`
+      */
+    ["com.affine.office.header"](): string;
+    /**
+      * `For displaying additional information`
+      */
+    ["com.affine.admin.for-displaying-additional-information"](): string;
+    /**
+      * `Rounded rectangle`
+      */
+    ["com.affine.office.rounded-rectangle"](): string;
+    /**
+      * `Copied to clipboard`
+      */
+    ["com.affine.ui.copied-to-clipboard"](): string;
+    /**
+      * `No persisted repair execution requests have been created for this workspace.`
+      */
+    ["com.affine.admin.no-persisted-repair-execution-requests-have-been-created-for-this-workspace"](): string;
+    /**
+      * `Shape insertion`
+      */
+    ["com.affine.office.shape-insertion"](): string;
+    /**
+      * `Configure your self-hosted LocalMind with a few simple settings.`
+      */
+    ["com.affine.admin.configure-your-self-hosted-localmind-with-a-few-simple-settings"](): string;
+    /**
+      * `Blob Count`
+      */
+    ["com.affine.admin.blob-count-2"](): string;
+    /**
+      * `Copy link to block`
+      */
+    ["com.affine.ui.copy-link-to-block"](): string;
+    /**
+      * `Fill`
+      */
+    ["com.affine.office.fill"](): string;
+    /**
+      * `Unmerge cells`
+      */
+    ["com.affine.office.unmerge-cells"](): string;
+    /**
+      * `Chart category range`
+      */
+    ["com.affine.office.chart-category-range"](): string;
+    /**
+      * `Signature and payload format are valid.`
+      */
+    ["com.affine.admin.signature-and-payload-format-are-valid"](): string;
+    /**
+      * `Shape text`
+      */
+    ["com.affine.office.shape-text"](): string;
+    /**
+      * `Inserted to current doc`
+      */
+    ["com.affine.ui.inserted-to-current-doc"](): string;
+    /**
+      * `Make it longer`
+      */
+    ["com.affine.ai.action-label.make-it-longer"](): string;
+    /**
+      * `Prompt catalog`
+      */
+    ["com.affine.admin.prompt-catalog"](): string;
+    /**
+      * `Add slide`
+      */
+    ["com.affine.office.add-slide"](): string;
+    /**
+      * `Phase`
+      */
+    ["com.affine.admin.phase"](): string;
+    /**
+      * `Workspace Created`
+      */
+    ["com.affine.ui.workspace-created"](): string;
+    /**
+      * `No AI Profiles configured. Existing enabled credentials remain the compatibility fallback.`
+      */
+    ["com.affine.admin.no-ai-profiles-configured-existing-enabled-credentials-remain-the-compatibility-fallback"](): string;
+    /**
+      * `Workspace AI credentials`
+      */
+    ["com.affine.admin.workspace-ai-credentials"](): string;
+    /**
+      * `Preview ready: {{paragraphs}} paragraph(s), {{runs}} run(s)`
+      */
+    ["com.affine.office.preview-summary"](options: Readonly<{
+        paragraphs: string;
+        runs: string;
+    }>): string;
+    /**
+      * `Document formatting`
+      */
+    ["com.affine.office.document-formatting"](): string;
+    /**
+      * `Failed to create account: `
+      */
+    ["com.affine.admin.failed-to-create-account"](): string;
+    /**
+      * `Latest retention cleanup`
+      */
+    ["com.affine.admin.latest-retention-cleanup"](): string;
+    /**
+      * `Switching will unpinned the current chat. This will change the active chat panel, allowing you to navigate between different conversation histories.`
+      */
+    ["com.affine.ui.switching-will-unpinned-the-current-chat-this-will-change-the-active-chat-panel-allowing-you-to-navi"](): string;
+    /**
+      * `Signing key rotated`
+      */
+    ["com.affine.admin.signing-key-rotated"](): string;
+    /**
+      * `Allow public access to workspace pages`
+      */
+    ["com.affine.admin.allow-public-access-to-workspace-pages"](): string;
+    /**
+      * `Run {{number}} in {{name}}`
+      */
+    ["com.affine.office.run-number"](options: Readonly<{
+        number: string;
+        name: string;
+    }>): string;
+    /**
+      * `Set validation`
+      */
+    ["com.affine.office.set-validation"](): string;
+    /**
+      * `Compatibility quota evidence; runtime provider execution is BYOK-only and does not enforce platform quota.`
+      */
+    ["com.affine.ui.compatibility-quota-evidence-runtime-provider-execution-is-byok-only-and-does-not-enforce-platform-q"](): string;
+    /**
+      * `Repair recommendations 0`
+      */
+    ["com.affine.admin.repair-recommendations-0"](): string;
+    /**
+      * `Comment`
+      */
+    ["com.affine.office.comment"](): string;
+    /**
+      * `Cell address was reset to A1.`
+      */
+    ["com.affine.office.cell-address-was-reset-to-a1"](): string;
+    /**
+      * `Page {{number}}`
+      */
+    ["com.affine.office.page-number"](options: {
+        readonly number: string;
+    }): string;
+    /**
+      * `Inserted`
+      */
+    ["com.affine.ai.action-label.inserted"](): string;
+    /**
+      * `Detail`
+      */
+    ["com.affine.admin.detail"](): string;
+    /**
+      * `Failed to read redacted page`
+      */
+    ["com.affine.office.failed-to-read-redacted-page"](): string;
+    /**
+      * `Generate an image`
+      */
+    ["com.affine.ai.action-label.generate-an-image"](): string;
+    /**
+      * `Catalog category`
+      */
+    ["com.affine.admin.catalog-category"](): string;
+    /**
+      * `Provider default`
+      */
+    ["com.affine.admin.provider-default"](): string;
+    /**
+      * `Prompt defaults JSON`
+      */
+    ["com.affine.admin.prompt-defaults-json"](): string;
+    /**
+      * `Page order`
+      */
+    ["com.affine.office.page-order"](): string;
+    /**
+      * `Dimensions`
+      */
+    ["com.affine.admin.dimensions"](): string;
+    /**
+      * `The server returned an unsupported DOCX state`
+      */
+    ["com.affine.office.the-server-returned-an-unsupported-docx-state"](): string;
+    /**
+      * `The prepared native route resolved a model alias or raw model.`
+      */
+    ["com.affine.ui.the-prepared-native-route-resolved-a-model-alias-or-raw-model"](): string;
+    /**
+      * `Star LocalMind on GitHub`
+      */
+    ["com.affine.admin.star-localmind-on-github"](): string;
+    /**
+      * `Opening native document…`
+      */
+    ["com.affine.office.opening-native-document"](): string;
+    /**
+      * `Embedding enabled`
+      */
+    ["com.affine.admin.embedding-enabled"](): string;
+    /**
+      * `No prepared steps`
+      */
+    ["com.affine.admin.no-prepared-steps"](): string;
+    /**
+      * `cancellation`
+      */
+    ["com.affine.office.task-action.cancel"](): string;
+    /**
+      * `Registry source`
+      */
+    ["com.affine.admin.registry-source"](): string;
+    /**
+      * `Cell value or formula`
+      */
+    ["com.affine.office.cell-value-or-formula"](): string;
+    /**
+      * `No support bundle requests have been created for this workspace.`
+      */
+    ["com.affine.admin.no-support-bundle-requests-have-been-created-for-this-workspace"](): string;
+    /**
+      * `review code`
+      */
+    ["com.affine.ai.action-label.review-code"](): string;
+    /**
+      * `Gateway Timeout`
+      */
+    ["com.affine.ui.gateway-timeout"](): string;
+    /**
+      * `Redirecting to sign in...`
+      */
+    ["com.affine.ui.redirecting-to-sign-in"](): string;
+    /**
+      * `Apply format`
+      */
+    ["com.affine.office.apply-format"](): string;
+    /**
+      * `Provider blocked`
+      */
+    ["com.affine.ui.provider-blocked"](): string;
+    /**
+      * `Section {{number}}`
+      */
+    ["com.affine.office.section-number"](options: {
+        readonly number: string;
+    }): string;
+    /**
+      * `Fit to screen`
+      */
+    ["com.affine.ui.fit-to-screen"](): string;
+    /**
+      * `Native DOCX import requires a .docx file`
+      */
+    ["com.affine.office.native-docx-import-requires-a-docx-file"](): string;
+    /**
+      * `Issue`
+      */
+    ["com.affine.admin.issue"](): string;
+    /**
+      * `Input value to override`
+      */
+    ["com.affine.ui.input-value-to-override"](): string;
+    /**
+      * `Annotation deletion`
+      */
+    ["com.affine.office.annotation-deletion"](): string;
+    /**
+      * `Please upload a CSV file`
+      */
+    ["com.affine.admin.please-upload-a-csv-file"](): string;
+    /**
+      * `Admin`
+      */
+    ["com.affine.admin.admin"](): string;
+    /**
+      * `Latest transfer forwarding replay`
+      */
+    ["com.affine.admin.latest-transfer-forwarding-replay"](): string;
+    /**
+      * `This Office file changed in another session. Reload the latest revision and retry.`
+      */
+    ["com.affine.office.this-office-file-changed-in-another-session-reload-the-latest-revision-and-retry"](): string;
+    /**
+      * `Configure provider profiles, output defaults, route policy, and Vertex provider credentials.`
+      */
+    ["com.affine.admin.configure-provider-profiles-output-defaults-route-policy-and-vertex-provider-credentials"](): string;
+    /**
+      * `Signature reason`
+      */
+    ["com.affine.office.signature-reason"](): string;
+    /**
+      * `Target`
+      */
+    ["com.affine.admin.target"](): string;
+    /**
+      * `Experimental`
+      */
+    ["com.affine.ui.experimental"](): string;
+    /**
+      * `Embedding model alias`
+      */
+    ["com.affine.admin.embedding-model-alias"](): string;
+    /**
+      * `Project AI enabled`
+      */
+    ["com.affine.admin.project-ai-enabled"](): string;
+    /**
+      * `Page Not Found (TODO)`
+      */
+    ["com.affine.ui.page-not-found-todo"](): string;
+    /**
+      * `Orientation`
+      */
+    ["com.affine.office.orientation"](): string;
+    /**
+      * `Move slide up`
+      */
+    ["com.affine.office.move-slide-up"](): string;
+    /**
+      * `Agent runtime projection gaps none`
+      */
+    ["com.affine.admin.agent-runtime-projection-gaps-none"](): string;
+    /**
+      * `The saved state does not match this artifact type.`
+      */
+    ["com.affine.office.the-saved-state-does-not-match-this-artifact-type"](): string;
+    /**
+      * `Failed to sign in`
+      */
+    ["com.affine.ui.failed-to-sign-in"](): string;
+    /**
+      * `Provider registry and routing`
+      */
+    ["com.affine.admin.provider-registry-and-routing"](): string;
+    /**
+      * `Footer position`
+      */
+    ["com.affine.office.footer-position"](): string;
+    /**
+      * `Auto provider default`
+      */
+    ["com.affine.admin.auto-provider-default"](): string;
+    /**
+      * `Target fingerprint`
+      */
+    ["com.affine.admin.target-fingerprint"](): string;
+    /**
+      * `Office AI context`
+      */
+    ["com.affine.office.office-ai-context"](): string;
+    /**
+      * `v{{before}} to v{{after}}`
+      */
+    ["com.affine.office.compare-versions"](options: Readonly<{
+        before: string;
+        after: string;
+    }>): string;
+    /**
+      * `Prompt category`
+      */
+    ["com.affine.admin.prompt-category"](): string;
+    /**
+      * `Settings have been saved successfully.`
+      */
+    ["com.affine.admin.settings-have-been-saved-successfully"](): string;
+    /**
+      * `Capabilities`
+      */
+    ["com.affine.admin.capabilities"](): string;
+    /**
+      * `License Preview`
+      */
+    ["com.affine.admin.license-preview"](): string;
+    /**
+      * `Flags`
+      */
+    ["com.affine.admin.flags"](): string;
+    /**
+      * `Repair executions`
+      */
+    ["com.affine.admin.repair-executions"](): string;
+    /**
+      * `Add another`
+      */
+    ["com.affine.admin.add-another"](): string;
+    /**
+      * `Provider runtime logs`
+      */
+    ["com.affine.ui.provider-runtime-logs"](): string;
+    /**
+      * `Public pages`
+      */
+    ["com.affine.admin.public-pages"](): string;
+    /**
+      * `generate from text`
+      */
+    ["com.affine.ai.action-label.generate-from-text"](): string;
+    /**
+      * `No prepared targets`
+      */
+    ["com.affine.admin.no-prepared-targets"](): string;
+    /**
+      * `Rows and columns`
+      */
+    ["com.affine.office.rows-and-columns"](): string;
+    /**
+      * `File Expires At`
+      */
+    ["com.affine.admin.file-expires-at"](): string;
+    /**
+      * `Are you sure you want to clear all history? This action will permanently delete all content, including all chat logs and data, and cannot be undone.`
+      */
+    ["com.affine.ui.are-you-sure-you-want-to-clear-all-history-this-action-will-permanently-delete-all-content-including"](): string;
+    /**
+      * `Registry record`
+      */
+    ["com.affine.admin.registry-record"](): string;
+    /**
+      * `{{count}} users detected in the CSV file. Confirm the list below to import.`
+      */
+    ["com.affine.admin.import-preview-count_other"](options: {
+        readonly count: string | number | bigint;
+    }): string;
+    /**
+      * `Confirm import`
+      */
+    ["com.affine.admin.confirm-import-2"](): string;
+    /**
+      * `History cleared`
+      */
+    ["com.affine.ui.history-cleared"](): string;
+    /**
+      * `Workspace updated successfully`
+      */
+    ["com.affine.admin.workspace-updated-successfully"](): string;
+    /**
+      * `Candidate`
+      */
+    ["com.affine.admin.candidate"](): string;
+    /**
+      * `Default provider endpoint`
+      */
+    ["com.affine.admin.default-provider-endpoint"](): string;
+    /**
+      * `Make it shorter`
+      */
+    ["com.affine.ai.action-label.make-it-shorter"](): string;
+    /**
+      * `Catalog results:`
+      */
+    ["com.affine.admin.catalog-results"](): string;
+    /**
+      * `breadcrumb`
+      */
+    ["com.affine.admin.breadcrumb"](): string;
+    /**
+      * `Please select at least one field to export`
+      */
+    ["com.affine.admin.please-select-at-least-one-field-to-export"](): string;
+    /**
+      * `Capability match error`
+      */
+    ["com.affine.ui.capability-match-error"](): string;
+    /**
+      * `Fonts`
+      */
+    ["com.affine.ui.fonts"](): string;
+    /**
+      * `Duplicate slide`
+      */
+    ["com.affine.office.duplicate-slide"](): string;
+    /**
+      * `Redirecting...`
+      */
+    ["com.affine.ui.redirecting"](): string;
+    /**
+      * `Save failed`
+      */
+    ["com.affine.office.save-failed"](): string;
+    /**
+      * `Create new doc`
+      */
+    ["com.affine.ai.action-label.create-new-doc"](): string;
+    /**
+      * `Users copied successfully`
+      */
+    ["com.affine.admin.users-copied-successfully"](): string;
+    /**
+      * `Annotation update`
+      */
+    ["com.affine.office.annotation-update"](): string;
+    /**
+      * `annotations`
+      */
+    ["com.affine.office.annotations-2"](): string;
+    /**
+      * `Redaction failed`
+      */
+    ["com.affine.office.redaction-failed"](): string;
+    /**
+      * `You can switch between Page and Edgeless mode at any point while creating content.`
+      */
+    ["com.affine.ui.onboarding-mode-switch"](): string;
+    /**
+      * `OpenAI-compatible headers`
+      */
+    ["com.affine.admin.openai-compatible-headers"](): string;
+    /**
+      * `modified`
+      */
+    ["com.affine.office.modified"](): string;
+    /**
+      * `Loading persisted Agent Runtime runs.`
+      */
+    ["com.affine.admin.loading-persisted-agent-runtime-runs"](): string;
+    /**
+      * `BYOK custom endpoint`
+      */
+    ["com.affine.admin.byok-custom-endpoint"](): string;
+    /**
+      * `Agent runtime step kinds none`
+      */
+    ["com.affine.admin.agent-runtime-step-kinds-none"](): string;
+    /**
+      * `Signature appearance`
+      */
+    ["com.affine.office.signature-appearance"](): string;
+    /**
+      * `Version evidence`
+      */
+    ["com.affine.admin.version-evidence"](): string;
+    /**
+      * `Area`
+      */
+    ["com.affine.office.area"](): string;
+    /**
+      * `Saved revision has no document state`
+      */
+    ["com.affine.office.saved-revision-has-no-document-state"](): string;
+    /**
+      * `PDF page {{number}}, no annotations`
+      */
+    ["com.affine.office.pdf-page-label_zero"](options: {
+        readonly number: string;
+    }): string;
+    /**
+      * `Welcome to LocalMind`
+      */
+    ["com.affine.admin.welcome-to-localmind"](): string;
+    /**
+      * `Reply to {{name}}`
+      */
+    ["com.affine.office.reply-to"](options: {
+        readonly name: string;
+    }): string;
+    /**
+      * `Agent runtime projected step types none`
+      */
+    ["com.affine.admin.agent-runtime-projected-step-types-none"](): string;
+    /**
+      * `CSV template`
+      */
+    ["com.affine.admin.csv-template"](): string;
+    /**
+      * `Task route diagnostics`
+      */
+    ["com.affine.admin.task-route-diagnostics"](): string;
+    /**
+      * `Update workspace avatar failed`
+      */
+    ["com.affine.ui.update-workspace-avatar-failed"](): string;
+    /**
+      * `{{window}}, grouped by day in UTC`
+      */
+    ["com.affine.admin.mail-bucket-day"](options: {
+        readonly window: string;
+    }): string;
+    /**
+      * `Workspace AI enabled`
+      */
+    ["com.affine.admin.workspace-ai-enabled"](): string;
+    /**
+      * `Global route diagnostics`
+      */
+    ["com.affine.admin.global-route-diagnostics"](): string;
+    /**
+      * `Failed to download attachment`
+      */
+    ["com.affine.ui.failed-to-download-attachment"](): string;
+    /**
+      * `The provider model does not allow remote attachment URLs.`
+      */
+    ["com.affine.ui.the-provider-model-does-not-allow-remote-attachment-urls"](): string;
+    /**
+      * `Loading revisions…`
+      */
+    ["com.affine.office.loading-revisions"](): string;
+    /**
+      * `Add a comment`
+      */
+    ["com.affine.office.add-a-comment"](): string;
+    /**
+      * `Select text to format`
+      */
+    ["com.affine.office.select-text-to-format"](): string;
+    /**
+      * `Convert to sticker`
+      */
+    ["com.affine.ai.action-label.convert-to-sticker"](): string;
+    /**
+      * `Agent Runtime control error`
+      */
+    ["com.affine.admin.agent-runtime-control-error"](): string;
+    /**
+      * `Even page section`
+      */
+    ["com.affine.office.even-page-section"](): string;
+    /**
+      * `Failed to enable user: `
+      */
+    ["com.affine.admin.failed-to-enable-user"](): string;
+    /**
+      * `Registry row`
+      */
+    ["com.affine.admin.registry-row"](): string;
+    /**
+      * `AI capability switches`
+      */
+    ["com.affine.admin.ai-capability-switches"](): string;
+    /**
+      * `Credential routing available`
+      */
+    ["com.affine.admin.credential-routing-available"](): string;
+    /**
+      * `Sync Active Users Trend`
+      */
+    ["com.affine.admin.sync-active-users-trend"](): string;
+    /**
+      * `Continuous section`
+      */
+    ["com.affine.office.continuous-section"](): string;
+    /**
+      * `Color for {{type}} annotation`
+      */
+    ["com.affine.office.color-typed-annotation"](options: {
+        readonly type: string;
+    }): string;
+    /**
+      * `Paragraph alignment`
+      */
+    ["com.affine.office.paragraph-alignment"](): string;
+    /**
+      * `Last Accessed`
+      */
+    ["com.affine.admin.last-accessed"](): string;
+    /**
+      * `Select a workspace scope before inspecting an action run.`
+      */
+    ["com.affine.admin.select-a-workspace-scope-before-inspecting-an-action-run"](): string;
+    /**
+      * `Shape deletion`
+      */
+    ["com.affine.office.shape-deletion"](): string;
+    /**
+      * `Clear`
+      */
+    ["com.affine.office.clear"](): string;
+    /**
+      * `Comments and collaborators`
+      */
+    ["com.affine.office.comments-and-collaborators"](): string;
+    /**
+      * `Any`
+      */
+    ["com.affine.admin.any"](): string;
+    /**
+      * `The provider runtime prepare boundary returned no route.`
+      */
+    ["com.affine.ui.the-provider-runtime-prepare-boundary-returned-no-route"](): string;
+    /**
+      * `Engineering default`
+      */
+    ["com.affine.admin.engineering-default"](): string;
+    /**
+      * `Matched route candidates, prepare candidates, sanitized prepare errors, and prepared native routes.`
+      */
+    ["com.affine.ui.matched-route-candidates-prepare-candidates-sanitized-prepare-errors-and-prepared-native-routes"](): string;
+    /**
+      * `days`
+      */
+    ["com.affine.admin.days"](): string;
+    /**
+      * `Snapshot size`
+      */
+    ["com.affine.admin.snapshot-size"](): string;
+    /**
+      * `prepared route`
+      */
+    ["com.affine.admin.prepared-route"](): string;
+    /**
+      * `Explain this code`
+      */
+    ["com.affine.ai.action-label.explain-this-code"](): string;
+    /**
+      * `Runtime`
+      */
+    ["com.affine.admin.runtime"](): string;
+    /**
+      * `Model route diagnostics`
+      */
+    ["com.affine.admin.model-route-diagnostics"](): string;
+    /**
+      * `Failed to delete workspace AI credential.`
+      */
+    ["com.affine.admin.failed-to-delete-workspace-ai-credential"](): string;
+    /**
+      * `Candidate trace`
+      */
+    ["com.affine.admin.candidate-trace"](): string;
+    /**
+      * `No profile model match`
+      */
+    ["com.affine.ui.no-profile-model-match"](): string;
+    /**
+      * `form fields`
+      */
+    ["com.affine.office.form-fields-2"](): string;
+    /**
+      * `Slides accepts PNG, JPEG, or GIF images.`
+      */
+    ["com.affine.office.slides-accepts-png-jpeg-or-gif-images"](): string;
+    /**
+      * `Add to edgeless as note`
+      */
+    ["com.affine.ui.add-to-edgeless-as-note"](): string;
+    /**
+      * `Checkout...`
+      */
+    ["com.affine.ui.checkout"](): string;
+    /**
+      * `Delete chart`
+      */
+    ["com.affine.office.delete-chart"](): string;
+    /**
+      * `Unnamed`
+      */
+    ["com.affine.ui.unnamed"](): string;
+    /**
+      * `Unsupported reply content`
+      */
+    ["com.affine.office.unsupported-reply-content"](): string;
+    /**
+      * `Loading emojis...`
+      */
+    ["com.affine.ui.loading-emojis"](): string;
+    /**
+      * `Filter values`
+      */
+    ["com.affine.office.filter-values"](): string;
+    /**
+      * `The provider runtime prepare boundary threw a sanitized error.`
+      */
+    ["com.affine.ui.the-provider-runtime-prepare-boundary-threw-a-sanitized-error"](): string;
+    /**
+      * `Verifying...`
+      */
+    ["com.affine.admin.verifying"](): string;
+    /**
+      * `Insert document object`
+      */
+    ["com.affine.office.insert-document-object"](): string;
+    /**
+      * `Delete worksheet`
+      */
+    ["com.affine.office.delete-worksheet"](): string;
+    /**
+      * `Legacy quota diagnostics`
+      */
+    ["com.affine.ui.legacy-quota-diagnostics"](): string;
+    /**
+      * `Default model`
+      */
+    ["com.affine.admin.default-model"](): string;
+    /**
+      * `Release mouse to upload file`
+      */
+    ["com.affine.admin.release-mouse-to-upload-file"](): string;
+    /**
+      * `Copy and Close`
+      */
+    ["com.affine.admin.copy-and-close"](): string;
+    /**
+      * `copilot.providers.profiles: provider ids, privacy, priority, middleware, models, modelDefinitions, and provider-specific config.`
+      */
+    ["com.affine.admin.copilot-providers-profiles-provider-ids-privacy-priority-middleware-models-modeldefinitions-and-prov"](): string;
+    /**
+      * `Test the provider configuration before saving`
+      */
+    ["com.affine.admin.test-the-provider-configuration-before-saving"](): string;
+    /**
+      * `No features`
+      */
+    ["com.affine.admin.no-features"](): string;
+    /**
+      * `Invalid JSON format`
+      */
+    ["com.affine.admin.invalid-json-format"](): string;
+    /**
+      * `Publish pages and collect traffic, then this table will rank links by views.`
+      */
+    ["com.affine.admin.publish-pages-and-collect-traffic-then-this-table-will-rank-links-by-views"](): string;
+    /**
+      * `Enable DOM renderer for graphics elements`
+      */
+    ["com.affine.ui.enable-dom-renderer-for-graphics-elements"](): string;
+    /**
+      * `Test failed. Check the configuration or reload the latest settings.`
+      */
+    ["com.affine.admin.test-failed-check-the-configuration-or-reload-the-latest-settings"](): string;
+    /**
+      * `Canvas rendering is unavailable`
+      */
+    ["com.affine.office.canvas-rendering-is-unavailable"](): string;
+    /**
+      * `Workspace default`
+      */
+    ["com.affine.admin.workspace-default"](): string;
+    /**
+      * `Save as doc`
+      */
+    ["com.affine.ui.save-as-doc"](): string;
+    /**
+      * `Provider-level API credentials and endpoints used by server-side AI routing.`
+      */
+    ["com.affine.admin.provider-level-api-credentials-and-endpoints-used-by-server-side-ai-routing"](): string;
+    /**
+      * `Saved revision has an invalid document state`
+      */
+    ["com.affine.office.saved-revision-has-an-invalid-document-state"](): string;
+    /**
+      * `Accounts`
+      */
+    ["com.affine.admin.accounts"](): string;
+    /**
+      * `No route reason diagnostics returned.`
+      */
+    ["com.affine.admin.no-route-reason-diagnostics-returned"](): string;
+    /**
+      * `Italian`
+      */
+    ["com.affine.ai.action-label.italian"](): string;
+    /**
+      * `reason`
+      */
+    ["com.affine.admin.reason"](): string;
+    /**
+      * `Prepared route not selected`
+      */
+    ["com.affine.ui.prepared-route-not-selected"](): string;
+    /**
+      * `Endnote`
+      */
+    ["com.affine.office.endnote"](): string;
+    /**
+      * `Workspace AI Profile saved.`
+      */
+    ["com.affine.admin.workspace-ai-profile-saved"](): string;
+    /**
+      * `Profile model not allowed`
+      */
+    ["com.affine.ui.profile-model-not-allowed"](): string;
+    /**
+      * `No provider metadata`
+      */
+    ["com.affine.admin.no-provider-metadata"](): string;
+    /**
+      * `Gemini Vertex JSON`
+      */
+    ["com.affine.admin.gemini-vertex-json"](): string;
+    /**
+      * `API key`
+      */
+    ["com.affine.admin.api-key"](): string;
+    /**
+      * `Sanitized prepared route diagnostics for persisted action runs`
+      */
+    ["com.affine.admin.sanitized-prepared-route-diagnostics-for-persisted-action-runs"](): string;
+    /**
+      * `Delete page`
+      */
+    ["com.affine.office.delete-page"](): string;
+    /**
+      * `Offline`
+      */
+    ["com.affine.ui.offline"](): string;
+    /**
+      * `No step layer pairs`
+      */
+    ["com.affine.admin.no-step-layer-pairs"](): string;
+    /**
+      * `Failed to export users`
+      */
+    ["com.affine.admin.failed-to-export-users"](): string;
+    /**
+      * `Revision history`
+      */
+    ["com.affine.office.revision-history"](): string;
+    /**
+      * `CSV file contains no valid user data`
+      */
+    ["com.affine.admin.csv-file-contains-no-valid-user-data"](): string;
+    /**
+      * `Could not save Project BYOK.`
+      */
+    ["com.affine.admin.could-not-save-project-byok"](): string;
+    /**
+      * `Credential name`
+      */
+    ["com.affine.admin.credential-name"](): string;
+    /**
+      * `Failed to load Workspace AI credentials.`
+      */
+    ["com.affine.admin.failed-to-load-workspace-ai-credentials"](): string;
+    /**
+      * `The provider model does not support the requested attachment kind.`
+      */
+    ["com.affine.ui.the-provider-model-does-not-support-the-requested-attachment-kind"](): string;
+    /**
+      * `Table`
+      */
+    ["com.affine.office.table"](): string;
+    /**
+      * `Exporting...`
+      */
+    ["com.affine.admin.exporting"](): string;
+    /**
+      * `Align`
+      */
+    ["com.affine.office.align"](): string;
+    /**
+      * `Chart type`
+      */
+    ["com.affine.office.chart-type"](): string;
+    /**
+      * `formulas`
+      */
+    ["com.affine.office.formulas"](): string;
+    /**
+      * `Status`
+      */
+    ["com.affine.admin.status"](): string;
+    /**
+      * `Department usage or ownership notes`
+      */
+    ["com.affine.admin.department-usage-or-ownership-notes"](): string;
+    /**
+      * `No route protocols`
+      */
+    ["com.affine.admin.no-route-protocols"](): string;
+    /**
+      * `Enable URL Preview`
+      */
+    ["com.affine.admin.enable-url-preview-2"](): string;
+    /**
+      * `Bundle, authorization, forwarding event, source, or fingerprint`
+      */
+    ["com.affine.admin.bundle-authorization-forwarding-event-source-or-fingerprint"](): string;
+    /**
+      * `Enter an equation.`
+      */
+    ["com.affine.office.enter-an-equation"](): string;
+    /**
+      * `margin`
+      */
+    ["com.affine.office.margin"](): string;
+    /**
+      * `Stop generating`
+      */
+    ["com.affine.ui.stop-generating"](): string;
+    /**
+      * `Failed to parse CSV file`
+      */
+    ["com.affine.admin.failed-to-parse-csv-file"](): string;
+    /**
+      * `Server AI`
+      */
+    ["com.affine.admin.server-ai"](): string;
+    /**
+      * `Cleanup retention`
+      */
+    ["com.affine.admin.cleanup-retention"](): string;
+    /**
+      * `Headers JSON`
+      */
+    ["com.affine.admin.headers-json"](): string;
+    /**
+      * `Latest artifact download authorization`
+      */
+    ["com.affine.admin.latest-artifact-download-authorization"](): string;
+    /**
+      * `Failed to send test email`
+      */
+    ["com.affine.admin.failed-to-send-test-email"](): string;
+    /**
+      * `Agent runtime projected run statuses none`
+      */
+    ["com.affine.admin.agent-runtime-projected-run-statuses-none"](): string;
+    /**
+      * `Go to last page`
+      */
+    ["com.affine.admin.go-to-last-page"](): string;
+    /**
+      * `The provider model does not support the requested attachment source.`
+      */
+    ["com.affine.ui.the-provider-model-does-not-support-the-requested-attachment-source"](): string;
+    /**
+      * `Model route candidates`
+      */
+    ["com.affine.admin.model-route-candidates"](): string;
+    /**
+      * `Privacy not allowed`
+      */
+    ["com.affine.ui.privacy-not-allowed"](): string;
+    /**
+      * `Clearer`
+      */
+    ["com.affine.ai.action-label.clearer"](): string;
+    /**
+      * `No headings`
+      */
+    ["com.affine.office.no-headings"](): string;
+    /**
+      * `You are not an admin, please login the admin account.`
+      */
+    ["com.affine.admin.you-are-not-an-admin-please-login-the-admin-account"](): string;
+    /**
+      * `The expired signing key was removed.`
+      */
+    ["com.affine.admin.the-expired-signing-key-was-removed"](): string;
+    /**
+      * `Enable`
+      */
+    ["com.affine.admin.enable"](): string;
+    /**
+      * `Optional models`
+      */
+    ["com.affine.admin.optional-models"](): string;
+    /**
+      * `Compare`
+      */
+    ["com.affine.office.compare"](): string;
+    /**
+      * `No prepared providers`
+      */
+    ["com.affine.admin.no-prepared-providers"](): string;
+    /**
+      * `Not signed in`
+      */
+    ["com.affine.ui.not-signed-in"](): string;
+    /**
+      * `No revisions are available.`
+      */
+    ["com.affine.office.no-revisions-are-available"](): string;
+    /**
+      * `Failed ({{reason}})`
+      */
+    ["com.affine.admin.import-failed-reason"](options: {
+        readonly reason: string;
+    }): string;
+    /**
+      * `Agent runtime timeline items none`
+      */
+    ["com.affine.admin.agent-runtime-timeline-items-none"](): string;
+    /**
+      * `Open LocalMind AI`
+      */
+    ["com.affine.office.open-localmind-ai"](): string;
+    /**
+      * `Manifest`
+      */
+    ["com.affine.admin.manifest"](): string;
+    /**
+      * `Manual ID, metadata unavailable`
+      */
+    ["com.affine.admin.manual-id-metadata-unavailable"](): string;
+    /**
+      * `Portrait`
+      */
+    ["com.affine.office.portrait"](): string;
+    /**
+      * `Active cell address`
+      */
+    ["com.affine.office.active-cell-address"](): string;
+    /**
+      * `All forwarding statuses`
+      */
+    ["com.affine.admin.all-forwarding-statuses"](): string;
+    /**
+      * `Verification unavailable`
+      */
+    ["com.affine.ui.verification-unavailable"](): string;
+    /**
+      * `Highlight`
+      */
+    ["com.affine.office.highlight"](): string;
+    /**
+      * `Enterprise CLI`
+      */
+    ["com.affine.admin.enterprise-cli"](): string;
+    /**
+      * `Agent runtime native trace events none`
+      */
+    ["com.affine.admin.agent-runtime-native-trace-events-none"](): string;
+    /**
+      * `Provider allowed`
+      */
+    ["com.affine.admin.provider-allowed"](): string;
+    /**
+      * `Current worksheet name`
+      */
+    ["com.affine.office.current-worksheet-name"](): string;
+    /**
+      * `Manage`
+      */
+    ["com.affine.admin.manage"](): string;
+    /**
+      * `Find actions`
+      */
+    ["com.affine.ai.action-label.find-actions"](): string;
+    /**
+      * `{{count}} package comments`
+      */
+    ["com.affine.office.comment-count_other"](options: {
+        readonly count: (string | number | bigint) & (string | number | bigint);
+    }): string;
+    /**
+      * `Preparing to upload...`
+      */
+    ["com.affine.admin.preparing-to-upload"](): string;
+    /**
+      * `This presentation has no slides.`
+      */
+    ["com.affine.office.this-presentation-has-no-slides"](): string;
+    /**
+      * `Legacy chat completions style`
+      */
+    ["com.affine.admin.legacy-chat-completions-style"](): string;
+    /**
+      * `Page break`
+      */
+    ["com.affine.office.page-break"](): string;
+    /**
+      * `Search workspace AI credential scopes`
+      */
+    ["com.affine.admin.search-workspace-ai-credential-scopes"](): string;
+    /**
+      * `review image`
+      */
+    ["com.affine.ai.action-label.review-image"](): string;
+    /**
+      * `Delete this comment and its replies?`
+      */
+    ["com.affine.office.delete-this-comment-and-its-replies"](): string;
+    /**
+      * `No prepared route steps returned.`
+      */
+    ["com.affine.admin.no-prepared-route-steps-returned"](): string;
+    /**
+      * `Agent runtime unsupported step statuses none`
+      */
+    ["com.affine.admin.agent-runtime-unsupported-step-statuses-none"](): string;
+    /**
+      * `others`
+      */
+    ["com.affine.ai.action-label.others"](): string;
+    /**
+      * `PDF print source`
+      */
+    ["com.affine.office.pdf-print-source"](): string;
+    /**
+      * `Reasons`
+      */
+    ["com.affine.admin.reasons"](): string;
+    /**
+      * `More changes exist beyond the bounded comparison result.`
+      */
+    ["com.affine.office.more-changes-exist-beyond-the-bounded-comparison-result"](): string;
+    /**
+      * `You are already in this chat`
+      */
+    ["com.affine.ui.you-are-already-in-this-chat"](): string;
+    /**
+      * `Slide insertion`
+      */
+    ["com.affine.office.slide-insertion"](): string;
+    /**
+      * `Model candidates diagnostics`
+      */
+    ["com.affine.admin.model-candidates-diagnostics"](): string;
+    /**
+      * `New Chat`
+      */
+    ["com.affine.ai.action-label.new-chat"](): string;
+    /**
+      * `Fallback none`
+      */
+    ["com.affine.admin.fallback-none"](): string;
+    /**
+      * `pages`
+      */
+    ["com.affine.office.pages"](): string;
+    /**
+      * `AI Profiles could not be loaded. Account details can still be edited.`
+      */
+    ["com.affine.admin.ai-profiles-could-not-be-loaded-account-details-can-still-be-edited"](): string;
+    /**
+      * `Sheet tools`
+      */
+    ["com.affine.office.sheet-tools"](): string;
+    /**
+      * `Send Test Email`
+      */
+    ["com.affine.admin.send-test-email"](): string;
+    /**
+      * `Goto Admin Panel failed, please try again.`
+      */
+    ["com.affine.admin.goto-admin-panel-failed-please-try-again"](): string;
+    /**
+      * `Agent runtime unsupported timeline event types none`
+      */
+    ["com.affine.admin.agent-runtime-unsupported-timeline-event-types-none"](): string;
+    /**
+      * `All execution statuses`
+      */
+    ["com.affine.admin.all-execution-statuses"](): string;
+    /**
+      * `copilot.prompts.overrides: per-prompt model, optionalModels, enabled state, and prompt config.`
+      */
+    ["com.affine.admin.copilot-prompts-overrides-per-prompt-model-optionalmodels-enabled-state-and-prompt-config"](): string;
+    /**
+      * `The provider candidate passed route policy checks.`
+      */
+    ["com.affine.ui.the-provider-candidate-passed-route-policy-checks"](): string;
+    /**
+      * `app icon`
+      */
+    ["com.affine.ui.app-icon"](): string;
+    /**
+      * `Search failed`
+      */
+    ["com.affine.office.search-failed"](): string;
+    /**
+      * `Download manifest JSON`
+      */
+    ["com.affine.admin.download-manifest-json"](): string;
+    /**
+      * `tables`
+      */
+    ["com.affine.office.tables"](): string;
+    /**
+      * `Reopen`
+      */
+    ["com.affine.office.reopen"](): string;
+    /**
+      * `Provider defaults JSON`
+      */
+    ["com.affine.admin.provider-defaults-json"](): string;
+    /**
+      * `member list only works in cloud`
+      */
+    ["com.affine.ui.member-list-only-works-in-cloud"](): string;
+    /**
+      * `Publish`
+      */
+    ["com.affine.admin.publish"](): string;
+    /**
+      * `User Detail`
+      */
+    ["com.affine.admin.user-detail"](): string;
+    /**
+      * `Allowed`
+      */
+    ["com.affine.admin.allowed"](): string;
+    /**
+      * `Refreshing...`
+      */
+    ["com.affine.admin.refreshing-2"](): string;
+    /**
+      * `Failed to load members`
+      */
+    ["com.affine.ui.failed-to-load-members"](): string;
+    /**
+      * `When enabled, you must confirm the journal before you can create a new journal.`
+      */
+    ["com.affine.ui.when-enabled-you-must-confirm-the-journal-before-you-can-create-a-new-journal"](): string;
+    /**
+      * `Search PDF text`
+      */
+    ["com.affine.office.search-pdf-text"](): string;
+    /**
+      * `Create bundle`
+      */
+    ["com.affine.admin.create-bundle"](): string;
+    /**
+      * `Prepared model resolved`
+      */
+    ["com.affine.ui.prepared-model-resolved"](): string;
+    /**
+      * `Export`
+      */
+    ["com.affine.ui.export"](): string;
+    /**
+      * `No protocol metadata`
+      */
+    ["com.affine.admin.no-protocol-metadata"](): string;
+    /**
+      * `No step requested model sources`
+      */
+    ["com.affine.admin.no-step-requested-model-sources"](): string;
+    /**
+      * `Inspect run`
+      */
+    ["com.affine.admin.inspect-run"](): string;
+    /**
+      * `Paragraph {{name}}`
+      */
+    ["com.affine.office.paragraph-name"](options: {
+        readonly name: string;
+    }): string;
+    /**
+      * `Theme color value`
+      */
+    ["com.affine.office.theme-color-value"](): string;
+    /**
+      * `No prepared route trace returned for action run`
+      */
+    ["com.affine.admin.no-prepared-route-trace-returned-for-action-run"](): string;
+    /**
+      * `Action`
+      */
+    ["com.affine.admin.action"](): string;
+    /**
+      * `Verified Client`
+      */
+    ["com.affine.ui.verified-client"](): string;
+    /**
+      * `Prepare runtime error`
+      */
+    ["com.affine.ui.prepare-runtime-error"](): string;
+    /**
+      * `Slide`
+      */
+    ["com.affine.office.slide"](): string;
+    /**
+      * `Support bundle object-storage webhooks`
+      */
+    ["com.affine.admin.support-bundle-object-storage-webhooks"](): string;
+    /**
+      * `Spreadsheet editing`
+      */
+    ["com.affine.office.spreadsheet-editing"](): string;
+    /**
+      * `Pixel style`
+      */
+    ["com.affine.ai.action-label.pixel-style"](): string;
+    /**
+      * `A new workspace will be created.`
+      */
+    ["com.affine.ui.a-new-workspace-will-be-created"](): string;
+    /**
+      * `All statuses`
+      */
+    ["com.affine.admin.all-statuses"](): string;
+    /**
+      * `Doc saved successfully! Would you like to open it now?`
+      */
+    ["com.affine.ui.doc-saved-successfully-would-you-like-to-open-it-now"](): string;
+    /**
+      * `Terms of Conditions`
+      */
+    ["com.affine.ui.terms-of-conditions"](): string;
+    /**
+      * `Member count`
+      */
+    ["com.affine.admin.member-count"](): string;
+    /**
+      * `Landscape`
+      */
+    ["com.affine.office.landscape"](): string;
+    /**
+      * `Previewing {{operation}}`
+      */
+    ["com.affine.office.previewing-operation"](options: {
+        readonly operation: string;
+    }): string;
+    /**
+      * `Clear History`
+      */
+    ["com.affine.ui.clear-history"](): string;
+    /**
+      * `{{count}} package comment`
+      */
+    ["com.affine.office.comment-count_one"](options: {
+        readonly count: string | number | bigint;
+    }): string;
+    /**
+      * `Summarize`
+      */
+    ["com.affine.ai.action-label.summarize"](): string;
+    /**
+      * `DB-backed support bundle requests and minimal manifest metadata`
+      */
+    ["com.affine.admin.db-backed-support-bundle-requests-and-minimal-manifest-metadata"](): string;
+    /**
+      * `Upgrade to Team`
+      */
+    ["com.affine.admin.upgrade-to-team"](): string;
+    /**
+      * `Catalog source`
+      */
+    ["com.affine.admin.catalog-source"](): string;
+    /**
+      * `Storage`
+      */
+    ["com.affine.ui.storage"](): string;
+    /**
+      * `Reject all`
+      */
+    ["com.affine.office.reject-all"](): string;
+    /**
+      * `Route policy JSON`
+      */
+    ["com.affine.admin.route-policy-json"](): string;
+    /**
+      * `The latest Office revision is behind task evidence.`
+      */
+    ["com.affine.office.the-latest-office-revision-is-behind-task-evidence"](): string;
+    /**
+      * `Copilot Conversations`
+      */
+    ["com.affine.admin.copilot-conversations"](): string;
+    /**
+      * `Checks`
+      */
+    ["com.affine.admin.checks"](): string;
+    /**
+      * `Workspace AI credential saved.`
+      */
+    ["com.affine.admin.workspace-ai-credential-saved"](): string;
+    /**
+      * `Not initialized`
+      */
+    ["com.affine.admin.not-initialized"](): string;
+    /**
+      * `Recommended none`
+      */
+    ["com.affine.admin.recommended-none"](): string;
+    /**
+      * `Testing...`
+      */
+    ["com.affine.admin.testing"](): string;
+    /**
+      * `No issues`
+      */
+    ["com.affine.admin.no-issues"](): string;
+    /**
+      * `Configure web search, image source, copilot storage, and support bundle transfer webhooks.`
+      */
+    ["com.affine.admin.configure-web-search-image-source-copilot-storage-and-support-bundle-transfer-webhooks"](): string;
+    /**
+      * `No requested models`
+      */
+    ["com.affine.admin.no-requested-models"](): string;
+    /**
+      * `The matched candidate belongs to a registry branch not selected.`
+      */
+    ["com.affine.ui.the-matched-candidate-belongs-to-a-registry-branch-not-selected"](): string;
+    /**
+      * `No step protocol pairs`
+      */
+    ["com.affine.admin.no-step-protocol-pairs"](): string;
+    /**
+      * `Invalid URL or protocol`
+      */
+    ["com.affine.ui.invalid-url-or-protocol"](): string;
+    /**
+      * `Accept all`
+      */
+    ["com.affine.office.accept-all"](): string;
+    /**
+      * `Allowed providers Any`
+      */
+    ["com.affine.admin.allowed-providers-any"](): string;
+    /**
+      * `No behavior flags`
+      */
+    ["com.affine.admin.no-behavior-flags"](): string;
+    /**
+      * `No persisted steps`
+      */
+    ["com.affine.admin.no-persisted-steps"](): string;
+    /**
+      * `The latest Office revision is unavailable.`
+      */
+    ["com.affine.office.the-latest-office-revision-is-unavailable"](): string;
+    /**
+      * `Failed to login`
+      */
+    ["com.affine.admin.failed-to-login"](): string;
+    /**
+      * `Blob Size`
+      */
+    ["com.affine.admin.blob-size-2"](): string;
+    /**
+      * `Allow document embedding for search`
+      */
+    ["com.affine.admin.allow-document-embedding-for-search"](): string;
+    /**
+      * `No matches`
+      */
+    ["com.affine.ui.no-matches"](): string;
+    /**
+      * `Blobs`
+      */
+    ["com.affine.admin.blobs"](): string;
+    /**
+      * `Default source`
+      */
+    ["com.affine.admin.default-source"](): string;
+    /**
+      * `Text note`
+      */
+    ["com.affine.office.text-note"](): string;
+    /**
+      * `Create linked doc`
+      */
+    ["com.affine.ui.create-linked-doc"](): string;
+    /**
+      * `Workspace selector`
+      */
+    ["com.affine.admin.workspace-selector"](): string;
+    /**
+      * `Overall health`
+      */
+    ["com.affine.admin.overall-health"](): string;
+    /**
+      * `Add worksheet`
+      */
+    ["com.affine.office.add-worksheet"](): string;
+    /**
+      * `The prompt default model is not routable, so the active default uses a fallback route.`
+      */
+    ["com.affine.ui.the-prompt-default-model-is-not-routable-so-the-active-default-uses-a-fallback-route"](): string;
+    /**
+      * `Test passed for this provider configuration`
+      */
+    ["com.affine.admin.test-passed-for-this-provider-configuration"](): string;
+    /**
+      * `Copy original link`
+      */
+    ["com.affine.ui.copy-original-link"](): string;
+    /**
+      * `Source chain fingerprint`
+      */
+    ["com.affine.admin.source-chain-fingerprint"](): string;
+    /**
+      * `The provider model does not satisfy the requested capability.`
+      */
+    ["com.affine.ui.the-provider-model-does-not-satisfy-the-requested-capability"](): string;
+    /**
+      * `Blob size`
+      */
+    ["com.affine.admin.blob-size"](): string;
+    /**
+      * `Continue with {{provider}}`
+      */
+    ["com.affine.ui.continue-with-provider"](options: {
+        readonly provider: string;
+    }): string;
+    /**
+      * `ServerVersion`
+      */
+    ["com.affine.admin.serverversion"](): string;
+    /**
+      * `Failed to encode the redacted PDF page`
+      */
+    ["com.affine.office.failed-to-encode-the-redacted-pdf-page"](): string;
+    /**
+      * `LocalMind deployment guide`
+      */
+    ["com.affine.ui.localmind-deployment-guide"](): string;
+    /**
+      * `Clay style`
+      */
+    ["com.affine.ai.action-label.clay-style"](): string;
+    /**
+      * `A configured provider profile model matched the request.`
+      */
+    ["com.affine.ui.a-configured-provider-profile-model-matched-the-request"](): string;
+    /**
+      * `The requested model is outside the provider profile allowlist.`
+      */
+    ["com.affine.ui.the-requested-model-is-outside-the-provider-profile-allowlist"](): string;
+    /**
+      * `Delete columns`
+      */
+    ["com.affine.office.delete-columns"](): string;
+    /**
+      * `No step requested target pairs`
+      */
+    ["com.affine.admin.no-step-requested-target-pairs"](): string;
+    /**
+      * `Provide feedback.`
+      */
+    ["com.affine.ui.provide-feedback"](): string;
+    /**
+      * `Send to AI`
+      */
+    ["com.affine.ai.action-label.send-to-ai"](): string;
+    /**
+      * `Mail type`
+      */
+    ["com.affine.admin.mail-type"](): string;
+    /**
+      * `Series {{number}}`
+      */
+    ["com.affine.office.series-number"](options: {
+        readonly number: string;
+    }): string;
+    /**
+      * `Text note`
+      */
+    ["com.affine.office.annotation-type.text"](): string;
+    /**
+      * `Config`
+      */
+    ["com.affine.admin.config"](): string;
+    /**
+      * `Prompt default`
+      */
+    ["com.affine.admin.prompt-default"](): string;
+    /**
+      * `Theme color slot`
+      */
+    ["com.affine.office.theme-color-slot"](): string;
+    /**
+      * `Unknown provider`
+      */
+    ["com.affine.admin.unknown-provider"](): string;
+    /**
+      * `Workspace not found.`
+      */
+    ["com.affine.admin.workspace-not-found"](): string;
+    /**
+      * `Prompt fallback`
+      */
+    ["com.affine.admin.prompt-fallback"](): string;
+    /**
+      * `Params`
+      */
+    ["com.affine.admin.params"](): string;
+    /**
+      * `Model strategy`
+      */
+    ["com.affine.admin.model-strategy"](): string;
+    /**
+      * `Write a poem about this`
+      */
+    ["com.affine.ai.action-label.write-a-poem-about-this"](): string;
+    /**
+      * `Workspace AI Profiles`
+      */
+    ["com.affine.admin.workspace-ai-profiles"](): string;
+    /**
+      * `Confirm Import`
+      */
+    ["com.affine.admin.confirm-import"](): string;
+    /**
+      * `Prepare trace`
+      */
+    ["com.affine.ui.prepare-trace"](): string;
+    /**
+      * `Allow BYOK private endpoint`
+      */
+    ["com.affine.admin.allow-byok-private-endpoint"](): string;
+    /**
+      * `timeline gap`
+      */
+    ["com.affine.admin.timeline-gap"](): string;
+    /**
+      * `Shared links`
+      */
+    ["com.affine.admin.shared-links"](): string;
+    /**
+      * `Snapshot count`
+      */
+    ["com.affine.admin.snapshot-count"](): string;
+    /**
+      * `{{name}} worksheet`
+      */
+    ["com.affine.office.named-worksheet"](options: {
+        readonly name: string;
+    }): string;
+    /**
+      * `Chart {{name}}`
+      */
+    ["com.affine.office.chart-name"](options: {
+        readonly name: string;
+    }): string;
+    /**
+      * `Scope`
+      */
+    ["com.affine.admin.scope"](): string;
+    /**
+      * `Global AI enablement and workspace BYOK policy.`
+      */
+    ["com.affine.admin.global-ai-enablement-and-workspace-byok-policy"](): string;
+    /**
+      * `Choose a file`
+      */
+    ["com.affine.ui.choose-a-file"](): string;
+    /**
+      * `Workflow adapters`
+      */
+    ["com.affine.admin.workflow-adapters"](): string;
+    /**
+      * `Invalid password.`
+      */
+    ["com.affine.admin.invalid-password"](): string;
+    /**
+      * `Fingerprints`
+      */
+    ["com.affine.admin.fingerprints"](): string;
+    /**
+      * `Prompt overrides JSON`
+      */
+    ["com.affine.admin.prompt-overrides-json"](): string;
+    /**
+      * `Apply geometry`
+      */
+    ["com.affine.office.apply-geometry"](): string;
+    /**
+      * `Admin account created successfully.`
+      */
+    ["com.affine.admin.admin-account-created-successfully"](): string;
+    /**
+      * `The selected image format is not supported.`
+      */
+    ["com.affine.office.the-selected-image-format-is-not-supported"](): string;
+    /**
+      * `Support bundle forwarding filter`
+      */
+    ["com.affine.admin.support-bundle-forwarding-filter"](): string;
+    /**
+      * `Dashboard menu`
+      */
+    ["com.affine.admin.dashboard-menu"](): string;
+    /**
+      * `Diagnostics manifest JSON`
+      */
+    ["com.affine.admin.diagnostics-manifest-json"](): string;
+    /**
+      * `Prompt defaults`
+      */
+    ["com.affine.admin.prompt-defaults"](): string;
+    /**
+      * `apply`
+      */
+    ["com.affine.office.task-action.apply"](): string;
+    /**
+      * `Loading comments…`
+      */
+    ["com.affine.office.loading-comments"](): string;
+    /**
+      * `Copy failed, please try again later`
+      */
+    ["com.affine.ui.copy-failed-please-try-again-later"](): string;
+    /**
+      * `Source chain`
+      */
+    ["com.affine.admin.source-chain"](): string;
+    /**
+      * `Failed to load PDF ({{status}})`
+      */
+    ["com.affine.office.pdf-load-failed"](options: {
+        readonly status: string;
+    }): string;
+    /**
+      * `Remote attachment not supported`
+      */
+    ["com.affine.ui.remote-attachment-not-supported"](): string;
+    /**
+      * `{{name}} chart`
+      */
+    ["com.affine.office.named-chart"](options: {
+        readonly name: string;
+    }): string;
+    /**
+      * `Insert or delete count`
+      */
+    ["com.affine.office.insert-or-delete-count"](): string;
+    /**
+      * `Slide {{name}}`
+      */
+    ["com.affine.office.slide-name"](options: {
+        readonly name: string;
+    }): string;
+    /**
+      * `Enter a password of {{min}}–{{max}} characters. We recommend using at least two of: uppercase letters, lowercase letters, numbers, and symbols.`
+      */
+    ["com.affine.admin.password-requirements"](options: Readonly<{
+        min: string;
+        max: string;
+    }>): string;
+    /**
+      * `Pages`
+      */
+    ["com.affine.ui.pages"](): string;
+    /**
+      * `Enable URL preview`
+      */
+    ["com.affine.admin.enable-url-preview"](): string;
+    /**
+      * `Update Workspace`
+      */
+    ["com.affine.admin.update-workspace"](): string;
+    /**
+      * `Copied HTML to clipboard`
+      */
+    ["com.affine.ui.copied-html-to-clipboard"](): string;
+    /**
+      * `Search members...`
+      */
+    ["com.affine.ui.search-members"](): string;
+    /**
+      * `{{width}} × {{height}} pt`
+      */
+    ["com.affine.office.page-dimensions"](options: Readonly<{
+        width: string;
+        height: string;
+    }>): string;
+    /**
+      * `CSV file format is incorrect or empty`
+      */
+    ["com.affine.admin.csv-file-format-is-incorrect-or-empty"](): string;
+    /**
+      * `Active Members`
+      */
+    ["com.affine.admin.active-members"](): string;
+    /**
+      * `Trace diagnostics text`
+      */
+    ["com.affine.admin.trace-diagnostics-text"](): string;
+    /**
+      * `Failed to restart to upgrade`
+      */
+    ["com.affine.ui.failed-to-restart-to-upgrade"](): string;
+    /**
+      * `Queue`
+      */
+    ["com.affine.admin.queue"](): string;
+    /**
+      * `Provider health probe status`
+      */
+    ["com.affine.admin.provider-health-probe-status"](): string;
+    /**
+      * `Details`
+      */
+    ["com.affine.admin.details"](): string;
+    /**
+      * `Open this doc`
+      */
+    ["com.affine.ai.action-label.open-this-doc"](): string;
+    /**
+      * `Read-only task route checks for self-hosted AI providers`
+      */
+    ["com.affine.admin.read-only-task-route-checks-for-self-hosted-ai-providers"](): string;
+    /**
+      * `Apply animation for setting subpage open/close`
+      */
+    ["com.affine.ui.apply-animation-for-setting-subpage-open-close"](): string;
+    /**
+      * `Region on page {{number}}`
+      */
+    ["com.affine.office.page-region"](options: {
+        readonly number: string;
+    }): string;
+    /**
+      * `Gutter`
+      */
+    ["com.affine.office.gutter"](): string;
+    /**
+      * `Failed to change language`
+      */
+    ["com.affine.settings.language.change-failed"](): string;
+    /**
+      * `Current`
+      */
+    ["com.affine.admin.current"](): string;
+    /**
+      * `Range format`
+      */
+    ["com.affine.office.range-format"](): string;
+    /**
+      * `Not selected`
+      */
+    ["com.affine.admin.not-selected"](): string;
+    /**
+      * `Action route dry-run evidence`
+      */
+    ["com.affine.admin.action-route-dry-run-evidence"](): string;
+    /**
+      * `Delete credential`
+      */
+    ["com.affine.admin.delete-credential"](): string;
+    /**
+      * `Text {{start}} to {{end}}`
+      */
+    ["com.affine.office.text-span"](options: Readonly<{
+        start: string;
+        end: string;
+    }>): string;
+    /**
+      * `Instance administrators`
+      */
+    ["com.affine.admin.instance-administrators"](): string;
+    /**
+      * `Merge cells`
+      */
+    ["com.affine.office.merge-cells"](): string;
+    /**
+      * `{{count}} match`
+      */
+    ["com.affine.office.match-count_one"](options: {
+        readonly count: string | number | bigint;
+    }): string;
+    /**
+      * `Office AI changes`
+      */
+    ["com.affine.office.office-ai-changes"](): string;
+    /**
+      * `Failed to import users: `
+      */
+    ["com.affine.admin.failed-to-import-users-2"](): string;
+    /**
+      * `Enable Doc Embedding`
+      */
+    ["com.affine.admin.enable-doc-embedding-2"](): string;
+    /**
+      * `Reset scale`
+      */
+    ["com.affine.ui.reset-scale"](): string;
+    /**
+      * `Copy metadata JSON`
+      */
+    ["com.affine.admin.copy-metadata-json"](): string;
+    /**
+      * `New access tokens now use the replacement key.`
+      */
+    ["com.affine.admin.new-access-tokens-now-use-the-replacement-key"](): string;
+    /**
+      * `Annotation type`
+      */
+    ["com.affine.office.annotation-type"](): string;
+    /**
+      * `Copy manifest metadata JSON`
+      */
+    ["com.affine.admin.copy-manifest-metadata-json"](): string;
+    /**
+      * `projection gap`
+      */
+    ["com.affine.admin.projection-gap"](): string;
+    /**
+      * `Wait for upload`
+      */
+    ["com.affine.ui.wait-for-upload"](): string;
+    /**
+      * `Click to download`
+      */
+    ["com.affine.ui.click-to-download"](): string;
+    /**
+      * `Show detail`
+      */
+    ["com.affine.ai.action-label.show-detail"](): string;
+    /**
+      * `Email (required): e.g., user@example.com.`
+      */
+    ["com.affine.admin.email-required-e-g-user-example-com"](): string;
+    /**
+      * `Support bundles`
+      */
+    ["com.affine.admin.support-bundles"](): string;
+    /**
+      * `Repair execution executor payload JSON`
+      */
+    ["com.affine.admin.repair-execution-executor-payload-json"](): string;
+    /**
+      * `Enter a title for the new doc.`
+      */
+    ["com.affine.ui.enter-a-title-for-the-new-doc"](): string;
+    /**
+      * `Restart`
+      */
+    ["com.affine.ui.restart"](): string;
+    /**
+      * `Save credential`
+      */
+    ["com.affine.admin.save-credential"](): string;
+    /**
+      * `Admin panel for managing accounts, AI, config, and settings`
+      */
+    ["com.affine.admin.admin-panel-for-managing-accounts-ai-config-and-settings"](): string;
+    /**
+      * `Failed to load quota`
+      */
+    ["com.affine.ui.failed-to-load-quota"](): string;
+    /**
+      * `Invalid cell address`
+      */
+    ["com.affine.office.invalid-cell-address"](): string;
+    /**
+      * `Change Icon`
+      */
+    ["com.affine.ui.change-icon"](): string;
+    /**
+      * `Route`
+      */
+    ["com.affine.admin.route"](): string;
+    /**
+      * `No Workspace AI credentials are available. Create and verify credentials above before adding them to a profile.`
+      */
+    ["com.affine.admin.no-workspace-ai-credentials-are-available-create-and-verify-credentials-above-before-adding-them-to-"](): string;
+    /**
+      * `Agent runtime projected schema components none`
+      */
+    ["com.affine.admin.agent-runtime-projected-schema-components-none"](): string;
+    /**
+      * `Japanese`
+      */
+    ["com.affine.ai.action-label.japanese"](): string;
+    /**
+      * `Request API style`
+      */
+    ["com.affine.admin.request-api-style"](): string;
+    /**
+      * `Search Workspace / Owner`
+      */
+    ["com.affine.admin.search-workspace-owner"](): string;
+    /**
+      * `Policy allowed`
+      */
+    ["com.affine.ui.policy-allowed"](): string;
+    /**
+      * `Enter a valid cell address, for example A1.`
+      */
+    ["com.affine.office.enter-a-valid-cell-address-for-example-a1"](): string;
+    /**
+      * `No prepared models`
+      */
+    ["com.affine.admin.no-prepared-models"](): string;
+    /**
+      * `Allow Workspace Sharing`
+      */
+    ["com.affine.admin.allow-workspace-sharing"](): string;
+    /**
+      * `Usage`
+      */
+    ["com.affine.admin.usage"](): string;
+    /**
+      * `Delete Account`
+      */
+    ["com.affine.admin.delete-account-2"](): string;
+    /**
+      * `Normal`
+      */
+    ["com.affine.office.normal"](): string;
+    /**
+      * `Delete rows`
+      */
+    ["com.affine.office.delete-rows"](): string;
+    /**
+      * `You need to import the accounts by importing a CSV file in the correct format. Please download the CSV template.`
+      */
+    ["com.affine.admin.you-need-to-import-the-accounts-by-importing-a-csv-file-in-the-correct-format-please-download-the-cs"](): string;
+    /**
+      * `Content exceeds token limit`
+      */
+    ["com.affine.ui.content-exceeds-token-limit"](): string;
+    /**
+      * `Repair action preflight not checked`
+      */
+    ["com.affine.admin.repair-action-preflight-not-checked"](): string;
+    /**
+      * `Repair action catalog 0`
+      */
+    ["com.affine.admin.repair-action-catalog-0"](): string;
+    /**
+      * `run`
+      */
+    ["com.affine.admin.run-2"](): string;
+    /**
+      * `Page and section setup`
+      */
+    ["com.affine.office.page-and-section-setup"](): string;
+    /**
+      * `Allows trusted private-network targets. Takes effect only when custom endpoints are enabled.`
+      */
+    ["com.affine.admin.allows-trusted-private-network-targets-takes-effect-only-when-custom-endpoints-are-enabled"](): string;
+    /**
+      * `Loading persisted repair execution requests.`
+      */
+    ["com.affine.admin.loading-persisted-repair-execution-requests"](): string;
+    /**
+      * `This PDF has no pages.`
+      */
+    ["com.affine.office.this-pdf-has-no-pages"](): string;
+    /**
+      * `Create AI Profile`
+      */
+    ["com.affine.admin.create-ai-profile"](): string;
+    /**
+      * `The Office artifact may have been removed or you may not have access.`
+      */
+    ["com.affine.office.the-office-artifact-may-have-been-removed-or-you-may-not-have-access"](): string;
+    /**
+      * `Agent runtime`
+      */
+    ["com.affine.admin.agent-runtime"](): string;
+    /**
+      * `Preview unavailable`
+      */
+    ["com.affine.office.preview-unavailable"](): string;
+    /**
+      * `{{window}}, grouped by hour in UTC`
+      */
+    ["com.affine.admin.mail-bucket-hour"](options: {
+        readonly window: string;
+    }): string;
+    /**
+      * `Agent runtime projected step statuses none`
+      */
+    ["com.affine.admin.agent-runtime-projected-step-statuses-none"](): string;
+    /**
+      * `Worksheet insertion`
+      */
+    ["com.affine.office.worksheet-insertion"](): string;
+    /**
+      * `Selection ready`
+      */
+    ["com.affine.office.selection-ready"](): string;
+    /**
+      * `Prompt metadata is not available for the submitted prompt name.`
+      */
+    ["com.affine.admin.prompt-metadata-is-not-available-for-the-submitted-prompt-name"](): string;
+    /**
+      * `No policy candidate diagnostics returned.`
+      */
+    ["com.affine.admin.no-policy-candidate-diagnostics-returned"](): string;
+    /**
+      * `Approve execution`
+      */
+    ["com.affine.admin.approve-execution"](): string;
+    /**
+      * `Members and Invitations`
+      */
+    ["com.affine.admin.members-and-invitations"](): string;
+    /**
+      * `Clear filter`
+      */
+    ["com.affine.office.clear-filter"](): string;
+    /**
+      * `Wrap text`
+      */
+    ["com.affine.office.wrap-text"](): string;
+    /**
+      * `Embedding and rerank route readiness`
+      */
+    ["com.affine.admin.embedding-and-rerank-route-readiness"](): string;
+    /**
+      * `Remove Office selection from AI context`
+      */
+    ["com.affine.office.remove-office-selection-from-ai-context"](): string;
+    /**
+      * `Select a workspace`
+      */
+    ["com.affine.admin.select-a-workspace"](): string;
+    /**
+      * `Enable doc embedding`
+      */
+    ["com.affine.admin.enable-doc-embedding"](): string;
+    /**
+      * `removed`
+      */
+    ["com.affine.office.removed"](): string;
+    /**
+      * `No route`
+      */
+    ["com.affine.admin.no-route"](): string;
+    /**
+      * `Verification failed`
+      */
+    ["com.affine.ui.verification-failed"](): string;
+    /**
+      * `AI image filter`
+      */
+    ["com.affine.ai.action-label.ai-image-filter"](): string;
+    /**
+      * `Shared Pages`
+      */
+    ["com.affine.admin.shared-pages-2"](): string;
+    /**
+      * `Model and endpoint`
+      */
+    ["com.affine.admin.model-and-endpoint"](): string;
+    /**
+      * `Insert after selection`
+      */
+    ["com.affine.office.insert-after-selection"](): string;
+    /**
+      * `Cancel execution`
+      */
+    ["com.affine.admin.cancel-execution"](): string;
+    /**
+      * `Chart series {{number}} must have one numeric value per category.`
+      */
+    ["com.affine.office.series-values-required"](options: {
+        readonly number: string;
+    }): string;
+    /**
+      * `Clear validation`
+      */
+    ["com.affine.office.clear-validation"](): string;
+    /**
+      * `Top Shared Links`
+      */
+    ["com.affine.admin.top-shared-links"](): string;
+    /**
+      * `Workspace AI Profile deleted.`
+      */
+    ["com.affine.admin.workspace-ai-profile-deleted"](): string;
+    /**
+      * `Object type`
+      */
+    ["com.affine.office.object-type"](): string;
+    /**
+      * `Apply theme color`
+      */
+    ["com.affine.office.apply-theme-color"](): string;
+    /**
+      * `Delete key`
+      */
+    ["com.affine.admin.delete-key"](): string;
+    /**
+      * `French`
+      */
+    ["com.affine.ai.action-label.french"](): string;
+    /**
+      * `Prepared providers`
+      */
+    ["com.affine.admin.prepared-providers"](): string;
+    /**
+      * `No prompts match the current filters.`
+      */
+    ["com.affine.admin.no-prompts-match-the-current-filters"](): string;
+    /**
+      * `Prepared`
+      */
+    ["com.affine.admin.prepared"](): string;
+    /**
+      * `Well Done !`
+      */
+    ["com.affine.ui.well-done"](): string;
+    /**
+      * `No model candidates returned for this prompt.`
+      */
+    ["com.affine.admin.no-model-candidates-returned-for-this-prompt"](): string;
+    /**
+      * `Please type to confirm`
+      */
+    ["com.affine.admin.please-type-to-confirm"](): string;
+    /**
+      * `Email Delivery Trend`
+      */
+    ["com.affine.admin.email-delivery-trend"](): string;
+    /**
+      * `Workspace BYOK`
+      */
+    ["com.affine.admin.workspace-byok"](): string;
+    /**
+      * `We will continue to enhance our products based on your feedback. Thank you once again for your supports.`
+      */
+    ["com.affine.ui.we-will-continue-to-enhance-our-products-based-on-your-feedback-thank-you-once-again-for-your-suppor"](): string;
+    /**
+      * `Prompt registry publish gate is not available for non-registry prompts.`
+      */
+    ["com.affine.admin.prompt-registry-publish-gate-is-not-available-for-non-registry-prompts"](): string;
+    /**
+      * `Choose a PNG, JPEG, or GIF image.`
+      */
+    ["com.affine.office.choose-a-png-jpeg-or-gif-image"](): string;
+    /**
+      * `review text`
+      */
+    ["com.affine.ai.action-label.review-text"](): string;
+    /**
+      * `Fallback`
+      */
+    ["com.affine.admin.fallback"](): string;
+    /**
+      * `Prepare schema error`
+      */
+    ["com.affine.ui.prepare-schema-error"](): string;
+    /**
+      * `Unrecognized route diagnostic reason.`
+      */
+    ["com.affine.ui.unrecognized-route-diagnostic-reason"](): string;
+    /**
+      * `Chat With LocalMind AI`
+      */
+    ["com.affine.admin.chat-with-localmind-ai"](): string;
+    /**
+      * `Optional static headers sent to compatible endpoints.`
+      */
+    ["com.affine.admin.optional-static-headers-sent-to-compatible-endpoints"](): string;
+    /**
+      * `This server generated and stored its signing key automatically. Rotate it here when needed; key material is never shown in the admin panel.`
+      */
+    ["com.affine.admin.this-server-generated-and-stored-its-signing-key-automatically-rotate-it-here-when-needed-key-materi"](): string;
+    /**
+      * `Brainstorm ideas with mind map`
+      */
+    ["com.affine.ai.action-label.brainstorm-ideas-with-mind-map"](): string;
+    /**
+      * `A new key will become active immediately. The current key remains available only long enough to verify access tokens already issued.`
+      */
+    ["com.affine.admin.a-new-key-will-become-active-immediately-the-current-key-remains-available-only-long-enough-to-verif"](): string;
+    /**
+      * `Continue`
+      */
+    ["com.affine.admin.continue"](): string;
+    /**
+      * `Open menu`
+      */
+    ["com.affine.admin.open-menu"](): string;
+    /**
+      * `No runtime metadata`
+      */
+    ["com.affine.admin.no-runtime-metadata"](): string;
+    /**
+      * `Chart value range`
+      */
+    ["com.affine.office.chart-value-range"](): string;
+    /**
+      * `Edit Office comment`
+      */
+    ["com.affine.office.edit-office-comment"](): string;
+    /**
+      * `run(s)`
+      */
+    ["com.affine.office.run-s"](): string;
+    /**
+      * `No workspaces match this search.`
+      */
+    ["com.affine.admin.no-workspaces-match-this-search"](): string;
+    /**
+      * `copilot.providers.defaults: defaults for text, object, embedding, image, rerank, structured, and fallback provider ids.`
+      */
+    ["com.affine.admin.copilot-providers-defaults-defaults-for-text-object-embedding-image-rerank-structured-and-fallback-p"](): string;
+    /**
+      * `Change tone to`
+      */
+    ["com.affine.ai.action-label.change-tone-to"](): string;
+    /**
+      * `Ink`
+      */
+    ["com.affine.office.annotation-type.Ink"](): string;
+    /**
+      * `please try again later.`
+      */
+    ["com.affine.ui.please-try-again-later"](): string;
+    /**
+      * `Input not supported`
+      */
+    ["com.affine.ui.input-not-supported"](): string;
+    /**
+      * `package comment(s)`
+      */
+    ["com.affine.office.package-comment-s"](): string;
+    /**
+      * `Section`
+      */
+    ["com.affine.office.section"](): string;
+    /**
+      * `New Office comment`
+      */
+    ["com.affine.office.new-office-comment"](): string;
+    /**
+      * `Collaborators`
+      */
+    ["com.affine.office.collaborators"](): string;
+    /**
+      * `PDF page operations`
+      */
+    ["com.affine.office.pdf-page-operations"](): string;
+    /**
+      * `Please type email to confirm`
+      */
+    ["com.affine.admin.please-type-email-to-confirm"](): string;
+    /**
+      * `retry`
+      */
+    ["com.affine.office.task-action.retry"](): string;
+    /**
+      * `Fix spelling`
+      */
+    ["com.affine.ai.action-label.fix-spelling"](): string;
+    /**
+      * `no annotations`
+      */
+    ["com.affine.office.no-annotations"](): string;
+    /**
+      * `Data validation`
+      */
+    ["com.affine.office.data-validation"](): string;
+    /**
+      * `Active source chain`
+      */
+    ["com.affine.admin.active-source-chain"](): string;
+    /**
+      * `Persisted AgentRun, AgentStep, and timeline state`
+      */
+    ["com.affine.admin.persisted-agentrun-agentstep-and-timeline-state"](): string;
+    /**
+      * `Select row`
+      */
+    ["com.affine.admin.select-row"](): string;
+    /**
+      * `Range formatting`
+      */
+    ["com.affine.office.range-formatting"](): string;
+    /**
+      * `Actor`
+      */
+    ["com.affine.admin.actor"](): string;
+    /**
+      * `Don&apos;t have the app?`
+      */
+    ["com.affine.ui.don-apos-t-have-the-app"](): string;
+    /**
+      * `Filter...`
+      */
+    ["com.affine.ui.filter"](): string;
+    /**
+      * `Equation`
+      */
+    ["com.affine.office.equation"](): string;
+    /**
+      * `Modified`
+      */
+    ["com.affine.admin.modified"](): string;
+    /**
+      * `Health`
+      */
+    ["com.affine.admin.health"](): string;
+    /**
+      * `Failed to save Workspace AI Profile.`
+      */
+    ["com.affine.admin.failed-to-save-workspace-ai-profile"](): string;
+    /**
+      * `Account ID`
+      */
+    ["com.affine.admin.account-id"](): string;
+    /**
+      * `Disable AI for all Project conversations? New requests will stop until global Project BYOK is enabled again.`
+      */
+    ["com.affine.admin.disable-ai-for-all-project-conversations-new-requests-will-stop-until-global-project-byok-is-enabled"](): string;
+    /**
+      * `Task route evidence`
+      */
+    ["com.affine.admin.task-route-evidence"](): string;
+    /**
+      * `Remediation`
+      */
+    ["com.affine.admin.remediation"](): string;
+    /**
+      * `Slide thumbnails`
+      */
+    ["com.affine.office.slide-thumbnails"](): string;
+    /**
+      * `Enter user name`
+      */
+    ["com.affine.admin.enter-user-name"](): string;
+    /**
+      * `• Blob`
+      */
+    ["com.affine.admin.blob"](): string;
+    /**
+      * `{{label}} must be at least {{minimum}}.`
+      */
+    ["com.affine.office.minimum-value"](options: Readonly<{
+        label: string;
+        minimum: string;
+    }>): string;
+    /**
+      * `No phase diagnostics returned.`
+      */
+    ["com.affine.admin.no-phase-diagnostics-returned"](): string;
+    /**
+      * `No detailed error stack is provided.`
+      */
+    ["com.affine.ui.no-detailed-error-stack-is-provided"](): string;
+    /**
+      * `All forwarding`
+      */
+    ["com.affine.admin.all-forwarding"](): string;
+    /**
+      * `Request, prompt, action, approval, audit, side effect, failure, lease, or fingerprint`
+      */
+    ["com.affine.admin.request-prompt-action-approval-audit-side-effect-failure-lease-or-fingerprint"](): string;
+    /**
+      * `Failed to revoke invitation link`
+      */
+    ["com.affine.ui.failed-to-revoke-invitation-link"](): string;
+    /**
+      * `This document revision has no editable state.`
+      */
+    ["com.affine.office.this-document-revision-has-no-editable-state"](): string;
+    /**
+      * `Anthropic Vertex JSON`
+      */
+    ["com.affine.admin.anthropic-vertex-json"](): string;
+    /**
+      * `Expand from this mind map node`
+      */
+    ["com.affine.ai.action-label.expand-from-this-mind-map-node"](): string;
+    /**
+      * `Dashboard`
+      */
+    ["com.affine.admin.dashboard"](): string;
+    /**
+      * `Unable to refresh Office revision`
+      */
+    ["com.affine.office.unable-to-refresh-office-revision"](): string;
+    /**
+      * `Loading Workspace AI Profiles...`
+      */
+    ["com.affine.admin.loading-workspace-ai-profiles"](): string;
+    /**
+      * `Native Office requires a DOCX, XLSX, PPTX, or PDF file`
+      */
+    ["com.affine.office.native-office-requires-a-docx-xlsx-pptx-or-pdf-file"](): string;
+    /**
+      * `This legacy platform candidate is not eligible for BYOK-only execution.`
+      */
+    ["com.affine.ui.this-legacy-platform-candidate-is-not-eligible-for-byok-only-execution"](): string;
+    /**
+      * `Failed to create document`
+      */
+    ["com.affine.ui.failed-to-create-document"](): string;
+    /**
+      * `The explicit profile applies in its workspace. Other workspaces use their enabled default profile.`
+      */
+    ["com.affine.admin.the-explicit-profile-applies-in-its-workspace-other-workspaces-use-their-enabled-default-profile"](): string;
+    /**
+      * `What are your thoughts?`
+      */
+    ["com.affine.ai.chat.input-placeholder"](): string;
+    /**
+      * `{{hours}}h active window`
+      */
+    ["com.affine.admin.active-window"](options: {
+        readonly hours: string;
+    }): string;
+    /**
+      * `{{days}}d aggregation`
+      */
+    ["com.affine.admin.conversation-aggregation"](options: {
+        readonly days: string;
+    }): string;
+    /**
+      * `{{hours}}h`
+      */
+    ["com.affine.admin.range-hours"](options: {
+        readonly hours: string;
+    }): string;
+    /**
+      * `{{days}}d`
+      */
+    ["com.affine.admin.range-days"](options: {
+        readonly days: string;
+    }): string;
+    /**
+      * `Top shared links range`
+      */
+    ["com.affine.admin.shared-links-range"](): string;
+    /**
+      * `Email delivery range`
+      */
+    ["com.affine.admin.mail-delivery-range"](): string;
+    /**
+      * `Email delivery trend`
+      */
+    ["com.affine.admin.mail-delivery-chart"](): string;
+    /**
+      * `Copilot conversations range`
+      */
+    ["com.affine.admin.conversation-range"](): string;
+    /**
+      * `Sync active users range`
+      */
+    ["com.affine.admin.sync-users-range"](): string;
+    /**
+      * `Sync active users trend`
+      */
+    ["com.affine.admin.sync-users-chart"](): string;
+    /**
+      * `Sync Active Users`
+      */
+    ["com.affine.admin.sync-users-series"](): string;
+    /**
+      * `Storage trend range`
+      */
+    ["com.affine.admin.storage-range"](): string;
+    /**
+      * `Workspace and blob storage trend`
+      */
+    ["com.affine.admin.storage-chart"](): string;
+    /**
+      * `Workspace Storage`
+      */
+    ["com.affine.admin.workspace-storage-series"](): string;
+    /**
+      * `Blob Storage`
+      */
+    ["com.affine.admin.blob-storage-series"](): string;
+    /**
+      * `Allow {{provider}} connections`
+      */
+    ["com.affine.admin.allow-provider-connections"](options: {
+        readonly provider: string;
+    }): string;
+    /**
+      * `Transcript and workspace indexing require an enabled server Gemini BYOK key.`
+      */
+    ["com.affine.admin.byok-transcript-warning"](): string;
+    /**
+      * `Workspace indexing requires an enabled server Gemini BYOK key.`
+      */
+    ["com.affine.admin.byok-indexing-warning"](): string;
+    /**
+      * `Import timed out. Please retry.`
+      */
+    ["com.affine.localmind.workspace-import.timeout"](): string;
+    /**
+      * `Import permission changed. Check source access before retrying.`
+      */
+    ["com.affine.localmind.workspace-import.permissionDenied"](): string;
+    /**
+      * `The source file is unavailable. Check that it still exists.`
+      */
+    ["com.affine.localmind.workspace-import.sourceUnavailable"](): string;
+    /**
+      * `The file changed during import. Please retry.`
+      */
+    ["com.affine.localmind.workspace-import.conflict"](): string;
+    /**
+      * `Table name`
+      */
+    ["com.affine.office.table-name-label"](): string;
     /**
       * `An internal error occurred.`
       */
@@ -13178,6 +19778,49 @@ export function useAFFiNEI18N(): {
       * `You have exceeded the comment attachment size quota.`
       */
     ["error.COMMENT_ATTACHMENT_QUOTA_EXCEEDED"](): string;
+    /**
+      * - com.affine.office.page-count_one: `{{count}} page`
+
+      * - com.affine.office.page-count_other: `{{count}} pages`
+      */
+    ["com.affine.office.page-count"](options: {
+        readonly count: string | number | bigint;
+    }): string;
+    /**
+      * - com.affine.office.pdf-page-label_other: `PDF page {{number}}, {{count}} annotations`
+
+      * - com.affine.office.pdf-page-label_one: `PDF page {{number}}, {{count}} annotation`
+
+      * - com.affine.office.pdf-page-label_zero: `PDF page {{number}}, no annotations`
+      */
+    ["com.affine.office.pdf-page-label"](options: Readonly<{
+        number: (string & string) & string;
+        count?: string | number | bigint;
+    }>): string;
+    /**
+      * - com.affine.office.tracked-change-count_one: `{{count}} tracked change`
+
+      * - com.affine.office.tracked-change-count_other: `{{count}} tracked changes`
+      */
+    ["com.affine.office.tracked-change-count"](options: {
+        readonly count: string | number | bigint;
+    }): string;
+    /**
+      * - com.affine.admin.import-preview-count_one: `{{count}} user detected in the CSV file. Confirm the list below to import.`
+
+      * - com.affine.admin.import-preview-count_other: `{{count}} users detected in the CSV file. Confirm the list below to import.`
+      */
+    ["com.affine.admin.import-preview-count"](options: {
+        readonly count: string | number | bigint;
+    }): string;
+    /**
+      * - com.affine.office.comment-count_other: `{{count}} package comments`
+
+      * - com.affine.office.comment-count_one: `{{count}} package comment`
+      */
+    ["com.affine.office.comment-count"](options: {
+        readonly count: string | number | bigint;
+    }): string;
 } { const { t } = useTranslation(); return useMemo(() => createProxy((key) => t.bind(null, key)), [t]); }
 function createComponent(i18nKey: string) {
     return (props) => createElement(Trans, { i18nKey, shouldUnescape: true, ...props });
@@ -13244,9 +19887,9 @@ export const TypedTrans: {
     }>>;
     /**
       * `<0>{{count}}</0> selected`
-    
+
       * - com.affine.collection.toolbar.selected_one: `<0>{{count}}</0> collection selected`
-    
+
       * - com.affine.collection.toolbar.selected_other: `<0>{{count}}</0> collection(s) selected`
       */
     ["com.affine.collection.toolbar.selected"]: ComponentType<TypedTransProps<{
@@ -13355,9 +19998,9 @@ export const TypedTrans: {
     }>>;
     /**
       * `<0>{{count}}</0> selected`
-    
+
       * - com.affine.page.toolbar.selected_one: `<0>{{count}}</0> doc selected`
-    
+
       * - com.affine.page.toolbar.selected_other: `<0>{{count}}</0> doc(s) selected`
       */
     ["com.affine.page.toolbar.selected"]: ComponentType<TypedTransProps<{
@@ -13597,9 +20240,9 @@ export const TypedTrans: {
     }>>;
     /**
       * `<0>{{count}}</0> selected`
-    
+
       * - com.affine.tag.toolbar.selected_one: `<0>{{count}}</0> tag selected`
-    
+
       * - com.affine.tag.toolbar.selected_other: `<0>{{count}}</0> tag(s) selected`
       */
     ["com.affine.tag.toolbar.selected"]: ComponentType<TypedTransProps<{
@@ -13800,5 +20443,29 @@ export const TypedTrans: {
         readonly user: string;
     }, {
         ["1"]: JSX.Element;
+    }>>;
+    /**
+      * `Enable the account? The email <strong>{{email}}</strong> can then be used to log in.`
+      */
+    ["com.affine.admin.enable-account-description"]: ComponentType<TypedTransProps<{
+        readonly email: string;
+    }, {
+        strong: JSX.Element;
+    }>>;
+    /**
+      * `<strong>{{email}}</strong> will be permanently deleted. This operation is irreversible. Please proceed with caution.`
+      */
+    ["com.affine.admin.delete-account-description"]: ComponentType<TypedTransProps<{
+        readonly email: string;
+    }, {
+        strong: JSX.Element;
+    }>>;
+    /**
+      * `The data associated with <strong>{{email}}</strong> will be deleted and the account cannot be used for logging in. This operation is irreversible. Please proceed with caution.`
+      */
+    ["com.affine.admin.disable-account-description"]: ComponentType<TypedTransProps<{
+        readonly email: string;
+    }, {
+        strong: JSX.Element;
     }>>;
 } = /*#__PURE__*/ createProxy(createComponent);

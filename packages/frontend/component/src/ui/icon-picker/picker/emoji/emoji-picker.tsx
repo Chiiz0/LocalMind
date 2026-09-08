@@ -1,3 +1,4 @@
+import { useI18n } from '@affine/i18n';
 import { SearchIcon } from '@blocksuite/icons/rc';
 import { cssVarV2 } from '@toeverything/theme/v2';
 import { type KeyboardEvent, useCallback, useState } from 'react';
@@ -25,6 +26,7 @@ export const EmojiPicker = ({
 }: {
   onSelect?: (emoji: string) => void;
 }) => {
+  const i18n = useI18n();
   const [keyword, setKeyword] = useState<string>('');
 
   const [skin, setSkin] = useState<number | undefined>(undefined);
@@ -60,7 +62,7 @@ export const EmojiPicker = ({
               />
             </div>
           }
-          placeholder="Filter..."
+          placeholder={i18n['com.affine.ui.filter']()}
         />
         <Menu
           contentOptions={{

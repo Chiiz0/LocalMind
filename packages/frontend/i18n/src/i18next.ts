@@ -21,7 +21,11 @@ export const getOrCreateI18n = (): i18n => {
         type: 'backend',
         init: () => {},
         read: (lng: Language, _ns: string, callback) => {
-          const resource = SUPPORTED_LANGUAGES[lng].resource;
+          const resource = SUPPORTED_LANGUAGES[lng]?.resource;
+          if (!resource) {
+            callback(new Error(`Unsupported language: ${lng}`), null);
+            return;
+          }
           if (typeof resource === 'function') {
             resource()
               .then(data => {
@@ -30,7 +34,7 @@ export const getOrCreateI18n = (): i18n => {
               })
               .catch(err => {
                 logger.error(`Failed to load i18n ${lng} resource`, err);
-                callback(null, null);
+                callback(err, null);
               });
           } else {
             callback(null, resource);
@@ -45,13 +49,7 @@ export const getOrCreateI18n = (): i18n => {
           const langPart = code.split('-')[0];
 
           // fallback xx-YY to xx, e.g. es-AR to es
-          // fallback zh-Hant to zh-Hans
-          if (langPart === 'cn') {
-            fallbacks.push('zh-Hans');
-          } else if (
-            langPart !== code &&
-            SUPPORTED_LANGUAGES[code as Language]
-          ) {
+          if (langPart !== code && SUPPORTED_LANGUAGES[langPart as Language]) {
             fallbacks.unshift(langPart);
           }
 
@@ -60,6 +58,7 @@ export const getOrCreateI18n = (): i18n => {
         supportedLngs: Object.keys(SUPPORTED_LANGUAGES),
         debug: false,
         partialBundledLanguages: true,
+        returnEmptyString: false,
         resources: {
           [defaultLng]: {
             translation: SUPPORTED_LANGUAGES[defaultLng].resource,
@@ -120,7 +119,7 @@ export function createI18nWrapper(getI18nFn: () => i18n) {
       }
 
       const i18n = getI18nFn();
-      if (i18n.exists(key)) {
+      if (i18n.exists(key, options)) {
         return i18n.t(key, options);
       } else {
         // unknown translate key 'xxx.xxx' returns itself

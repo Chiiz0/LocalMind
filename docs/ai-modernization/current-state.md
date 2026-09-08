@@ -1,5 +1,22 @@
 # Current State
 
+## Project Workbench Redesign
+
+The confirmed [workbench contract](tracks/project-workbench-redesign.md)
+supersedes the reference migration and workspace-hosted UI described in the
+historical sections below. Projects use standalone `/project` routes, a main-area
+file tree, per-session context selection, realtime updates with a 15-second
+fallback, and exclusive tab-held edit leases. No role can force an unlock.
+AI writes use the same leases; chat cards and task panels share idempotent
+approval decisions and durable receipts. The old reference tables and migration
+bridge have been removed.
+
+The 3011 runtime has 361 migrations after verified backup restoration and Linux
+validation. P1-P7 and A01-A22 are accepted with the documented baseline and test
+environment exceptions. Results, including final browser checks and
+the existing BlockSuite typecheck baseline, are maintained in the
+[workbench execution record](project-workbench-redesign.execution.md).
+
 ## Project Native Resources
 
 The 2026-09-06 user-confirmed design is recorded in
@@ -18,7 +35,7 @@ upgrade/backfill counts, backups and runtime synchronization are recorded in
 [the execution report](project-native-resources.execution.md).
 Global Project BYOK remains independent of Workspace.
 
-P1-P6 and A01-A22 are accepted. The backed-up 3011 runtime has 353 migrations;
+Historical native-resource P1-P6 and A01-A22 were accepted. That runtime had 353 migrations;
 2 historical references were copied and 11 remain recoverable pending source
 authorization. Workspace data fingerprints did not change during migration and
 synchronization. The runtime global Project BYOK is unconfigured and correctly

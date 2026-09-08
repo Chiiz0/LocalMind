@@ -1,3 +1,4 @@
+import { useI18n } from '@affine/i18n';
 import { useLiveData, useService } from '@toeverything/infra';
 import clsx from 'clsx';
 import { useCallback } from 'react';
@@ -13,6 +14,7 @@ export const SidebarContainer = ({
   className,
   ...props
 }: React.HtmlHTMLAttributes<HTMLDivElement>) => {
+  const i18n = useI18n();
   const workbenchService = useService(WorkbenchService);
   const workbench = workbenchService.workbench;
   const viewService = useService(ViewService);
@@ -44,7 +46,9 @@ export const SidebarContainer = ({
           />
         ))
       ) : (
-        <div className={styles.sidebarBodyNoSelection}>No Selection</div>
+        <div className={styles.sidebarBodyNoSelection}>
+          {i18n['com.affine.ui.no-selection']()}
+        </div>
       )}
     </div>
   );

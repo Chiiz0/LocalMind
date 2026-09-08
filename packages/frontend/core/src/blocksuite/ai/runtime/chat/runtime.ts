@@ -221,6 +221,9 @@ export class AIChatRuntime {
       case 'addContextItem':
         await this.addContextItem(action.item, action.promptName);
         return;
+      case 'setProjectContextResources':
+        await this.setProjectContextResources(action);
+        return;
       case 'removeContextItem':
         await this.removeContextItem(action.item);
         return;
@@ -803,6 +806,90 @@ export class AIChatRuntime {
       ));
     this.updateContextState({ contextId });
     return contextId;
+  }
+
+  private async setProjectContextResources(input: {
+    tabId: string | null;
+    resourceIds: string[];
+    baseResourceIds: string[];
+  }) {
+    if (
+      this.snapshot.scope.kind !== 'project' ||
+      input.tabId !== this.snapshot.activeTabId
+    )
+      throw new Error('Project conversation selection changed');
+    const projectId = this.snapshot.scope.projectId;
+    const seq = ++this.contextRequestSeq;
+    const resourceIds = [...new Set(input.resourceIds)];
+    if (resourceIds.length > 16)
+      throw new Error('Too many Project context resources');
+    this.updateContextState({ loading: true, error: null });
+    try {
+      const session = await this.ensureSession();
+      if (
+        !session ||
+        seq !== this.contextRequestSeq ||
+        this.snapshot.activeTabId !== input.tabId
+      )
+        throw new Error('Project conversation selection changed');
+      const context = await this.options.request.projectContext.get(
+        projectId,
+        session.sessionId
+      );
+      const currentIds = context.items
+        .flatMap(item =>
+          item.kind === 'resource' && item.resourceId ? [item.resourceId] : []
+        )
+        .sort();
+      if (
+        JSON.stringify(currentIds) !==
+        JSON.stringify([...new Set(input.baseResourceIds)].sort())
+      )
+        throw new Error('Project context changed while selecting resources');
+      if (
+        resourceIds.length +
+          context.items.filter(item => item.kind !== 'resource').length >
+        16
+      )
+        throw new Error('Too many Project context items');
+      const selected = [];
+      for (const resourceId of resourceIds) {
+        selected.push(
+          await this.options.request.projectContext.resource(
+            projectId,
+            resourceId
+          )
+        );
+      }
+      if (
+        seq !== this.contextRequestSeq ||
+        this.snapshot.activeTabId !== input.tabId
+      )
+        throw new Error('Project conversation selection changed');
+      await this.options.request.projectContext.set(
+        projectId,
+        session.sessionId,
+        context.version,
+        [
+          ...context.items
+            .filter(item => item.kind !== 'resource')
+            .map(projectContextInput),
+          ...selected,
+        ]
+      );
+      if (
+        seq === this.contextRequestSeq &&
+        this.snapshot.activeTabId === input.tabId
+      ) {
+        if (!this.snapshot.activeSessionId)
+          this.openSessionObject(session, true);
+        await this.loadContext();
+      }
+    } catch (error) {
+      if (seq === this.contextRequestSeq)
+        this.updateContextState({ loading: false, error: this.toError(error) });
+      throw error;
+    }
   }
 
   private async addContextItem(item: AIChatContextItem, promptName?: string) {

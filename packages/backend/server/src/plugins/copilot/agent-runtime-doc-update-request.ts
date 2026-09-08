@@ -230,6 +230,11 @@ export async function createAgentRuntimeDocUpdateRequest(input: {
     }
     hostWorkspaceId = session.workspaceId;
     projectId = session.selectedContextProjectId;
+    if (session.selectedContextProjectId) {
+      throw new BadRequest(
+        'Project writes require a native Project resource task'
+      );
+    }
   }
 
   await input.ac

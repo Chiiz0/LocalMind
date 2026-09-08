@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import { BadRequest } from '../base';
 import { BaseModel } from './base';
 import type { CopilotAgentRunRecord } from './copilot-agent-runtime';
+import type { ProjectAgentRun } from './copilot-project-agent-runtime';
 import type {
   IntelligenceWorkbenchBlockerOrigin,
   IntelligenceWorkbenchBlockerType,
@@ -17,9 +18,9 @@ export const INTELLIGENCE_WORKBENCH_DONE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 export type IntelligenceWorkbenchTaskItemKind =
   | 'run'
+  | 'project_run'
   | 'access_request'
   | 'project_invitation'
-  | 'project_grant'
   | 'blocker'
   | 'file_request';
 // File requests have their own delivery lifecycle, independent of reminder-only Blockers.
@@ -40,7 +41,6 @@ export type IntelligenceWorkbenchTaskAction =
   | 'approve_access_request'
   | 'reject_access_request'
   | 'withdraw_access_request'
-  | 'request_project_access'
   | 'accept_project_invitation'
   | 'decline_project_invitation'
   | 'withdraw_project_invitation'
@@ -76,6 +76,7 @@ export type IntelligenceWorkbenchTaskItem = {
   completedAt: Date | null;
   availableActions: IntelligenceWorkbenchTaskAction[];
   run: CopilotAgentRunRecord | null;
+  projectTask?: ProjectAgentRun | null;
   blocker: IntelligenceWorkbenchTaskBlocker | null;
 };
 
@@ -133,26 +134,6 @@ type ProjectInvitationCandidateRow = {
   projectOwner: boolean;
 };
 
-type ProjectGrantCandidateRow = {
-  id: string;
-  projectId: string;
-  projectName: string;
-  projectStatus: string;
-  workspaceId: string;
-  docId: string;
-  level: string;
-  status: string;
-  grantedAt: Date;
-  revokedAt: Date | null;
-  updatedAt: Date;
-  projectMember: boolean;
-  sourceManager: boolean;
-  hasRevokedPlaceholder: boolean;
-  hasPendingRequest: boolean;
-  hasActiveReplacement: boolean;
-  latestRevokedGrant: boolean;
-};
-
 type BlockerCandidateRow = {
   id: string;
   projectId: string;
@@ -177,9 +158,9 @@ type BoundedItems = {
 
 const HISTORY_KINDS = [
   'run',
+  'project_run',
   'access_request',
   'project_invitation',
-  'project_grant',
   'blocker',
   'file_request',
 ] as const;
@@ -367,6 +348,9 @@ export class IntelligenceWorkbenchTaskProjectionModel extends BaseModel {
       fileTodo,
       fileInProgress,
       fileDone,
+      projectTodo,
+      projectInProgress,
+      projectDone,
     ] = await Promise.all([
       this.listRunItems({
         userId,
@@ -439,21 +423,45 @@ export class IntelligenceWorkbenchTaskProjectionModel extends BaseModel {
         completedSince: doneSince,
         limit: INTELLIGENCE_WORKBENCH_DONE_LIMIT,
       }),
+      this.listProjectRunItems({
+        userId,
+        projectId,
+        statuses: [
+          'waiting_approval',
+          'waiting_for_location',
+          'waiting_lease',
+          'failed',
+        ],
+        limit: INTELLIGENCE_WORKBENCH_TODO_LIMIT,
+      }),
+      this.listProjectRunItems({
+        userId,
+        projectId,
+        statuses: ['queued', 'running'],
+        limit: INTELLIGENCE_WORKBENCH_IN_PROGRESS_LIMIT,
+      }),
+      this.listProjectRunItems({
+        userId,
+        projectId,
+        statuses: ['completed', 'cancelled'],
+        completedSince: doneSince,
+        limit: INTELLIGENCE_WORKBENCH_DONE_LIMIT,
+      }),
     ]);
 
     return {
       todo: boundItems(
-        [runTodo, authTodo, blockerTodo, fileTodo],
+        [runTodo, authTodo, blockerTodo, fileTodo, projectTodo],
         INTELLIGENCE_WORKBENCH_TODO_LIMIT,
         panelTodoOrder
       ),
       inProgress: boundItems(
-        [runInProgress, fileInProgress],
+        [runInProgress, fileInProgress, projectInProgress],
         INTELLIGENCE_WORKBENCH_IN_PROGRESS_LIMIT,
         newestFirst
       ),
       done: boundItems(
-        [runDone, authDone, blockerDone, fileDone],
+        [runDone, authDone, blockerDone, fileDone, projectDone],
         INTELLIGENCE_WORKBENCH_DONE_LIMIT,
         panelDoneOrder
       ),
@@ -492,46 +500,49 @@ export class IntelligenceWorkbenchTaskProjectionModel extends BaseModel {
     await this.models.intelligenceWorkbenchAuthorization.expireDueAccessRequests(
       { now }
     );
-    const [runs, authorization, blockers, files] = await Promise.all([
-      this.listRunItems({
-        userId,
-        projectId,
-        statuses: [
-          'waiting_approval',
-          'waiting_for_location',
-          'failed',
-          'queued',
-          'running',
-          'completed',
-          'cancelled',
-        ],
-        segment: null,
-        limit,
-        history,
-      }),
-      this.listAuthorizationItems({
-        userId,
-        projectId,
-        mode: 'all',
-        now,
-        limit,
-        history,
-      }),
-      this.listBlockerItems({
-        userId,
-        projectId,
-        mode: 'all',
-        now,
-        limit,
-        history,
-      }),
-      this.listFileRequestItems({ userId, projectId, limit, history }),
-    ]);
+    const [runs, authorization, blockers, files, projectRuns] =
+      await Promise.all([
+        this.listRunItems({
+          userId,
+          projectId,
+          statuses: [
+            'waiting_approval',
+            'waiting_for_location',
+            'failed',
+            'queued',
+            'running',
+            'completed',
+            'cancelled',
+          ],
+          segment: null,
+          limit,
+          history,
+        }),
+        this.listAuthorizationItems({
+          userId,
+          projectId,
+          mode: 'all',
+          now,
+          limit,
+          history,
+        }),
+        this.listBlockerItems({
+          userId,
+          projectId,
+          mode: 'all',
+          now,
+          limit,
+          history,
+        }),
+        this.listFileRequestItems({ userId, projectId, limit, history }),
+        this.listProjectRunItems({ userId, projectId, limit, history }),
+      ]);
     const items = [
       ...runs.items,
       ...authorization.items,
       ...blockers.items,
       ...files.items,
+      ...projectRuns.items,
     ]
       .sort(historyOrder)
       .slice(0, limit);
@@ -540,11 +551,12 @@ export class IntelligenceWorkbenchTaskProjectionModel extends BaseModel {
       authorization.capped ||
       blockers.capped ||
       files.capped ||
+      projectRuns.capped ||
       runs.items.length +
         authorization.items.length +
         blockers.items.length +
         files.items.length >
-        limit;
+        limit - projectRuns.items.length;
     const last = items.at(-1);
     return {
       items,
@@ -574,9 +586,9 @@ export class IntelligenceWorkbenchTaskProjectionModel extends BaseModel {
     const { cursor, filter, taskId } = history;
     const prefixes = {
       run: 'run:',
+      project_run: 'project-run:',
       access_request: 'access-request:',
       project_invitation: 'project-invitation:',
-      project_grant: 'project-grant:',
       blocker: 'blocker:',
       file_request: 'file-request:',
     };
@@ -592,27 +604,20 @@ export class IntelligenceWorkbenchTaskProjectionModel extends BaseModel {
         identity = Prisma.sql`id = ${entityId}`;
       }
     }
-    const rerequest = Prisma.sql`status = 'revoked' AND "projectStatus" = 'active' AND "projectMember" AND "latestRevokedGrant" AND "hasRevokedPlaceholder" AND NOT "hasPendingRequest" AND NOT "hasActiveReplacement"`;
     const filterSql =
       filter === 'all'
         ? Prisma.sql`TRUE`
         : kind === 'file_request'
           ? Prisma.sql`status IN (${Prisma.join(filter === 'active' ? ['in_progress'] : filter === 'approval' ? ['pending'] : ['completed', 'declined', 'cancelled'])})`
-          : kind === 'run'
-            ? Prisma.sql`status IN (${Prisma.join(filter === 'active' ? ['queued', 'running'] : filter === 'approval' ? ['waiting_approval', 'waiting_for_location', 'failed'] : ['completed', 'cancelled'])})`
+          : kind === 'run' || kind === 'project_run'
+            ? Prisma.sql`status IN (${Prisma.join(filter === 'active' ? ['queued', 'running'] : filter === 'approval' ? ['waiting_approval', 'waiting_for_location', 'waiting_lease', 'failed'] : ['completed', 'cancelled'])})`
             : filter === 'active'
               ? Prisma.sql`FALSE`
-              : kind === 'project_grant'
-                ? filter === 'approval'
-                  ? Prisma.sql`(${rerequest})`
-                  : Prisma.sql`NOT (${rerequest})`
-                : filter === 'completed'
-                  ? Prisma.sql`status <> ${kind === 'blocker' ? 'waiting' : 'pending'}`
-                  : kind === 'access_request'
-                    ? Prisma.sql`status = 'pending' AND "sourceDecisionActor"`
-                    : kind === 'project_invitation'
-                      ? Prisma.sql`status = 'pending' AND invitee`
-                      : Prisma.sql`FALSE`;
+              : filter === 'completed'
+                ? Prisma.sql`status <> ${kind === 'blocker' ? 'waiting' : 'pending'}`
+                : kind === 'project_invitation'
+                  ? Prisma.sql`status = 'pending' AND invitee`
+                  : Prisma.sql`FALSE`;
     let seek = Prisma.sql`TRUE`;
     if (cursor) {
       const sameTime =
@@ -628,6 +633,83 @@ export class IntelligenceWorkbenchTaskProjectionModel extends BaseModel {
       ORDER BY "updatedAt" DESC, id COLLATE "C" DESC
       LIMIT ${limit + 1}
     `);
+  }
+
+  private async listProjectRunItems(input: {
+    userId: string;
+    projectId: string | null;
+    limit: number;
+    statuses?: string[];
+    completedSince?: Date;
+    history?: HistorySelection;
+  }): Promise<BoundedItems> {
+    const rows = await this.queryCandidates<{ id: string; projectId: string }>(
+      Prisma.sql`
+      SELECT run.id, run.project_id AS "projectId", run.status, run.updated_at AS "updatedAt"
+      FROM ai_agent_runs run
+      JOIN ai_context_projects project ON project.id = run.project_id AND project.status = 'active'
+      JOIN ai_context_project_members member ON member.project_id = project.id AND member.user_id = ${input.userId}
+      WHERE run.workspace_id IS NULL AND run.actor_id = ${input.userId}
+        AND NOT (run.workflow = 'agent_runtime_project_workspace_import' AND run.status = 'waiting_approval')
+        ${input.projectId ? Prisma.sql`AND run.project_id = ${input.projectId}` : Prisma.empty}
+        ${input.statuses ? Prisma.sql`AND run.status IN (${Prisma.join(input.statuses)})` : Prisma.empty}
+        ${input.completedSince ? Prisma.sql`AND run.completed_at >= ${input.completedSince}` : Prisma.empty}
+      ORDER BY run.updated_at DESC, run.id DESC
+    `,
+      'project_run',
+      input.limit,
+      input.history
+    );
+    const items: IntelligenceWorkbenchTaskItem[] = [];
+    for (const row of rows.slice(0, input.limit)) {
+      const run = await this.models.copilotProjectAgentRuntime.get({
+        projectId: row.projectId,
+        actorId: input.userId,
+        runId: row.id,
+      });
+      const segment = ['queued', 'running'].includes(run.status)
+        ? 'in_progress'
+        : ['completed', 'cancelled'].includes(run.status)
+          ? 'done'
+          : 'todo';
+      const approval =
+        run.status === 'waiting_approval' &&
+        run.workflow !== 'agent_runtime_project_publication' &&
+        run.workflow !== 'agent_runtime_project_workspace_import';
+      items.push({
+        id: `project-run:${run.id}`,
+        entityId: run.id,
+        kind: 'project_run',
+        segment,
+        attention:
+          segment === 'todo'
+            ? run.status === 'waiting_lease'
+              ? 'waiting_on_others'
+              : 'needs_my_action'
+            : null,
+        workspaceId: null,
+        projectId: run.projectId,
+        title: run.title,
+        status: run.status,
+        requestedLevel: null,
+        documentId: run.waitingLeaseResourceId,
+        redacted: false,
+        relatedUserId: null,
+        createdAt: run.createdAt,
+        updatedAt: run.updatedAt,
+        completedAt: run.completedAt,
+        availableActions:
+          segment === 'done' || run.status === 'failed'
+            ? []
+            : approval
+              ? ['approve', 'reject', 'cancel']
+              : ['cancel'],
+        run: null,
+        projectTask: run,
+        blocker: null,
+      });
+    }
+    return { items, capped: rows.length > input.limit };
   }
 
   private async listFileRequestItems(input: {
@@ -797,23 +879,22 @@ export class IntelligenceWorkbenchTaskProjectionModel extends BaseModel {
     limit: number;
     history?: HistorySelection;
   }): Promise<BoundedItems> {
-    const [requests, invitations, grants] = await Promise.all([
+    const [requests, invitations] = await Promise.all([
       this.listAccessRequestItems(input),
       this.listProjectInvitationItems(input),
-      this.listProjectGrantItems(input),
     ]);
     const compare = input.history
       ? historyOrder
       : input.mode === 'todo'
         ? panelTodoOrder
         : panelDoneOrder;
-    const combined = [requests, invitations, grants]
+    const combined = [requests, invitations]
       .flatMap(source => source.items)
       .sort(compare);
     return {
       items: combined.slice(0, input.limit),
       capped:
-        [requests, invitations, grants].some(source => source.capped) ||
+        [requests, invitations].some(source => source.capped) ||
         combined.length > input.limit,
     };
   }
@@ -839,24 +920,7 @@ export class IntelligenceWorkbenchTaskProjectionModel extends BaseModel {
               AND request.resolved_at >= ${input.completedSince as Date}
             `
           : Prisma.empty;
-    const canonicalGrantFilter =
-      input.mode === 'todo'
-        ? Prisma.empty
-        : Prisma.sql`
-            AND NOT (
-              request.beneficiary_type = 'project'
-              AND request.status = 'approved'
-              AND EXISTS (
-                SELECT 1
-                FROM ai_context_project_grants project_grant
-                WHERE project_grant.access_request_id = request.id
-              )
-            )
-          `;
-    const ordering =
-      input.mode === 'todo'
-        ? Prisma.sql`"sourceDecisionActor" DESC, request.updated_at DESC, request.id DESC`
-        : Prisma.sql`request.updated_at DESC, request.id DESC`;
+    const ordering = Prisma.sql`request.updated_at DESC, request.id DESC`;
     const rows = await this.queryCandidates<AccessRequestCandidateRow>(
       Prisma.sql`
         WITH visible_request_ids AS (
@@ -883,28 +947,6 @@ export class IntelligenceWorkbenchTaskProjectionModel extends BaseModel {
           WHERE project_member.user_id = ${input.userId}
           ${lifecycle}
 
-          UNION
-
-          SELECT request.id
-          FROM workspace_members workspace_member
-          JOIN access_requests request
-            ON request.workspace_id = workspace_member.workspace_id
-          WHERE workspace_member.user_id = ${input.userId}
-            AND workspace_member.state = 'active'
-            AND workspace_member.role IN ('owner', 'admin')
-          ${lifecycle}
-
-          UNION
-
-          SELECT request.id
-          FROM doc_grants doc_grant
-          JOIN access_requests request
-            ON request.workspace_id = doc_grant.workspace_id
-           AND request.doc_id = doc_grant.doc_id
-          WHERE doc_grant.principal_type = 'user'
-            AND doc_grant.principal_id = ${input.userId}
-            AND doc_grant.role = 'owner'
-          ${lifecycle}
         )
         SELECT
           request.id,
@@ -960,8 +1002,7 @@ export class IntelligenceWorkbenchTaskProjectionModel extends BaseModel {
           ) AS "activeProjectGrant"
         FROM visible_request_ids visible
         JOIN access_requests request ON request.id = visible.id
-        WHERE TRUE
-        ${canonicalGrantFilter}
+        WHERE request.purpose = 'project_copy'
         AND (
           ${input.projectId}::varchar IS NULL
           OR (
@@ -999,20 +1040,13 @@ export class IntelligenceWorkbenchTaskProjectionModel extends BaseModel {
           (row.projectMember && row.activeProjectGrant);
         const pending = row.status === 'pending';
         const actions: IntelligenceWorkbenchTaskAction[] = [];
-        if (pending && sourceDecisionActor) {
-          actions.push('approve_access_request', 'reject_access_request');
-        }
         if (pending && canWithdraw) actions.push('withdraw_access_request');
         return {
           id: `access-request:${row.id}`,
           entityId: row.id,
           kind: 'access_request' as const,
           segment: pending ? ('todo' as const) : ('done' as const),
-          attention: pending
-            ? sourceDecisionActor
-              ? ('needs_my_action' as const)
-              : ('waiting_on_others' as const)
-            : null,
+          attention: pending ? ('waiting_on_others' as const) : null,
           workspaceId: row.workspaceId,
           projectId: row.beneficiaryProjectId,
           title: visibleIdentity ? row.requestedTitle : null,
@@ -1165,288 +1199,6 @@ export class IntelligenceWorkbenchTaskProjectionModel extends BaseModel {
         } satisfies IntelligenceWorkbenchTaskItem;
       }),
       capped: rows.length > input.limit,
-    };
-  }
-
-  private async listProjectGrantItems(input: {
-    userId: string;
-    projectId: string | null;
-    mode: 'todo' | 'done' | 'all';
-    completedSince?: Date;
-    limit: number;
-    history?: HistorySelection;
-  }): Promise<BoundedItems> {
-    const latestRevokedGrant = Prisma.sql`
-      NOT EXISTS (
-        SELECT 1
-        FROM ai_context_project_grants newer_revoked_grant
-        WHERE newer_revoked_grant.project_id = grant_row.project_id
-          AND newer_revoked_grant.workspace_id = grant_row.workspace_id
-          AND newer_revoked_grant.doc_id = grant_row.doc_id
-          AND newer_revoked_grant.status = 'revoked'
-          AND (
-            newer_revoked_grant.revoked_at > grant_row.revoked_at
-            OR (
-              newer_revoked_grant.revoked_at = grant_row.revoked_at
-              AND newer_revoked_grant.granted_at > grant_row.granted_at
-            )
-            OR (
-              newer_revoked_grant.revoked_at = grant_row.revoked_at
-              AND newer_revoked_grant.granted_at = grant_row.granted_at
-              AND newer_revoked_grant.id > grant_row.id
-            )
-          )
-      )
-    `;
-    const lifecycle =
-      input.mode === 'todo'
-        ? Prisma.sql`AND grant_row.status = 'revoked'`
-        : input.mode === 'done'
-          ? Prisma.sql`
-              AND (
-                (grant_row.status = 'active' AND grant_row.granted_at >= ${input.completedSince as Date})
-                OR (grant_row.status = 'revoked' AND grant_row.revoked_at >= ${input.completedSince as Date})
-              )
-            `
-          : Prisma.empty;
-    const actionability =
-      input.mode === 'todo'
-        ? Prisma.sql`
-            AND project.status = 'active'
-            AND ${latestRevokedGrant}
-            AND EXISTS (
-              SELECT 1
-              FROM ai_context_project_members project_member
-              WHERE project_member.project_id = grant_row.project_id
-                AND project_member.user_id = ${input.userId}
-            )
-            AND EXISTS (
-              SELECT 1
-              FROM ai_context_project_docs project_document
-              WHERE project_document.project_id = grant_row.project_id
-                AND project_document.workspace_id = grant_row.workspace_id
-                AND project_document.doc_id = grant_row.doc_id
-                AND project_document.status = 'revoked'
-            )
-            AND NOT EXISTS (
-              SELECT 1
-              FROM access_requests request
-              WHERE request.beneficiary_type = 'project'
-                AND request.beneficiary_project_id = grant_row.project_id
-                AND request.workspace_id = grant_row.workspace_id
-                AND request.doc_id = grant_row.doc_id
-                AND request.status = 'pending'
-            )
-            AND NOT EXISTS (
-              SELECT 1
-              FROM ai_context_project_grants active_grant
-              WHERE active_grant.project_id = grant_row.project_id
-                AND active_grant.workspace_id = grant_row.workspace_id
-                AND active_grant.doc_id = grant_row.doc_id
-                AND active_grant.status = 'active'
-                AND active_grant.id <> grant_row.id
-            )
-          `
-        : input.mode === 'done'
-          ? Prisma.sql`
-              AND NOT (
-                grant_row.status = 'revoked'
-                AND ${latestRevokedGrant}
-                AND project.status = 'active'
-                AND EXISTS (
-                  SELECT 1
-                  FROM ai_context_project_members project_member
-                  WHERE project_member.project_id = grant_row.project_id
-                    AND project_member.user_id = ${input.userId}
-                )
-                AND EXISTS (
-                  SELECT 1
-                  FROM ai_context_project_docs project_document
-                  WHERE project_document.project_id = grant_row.project_id
-                    AND project_document.workspace_id = grant_row.workspace_id
-                    AND project_document.doc_id = grant_row.doc_id
-                    AND project_document.status = 'revoked'
-                )
-                AND NOT EXISTS (
-                  SELECT 1
-                  FROM access_requests request
-                  WHERE request.beneficiary_type = 'project'
-                    AND request.beneficiary_project_id = grant_row.project_id
-                    AND request.workspace_id = grant_row.workspace_id
-                    AND request.doc_id = grant_row.doc_id
-                    AND request.status = 'pending'
-                )
-                AND NOT EXISTS (
-                  SELECT 1
-                  FROM ai_context_project_grants active_grant
-                  WHERE active_grant.project_id = grant_row.project_id
-                    AND active_grant.workspace_id = grant_row.workspace_id
-                    AND active_grant.doc_id = grant_row.doc_id
-                    AND active_grant.status = 'active'
-                    AND active_grant.id <> grant_row.id
-                )
-              )
-            `
-          : Prisma.empty;
-    const rows = await this.queryCandidates<ProjectGrantCandidateRow>(
-      Prisma.sql`
-      WITH visible_grant_ids AS (
-        SELECT grant_row.id
-        FROM ai_context_project_members project_member
-        JOIN ai_context_project_grants grant_row
-          ON grant_row.project_id = project_member.project_id
-        WHERE project_member.user_id = ${input.userId}
-        ${lifecycle}
-
-        UNION
-
-        SELECT grant_row.id
-        FROM workspace_members workspace_member
-        JOIN ai_context_project_grants grant_row
-          ON grant_row.workspace_id = workspace_member.workspace_id
-        WHERE workspace_member.user_id = ${input.userId}
-          AND workspace_member.state = 'active'
-          AND workspace_member.role IN ('owner', 'admin')
-        ${lifecycle}
-
-        UNION
-
-        SELECT grant_row.id
-        FROM doc_grants doc_grant
-        JOIN ai_context_project_grants grant_row
-          ON grant_row.workspace_id = doc_grant.workspace_id
-         AND grant_row.doc_id = doc_grant.doc_id
-        WHERE doc_grant.principal_type = 'user'
-          AND doc_grant.principal_id = ${input.userId}
-          AND doc_grant.role = 'owner'
-        ${lifecycle}
-      )
-      SELECT
-        grant_row.id,
-        grant_row.project_id AS "projectId",
-        project.name AS "projectName",
-        project.status AS "projectStatus",
-        grant_row.workspace_id AS "workspaceId",
-        grant_row.doc_id AS "docId",
-        grant_row.level,
-        grant_row.status,
-        grant_row.granted_at AS "grantedAt",
-        grant_row.revoked_at AS "revokedAt",
-        grant_row.updated_at AS "updatedAt",
-        EXISTS (
-          SELECT 1
-          FROM ai_context_project_members project_member
-          WHERE project_member.project_id = grant_row.project_id
-            AND project_member.user_id = ${input.userId}
-        ) AS "projectMember",
-        (
-          EXISTS (
-            SELECT 1
-            FROM workspace_members workspace_member
-            WHERE workspace_member.workspace_id = grant_row.workspace_id
-              AND workspace_member.user_id = ${input.userId}
-              AND workspace_member.state = 'active'
-              AND workspace_member.role IN ('owner', 'admin')
-          ) OR EXISTS (
-            SELECT 1
-            FROM doc_grants doc_grant
-            WHERE doc_grant.workspace_id = grant_row.workspace_id
-              AND doc_grant.doc_id = grant_row.doc_id
-              AND doc_grant.principal_type = 'user'
-              AND doc_grant.principal_id = ${input.userId}
-              AND doc_grant.role = 'owner'
-          )
-        ) AS "sourceManager",
-        EXISTS (
-          SELECT 1
-          FROM ai_context_project_docs project_document
-          WHERE project_document.project_id = grant_row.project_id
-            AND project_document.workspace_id = grant_row.workspace_id
-            AND project_document.doc_id = grant_row.doc_id
-            AND project_document.status = 'revoked'
-        ) AS "hasRevokedPlaceholder",
-        EXISTS (
-          SELECT 1
-          FROM access_requests request
-          WHERE request.beneficiary_type = 'project'
-            AND request.beneficiary_project_id = grant_row.project_id
-            AND request.workspace_id = grant_row.workspace_id
-            AND request.doc_id = grant_row.doc_id
-            AND request.status = 'pending'
-        ) AS "hasPendingRequest",
-        EXISTS (
-          SELECT 1
-          FROM ai_context_project_grants active_grant
-          WHERE active_grant.project_id = grant_row.project_id
-            AND active_grant.workspace_id = grant_row.workspace_id
-            AND active_grant.doc_id = grant_row.doc_id
-            AND active_grant.status = 'active'
-            AND active_grant.id <> grant_row.id
-          ) AS "hasActiveReplacement",
-          ${latestRevokedGrant} AS "latestRevokedGrant"
-      FROM visible_grant_ids visible
-      JOIN ai_context_project_grants grant_row ON grant_row.id = visible.id
-      JOIN ai_context_projects project ON project.id = grant_row.project_id
-      WHERE (
-        ${input.projectId}::varchar IS NULL
-        OR (
-          grant_row.project_id = ${input.projectId}
-          AND project.status = 'active'
-          AND EXISTS (
-            SELECT 1
-            FROM ai_context_project_members project_member
-            WHERE project_member.project_id = project.id
-              AND project_member.user_id = ${input.userId}
-          )
-        )
-      )
-      ${actionability}
-      ORDER BY grant_row.updated_at DESC, grant_row.id DESC
-    `,
-      'project_grant',
-      input.limit,
-      input.history
-    );
-    const items = rows.flatMap(row => {
-      const needsRerequest =
-        row.status === 'revoked' &&
-        row.projectStatus === 'active' &&
-        row.projectMember &&
-        row.latestRevokedGrant &&
-        row.hasRevokedPlaceholder &&
-        !row.hasPendingRequest &&
-        !row.hasActiveReplacement;
-      const segment = needsRerequest ? ('todo' as const) : ('done' as const);
-      return [
-        {
-          id: `project-grant:${row.id}`,
-          entityId: row.id,
-          kind: 'project_grant' as const,
-          segment,
-          attention: needsRerequest ? ('needs_my_action' as const) : null,
-          workspaceId: row.workspaceId,
-          projectId: row.projectId,
-          title: row.projectName,
-          status: row.status,
-          requestedLevel: row.level,
-          documentId:
-            row.status === 'active' || row.sourceManager ? row.docId : null,
-          redacted: row.status !== 'active' && !row.sourceManager,
-          relatedUserId: null,
-          createdAt: row.grantedAt,
-          updatedAt: row.updatedAt,
-          completedAt: needsRerequest ? null : (row.revokedAt ?? row.grantedAt),
-          availableActions: needsRerequest
-            ? (['request_project_access'] as const)
-            : [],
-          run: null,
-          blocker: null,
-        } satisfies IntelligenceWorkbenchTaskItem,
-      ];
-    });
-    return {
-      items: items.slice(0, input.limit),
-      capped: rows.length > input.limit || items.length > input.limit,
     };
   }
 

@@ -10,6 +10,7 @@ import type { PageSize } from '@affine/core/modules/pdf/renderer/types';
 import { LoadingSvg, PDFPageCanvas } from '@affine/core/modules/pdf/views';
 import { PeekViewService } from '@affine/core/modules/peek-view/services/peek-view';
 import { stopPropagation } from '@affine/core/utils';
+import { useI18n } from '@affine/i18n';
 import {
   ArrowDownSmallIcon,
   ArrowUpSmallIcon,
@@ -40,6 +41,7 @@ function defaultMeta() {
 }
 
 export function PDFViewerEmbedded({ model }: AttachmentViewerProps) {
+  const i18n = useI18n();
   const scale = window.devicePixelRatio;
   const peekView = useService(PeekViewService).peekView;
   const pdfService = useService(PDFService);
@@ -225,7 +227,7 @@ export function PDFViewerEmbedded({ model }: AttachmentViewerProps) {
             icon={<ArrowUpSmallIcon />}
             className={styles.pdfControlButton}
             onDoubleClick={stopPropagation}
-            aria-label="Prev"
+            aria-label={i18n['com.affine.ui.prev']()}
             {...navigator.prev}
           />
           <IconButton
@@ -233,7 +235,7 @@ export function PDFViewerEmbedded({ model }: AttachmentViewerProps) {
             icon={<ArrowDownSmallIcon />}
             className={styles.pdfControlButton}
             onDoubleClick={stopPropagation}
-            aria-label="Next"
+            aria-label={i18n['com.affine.ai-onboarding.general.next']()}
             {...navigator.next}
           />
           <IconButton

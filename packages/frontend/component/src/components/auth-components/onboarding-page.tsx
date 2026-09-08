@@ -1,3 +1,4 @@
+import { useI18n } from '@affine/i18n';
 import { ArrowRightSmallIcon } from '@blocksuite/icons/rc';
 import clsx from 'clsx';
 import { useMemo, useState } from 'react';
@@ -59,6 +60,7 @@ export const ScrollableLayout = ({
   headerItems?: React.ReactNode;
   children: React.ReactNode;
 }) => {
+  const i18n = useI18n();
   const termsUrl = BUILD_CONFIG.termsUrl;
   const privacyUrl = BUILD_CONFIG.privacyUrl;
 
@@ -83,7 +85,7 @@ export const ScrollableLayout = ({
                 target="_blank"
                 rel="noreferrer"
               >
-                Terms of Conditions
+                {i18n['com.affine.ui.terms-of-conditions']()}{' '}
               </a>
             ) : null}
             {termsUrl && privacyUrl ? <Divider orientation="vertical" /> : null}
@@ -94,7 +96,7 @@ export const ScrollableLayout = ({
                 target="_blank"
                 rel="noreferrer"
               >
-                Privacy Policy
+                {i18n['com.affine.ui.privacy-policy']()}{' '}
               </a>
             ) : null}
           </div>
@@ -111,6 +113,7 @@ export const OnboardingPage = ({
   user: User;
   onOpenAffine: () => void;
 }) => {
+  const i18n = useI18n();
   const location = useLocation();
   const navigate = useNavigate();
   const [questionIdx, setQuestionIdx] = useState(0);
@@ -240,7 +243,9 @@ export const OnboardingPage = ({
               }}
               suffix={<ArrowRightSmallIcon />}
             >
-              {questionIdx === 0 ? 'start' : 'Next'}
+              {questionIdx === 0
+                ? 'start'
+                : i18n['com.affine.ai-onboarding.general.next']()}
             </Button>
           </div>
         </div>
@@ -253,10 +258,13 @@ export const OnboardingPage = ({
       isWindowsDesktop={isWindowsDesktop}
     >
       <div className={styles.thankContainer}>
-        <h1 className={styles.thankTitle}>Thank you!</h1>
+        <h1 className={styles.thankTitle}>
+          {i18n['com.affine.ui.thank-you']()}
+        </h1>
         <p className={styles.thankText}>
-          We will continue to enhance our products based on your feedback. Thank
-          you once again for your supports.
+          {i18n[
+            'com.affine.ui.we-will-continue-to-enhance-our-products-based-on-your-feedback-thank-you-once-again-for-your-suppor'
+          ]()}{' '}
         </p>
         <Button
           className={clsx(styles.button, styles.openAFFiNEButton)}
@@ -271,7 +279,7 @@ export const OnboardingPage = ({
           }}
           suffix={<ArrowRightSmallIcon />}
         >
-          Get Started
+          {i18n['com.affine.ui.get-started']()}{' '}
         </Button>
       </div>
     </ScrollableLayout>

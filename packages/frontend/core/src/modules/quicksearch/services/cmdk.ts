@@ -1,3 +1,4 @@
+import { getProjectPath } from '@affine/core/desktop/route-paths';
 import { track } from '@affine/track';
 import { Service } from '@toeverything/infra';
 
@@ -8,6 +9,7 @@ import { CommandsQuickSearchSession } from '../impls/commands';
 import { CreationQuickSearchSession } from '../impls/creation';
 import { DocsQuickSearchSession } from '../impls/docs';
 import { LinksQuickSearchSession } from '../impls/links';
+import { ProjectsQuickSearchSession } from '../impls/projects';
 import { RecentDocsQuickSearchSession } from '../impls/recent-docs';
 import { TagsQuickSearchSession } from '../impls/tags';
 import type { QuickSearchService } from './quick-search';
@@ -34,9 +36,20 @@ export class CMDKQuickSearchService extends Service {
           this.framework.createEntity(DocsQuickSearchSession),
           this.framework.createEntity(LinksQuickSearchSession),
           this.framework.createEntity(TagsQuickSearchSession),
+          this.framework.createEntity(ProjectsQuickSearchSession),
         ],
         result => {
           if (!result) {
+            return;
+          }
+
+          if (result.source === 'project') {
+            window.location.assign(
+              getProjectPath(
+                result.payload.projectId,
+                result.payload.resourceId
+              )
+            );
             return;
           }
 

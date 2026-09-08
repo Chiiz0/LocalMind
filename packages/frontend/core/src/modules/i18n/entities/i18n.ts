@@ -21,6 +21,7 @@ export type LanguageInfo = {
 const logger = new DebugLogger('i18n');
 
 function mapLanguageInfo(language: Language = 'en'): LanguageInfo {
+  if (!SUPPORTED_LANGUAGES[language]) language = 'en';
   const languageInfo = SUPPORTED_LANGUAGES[language];
 
   return {
@@ -53,16 +54,31 @@ export class I18n extends Entity {
 
   constructor(private readonly cache: GlobalCache) {
     super();
-    this.i18n.on('languageChanged', (language: Language) => {
+    const onLanguageChanged = (language: Language) => {
       this.applyDocumentLanguage(language);
-      this.cache.set('i18n_lng', language);
-    });
+      if (this.cache.get('i18n_lng') !== language) {
+        this.cache.set('i18n_lng', language);
+      }
+    };
+    this.i18n.on('languageChanged', onLanguageChanged);
+    this.disposables.push(() =>
+      this.i18n.off('languageChanged', onLanguageChanged)
+    );
   }
 
+  private initialized = false;
+
   init() {
-    const language = this.currentLanguageKey$.value ?? 'en';
-    this.applyDocumentLanguage(language);
-    this.changeLanguage(language);
+    if (this.initialized) return;
+    this.initialized = true;
+    const subscription = this.currentLanguageKey$
+      .distinctUntilChanged()
+      .subscribe(language => {
+        const next = mapLanguageInfo(language).key;
+        this.applyDocumentLanguage(next);
+        if (this.i18n.language !== next) this.changeLanguage(next);
+      });
+    this.disposables.push(() => subscription.unsubscribe());
   }
 
   private applyDocumentLanguage(language: Language) {
@@ -78,8 +94,8 @@ export class I18n extends Entity {
         catchError(error => {
           notify({
             theme: 'error',
-            title: 'Failed to change language',
-            message: 'Error occurs when loading language files',
+            title: this.i18n.t('com.affine.settings.language.change-failed'),
+            message: this.i18n.t('com.affine.settings.language.load-failed'),
           });
 
           logger.error('Failed to change language', error);

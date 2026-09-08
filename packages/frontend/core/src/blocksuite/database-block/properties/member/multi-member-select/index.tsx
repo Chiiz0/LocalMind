@@ -1,4 +1,5 @@
 import { Avatar, notify } from '@affine/component';
+import { I18n, useI18n } from '@affine/i18n';
 import {
   type ExistedUserInfo,
   type UserListService,
@@ -85,8 +86,12 @@ class MemberManager {
     if (this.ops.multiple) {
       if (this.selectedMembers.value.includes(memberId)) {
         notify.error({
-          title: 'Member already exists',
-          message: 'The member has already been selected',
+          get title() {
+            return I18n['com.affine.ui.member-already-exists']();
+          },
+          get message() {
+            return I18n['com.affine.ui.the-member-has-already-been-selected']();
+          },
         });
         return;
       }
@@ -233,6 +238,7 @@ export const MemberPreview = ({
   memberManager: MemberManager;
   onDelete?: () => void;
 }) => {
+  const i18n = useI18n();
   const userInfo = useMemberInfo(memberId, memberManager.userService);
   if (!userInfo) {
     return null;
@@ -246,7 +252,9 @@ export const MemberPreview = ({
         size={16}
       />
       <div className={styles.memberName}>
-        {userInfo.removed ? 'Deleted user' : userInfo.name || 'Unnamed'}
+        {userInfo.removed
+          ? i18n['com.affine.ui.deleted-user']()
+          : userInfo.name || i18n['com.affine.ui.unnamed']()}
       </div>
       {onDelete && (
         <div className={styles.memberDeleteIcon} onClick={onDelete}>
@@ -258,6 +266,7 @@ export const MemberPreview = ({
 };
 
 export const MultiMemberSelect: React.FC<MemberManagerOptions> = props => {
+  const i18n = useI18n();
   const inputRef = useRef<HTMLInputElement>(null);
   const memberListRef = useRef<HTMLDivElement>(null);
   const memberManager = useMemo(
@@ -333,7 +342,11 @@ export const MultiMemberSelect: React.FC<MemberManagerOptions> = props => {
         <input
           ref={inputRef}
           className={styles.memberSearchInput}
-          placeholder={selectedMembers.length > 0 ? '' : 'Search members...'}
+          placeholder={
+            selectedMembers.length > 0
+              ? ''
+              : i18n['com.affine.ui.search-members']()
+          }
           value={memberManager.userListService.searchText$.value}
           onChange={handleInputChange}
         />
@@ -342,10 +355,12 @@ export const MultiMemberSelect: React.FC<MemberManagerOptions> = props => {
         {isLoading ? (
           <div className={styles.loadingContainer}>
             <Spinner />
-            Loading...
+            {i18n['com.affine.editor.at-menu.loading']()}{' '}
           </div>
         ) : filteredMemberList.length === 0 ? (
-          <div className={styles.noResultContainer}>No results</div>
+          <div className={styles.noResultContainer}>
+            {i18n['com.affine.editCollection.rules.empty.noResults']()}
+          </div>
         ) : (
           filteredMemberList.map(member => (
             <MemberListItem

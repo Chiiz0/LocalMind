@@ -41,4 +41,16 @@ export const content = style({
   minWidth: 0,
   minHeight: 0,
   flex: 1,
+  contain: 'layout',
+});
+
+export const configuration = style({
+  display: 'flex',
+  alignItems: 'center',
+  flexWrap: 'wrap',
+  flexShrink: 0,
+  gap: 8,
+  padding: '8px 12px',
+  fontSize: 13,
+  borderBottom: `0.5px solid ${cssVarV2('layer/insideBorder/border')}`,
 });

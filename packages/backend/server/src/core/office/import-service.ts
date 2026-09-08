@@ -8,6 +8,7 @@ import {
   type OfficeOwnerInput,
   officeOwnerToInput,
 } from '../../models/office-owner';
+import type { ProjectEditLeaseProof } from '../../models/project-resource-edit-lease';
 import { PermissionAccess } from '../permission';
 import { officeFingerprint, officeJsonFingerprint } from './evidence';
 import {
@@ -30,6 +31,7 @@ export type ImportOfficeArtifactInput = OfficeOwnerInput & {
   parentId?: string | null;
   projectRequestKey?: string;
   projectRequestHash?: string;
+  editLease?: ProjectEditLeaseProof;
   replaceProjectArtifact?: {
     artifactId: string;
     expectedParentRevisionId: string;
@@ -254,6 +256,15 @@ export class OfficeImportService {
             async () => {
               if (input.replaceProjectArtifact) {
                 const target = input.replaceProjectArtifact;
+                const leaseInput = {
+                  projectId: owner.projectId,
+                  actorId,
+                  resourceId: target.artifactId,
+                  editLease: input.editLease,
+                };
+                await this.models.projectResourceEditLease.assertHeld(
+                  leaseInput
+                );
                 const artifact = await this.models.officeArtifact.get(
                   owner,
                   target.artifactId
@@ -300,6 +311,9 @@ export class OfficeImportService {
                     sourceBytes
                   ),
                 });
+                await this.models.projectResourceEditLease.assertHeld(
+                  leaseInput
+                );
                 return { ...result, artifact };
               }
               const imported = await persist();

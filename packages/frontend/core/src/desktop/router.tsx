@@ -9,8 +9,8 @@ import {
 
 import { AffineErrorComponent } from '../components/affine/affine-error-boundary/affine-error-fallback';
 import { NavigateContext } from '../components/hooks/use-navigate-helper';
-import { intelligenceTopLevelRoutes } from './intelligence-router';
 import { RootWrapper } from './pages/root';
+import { projectTopLevelRoutes } from './project-router';
 import {
   CATCH_ALL_ROUTE_PATH,
   getWorkspaceDocPath,
@@ -45,7 +45,7 @@ export const topLevelRoutes = [
         path: '/',
         lazy: () => import('./pages/index'),
       },
-      ...intelligenceTopLevelRoutes,
+      ...projectTopLevelRoutes,
       {
         path: WORKSPACE_ROUTE_PATH,
         lazy: () => import('./pages/workspace/index'),

@@ -1,4 +1,6 @@
+import { I18nController } from '@affine/core/modules/i18n/lit-controller';
 import type { CopilotChatHistoryFragment } from '@affine/graphql';
+import { I18n } from '@affine/i18n';
 import { WithDisposable } from '@blocksuite/affine/global/lit';
 import { type NotificationService } from '@blocksuite/affine/shared/services';
 import { unsafeCSSVarV2 } from '@blocksuite/affine/shared/theme';
@@ -10,6 +12,8 @@ import { property } from 'lit/decorators.js';
 import type { ChatContextValue } from '../ai-chat-content';
 
 export class AIHistoryClear extends WithDisposable(ShadowlessElement) {
+  readonly languageController = new I18nController(this);
+
   @property({ attribute: false })
   accessor chatContextValue!: ChatContextValue;
 
@@ -55,11 +59,20 @@ export class AIHistoryClear extends WithDisposable(ShadowlessElement) {
     const sessionId = this.session.sessionId;
     try {
       const confirm = await this.notificationService.confirm({
-        title: 'Clear History',
-        message:
-          'Are you sure you want to clear all history? This action will permanently delete all content, including all chat logs and data, and cannot be undone.',
-        confirmText: 'Confirm',
-        cancelText: 'Cancel',
+        get title() {
+          return I18n['com.affine.ui.clear-history']();
+        },
+        get message() {
+          return I18n[
+            'com.affine.ui.are-you-sure-you-want-to-clear-all-history-this-action-will-permanently-delete-all-content-including'
+          ]();
+        },
+        get confirmText() {
+          return I18n['com.affine.payment.modal.resume.confirm']();
+        },
+        get cancelText() {
+          return I18n['com.affine.localmind.aiContext.cancel']();
+        },
       });
 
       if (confirm) {
@@ -70,11 +83,13 @@ export class AIHistoryClear extends WithDisposable(ShadowlessElement) {
           ...(sessionId ? [sessionId] : []),
           ...(actionIds || []),
         ]);
-        this.notificationService.toast('History cleared');
+        this.notificationService.toast(I18n['com.affine.ui.history-cleared']());
         this.onHistoryCleared?.();
       }
     } catch {
-      this.notificationService.toast('Failed to clear history');
+      this.notificationService.toast(
+        I18n['com.affine.ui.failed-to-clear-history']()
+      );
     }
   };
 
@@ -86,7 +101,7 @@ export class AIHistoryClear extends WithDisposable(ShadowlessElement) {
         @click=${this._cleanupHistories}
         data-testid="chat-panel-clear"
       >
-        Clear
+        ${I18n['com.affine.office.clear']()}
       </div>
     `;
   }

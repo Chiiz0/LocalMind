@@ -1,0 +1,3 @@
+mutation permanentlyDeleteProjectResource($input: PermanentlyDeleteProjectResourceInput!) {
+  permanentlyDeleteProjectResource(input: $input)
+}

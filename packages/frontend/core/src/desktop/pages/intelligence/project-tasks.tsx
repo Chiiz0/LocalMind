@@ -1,19 +1,17 @@
-import { Button, IconButton, Loading } from '@affine/component';
+import { Button, Loading } from '@affine/component';
 import { useQuery } from '@affine/core/components/hooks/use-query';
-import { GraphQLService } from '@affine/core/modules/cloud';
+import { projectErrorMessage } from '@affine/core/modules/project-resources/error';
+import { useProjectRefresh } from '@affine/core/modules/project-resources/realtime';
 import {
-  approveProjectAgentTaskMutation,
-  cancelProjectAgentTaskMutation,
   type ProjectAgentTaskFieldsFragment,
   projectAgentTasksQuery,
 } from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
-import { ResetIcon } from '@blocksuite/icons/rc';
-import { useService } from '@toeverything/infra';
 import { useEffect, useRef, useState } from 'react';
 
 import * as styles from '../workspace/office/chat.css';
 import { ProjectPublications } from './project-publications';
+import { useProjectTaskDecision } from './use-project-task-decision';
 
 type ProjectTasksProps = {
   projectId: string;
@@ -41,7 +39,7 @@ function ProjectTaskList({
   onOpenResource,
 }: ProjectTasksProps) {
   const t = useI18n();
-  const graphql = useService(GraphQLService);
+  const decide = useProjectTaskDecision();
   const [cursor, setCursor] = useState<string>();
   const [pending, setPending] = useState<string | null>(null);
   const submitting = useRef(false);
@@ -52,8 +50,9 @@ function ProjectTaskList({
       query: projectAgentTasksQuery,
       variables: { projectId, sessionId, cursor, limit: 20 },
     },
-    { suspense: false, shouldRetryOnError: false, refreshInterval: 3000 }
+    { suspense: false, shouldRetryOnError: false }
   );
+  useProjectRefresh(projectId, 'task', query.mutate);
   const tasks = query.error
     ? []
     : (query.data?.projectAgentTasks.items ?? []).filter(
@@ -78,36 +77,22 @@ function ProjectTaskList({
       if (handled.current.size > 256 && oldest) handled.current.delete(oldest);
       onCompleted(task).catch(error => {
         handled.current.delete(task.id);
-        setFailure(error instanceof Error ? error.message : String(error));
+        setFailure(projectErrorMessage(error));
       });
     }
   }, [onCompleted, projectId, sessionId, query.data, query.error]);
   const control = async (
     task: ProjectAgentTaskFieldsFragment,
-    approve: boolean
+    action: 'approve' | 'reject' | 'cancel'
   ) => {
     if (submitting.current) return;
     submitting.current = true;
     setPending(task.id);
     setFailure(null);
     try {
-      if (approve)
-        await graphql.gql({
-          query: approveProjectAgentTaskMutation,
-          variables: {
-            projectId,
-            runId: task.id,
-            targetFingerprint: task.targetFingerprint,
-          },
-        });
-      else
-        await graphql.gql({
-          query: cancelProjectAgentTaskMutation,
-          variables: { projectId, runId: task.id },
-        });
-      await query.mutate();
+      if (await decide(task, action)) await query.mutate();
     } catch (error) {
-      setFailure(error instanceof Error ? error.message : String(error));
+      setFailure(projectErrorMessage(error));
     } finally {
       submitting.current = false;
       setPending(null);
@@ -119,6 +104,8 @@ function ProjectTaskList({
         return t['com.affine.localmind.project-tasks.waitingApproval']();
       case 'waiting_for_location':
         return t['com.affine.localmind.project-tasks.waitingLocation']();
+      case 'waiting_lease':
+        return t['com.affine.localmind.project-tasks.waitingLease']();
       case 'queued':
         return t['com.affine.localmind.project-tasks.queued']();
       case 'running':
@@ -130,7 +117,7 @@ function ProjectTaskList({
       case 'failed':
         return t['com.affine.localmind.project-tasks.failed']();
       default:
-        return status;
+        return t['com.affine.localmind.tasks.untitled']();
     }
   };
   return (
@@ -144,14 +131,6 @@ function ProjectTaskList({
       <div className={styles.taskList}>
         <div className={styles.taskHeader}>
           <span>{t['com.affine.localmind.project-tasks.title']()}</span>
-          <IconButton
-            size="20"
-            tooltip={t['com.affine.localmind.project-files.reload']()}
-            aria-label={t['com.affine.localmind.project-files.reload']()}
-            onClick={() => void query.mutate()}
-          >
-            <ResetIcon />
-          </IconButton>
         </div>
         {query.isLoading ? (
           <div className={styles.taskState}>
@@ -159,7 +138,7 @@ function ProjectTaskList({
           </div>
         ) : query.error ? (
           <div className={styles.taskState} role="alert">
-            <span>{query.error.message}</span>
+            <span>{projectErrorMessage(query.error)}</span>
             <Button onClick={() => void query.mutate()}>
               {t['com.affine.localmind.project-files.retry']()}
             </Button>
@@ -176,6 +155,7 @@ function ProjectTaskList({
             const active = [
               'waiting_approval',
               'waiting_for_location',
+              'waiting_lease',
               'queued',
               'running',
             ].includes(task.status);
@@ -195,7 +175,6 @@ function ProjectTaskList({
                 </div>
                 <div className={styles.taskMeta}>
                   <span>{new Date(task.createdAt).toLocaleString()}</span>
-                  <span title={task.id}>{task.id.slice(-8)}</span>
                   {typeof preview?.artifactTitle === 'string' ? (
                     <span>{preview.artifactTitle}</span>
                   ) : null}
@@ -207,17 +186,27 @@ function ProjectTaskList({
                     </span>
                   ) : null}
                 </div>
-                {typeof preview?.operation === 'string' ? (
-                  <p className={styles.taskReason}>{preview.operation}</p>
+                {task.status === 'waiting_lease' && task.leaseHolderName ? (
+                  <p className={styles.taskReason}>
+                    {t['com.affine.localmind.project-lease.heldBy']({
+                      name: task.leaseHolderName,
+                    })}
+                  </p>
                 ) : null}
                 {typeof preview?.reason === 'string' ? (
                   <p className={styles.taskReason}>{preview.reason}</p>
                 ) : null}
                 {typeof preview?.revisionSequence === 'number' ? (
-                  <p className={styles.taskMeta}>v{preview.revisionSequence}</p>
+                  <p className={styles.taskMeta}>
+                    {t['com.affine.localmind.project-files.version']({
+                      version: String(preview.revisionSequence),
+                    })}
+                  </p>
                 ) : null}
                 {task.failureMessage ? (
-                  <p className={styles.taskError}>{task.failureMessage}</p>
+                  <p className={styles.taskError}>
+                    {projectErrorMessage(task.failureMessage)}
+                  </p>
                 ) : null}
                 <div className={styles.taskActions}>
                   {task.status === 'completed' &&
@@ -230,7 +219,7 @@ function ProjectTaskList({
                     <Button
                       disabled={!!pending}
                       loading={pending === task.id}
-                      onClick={() => void control(task, false)}
+                      onClick={() => void control(task, 'cancel')}
                     >
                       {t['com.affine.localmind.project-files.cancel']()}
                     </Button>
@@ -240,9 +229,17 @@ function ProjectTaskList({
                       variant="primary"
                       disabled={!!pending}
                       loading={pending === task.id}
-                      onClick={() => void control(task, true)}
+                      onClick={() => void control(task, 'approve')}
                     >
                       {t['com.affine.localmind.project-tasks.approve']()}
+                    </Button>
+                  ) : null}
+                  {task.status === 'waiting_approval' ? (
+                    <Button
+                      disabled={!!pending}
+                      onClick={() => void control(task, 'reject')}
+                    >
+                      {t['com.affine.localmind.project-tasks.reject']()}
                     </Button>
                   ) : null}
                 </div>

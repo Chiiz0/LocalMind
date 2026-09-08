@@ -53,10 +53,19 @@ this modernization plan.
 
 The implemented [Project Native Resources](tracks/project-native-resources.md)
 owns Project storage, file trees, independent copies, explicit Workspace
-publishing, and migration, superseding older reference-only Project rules.
+publishing, superseding older reference-only Project rules.
 Its [goal instruction](project-native-resources.goal.md) defines the execution
 scope. [Execution and acceptance evidence](project-native-resources.execution.md)
 records P1-P6, A01-A22, migration exceptions, backups and runtime verification.
+The confirmed [Project Workbench Redesign](tracks/project-workbench-redesign.md)
+owns the Project user-experience layer: standalone shell and routes, main-area
+file tree, retirement of the old reference model, realtime updates, exclusive
+edit leases, dual approval entry points and error/copy rules. Its
+[goal instruction](project-workbench-redesign.goal.md) defines the execution
+scope. It supersedes the native-resource track's former legacy-reference
+migration chapter and D11: the reference tables and migration bridge are
+retired together. [Execution and acceptance evidence](project-workbench-redesign.execution.md)
+tracks the current P1-P7 and A01-A22 results separately from historical acceptance.
 
 - `tracks/support-bundle.md`
 - `tracks/repair-execution.md`
@@ -65,6 +74,7 @@ records P1-P6, A01-A22, migration exceptions, backups and runtime verification.
 - `tracks/context-memory.md`
 - `tracks/intelligence-workbench.md`
 - `tracks/project-native-resources.md`
+- `tracks/project-workbench-redesign.md`
 
 ## Local Documentation Policy
 

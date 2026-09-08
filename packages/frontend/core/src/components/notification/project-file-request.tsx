@@ -40,7 +40,7 @@ export function ProjectFileRequestNotificationItem({
           disabled={body.status === 'unavailable'}
           onClick={() => {
             navigate(
-              `/intelligence?fileRequest=${encodeURIComponent(body.requestId)}`
+              `/project?fileRequest=${encodeURIComponent(body.requestId)}`
             );
             list.readNotification(notification.id).catch(console.error);
           }}

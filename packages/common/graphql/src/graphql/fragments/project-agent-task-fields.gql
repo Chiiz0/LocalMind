@@ -6,6 +6,8 @@ fragment ProjectAgentTaskFields on ProjectAgentTaskType {
   workflow
   status
   targetFingerprint
+  leaseHolderName
+  leaseRetryCount
   workerAttempt
   createdAt
   updatedAt

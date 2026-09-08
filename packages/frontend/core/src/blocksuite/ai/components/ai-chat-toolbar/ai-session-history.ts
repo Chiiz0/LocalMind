@@ -1,4 +1,6 @@
+import { I18nController } from '@affine/core/modules/i18n/lit-controller';
 import type { CopilotChatHistoryFragment } from '@affine/graphql';
+import { I18n } from '@affine/i18n';
 import { WithDisposable } from '@blocksuite/affine/global/lit';
 import { scrollbarStyle } from '@blocksuite/affine/shared/styles';
 import { unsafeCSSVar, unsafeCSSVarV2 } from '@blocksuite/affine/shared/theme';
@@ -42,6 +44,8 @@ function deriveSessionTitle(session: HistorySessionWithMessages) {
 }
 
 export class AISessionHistory extends WithDisposable(ShadowlessElement) {
+  readonly languageController = new I18nController(this);
+
   static override styles = css`
     .ai-session-history {
       width: 316px;
@@ -312,7 +316,7 @@ export class AISessionHistory extends WithDisposable(ShadowlessElement) {
                 }}
               >
                 ${DeleteIcon()}
-                <affine-tooltip>Delete</affine-tooltip>
+                <affine-tooltip>${I18n['Delete']()}</affine-tooltip>
               </div>
             </div>
           `;
@@ -334,7 +338,9 @@ export class AISessionHistory extends WithDisposable(ShadowlessElement) {
     >
       ${docIcon}
       <span class="doc-title"> ${this.docDisplayConfig.getTitle(docId)} </span>
-      <affine-tooltip>Open this doc</affine-tooltip>
+      <affine-tooltip
+        >${I18n['com.affine.ai.action-label.open-this-doc']()}</affine-tooltip
+      >
     </div>`;
   }
 
@@ -349,7 +355,9 @@ export class AISessionHistory extends WithDisposable(ShadowlessElement) {
   private renderEmpty() {
     return html`
       <div class="empty-container">
-        <div class="empty-title">Empty history</div>
+        <div class="empty-title">
+          ${I18n['com.affine.ai.action-label.empty-history']()}
+        </div>
       </div>
     `;
   }

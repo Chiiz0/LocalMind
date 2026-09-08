@@ -149,7 +149,7 @@ const ExperimentalFeaturesItem = ({
           rel="noreferrer"
         >
           <FeedbackIcon type={flag.feedbackType} />
-          <span>Discussion about this feature</span>
+          <span>{t['com.affine.ui.discussion-about-this-feature']()}</span>
           <ArrowRightSmallIcon
             fontSize={20}
             className={styles.arrowRightIcon}

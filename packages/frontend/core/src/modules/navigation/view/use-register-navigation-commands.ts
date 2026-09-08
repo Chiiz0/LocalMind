@@ -2,6 +2,7 @@ import {
   PreconditionStrategy,
   registerAffineCommand,
 } from '@affine/core/commands';
+import { useI18n } from '@affine/i18n';
 import { track } from '@affine/track';
 import { useService } from '@toeverything/infra';
 import { useEffect } from 'react';
@@ -9,6 +10,7 @@ import { useEffect } from 'react';
 import { NavigatorService } from '../services/navigator';
 
 export function useRegisterNavigationCommands() {
+  const i18n = useI18n();
   const navigator = useService(NavigatorService).navigator;
   useEffect(() => {
     const unsubs: Array<() => void> = [];
@@ -19,7 +21,7 @@ export function useRegisterNavigationCommands() {
         category: 'affine:general',
         preconditionStrategy: PreconditionStrategy.Never,
         icon: 'none',
-        label: 'go back',
+        label: i18n['com.affine.ui.go-back'](),
         keyBinding: {
           binding: '$mod+[',
         },
@@ -36,7 +38,7 @@ export function useRegisterNavigationCommands() {
         category: 'affine:general',
         preconditionStrategy: PreconditionStrategy.Never,
         icon: 'none',
-        label: 'go forward',
+        label: i18n['com.affine.ui.go-forward'](),
         keyBinding: {
           binding: '$mod+]',
         },
@@ -51,5 +53,5 @@ export function useRegisterNavigationCommands() {
     return () => {
       unsubs.forEach(unsub => unsub());
     };
-  }, [navigator]);
+  }, [navigator, i18n]);
 }

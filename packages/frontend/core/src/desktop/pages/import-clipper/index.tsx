@@ -222,10 +222,14 @@ export const Component = () => {
         {t['com.affine.import-clipper.dialog.createDocFromClipper']()}
       </h6>
       {noWorkspace ? (
-        <p className={styles.desc}>A new workspace will be created.</p>
+        <p className={styles.desc}>
+          {t['com.affine.ui.a-new-workspace-will-be-created']()}
+        </p>
       ) : (
         <>
-          <p className={styles.desc}>Choose a workspace.</p>
+          <p className={styles.desc}>
+            {t['com.affine.ui.choose-a-workspace']()}
+          </p>
           <WorkspaceSelector
             workspaceMetadata={selectedWorkspace}
             onSelectWorkspace={handleSelectedWorkspace}

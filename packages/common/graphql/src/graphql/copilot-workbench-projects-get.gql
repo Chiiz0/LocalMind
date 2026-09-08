@@ -17,20 +17,6 @@ query copilotWorkbenchProjectsGet($includeArchived: Boolean = false) {
           role
           createdAt
         }
-        documents {
-          workspaceId
-          docId
-          title
-          groupId
-          sortOrder
-          status
-          requestedLevel
-          accessRequestId
-          addedByMe
-          createdAt
-          updatedAt
-        }
-        documentCount
         canManage
         createdAt
         updatedAt

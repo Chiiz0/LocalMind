@@ -19,7 +19,6 @@ import { z } from 'zod';
 import {
   applyAttachHeaders,
   BadRequest,
-  EventBus,
   type FileUpload,
   readBufferWithLimit,
   Throttle,
@@ -64,8 +63,7 @@ class CreateFileRequestInput {
 export class ProjectFileRequestService {
   constructor(
     private readonly models: Models,
-    private readonly blobs: ProjectBlobStorage,
-    private readonly events: EventBus
+    private readonly blobs: ProjectBlobStorage
   ) {}
 
   async submit(input: {
@@ -127,11 +125,6 @@ export class ProjectFileRequestService {
         return resource.id;
       }
     );
-    if (completed.resourceId)
-      this.events.emitDetached('project.resource.changed', {
-        projectId: completed.projectId,
-        resourceId: completed.resourceId,
-      });
     return completed;
   }
 

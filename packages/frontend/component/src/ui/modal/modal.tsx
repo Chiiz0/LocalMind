@@ -1,3 +1,4 @@
+import { useI18n } from '@affine/i18n';
 import { CloseIcon } from '@blocksuite/icons/rc';
 import type {
   DialogContentProps,
@@ -145,6 +146,7 @@ function createContainer() {
 
 export const ModalInner = forwardRef<HTMLDivElement, ModalProps>(
   (props, ref) => {
+    const i18n = useI18n();
     const { onOpen: modalConfigOnOpen, dynamicKeyboardHeight } =
       useContext(ModalConfigContext);
     const {
@@ -342,7 +344,9 @@ export const ModalInner = forwardRef<HTMLDivElement, ModalProps>(
                     <IconButton
                       size="20"
                       className={clsx(styles.closeButton, closeButtonClassName)}
-                      aria-label="Close"
+                      aria-label={i18n[
+                        'com.affine.workbench.split-view-menu.close'
+                      ]()}
                       data-testid="modal-close-button"
                       {...otherCloseButtonProps}
                     >

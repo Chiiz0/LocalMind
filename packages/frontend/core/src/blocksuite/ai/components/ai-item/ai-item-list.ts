@@ -1,3 +1,4 @@
+import { I18nController } from '@affine/core/modules/i18n/lit-controller';
 import { createLitPortal } from '@blocksuite/affine/components/portal';
 import { WithDisposable } from '@blocksuite/affine/global/lit';
 import { ThemeProvider } from '@blocksuite/affine/shared/services';
@@ -14,10 +15,13 @@ import { repeat } from 'lit/directives/repeat.js';
 
 import type { AIItem } from './ai-item';
 import { SUBMENU_OFFSET_CROSS_AXIS, SUBMENU_OFFSET_MAIN_AXIS } from './const';
+import { aiActionLabel } from './labels';
 import type { AIItemConfig, AIItemGroupConfig } from './types';
 
 @requiredProperties({ host: PropTypes.instanceOf(EditorHost) })
 export class AIItemList extends WithDisposable(LitElement) {
+  readonly languageController = new I18nController(this);
+
   static override styles = css`
     :host {
       display: flex;
@@ -116,9 +120,7 @@ export class AIItemList extends WithDisposable(LitElement) {
     return html`${repeat(this.groups, group => {
       return html`
         ${group.name
-          ? html`<div class="group-name">
-              ${group.name.toLocaleUpperCase()}
-            </div>`
+          ? html`<div class="group-name">${aiActionLabel(group.name)}</div>`
           : nothing}
         ${repeat(
           group.items,

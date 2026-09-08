@@ -1,3 +1,5 @@
+import { I18nController } from '@affine/core/modules/i18n/lit-controller';
+import { I18n } from '@affine/i18n';
 import { AIStarIcon } from '@blocksuite/affine/components/icons';
 import { WithDisposable } from '@blocksuite/affine/global/lit';
 import { css, html, LitElement } from 'lit';
@@ -18,6 +20,8 @@ const buttonHeightMap: Record<ButtonSize, string> = {
 };
 
 export class AskAIIcon extends WithDisposable(LitElement) {
+  readonly languageController = new I18nController(this);
+
   @property({ attribute: false })
   accessor size!: ButtonSize;
 
@@ -64,7 +68,7 @@ export class AskAIIcon extends WithDisposable(LitElement) {
         height=${buttonHeightMap[this.size]}
       >
         ${AIStarIcon}
-        <span>Ask AI</span>
+        <span>${I18n['com.affine.ai.action-label.ask-ai']()}</span>
       </icon-button>
     `;
   }

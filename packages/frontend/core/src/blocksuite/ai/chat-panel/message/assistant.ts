@@ -1,7 +1,9 @@
 import type { FeatureFlagService } from '@affine/core/modules/feature-flag';
+import { I18nController } from '@affine/core/modules/i18n/lit-controller';
 import type { PeekViewService } from '@affine/core/modules/peek-view';
 import type { AppThemeService } from '@affine/core/modules/theme';
 import type { CopilotChatHistoryFragment } from '@affine/graphql';
+import { I18n } from '@affine/i18n';
 import { WithDisposable } from '@blocksuite/affine/global/lit';
 import { isInsidePageEditor } from '@blocksuite/affine/shared/utils';
 import {
@@ -32,6 +34,8 @@ import { type AIError } from '../../provider';
 import { mergeStreamContent } from '../../utils/stream-objects';
 
 export class ChatMessageAssistant extends WithDisposable(ShadowlessElement) {
+  readonly languageController = new I18nController(this);
+
   static override styles = css`
     .message-info {
       color: var(--affine-placeholder-color);
@@ -118,7 +122,9 @@ export class ChatMessageAssistant extends WithDisposable(ShadowlessElement) {
     return html`<div class="user-info">
       <chat-assistant-avatar .status=${this.status}></chat-assistant-avatar>
       ${isWithDocs
-        ? html`<span class="message-info">with your docs</span>`
+        ? html`<span class="message-info"
+            >${I18n['com.affine.ai.action-label.with-your-docs']()}</span
+          >`
         : nothing}
     </div>`;
   }

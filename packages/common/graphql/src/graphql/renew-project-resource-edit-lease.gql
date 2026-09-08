@@ -1,0 +1,4 @@
+#import './fragments/project-edit-lease-fields.gql'
+mutation renewProjectResourceEditLease($input: ProjectEditLeaseChangeInput!) {
+  renewProjectResourceEditLease(input: $input) { acquired lease { ...ProjectEditLeaseFields } }
+}

@@ -1,6 +1,7 @@
 import { notify } from '@affine/component';
 import { updateReadyAtom } from '@affine/core/components/hooks/use-app-updater';
 import type { useI18n } from '@affine/i18n';
+import { I18n } from '@affine/i18n';
 import { track } from '@affine/track';
 import { ResetIcon } from '@blocksuite/icons/rc';
 import type { createStore } from 'jotai';
@@ -30,8 +31,14 @@ export function registerAffineUpdatesCommands({
 
         quitAndInstall().catch(err => {
           notify.error({
-            title: 'Failed to restart to upgrade',
-            message: 'Please restart the app manually to upgrade.',
+            get title() {
+              return I18n['com.affine.ui.failed-to-restart-to-upgrade']();
+            },
+            get message() {
+              return I18n[
+                'com.affine.ui.please-restart-the-app-manually-to-upgrade'
+              ]();
+            },
           });
           console.error(err);
         });

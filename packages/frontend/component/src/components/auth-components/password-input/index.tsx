@@ -78,14 +78,14 @@ export const PasswordInput: FC<
 
       ctx.addIssue({
         code: ZodIssueCode.custom,
-        message: 'password strength',
+        message: t['com.affine.ui.password-strength'](),
         path: ['strength'],
         params: {
           status,
         },
       });
     });
-  }, [passwordLimits]);
+  }, [passwordLimits, t]);
 
   const validatePasswords = useCallback(
     (password: string, confirmPassword: string) => {

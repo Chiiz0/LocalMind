@@ -1,4 +1,6 @@
 import { Button, IconButton } from '@affine/component';
+import { officeAssetUrl } from '@affine/core/modules/office';
+import { I18n, useI18n } from '@affine/i18n';
 import {
   AddCommentIcon,
   ArrowDownSmallIcon,
@@ -18,6 +20,7 @@ import type {
   PdfFormField,
   PdfSemanticState,
 } from '../../../../modules/office';
+import { useOfficeEditorDraft, useOfficeSelectionChange } from './edit-draft';
 import {
   openPdf,
   type PdfSearchResult,
@@ -98,6 +101,7 @@ function PdfCanvasPage({
   pageIndex: number;
   zoom: number;
 }) {
+  const i18n = useI18n();
   const hostRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
@@ -162,7 +166,10 @@ function PdfCanvasPage({
       canvas.style.width = `${Math.ceil(pageViewport.width)}px`;
       canvas.style.height = `${Math.ceil(pageViewport.height)}px`;
       const context = canvas.getContext('2d', { alpha: false });
-      if (!context) throw new Error('Canvas rendering is unavailable');
+      if (!context)
+        throw new Error(
+          i18n['com.affine.office.canvas-rendering-is-unavailable']()
+        );
       context.setTransform(1, 0, 0, 1, 0, 0);
       renderTask = page.render({
         canvas,
@@ -188,19 +195,23 @@ function PdfCanvasPage({
       renderTask?.cancel();
       page?.cleanup();
     };
-  }, [pageIndex, pdfDocument, viewport.height, viewport.width, zoom]);
+  }, [pageIndex, pdfDocument, viewport.height, viewport.width, zoom, i18n]);
 
   const status =
     documentError ??
     renderError ??
-    (pdfDocument ? 'Rendering PDF page…' : 'Loading PDF document…');
+    (pdfDocument
+      ? i18n['com.affine.office.rendering-pdf-page']()
+      : i18n['com.affine.office.loading-pdf-document']());
 
   return (
     <div className={styles.pdfCanvasHost} ref={hostRef}>
       <canvas
         className={styles.pdfCanvas}
         ref={canvasRef}
-        aria-label={`Rendered PDF page ${pageIndex + 1}`}
+        aria-label={I18n['com.affine.office.rendered-pdf-page']({
+          number: String(pageIndex + 1),
+        })}
       />
       {rendering || documentError || renderError ? (
         <div
@@ -225,6 +236,7 @@ function PdfPageThumbnail({
   pageIndex: number;
   active: boolean;
 }) {
+  const i18n = useI18n();
   const hostRef = useRef<HTMLSpanElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [shouldRender, setShouldRender] = useState(active);
@@ -288,7 +300,10 @@ function PdfPageThumbnail({
       canvas.width = Math.ceil(viewport.width * outputScale);
       canvas.height = Math.ceil(viewport.height * outputScale);
       const context = canvas.getContext('2d', { alpha: false });
-      if (!context) throw new Error('Canvas rendering is unavailable');
+      if (!context)
+        throw new Error(
+          i18n['com.affine.office.canvas-rendering-is-unavailable']()
+        );
       context.setTransform(1, 0, 0, 1, 0, 0);
       renderTask = page.render({
         canvas,
@@ -314,7 +329,7 @@ function PdfPageThumbnail({
       renderTask?.cancel();
       page?.cleanup();
     };
-  }, [pageIndex, pdfDocument, shouldRender]);
+  }, [pageIndex, pdfDocument, shouldRender, i18n]);
 
   const unavailable = Boolean(documentError) || renderError;
   return (
@@ -331,7 +346,9 @@ function PdfPageThumbnail({
           data-error={unavailable}
           aria-hidden="true"
         >
-          {unavailable ? 'Preview unavailable' : 'Loading preview…'}
+          {unavailable
+            ? i18n['com.affine.office.preview-unavailable']()
+            : i18n['com.affine.office.loading-preview']()}
         </span>
       ) : null}
     </span>
@@ -348,7 +365,11 @@ export function PdfEditor({
   onRevision,
   onCommentAnchorChange,
   onAiSelectionChange,
+  registerDraft,
+  beforeSelectionChange,
 }: NativeOfficeEditorProps<PdfSemanticState>) {
+  const i18n = useI18n();
+  const changeSelection = useOfficeSelectionChange(beforeSelectionChange);
   const [pageIndex, setPageIndex] = useState(0);
   const [annotationText, setAnnotationText] = useState('');
   const [annotationSubtype, setAnnotationSubtype] = useState<
@@ -360,6 +381,11 @@ export function PdfEditor({
   const [zoom, setZoom] = useState(1);
   const [signerName, setSignerName] = useState('');
   const [signatureReason, setSignatureReason] = useState('');
+  const draftValues = useRef({ annotationText, signerName, signatureReason });
+  draftValues.current = { annotationText, signerName, signatureReason };
+  const latestRevision = useRef(revision);
+  if (revision.sequence >= latestRevision.current.sequence)
+    latestRevision.current = revision;
   const [redactionRect, setRedactionRect] = useState({
     xPt: 72,
     yPt: 640,
@@ -415,7 +441,9 @@ export function PdfEditor({
       if (readOnly || saving) return false;
       setSaving(true);
       setError(null);
-      setStatus(`Previewing ${message}`);
+      setStatus(
+        I18n['com.affine.office.previewing-operation']({ operation: message })
+      );
       try {
         const result = await executeAndReloadOfficeCommand<PdfSemanticState>({
           graphql,
@@ -424,17 +452,22 @@ export function PdfEditor({
           command,
         });
         onRevision(result.revision, result.state);
-        setStatus(`${message} saved in revision ${result.revision.sequence}`);
+        setStatus(
+          I18n['com.affine.office.operation-saved']({
+            operation: message,
+            version: String(result.revision.sequence),
+          })
+        );
         return true;
       } catch (err) {
-        setError(officeErrorMessage(err));
-        setStatus('Save failed');
+        setError(officeErrorMessage(err, owner));
+        setStatus(i18n['com.affine.office.save-failed']());
         return false;
       } finally {
         setSaving(false);
       }
     },
-    [graphql, onRevision, owner, readOnly, saving]
+    [graphql, onRevision, owner, readOnly, saving, i18n]
   );
 
   const commandBase = useCallback(() => {
@@ -449,6 +482,94 @@ export function PdfEditor({
     };
   }, [artifactId, revision.id]);
 
+  useOfficeEditorDraft(registerDraft, {
+    get hasUnsavedChanges() {
+      return Object.values(draftValues.current).some(value => value.length > 0);
+    },
+    save: async () => {
+      if (readOnly || saving || !page)
+        throw new Error(
+          i18n['com.affine.office.office-editor-is-not-writable']()
+        );
+      const draft = draftValues.current;
+      if (draft.signatureReason && !draft.signerName.trim())
+        throw new Error(i18n['com.affine.office.signature-name-is-required']());
+      const commands: {
+        kind: 'annotation' | 'signature';
+        command: OfficeCommand;
+      }[] = [];
+      if (draft.annotationText)
+        commands.push({
+          kind: 'annotation',
+          command: {
+            ...commandBase(),
+            operation: 'office.pdf.annotation.add',
+            target: { type: 'page', pageIndex },
+            annotation: {
+              subtype: annotationSubtype,
+              rect: {
+                xPt: 72,
+                yPt: Math.max(24, page.heightPt - 128),
+                widthPt: Math.min(220, page.widthPt - 96),
+                heightPt: 24,
+              },
+              contents: draft.annotationText,
+              color: '#FFFF00',
+            },
+          },
+        });
+      if (draft.signerName)
+        commands.push({
+          kind: 'signature',
+          command: {
+            ...commandBase(),
+            operation: 'office.pdf.signature.appearance.add',
+            target: { type: 'page', pageIndex },
+            rect: {
+              xPt: Math.max(24, page.widthPt - 260),
+              yPt: 48,
+              widthPt: Math.min(220, page.widthPt - 48),
+              heightPt: 60,
+            },
+            signerName: draft.signerName,
+            reason: draft.signatureReason || undefined,
+          },
+        });
+      for (const { kind, command } of commands) {
+        const result = await executeAndReloadOfficeCommand<PdfSemanticState>({
+          graphql,
+          owner,
+          kind: 'pdf',
+          command: {
+            ...command,
+            expectedRevisionId: latestRevision.current.id,
+          },
+        });
+        latestRevision.current = result.revision;
+        if (kind === 'annotation') {
+          draftValues.current.annotationText = '';
+          setAnnotationText('');
+        } else {
+          draftValues.current.signerName = '';
+          draftValues.current.signatureReason = '';
+          setSignerName('');
+          setSignatureReason('');
+        }
+        onRevision(result.revision, result.state);
+      }
+    },
+    discard: async () => {
+      draftValues.current = {
+        annotationText: '',
+        signerName: '',
+        signatureReason: '',
+      };
+      setAnnotationText('');
+      setSignerName('');
+      setSignatureReason('');
+    },
+  });
+
   const reorder = useCallback(
     async (from: number, to: number) => {
       if (to < 0 || to >= state.pages.length) return;
@@ -461,11 +582,11 @@ export function PdfEditor({
           operation: 'office.pdf.pages.reorder',
           order,
         },
-        'Page order'
+        i18n['com.affine.office.page-order']()
       );
       if (saved) setPageIndex(to);
     },
-    [commandBase, runCommand, state.pages]
+    [commandBase, runCommand, state.pages, i18n]
   );
 
   const updateForm = useCallback(
@@ -477,7 +598,7 @@ export function PdfEditor({
           fieldName: field.name,
           value,
         },
-        `Form field ${field.name}`
+        I18n['com.affine.office.named-form-field']({ name: field.name })
       );
     },
     [commandBase, runCommand]
@@ -492,22 +613,26 @@ export function PdfEditor({
       setSearchResults(results);
       setStatus(
         results.length
-          ? `${results.reduce((total, item) => total + item.matches, 0)} matches`
-          : 'No search matches'
+          ? I18n['com.affine.office.match-count']({
+              count: results.reduce((total, item) => total + item.matches, 0),
+            })
+          : i18n['com.affine.office.no-search-matches']()
       );
     } catch (err) {
-      setError(officeErrorMessage(err));
-      setStatus('Search failed');
+      setError(officeErrorMessage(err, owner));
+      setStatus(i18n['com.affine.office.search-failed']());
     } finally {
       setSearching(false);
     }
-  }, [revision.packageUrl, searchQuery, searching]);
+  }, [owner, revision.packageUrl, searchQuery, searching, i18n]);
 
   const applyRedaction = useCallback(async () => {
     if (!page || processing || saving) return;
     if (
       !window.confirm(
-        'Apply permanent redaction to this page? The page will be flattened and its original text and objects removed in a new revision.'
+        i18n[
+          'com.affine.office.apply-permanent-redaction-to-this-page-the-page-will-be-flattened-and-its-original-text-and-objects-'
+        ]()
       )
     ) {
       return;
@@ -529,16 +654,17 @@ export function PdfEditor({
           flattenedPagePngBase64,
           rects: [redactionRect],
         },
-        'Permanent redaction'
+        i18n['com.affine.office.permanent-redaction']()
       );
     } catch (err) {
-      setError(officeErrorMessage(err));
-      setStatus('Redaction failed');
+      setError(officeErrorMessage(err, owner));
+      setStatus(i18n['com.affine.office.redaction-failed']());
     } finally {
       setProcessing(false);
     }
   }, [
     commandBase,
+    owner,
     page,
     pageIndex,
     processing,
@@ -546,13 +672,15 @@ export function PdfEditor({
     revision.packageUrl,
     runCommand,
     saving,
+
+    i18n,
   ]);
 
   if (!page) {
     return (
       <div className={styles.editor}>
         <div className={styles.emptyState} role="status">
-          This PDF has no pages.
+          {i18n['com.affine.office.this-pdf-has-no-pages']()}{' '}
         </div>
       </div>
     );
@@ -563,15 +691,18 @@ export function PdfEditor({
       <div
         className={styles.toolbar}
         role="toolbar"
-        aria-label="PDF page operations"
+        aria-label={i18n['com.affine.office.pdf-page-operations']()}
       >
         <span>
-          Page {pageIndex + 1} of {state.pages.length}
+          {i18n['com.affine.office.page-position']({
+            current: String(pageIndex + 1),
+            total: String(state.pages.length),
+          })}
         </span>
         <IconButton
           size="24"
-          tooltip="Move page up"
-          aria-label="Move page up"
+          tooltip={i18n['com.affine.office.move-page-up']()}
+          aria-label={i18n['com.affine.office.move-page-up']()}
           disabled={readOnly || saving || pageIndex === 0}
           onClick={() => void reorder(pageIndex, pageIndex - 1)}
         >
@@ -579,8 +710,8 @@ export function PdfEditor({
         </IconButton>
         <IconButton
           size="24"
-          tooltip="Move page down"
-          aria-label="Move page down"
+          tooltip={i18n['com.affine.office.move-page-down']()}
+          aria-label={i18n['com.affine.office.move-page-down']()}
           disabled={readOnly || saving || pageIndex === state.pages.length - 1}
           onClick={() => void reorder(pageIndex, pageIndex + 1)}
         >
@@ -588,8 +719,8 @@ export function PdfEditor({
         </IconButton>
         <IconButton
           size="24"
-          tooltip="Rotate page clockwise"
-          aria-label="Rotate page clockwise"
+          tooltip={i18n['com.affine.office.rotate-page-clockwise']()}
+          aria-label={i18n['com.affine.office.rotate-page-clockwise']()}
           disabled={readOnly || saving}
           onClick={() =>
             void runCommand(
@@ -603,7 +734,7 @@ export function PdfEditor({
                   | 180
                   | 270,
               },
-              'Page rotation'
+              i18n['com.affine.office.page-rotation']()
             )
           }
         >
@@ -611,8 +742,8 @@ export function PdfEditor({
         </IconButton>
         <IconButton
           size="24"
-          tooltip="Delete page"
-          aria-label="Delete page"
+          tooltip={i18n['com.affine.office.delete-page']()}
+          aria-label={i18n['com.affine.office.delete-page']()}
           disabled={readOnly || saving || state.pages.length === 1}
           onClick={() =>
             void runCommand(
@@ -621,7 +752,7 @@ export function PdfEditor({
                 operation: 'office.pdf.page.delete',
                 target: { type: 'page', pageIndex },
               },
-              'Page deletion'
+              i18n['com.affine.office.page-deletion']()
             )
           }
         >
@@ -630,8 +761,8 @@ export function PdfEditor({
         <input
           className={styles.pdfSearchInput}
           value={searchQuery}
-          aria-label="Search PDF text"
-          placeholder="Search PDF"
+          aria-label={i18n['com.affine.office.search-pdf-text']()}
+          placeholder={i18n['com.affine.office.search-pdf']()}
           onChange={event => setSearchQuery(event.target.value)}
           onKeyDown={event => {
             if (event.key === 'Enter') search().catch(console.error);
@@ -639,8 +770,8 @@ export function PdfEditor({
         />
         <IconButton
           size="24"
-          tooltip="Search PDF"
-          aria-label="Search PDF"
+          tooltip={i18n['com.affine.office.search-pdf']()}
+          aria-label={i18n['com.affine.office.search-pdf']()}
           disabled={searching || !searchQuery.trim()}
           onClick={() => void search()}
         >
@@ -648,8 +779,8 @@ export function PdfEditor({
         </IconButton>
         <IconButton
           size="24"
-          tooltip="Zoom out"
-          aria-label="Zoom out"
+          tooltip={i18n['com.affine.keyboardShortcuts.zoomOut']()}
+          aria-label={i18n['com.affine.keyboardShortcuts.zoomOut']()}
           disabled={zoom <= 0.5}
           onClick={() => setZoom(value => Math.max(0.5, value - 0.25))}
         >
@@ -658,8 +789,8 @@ export function PdfEditor({
         <span>{Math.round(zoom * 100)}%</span>
         <IconButton
           size="24"
-          tooltip="Zoom in"
-          aria-label="Zoom in"
+          tooltip={i18n['com.affine.keyboardShortcuts.zoomIn']()}
+          aria-label={i18n['com.affine.keyboardShortcuts.zoomIn']()}
           disabled={zoom >= 2}
           onClick={() => setZoom(value => Math.min(2, value + 0.25))}
         >
@@ -667,13 +798,17 @@ export function PdfEditor({
         </IconButton>
         <IconButton
           size="24"
-          tooltip="Print PDF"
-          aria-label="Print PDF"
+          tooltip={i18n['com.affine.office.print-pdf']()}
+          aria-label={i18n['com.affine.office.print-pdf']()}
           onClick={() => {
             try {
               viewerRef.current?.contentWindow?.print();
             } catch {
-              window.open(revision.packageUrl, '_blank', 'noopener,noreferrer');
+              window.open(
+                officeAssetUrl(revision.packageUrl),
+                '_blank',
+                'noopener,noreferrer'
+              );
             }
           }}
         >
@@ -681,11 +816,17 @@ export function PdfEditor({
         </IconButton>
         <div className={styles.toolbarSpacer} />
         <span>
-          {Math.round(page.widthPt)} x {Math.round(page.heightPt)} pt
+          {i18n['com.affine.office.page-dimensions']({
+            width: String(Math.round(page.widthPt)),
+            height: String(Math.round(page.heightPt)),
+          })}
         </span>
       </div>
       <div className={styles.pdfBody}>
-        <aside className={styles.pdfPageRail} aria-label="PDF pages">
+        <aside
+          className={styles.pdfPageRail}
+          aria-label={i18n['com.affine.office.pdf-pages']()}
+        >
           {state.pages.map((candidate, index) => {
             const annotationCount = candidate.annotations.filter(
               annotation => annotation.subtype !== 'Widget'
@@ -697,12 +838,14 @@ export function PdfEditor({
                 data-active={index === pageIndex}
                 data-annotation-count={annotationCount}
                 key={candidate.id}
-                aria-label={`PDF page ${index + 1}, ${
-                  annotationCount
-                    ? `${annotationCount} annotation${annotationCount === 1 ? '' : 's'}`
-                    : 'no annotations'
-                }`}
-                onClick={() => setPageIndex(index)}
+                aria-label={i18n.t('com.affine.office.pdf-page-label', {
+                  number: index + 1,
+                  count: annotationCount,
+                })}
+                onClick={() => {
+                  if (index !== pageIndex)
+                    changeSelection(() => setPageIndex(index));
+                }}
               >
                 <span className={styles.pdfPageNumber} aria-hidden="true">
                   {index + 1}
@@ -732,7 +875,10 @@ export function PdfEditor({
             );
           })}
         </aside>
-        <main className={styles.pdfViewer} aria-label="PDF document viewer">
+        <main
+          className={styles.pdfViewer}
+          aria-label={i18n['com.affine.office.pdf-document-viewer']()}
+        >
           <PdfCanvasPage
             pdfDocument={pdfResource.document}
             documentError={pdfResource.error}
@@ -743,39 +889,53 @@ export function PdfEditor({
             ref={viewerRef}
             className={styles.pdfPrintFrame}
             key={`print:${revision.id}`}
-            title="PDF print source"
-            src={revision.packageUrl}
+            title={i18n['com.affine.office.pdf-print-source']()}
+            src={officeAssetUrl(revision.packageUrl)}
           />
         </main>
         <aside
           className={styles.pdfInspector}
-          aria-label="PDF annotations and forms"
+          aria-label={i18n['com.affine.office.pdf-annotations-and-forms']()}
         >
-          <div className={styles.panelTitle}>Annotations</div>
+          <div className={styles.panelTitle}>
+            {i18n['com.affine.office.annotations']()}
+          </div>
           <div className={styles.inspectorGroup}>
             <select
               className={styles.select}
               value={annotationSubtype}
               disabled={readOnly || saving}
-              aria-label="Annotation type"
+              aria-label={i18n['com.affine.office.annotation-type']()}
               onChange={event =>
                 setAnnotationSubtype(
                   event.target.value as typeof annotationSubtype
                 )
               }
             >
-              <option value="highlight">Highlight</option>
-              <option value="underline">Underline</option>
-              <option value="strikeout">Strikeout</option>
-              <option value="text">Text note</option>
-              <option value="square">Rectangle</option>
+              <option value="highlight">
+                {i18n['com.affine.office.highlight']()}
+              </option>
+              <option value="underline">
+                {i18n['com.affine.keyboardShortcuts.underline']()}
+              </option>
+              <option value="strikeout">
+                {i18n['com.affine.office.strikeout']()}
+              </option>
+              <option value="text">
+                {i18n['com.affine.office.text-note']()}
+              </option>
+              <option value="square">
+                {i18n['com.affine.office.rectangle']()}
+              </option>
             </select>
             <textarea
               className={styles.textarea}
               value={annotationText}
               disabled={readOnly || saving}
-              aria-label="Annotation comment"
-              placeholder="Add a comment for this page"
+              aria-label={i18n['com.affine.office.annotation-comment']()}
+              placeholder={i18n[
+                'com.affine.office.add-a-comment-for-this-page'
+              ]()}
               onChange={event => setAnnotationText(event.target.value)}
             />
             <Button
@@ -810,7 +970,7 @@ export function PdfEditor({
               }}
             >
               <AddCommentIcon />
-              Add annotation
+              {i18n['com.affine.office.add-annotation']()}{' '}
             </Button>
           </div>
           <div className={styles.annotationList}>
@@ -820,8 +980,15 @@ export function PdfEditor({
                   <strong>{annotation.subtype}</strong>
                   <IconButton
                     size="24"
-                    tooltip="Delete annotation"
-                    aria-label={`Delete ${annotation.subtype} annotation`}
+                    tooltip={i18n['com.affine.office.delete-annotation']()}
+                    aria-label={I18n[
+                      'com.affine.office.delete-typed-annotation'
+                    ]({
+                      type: I18n.t(
+                        'com.affine.office.annotation-type.' +
+                          annotation.subtype
+                      ),
+                    })}
                     disabled={readOnly || saving}
                     onClick={() =>
                       void runCommand(
@@ -830,7 +997,7 @@ export function PdfEditor({
                           operation: 'office.pdf.annotation.delete',
                           annotationId: annotation.id,
                         },
-                        'Annotation deletion'
+                        i18n['com.affine.office.annotation-deletion']()
                       )
                     }
                   >
@@ -841,7 +1008,11 @@ export function PdfEditor({
                   className={styles.field}
                   defaultValue={annotation.contents ?? ''}
                   disabled={readOnly || saving}
-                  aria-label={`Edit ${annotation.subtype} annotation`}
+                  aria-label={I18n['com.affine.office.edit-typed-annotation']({
+                    type: I18n.t(
+                      'com.affine.office.annotation-type.' + annotation.subtype
+                    ),
+                  })}
                   onBlur={event => {
                     if (event.target.value === (annotation.contents ?? '')) {
                       return;
@@ -853,7 +1024,7 @@ export function PdfEditor({
                         annotationId: annotation.id,
                         contents: event.target.value,
                       },
-                      'Annotation update'
+                      i18n['com.affine.office.annotation-update']()
                     ).catch(console.error);
                   }}
                 />
@@ -862,7 +1033,11 @@ export function PdfEditor({
                   type="color"
                   defaultValue={annotation.color ?? '#FFFF00'}
                   disabled={readOnly || saving}
-                  aria-label={`Color for ${annotation.subtype} annotation`}
+                  aria-label={I18n['com.affine.office.color-typed-annotation']({
+                    type: I18n.t(
+                      'com.affine.office.annotation-type.' + annotation.subtype
+                    ),
+                  })}
                   onBlur={event => {
                     if (event.target.value === annotation.color) return;
                     runCommand(
@@ -872,7 +1047,7 @@ export function PdfEditor({
                         annotationId: annotation.id,
                         color: event.target.value,
                       },
-                      'Annotation color'
+                      i18n['com.affine.office.annotation-color']()
                     ).catch(console.error);
                   }}
                 />
@@ -881,17 +1056,23 @@ export function PdfEditor({
           </div>
           {searchResults.length ? (
             <>
-              <div className={styles.panelTitle}>Search results</div>
+              <div className={styles.panelTitle}>
+                {i18n['com.affine.office.search-results']()}
+              </div>
               <div className={styles.annotationList}>
                 {searchResults.map(result => (
                   <button
                     type="button"
                     className={styles.searchResult}
                     key={result.pageIndex}
-                    onClick={() => setPageIndex(result.pageIndex)}
+                    onClick={() => {
+                      if (result.pageIndex !== pageIndex)
+                        changeSelection(() => setPageIndex(result.pageIndex));
+                    }}
                   >
                     <strong>
-                      Page {result.pageIndex + 1} · {result.matches}
+                      {i18n['com.affine.shortcutsTitle.page']()}{' '}
+                      {result.pageIndex + 1} · {result.matches}
                     </strong>
                     <span>{result.snippet}</span>
                   </button>
@@ -899,15 +1080,17 @@ export function PdfEditor({
               </div>
             </>
           ) : null}
-          <div className={styles.panelTitle}>Signature appearance</div>
+          <div className={styles.panelTitle}>
+            {i18n['com.affine.office.signature-appearance']()}
+          </div>
           <div className={styles.inspectorGroup}>
             <input
               className={styles.field}
               value={signerName}
               maxLength={1024}
               disabled={readOnly || saving}
-              aria-label="Signer name"
-              placeholder="Signer name"
+              aria-label={i18n['com.affine.office.signer-name']()}
+              placeholder={i18n['com.affine.office.signer-name']()}
               onChange={event => setSignerName(event.target.value)}
             />
             <input
@@ -915,8 +1098,8 @@ export function PdfEditor({
               value={signatureReason}
               maxLength={2048}
               disabled={readOnly || saving}
-              aria-label="Signature reason"
-              placeholder="Reason"
+              aria-label={i18n['com.affine.office.signature-reason']()}
+              placeholder={i18n['com.affine.office.reason']()}
               onChange={event => setSignatureReason(event.target.value)}
             />
             <Button
@@ -937,14 +1120,18 @@ export function PdfEditor({
                     signerName,
                     reason: signatureReason || undefined,
                   },
-                  'Signature appearance (not cryptographic)'
+                  i18n[
+                    'com.affine.office.signature-appearance-not-cryptographic'
+                  ]()
                 )
               }
             >
-              Add appearance
+              {i18n['com.affine.office.add-appearance']()}{' '}
             </Button>
           </div>
-          <div className={styles.panelTitle}>Permanent redaction</div>
+          <div className={styles.panelTitle}>
+            {i18n['com.affine.office.permanent-redaction']()}
+          </div>
           <div className={styles.inspectorGroup}>
             <div className={styles.inspectorGrid}>
               {(['xPt', 'yPt', 'widthPt', 'heightPt'] as const).map(key => (
@@ -975,12 +1162,14 @@ export function PdfEditor({
               loading={saving || processing}
               onClick={() => void applyRedaction()}
             >
-              Apply permanent redaction
+              {i18n['com.affine.office.apply-permanent-redaction']()}{' '}
             </Button>
           </div>
           {state.formFields.length ? (
             <>
-              <div className={styles.panelTitle}>Form fields</div>
+              <div className={styles.panelTitle}>
+                {i18n['com.affine.office.form-fields']()}
+              </div>
               {state.formFields.map(field => {
                 const value = fieldDraft(field);
                 return (
@@ -1039,13 +1228,26 @@ export function PdfEditor({
         </aside>
       </div>
       <div className={styles.statusBar} role="status" aria-live="polite">
-        <span>{state.stats.pages} pages</span>
-        <span>{state.stats.annotations} annotations</span>
-        <span>{state.stats.formFields} form fields</span>
+        <span>
+          {state.stats.pages} {i18n['com.affine.office.pages']()}
+        </span>
+        <span>
+          {state.stats.annotations} {i18n['com.affine.office.annotations-2']()}
+        </span>
+        <span>
+          {state.stats.formFields} {i18n['com.affine.office.form-fields-2']()}
+        </span>
         {state.compatibility.signatures ? (
-          <span>{state.compatibility.signatures} digital signatures</span>
+          <span>
+            {state.compatibility.signatures}{' '}
+            {i18n['com.affine.office.digital-signatures']()}
+          </span>
         ) : null}
-        {readOnly ? <span>Historical revision, read only</span> : null}
+        {readOnly ? (
+          <span>
+            {i18n['com.affine.office.historical-revision-read-only']()}
+          </span>
+        ) : null}
         {error ? (
           <span className={styles.statusError}>{error}</span>
         ) : (

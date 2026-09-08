@@ -66,6 +66,68 @@ async function fixture() {
 }
 
 test.serial(
+  'scope uses native resources selected for this session and fails closed after membership removal',
+  async t => {
+    const { db, ...scope } = await fixture();
+    const resource = await app.get(ProjectResourceService).createDocument({
+      ...scope,
+      title: 'Selected resource',
+      markdown: 'Native Project content',
+      requestKey: 'scope-resource',
+    });
+    await app.models.copilotProjectContext.set({
+      ...scope,
+      expectedVersion: 0,
+      items: [{ kind: 'resource', resourceId: resource.id, sequence: 1 }],
+    });
+    const resolver = app.get(ContextScopeResolver);
+    const input = {
+      userId: scope.actorId,
+      workspaceId: null,
+      sessionId: scope.sessionId,
+      selectedProjectId: scope.projectId,
+    };
+    const resolved = await resolver.resolve(input);
+    t.deepEqual(resolved.readableProjectResourceIds, [resource.id]);
+    t.deepEqual(resolved.readableDocumentRefs, []);
+    t.deepEqual(resolved.projectIds, [scope.projectId]);
+    const otherSession = await app.gql<{
+      createCopilotSessionWithHistory: { sessionId: string };
+    }>(
+      'mutation($options: CreateChatSessionInput!) { createCopilotSessionWithHistory(options: $options) { sessionId } }',
+      {
+        options: {
+          projectId: scope.projectId,
+          promptName: 'Chat With LocalMind AI',
+          reuseLatestChat: false,
+        },
+      }
+    );
+    t.deepEqual(
+      (
+        await resolver.resolve({
+          ...input,
+          sessionId: otherSession.createCopilotSessionWithHistory.sessionId,
+        })
+      ).readableProjectResourceIds,
+      []
+    );
+    t.deepEqual((await resolver.resolve(input)).readableProjectResourceIds, [
+      resource.id,
+    ]);
+    await db.aiContextProjectMember.delete({
+      where: {
+        projectId_userId: { projectId: scope.projectId, userId: scope.actorId },
+      },
+    });
+    const denied = await resolver.resolve(input);
+    t.deepEqual(denied.projectIds, []);
+    t.deepEqual(denied.readableProjectResourceIds, []);
+    t.is(denied.selectedProjectId, null);
+  }
+);
+
+test.serial(
   'native Project context persists exact source versions and uploads across reopen without Workspace records',
   async t => {
     const { db, ...scope } = await fixture();
@@ -113,8 +175,21 @@ test.serial(
       ...scope,
       resourceId: doc.id,
       markdown: 'UPDATED_REFERENCE',
+      origin: 'user',
       expectedContentVersion: 1,
       requestKey: 'new-content',
+      editLease: {
+        kind: 'user',
+        tabId: 'context-edit',
+        leaseId: (
+          await app.models.projectResourceEditLease.acquire({
+            ...scope,
+            resourceId: doc.id,
+            kind: 'user',
+            tabId: 'context-edit',
+          })
+        ).lease!.leaseId,
+      },
     });
     const reopened = await service.view(scope);
     t.is(
@@ -193,6 +268,17 @@ test.serial(
     t.true(
       JSON.stringify(memory.projectSourceCheck?.sources).includes(message.id)
     );
+    await app.models.copilotContext.recordRecalledMemorySources({
+      ...scope,
+      workspaceId: null,
+      memories: [{ id: memory.id, content: memory.content }],
+    });
+    t.is(
+      await db.aiSessionContextSource.count({
+        where: { sessionId: scope.sessionId, kind: 'private' },
+      }),
+      0
+    );
     const replay = await service.captureDurableTurn(input);
     t.is(replay[0]?.id, events[0]?.id);
     t.is(await db.aiContextMemory.count(), 1);
@@ -256,6 +342,143 @@ test.serial(
       }),
       []
     );
+    t.is(await db.workspace.count(), 0);
+  }
+);
+
+test.serial(
+  'manual Project Summary persists owner evidence, deduplicates and retains access boundaries',
+  async t => {
+    const { db, ...scope } = await fixture();
+    const create = `mutation($input: CreateCopilotContextMemoryInput!) {
+    createCopilotContextMemory(input: $input) { id content projectId workspaceId }
+  }`;
+    const input = {
+      scope: 'project',
+      kind: 'project_summary',
+      projectId: scope.projectId,
+      content: 'Shared project objective',
+    };
+    await t.throwsAsync(app.gql(create, { input }));
+    await t.throwsAsync(
+      app
+        .get(ContextMemoryService)
+        .create(
+          scope.actorId,
+          input as Parameters<ContextMemoryService['create']>[1]
+        )
+    );
+    await db.aiContextProjectMember.update({
+      where: {
+        projectId_userId: { projectId: scope.projectId, userId: scope.actorId },
+      },
+      data: { role: 'owner' },
+    });
+    const responses = await Promise.all([
+      app.gql<{ createCopilotContextMemory: { id: string } }>(create, {
+        input,
+      }),
+      app.gql<{ createCopilotContextMemory: { id: string } }>(create, {
+        input,
+      }),
+    ]);
+    const id = responses[0].createCopilotContextMemory.id;
+    t.is(responses[1].createCopilotContextMemory.id, id);
+    t.is(await db.projectSummaryRevision.count({ where: { memoryId: id } }), 1);
+    await app.models.copilotContext.recordRecalledMemorySources({
+      ...scope,
+      workspaceId: null,
+      memories: [{ id, content: input.content }],
+    });
+    t.is(
+      await db.aiSessionContextSource.count({
+        where: { sessionId: scope.sessionId, kind: 'private' },
+      }),
+      0
+    );
+    const update = `mutation($input: UpdateCopilotContextMemoryInput!) {
+    updateCopilotContextMemory(input: $input) { id content status }
+  }`;
+    await app.gql(update, {
+      input: { id, content: 'Revised shared objective' },
+    });
+    t.is(await db.projectSummaryRevision.count({ where: { memoryId: id } }), 2);
+    await app.gql(update, { input: { id, status: 'disabled' } });
+    await app.gql(update, { input: { id, status: 'active' } });
+    await t.throwsAsync(
+      db.aiContextMemory.update({
+        where: { id },
+        data: { content: 'Unproven replacement' },
+      })
+    );
+    const revision = await db.projectSummaryRevision.findFirstOrThrow({
+      where: { memoryId: id },
+    });
+    await t.throwsAsync(
+      db.projectSummaryRevision.update({
+        where: { id: revision.id },
+        data: { actorIdSnapshot: 'forged' },
+      })
+    );
+    await t.throwsAsync(
+      db.projectSummaryRevision.delete({ where: { id: revision.id } })
+    );
+    await t.throwsAsync(
+      db.aiContextMemory.create({
+        data: {
+          ownerUserId: scope.actorId,
+          projectId: scope.projectId,
+          scope: 'project',
+          kind: 'auto_memory',
+          content: 'Unproven automatic memory',
+          fingerprint: 'unproven',
+        },
+      })
+    );
+    await t.throwsAsync(
+      app.models.copilotContextMemory.update(
+        id,
+        { content: ' ' },
+        scope.actorId
+      )
+    );
+    await db.aiContextProjectMember.update({
+      where: {
+        projectId_userId: { projectId: scope.projectId, userId: scope.actorId },
+      },
+      data: { role: 'member' },
+    });
+    await t.throwsAsync(
+      app.gql(update, { input: { id, content: 'Member rewrite' } })
+    );
+    await t.throwsAsync(
+      app.models.copilotContextMemory.update(
+        id,
+        { status: 'disabled' },
+        scope.actorId
+      )
+    );
+    t.true(
+      (
+        await app.models.copilotContextMemory.listVisible({
+          userId: scope.actorId,
+          projectIds: [scope.projectId],
+        })
+      ).some(memory => memory.id === id)
+    );
+    await db.aiContextProjectMember.delete({
+      where: {
+        projectId_userId: { projectId: scope.projectId, userId: scope.actorId },
+      },
+    });
+    t.deepEqual(
+      await app.models.copilotContextMemory.listVisible({
+        userId: scope.actorId,
+        projectIds: [scope.projectId],
+      }),
+      []
+    );
+    await t.throwsAsync(app.gql(create, { input }));
     t.is(await db.workspace.count(), 0);
   }
 );

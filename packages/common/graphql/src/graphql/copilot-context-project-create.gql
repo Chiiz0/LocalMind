@@ -1,6 +1,4 @@
-mutation copilotContextProjectCreate(
-  $input: CreateCopilotContextProjectInput!
-) {
+mutation copilotContextProjectCreate($input: CreateCopilotContextProjectInput!) {
   createCopilotContextProject(input: $input) {
     id
     createdByUserId
@@ -17,20 +15,6 @@ mutation copilotContextProjectCreate(
       role
       createdAt
     }
-    documents {
-      workspaceId
-      docId
-      title
-      groupId
-      sortOrder
-      status
-      requestedLevel
-      accessRequestId
-      addedByMe
-      createdAt
-      updatedAt
-    }
-    documentCount
     canManage
     createdAt
     updatedAt

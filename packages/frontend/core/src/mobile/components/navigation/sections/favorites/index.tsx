@@ -48,7 +48,9 @@ export const NavigationPanelFavorites = () => {
       testId="navigation-panel-favorites"
       headerTestId="navigation-panel-favorite-category-divider"
     >
-      <NavigationPanelTreeRoot placeholder={isLoading ? 'Loading' : null}>
+      <NavigationPanelTreeRoot
+        placeholder={isLoading ? t['com.affine.loading']() : null}
+      >
         {favorites.map(favorite => (
           <FavoriteNode
             key={favorite.id}

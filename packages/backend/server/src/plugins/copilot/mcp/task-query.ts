@@ -519,7 +519,9 @@ export class McpAiTaskQueryService {
     if (record.status === 'cancelled') return 'cancelled';
     if (this.isFailureStatus(record.status)) return 'failed';
     if (run) {
-      return this.cancellationRequested(run) ? 'cancelling' : run.status;
+      if (this.cancellationRequested(run)) return 'cancelling';
+      // Keep the public task status stable while an internal edit lease is pending.
+      return run.status === 'waiting_lease' ? 'queued' : run.status;
     }
     return record.status === 'waiting_approval'
       ? 'waiting_approval'

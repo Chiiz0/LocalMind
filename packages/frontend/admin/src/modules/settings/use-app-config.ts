@@ -7,6 +7,7 @@ import {
   type UpdateAppConfigInput,
   updateAppConfigMutation,
 } from '@affine/graphql';
+import { useI18n } from '@affine/i18n';
 import { cloneDeep, get, merge, set } from 'lodash-es';
 import { useCallback, useEffect, useState } from 'react';
 
@@ -44,6 +45,7 @@ const getSavedAppConfig = (response: SaveResponse): Partial<AppConfig> => {
 };
 
 export const useAppConfig = () => {
+  const i18n = useI18n();
   const {
     data: { appConfig },
     mutate,
@@ -124,18 +126,19 @@ export const useAppConfig = () => {
       setUpdates({});
       setPatchedAppConfig(prev => merge({}, prev, savedAppConfig));
       notify.success({
-        title: 'Saved',
-        message: 'Settings have been saved successfully.',
+        title: i18n['com.affine.admin.saved'](),
+        message:
+          i18n['com.affine.admin.settings-have-been-saved-successfully'](),
       });
     } catch (e) {
       const error = UserFriendlyError.fromAny(e);
       notify.error({
-        title: 'Failed to save',
+        title: i18n['com.affine.recording.failed.prompt'](),
         message: error.message,
       });
       console.error(e);
     }
-  }, [updates, mutate, saveUpdates]);
+  }, [updates, mutate, saveUpdates, i18n]);
 
   const saveGroup = useCallback(
     async (module: string) => {
@@ -165,13 +168,14 @@ export const useAppConfig = () => {
         setPatchedAppConfig(prev => merge({}, prev, savedAppConfig));
         bumpGroupVersion(module);
         notify.success({
-          title: 'Saved',
-          message: 'Settings have been saved successfully.',
+          title: i18n['com.affine.admin.saved'](),
+          message:
+            i18n['com.affine.admin.settings-have-been-saved-successfully'](),
         });
       } catch (e) {
         const error = UserFriendlyError.fromAny(e);
         notify.error({
-          title: 'Failed to save',
+          title: i18n['com.affine.recording.failed.prompt'](),
           message: error.message,
         });
         console.error(e);
@@ -188,6 +192,8 @@ export const useAppConfig = () => {
       getEntriesByModule,
       mutate,
       saveUpdates,
+
+      i18n,
     ]
   );
 

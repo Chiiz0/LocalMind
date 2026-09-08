@@ -4,30 +4,22 @@
 import { describe, expect, test } from 'vitest';
 
 import {
-  buildProjectWorkspaceUpdateInput,
+  buildProjectUpdateInput,
   getDirectiveConditionsInput,
   getDirectiveContentUpdate,
 } from './index';
 
 describe('AI context settings directive updates', () => {
-  test('replaces one workspace document subset in the project update', () => {
+  test('updates project metadata independently of Workspace documents', () => {
     expect(
-      buildProjectWorkspaceUpdateInput('project-1', 'workspace-a', {
+      buildProjectUpdateInput('project-1', {
         name: ' Project ',
         description: ' Description ',
-        documentIds: ['doc-1', 'doc-2', 'doc-1'],
       })
     ).toEqual({
       id: 'project-1',
       name: 'Project',
       description: 'Description',
-      workspaceDocuments: {
-        workspaceId: 'workspace-a',
-        documents: [
-          { workspaceId: 'workspace-a', docId: 'doc-1', sortOrder: 0 },
-          { workspaceId: 'workspace-a', docId: 'doc-2', sortOrder: 1 },
-        ],
-      },
     });
   });
 

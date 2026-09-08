@@ -1,4 +1,4 @@
-import { useConfirmModal } from '@affine/component';
+import { Button, useConfirmModal } from '@affine/component';
 import {
   AIChatRuntime,
   createAIRequestService,
@@ -25,17 +25,21 @@ import {
   GraphQLService,
   ServerService,
   SubscriptionService,
+  UserFeatureService,
 } from '@affine/core/modules/cloud';
+import { useSignalValue } from '@affine/core/modules/doc-info/utils';
 import { FeatureFlagService } from '@affine/core/modules/feature-flag';
+import { reportProjectError as report } from '@affine/core/modules/project-resources/error';
+import { useProjectRefresh } from '@affine/core/modules/project-resources/realtime';
 import { AppThemeService } from '@affine/core/modules/theme';
 import type { ProjectAgentTaskFieldsFragment } from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
 import type { OfficeAiContext } from '@localmind/office';
-import { useFramework, useService } from '@toeverything/infra';
+import { useFramework, useLiveData, useService } from '@toeverything/infra';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useProjectChatConfig } from './project-chat-config';
-import { projectFilesChanged } from './project-files-data';
+import { ProjectFilePicker } from './project-file-picker';
 import { ProjectTasks } from './project-tasks';
 import * as styles from './workbench-conversation.css';
 
@@ -81,6 +85,11 @@ export const WorkbenchConversation = ({
     [framework, selectedProjectId]
   );
   useEffect(() => () => projectModel.dispose(), [projectModel]);
+  useProjectRefresh(selectedProjectId, 'list', projectModel.refresh);
+  const configuration = useSignalValue(projectModel.configuration);
+  const isAdmin = useLiveData(
+    useService(UserFeatureService).userFeature.isAdmin$
+  );
   const [bodyReady, setBodyReady] = useState(false);
   const [toolbarReady, setToolbarReady] = useState(false);
   const contentContainerRef = useRef<HTMLDivElement>(null);
@@ -140,11 +149,10 @@ export const WorkbenchConversation = ({
   const previousStatus = useRef(snapshot?.status);
   const handleTaskCompleted = useCallback(
     async (task: ProjectAgentTaskFieldsFragment) => {
-      projectFilesChanged(selectedProjectId);
       if (onTaskCompleted) await onTaskCompleted(task);
       else await onDocumentsChanged?.();
     },
-    [onDocumentsChanged, onTaskCompleted, selectedProjectId]
+    [onDocumentsChanged, onTaskCompleted]
   );
   useEffect(() => {
     const previous = previousStatus.current;
@@ -153,7 +161,7 @@ export const WorkbenchConversation = ({
       previous === 'transmitting' &&
       (snapshot?.status === 'success' || snapshot?.status === 'error')
     ) {
-      onDocumentsChanged?.().catch(console.error);
+      onDocumentsChanged?.().catch(report);
     }
   }, [onDocumentsChanged, snapshot?.status]);
   const activeSession =
@@ -170,7 +178,7 @@ export const WorkbenchConversation = ({
         projectId: selectedProjectId,
         projectName: selectedProjectName,
       })
-      .catch(console.error);
+      .catch(report);
   }, [
     runtime,
     selectedProjectId,
@@ -178,8 +186,28 @@ export const WorkbenchConversation = ({
     snapshot?.activeSessionId,
   ]);
 
+  const [documentPicker, setDocumentPicker] = useState<{
+    tabId: string | null;
+    resourceIds: string[];
+    limit: number;
+  } | null>(null);
+  const openDocuments = useCallback(() => {
+    const current = runtime.getSnapshot();
+    if (current.composer.context.loading) return;
+    const items = current.composer.context.items;
+    setDocumentPicker({
+      tabId: current.activeTabId,
+      resourceIds: items.flatMap(item =>
+        item.kind === 'doc' ? [item.docId] : []
+      ),
+      limit: Math.max(0, 16 - items.filter(item => item.kind !== 'doc').length),
+    });
+  }, [runtime]);
+  useEffect(() => {
+    setDocumentPicker(null);
+  }, [snapshot?.activeTabId, selectedProjectId]);
   const { docDisplayConfig, searchMenuConfig, reasoningConfig } =
-    useProjectChatConfig(selectedProjectId);
+    useProjectChatConfig(selectedProjectId, openDocuments);
   const specs = useMemo(
     () => getViewManager().config.init().value.get('page'),
     []
@@ -260,7 +288,7 @@ export const WorkbenchConversation = ({
         notificationService,
         onOpenDoc: onOpenResource,
         onSessionDelete: session => {
-          deleteSession(session).catch(console.error);
+          deleteSession(session).catch(report);
         },
       });
     },
@@ -298,6 +326,26 @@ export const WorkbenchConversation = ({
           <div ref={setToolbarContainer} />
         </div>
       </header>
+      {configuration === 'missing' || configuration === 'error' ? (
+        <div role="status" className={styles.configuration}>
+          <span>
+            {t[
+              configuration === 'missing'
+                ? 'com.affine.localmind.project-byok.missing'
+                : 'com.affine.localmind.project-byok.error'
+            ]()}
+          </span>
+          {configuration === 'error' ? (
+            <Button onClick={projectModel.refresh}>{t['Retry']()}</Button>
+          ) : isAdmin ? (
+            <a href="/admin/ai/config">
+              {t['com.affine.localmind.project-byok.configure']()}
+            </a>
+          ) : (
+            <span>{t['com.affine.localmind.project-byok.contactAdmin']()}</span>
+          )}
+        </div>
+      ) : null}
       <ProjectTasks
         key={`${selectedProjectId}:${snapshot?.activeSessionId ?? ''}`}
         projectId={selectedProjectId}
@@ -306,6 +354,22 @@ export const WorkbenchConversation = ({
         onOpenResource={onOpenResource}
       />
       <div className={styles.content} ref={setContentContainer} />
+      {documentPicker ? (
+        <ProjectFilePicker
+          projectId={selectedProjectId}
+          initialSelection={documentPicker.resourceIds}
+          limit={documentPicker.limit}
+          onClose={() => setDocumentPicker(null)}
+          onSave={resourceIds =>
+            runtime.dispatch({
+              type: 'setProjectContextResources',
+              tabId: documentPicker.tabId,
+              baseResourceIds: documentPicker.resourceIds,
+              resourceIds,
+            })
+          }
+        />
+      ) : null}
     </section>
   );
 };

@@ -336,6 +336,18 @@ test.serial(
       expectedContentVersion: delivery.resource.contentVersion,
       blobKey: replacement.key,
       requestKey: 'later-edit',
+      editLease: {
+        kind: 'user',
+        tabId: 'delivery-edit',
+        leaseId: (
+          await app.models.projectResourceEditLease.acquire({
+            ...scope,
+            resourceId: delivery.resource.id,
+            kind: 'user',
+            tabId: 'delivery-edit',
+          })
+        ).lease!.leaseId,
+      },
       origin: 'user',
     });
     t.is(

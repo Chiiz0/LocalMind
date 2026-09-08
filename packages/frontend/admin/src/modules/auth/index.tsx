@@ -3,6 +3,7 @@ import { Input } from '@affine/admin/components/ui/input';
 import { Label } from '@affine/admin/components/ui/label';
 import { LocalMindLogo } from '@affine/component/localmind-logo';
 import { FeatureType, getUserFeaturesQuery } from '@affine/graphql';
+import { useI18n } from '@affine/i18n';
 import type { FormEvent } from 'react';
 import { useCallback, useRef } from 'react';
 import { Navigate } from 'react-router-dom';
@@ -12,6 +13,7 @@ import { affineFetch } from '../../fetch-utils';
 import { isAdmin, useCurrentUser, useRevalidateCurrentUser } from '../common';
 
 export function Auth() {
+  const i18n = useI18n();
   const currentUser = useCurrentUser();
   const revalidate = useRevalidateCurrentUser();
   const emailRef = useRef<HTMLInputElement>(null);
@@ -34,7 +36,9 @@ export function Auth() {
         .then(async response => {
           if (!response.ok) {
             const data = await response.json();
-            throw new Error(data.message || 'Failed to login');
+            throw new Error(
+              data.message || i18n['com.affine.admin.failed-to-login']()
+            );
           }
           return response.json();
         })
@@ -59,10 +63,10 @@ export function Auth() {
             },
           }) => {
             if (features.includes(FeatureType.Admin)) {
-              toast.success('Logged in successfully');
+              toast.success(i18n['com.affine.admin.logged-in-successfully']());
               await revalidate();
             } else {
-              toast.error('You are not an admin');
+              toast.error(i18n['com.affine.admin.you-are-not-an-admin']());
             }
           }
         )
@@ -70,7 +74,7 @@ export function Auth() {
           toast.error(`Failed to login: ${err.message}`);
         });
     },
-    [revalidate]
+    [revalidate, i18n]
   );
 
   if (currentUser && isAdmin(currentUser)) {
@@ -82,15 +86,21 @@ export function Auth() {
       <div className="flex items-center justify-center py-12">
         <div className="mx-auto grid w-[350px] gap-6">
           <div className="grid gap-2 text-center">
-            <h1 className="text-3xl font-bold">Login</h1>
+            <h1 className="text-3xl font-bold">
+              {i18n['com.affine.payment.ai.action.login.button-label']()}
+            </h1>
             <p className="text-balance text-muted-foreground">
-              Enter your email below to login to your account
+              {i18n[
+                'com.affine.admin.enter-your-email-below-to-login-to-your-account'
+              ]()}{' '}
             </p>
           </div>
           <form onSubmit={login} action="#">
             <div className="grid gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">
+                  {i18n['com.affine.settings.email']()}
+                </Label>
                 <Input
                   id="email"
                   type="email"
@@ -102,7 +112,11 @@ export function Auth() {
               </div>
               <div className="grid gap-2">
                 <div className="flex items-center">
-                  <Label htmlFor="password">Password</Label>
+                  <Label htmlFor="password">
+                    {i18n[
+                      'com.affine.integration.calendar.caldav.field.password'
+                    ]()}
+                  </Label>
                 </div>
                 <Input
                   id="password"
@@ -113,7 +127,7 @@ export function Auth() {
                 />
               </div>
               <Button onClick={login} type="submit" className="w-full">
-                Login
+                {i18n['com.affine.payment.ai.action.login.button-label']()}{' '}
               </Button>
             </div>
           </form>

@@ -42,34 +42,38 @@ import * as styles from './styles.css';
 export { PureWorkspaceCard } from './pure-workspace-card';
 
 const RemoteWorkspaceStatus = ({ selfHosted }: { selfHosted?: boolean }) => {
+  const i18n = useI18n();
   const Icon = selfHosted ? SelfhostIcon : CloudWorkspaceIcon;
   return (
     <>
       <Icon />
-      {selfHosted ? 'LocalMind' : 'Cloud'}
+      {selfHosted ? 'LocalMind' : i18n['com.affine.ui.cloud']()}
     </>
   );
 };
 
 const SyncingWorkspaceStatus = ({ progress }: { progress?: number }) => {
+  const i18n = useI18n();
   return (
     <>
       <Loading progress={progress} speed={0} />
-      Syncing...
+      {i18n['com.affine.ui.syncing']()}{' '}
     </>
   );
 };
 
 const UnSyncWorkspaceStatus = () => {
+  const i18n = useI18n();
   return (
     <>
       <UnsyncIcon />
-      Wait for upload
+      {i18n['com.affine.ui.wait-for-upload']()}{' '}
     </>
   );
 };
 
 const LocalWorkspaceStatus = () => {
+  const i18n = useI18n();
   return (
     <>
       {!BUILD_CONFIG.isElectron ? (
@@ -77,16 +81,17 @@ const LocalWorkspaceStatus = () => {
       ) : (
         <LocalWorkspaceIcon />
       )}
-      Local
+      {i18n['com.affine.settings.workspace.state.local']()}{' '}
     </>
   );
 };
 
 const OfflineStatus = () => {
+  const i18n = useI18n();
   return (
     <>
       <NoNetworkIcon />
-      Offline
+      {i18n['com.affine.ui.offline']()}{' '}
     </>
   );
 };
@@ -392,7 +397,9 @@ export const WorkspaceCard = forwardRef<
             )}
           </div>
           {information?.isEmpty && information.isOwner ? (
-            <Button onClick={onRemoveWorkspace}>Remove</Button>
+            <Button onClick={onRemoveWorkspace}>
+              {t['com.affine.share-menu.member-management.remove']()}
+            </Button>
           ) : null}
           <div className={styles.showOnCardHover}>
             {onClickEnableCloud && workspaceMetadata.flavour === 'local' ? (
@@ -400,7 +407,7 @@ export const WorkspaceCard = forwardRef<
                 className={styles.enableCloudButton}
                 onClick={onEnableCloud}
               >
-                Enable Cloud
+                {t['com.affine.ui.enable-cloud']()}{' '}
               </Button>
             ) : null}
 

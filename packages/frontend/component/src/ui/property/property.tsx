@@ -1,3 +1,4 @@
+import { useI18n } from '@affine/i18n';
 import type { Edge } from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
 import {
   ArrowDownSmallIcon,
@@ -142,6 +143,7 @@ export const PropertyCollapsibleContent = forwardRef<
     },
     ref
   ) => {
+    const i18n = useI18n();
     const [propertyCount, setPropertyCount] = useState({ total: 0, hide: 0 });
     const [showAllHide, setShowAllHide] = useState(!defaultCollapsed);
     const finalCollapsible = collapsible ? propertyCount.hide !== 0 : false;
@@ -206,8 +208,8 @@ export const PropertyCollapsibleContent = forwardRef<
                     isCollapsed: !finalShowAllHide,
                   })
                 : !finalShowAllHide
-                  ? 'Show All'
-                  : 'Hide'}
+                  ? i18n['com.affine.ui.show-all']()
+                  : i18n['com.affine.editor.bi-directional-link-panel.hide']()}
             </Button>
           )}
         </PropertyTableContext.Provider>

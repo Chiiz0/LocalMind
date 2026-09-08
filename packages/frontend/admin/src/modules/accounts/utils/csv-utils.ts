@@ -1,3 +1,4 @@
+import { I18n } from '@affine/i18n';
 import { toast } from 'sonner';
 
 import { emailRegex } from '../../../utils';
@@ -165,7 +166,9 @@ export const processCSVFile = async (
       .map(row => row.split(','));
 
     if (rows.length < 2) {
-      toast.error('CSV file format is incorrect or empty');
+      toast.error(
+        I18n['com.affine.admin.csv-file-format-is-incorrect-or-empty']()
+      );
       onError();
       return;
     }
@@ -181,7 +184,9 @@ export const processCSVFile = async (
     const usersWithEmail = users.filter(user => user.email);
 
     if (usersWithEmail.length === 0) {
-      toast.error('CSV file contains no valid user data');
+      toast.error(
+        I18n['com.affine.admin.csv-file-contains-no-valid-user-data']()
+      );
       onError();
       return;
     }
@@ -190,15 +195,17 @@ export const processCSVFile = async (
     const hasValidUsers = validatedUsers.some(user => user.valid !== false);
 
     if (!hasValidUsers) {
-      toast.error('CSV file contains no valid user data');
+      toast.error(
+        I18n['com.affine.admin.csv-file-contains-no-valid-user-data']()
+      );
       onError();
       return;
     }
 
     onSuccess(validatedUsers);
   } catch (error) {
-    console.error('Failed to parse CSV file', error);
-    toast.error('Failed to parse CSV file');
+    console.error(I18n['com.affine.admin.failed-to-parse-csv-file'](), error);
+    toast.error(I18n['com.affine.admin.failed-to-parse-csv-file']());
     onError();
   }
 };

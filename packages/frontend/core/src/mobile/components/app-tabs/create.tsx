@@ -4,6 +4,7 @@ import { DocsService } from '@affine/core/modules/doc';
 import { TemplateDocService } from '@affine/core/modules/template-doc';
 import { WorkbenchService } from '@affine/core/modules/workbench';
 import { WorkspaceService } from '@affine/core/modules/workspace';
+import { useI18n } from '@affine/i18n';
 import track from '@affine/track';
 import { EditIcon } from '@blocksuite/icons/rc';
 import { useLiveData, useService } from '@toeverything/infra';
@@ -12,6 +13,7 @@ import { TabItem } from './tab-item';
 import type { AppTabCustomFCProps } from './type';
 
 export const AppTabCreate = ({ tab }: AppTabCustomFCProps) => {
+  const i18n = useI18n();
   const workbench = useService(WorkbenchService).workbench;
   const workspaceService = useService(WorkspaceService);
   const templateDocService = useService(TemplateDocService);
@@ -43,7 +45,11 @@ export const AppTabCreate = ({ tab }: AppTabCustomFCProps) => {
   );
 
   return (
-    <TabItem id={tab.key} onClick={createPage} label="New Page">
+    <TabItem
+      id={tab.key}
+      onClick={createPage}
+      label={i18n['com.affine.ui.new-page']()}
+    >
       <EditIcon />
     </TabItem>
   );

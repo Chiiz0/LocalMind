@@ -26,6 +26,7 @@ import {
   type QueryResponse,
   upsertAdminAiProfileMutation,
 } from '@affine/graphql';
+import { useI18n } from '@affine/i18n';
 import { PencilIcon, PlusIcon, Trash2Icon } from 'lucide-react';
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -73,6 +74,7 @@ export function WorkspaceAiProfilesEditor({
 }: {
   scope: WorkspaceScope;
 }) {
+  const i18n = useI18n();
   const {
     data: profileData,
     error: profileError,
@@ -141,10 +143,12 @@ export function WorkspaceAiProfilesEditor({
         revalidateAssignments(adminUserAiProfileAssignmentQuery),
       ]);
       resetDraft();
-      toast.success('Workspace AI Profile saved.');
+      toast.success(i18n['com.affine.admin.workspace-ai-profile-saved']());
     } catch (saveError) {
       console.error(saveError);
-      toast.error('Failed to save Workspace AI Profile.');
+      toast.error(
+        i18n['com.affine.admin.failed-to-save-workspace-ai-profile']()
+      );
     }
   };
 
@@ -163,10 +167,12 @@ export function WorkspaceAiProfilesEditor({
         revalidateAssignments(adminUserAiProfileAssignmentQuery),
       ]);
       if (draft.id === profile.id) resetDraft();
-      toast.success('Workspace AI Profile deleted.');
+      toast.success(i18n['com.affine.admin.workspace-ai-profile-deleted']());
     } catch (deleteError) {
       console.error(deleteError);
-      toast.error('Failed to delete Workspace AI Profile.');
+      toast.error(
+        i18n['com.affine.admin.failed-to-delete-workspace-ai-profile']()
+      );
     }
   };
 
@@ -174,16 +180,18 @@ export function WorkspaceAiProfilesEditor({
     <div className="border-t border-border/70 px-6 py-5">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="text-sm font-semibold">Workspace AI Profiles</h3>
+          <h3 className="text-sm font-semibold">
+            {i18n['com.affine.admin.workspace-ai-profiles']()}
+          </h3>
           <p className="mt-1 max-w-3xl text-xs leading-5 text-muted-foreground">
-            Group approved credentials into reusable routing profiles. A user
-            assignment takes priority in this workspace, followed by the
-            workspace default.
+            {i18n[
+              'com.affine.admin.group-approved-credentials-into-reusable-routing-profiles-a-user-assignment-takes-priority-in-this-w'
+            ]()}{' '}
           </p>
         </div>
         <Button type="button" variant="outline" onClick={resetDraft}>
           <PlusIcon size={16} />
-          New profile
+          {i18n['com.affine.admin.new-profile']()}{' '}
         </Button>
       </div>
 
@@ -192,10 +200,16 @@ export function WorkspaceAiProfilesEditor({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Profile</TableHead>
-                <TableHead>Credentials</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="w-[104px] text-right">Actions</TableHead>
+                <TableHead>{i18n['com.affine.admin.profile']()}</TableHead>
+                <TableHead>
+                  {i18n[
+                    'com.affine.integration.mcp-server.credentials.title'
+                  ]()}
+                </TableHead>
+                <TableHead>{i18n['com.affine.admin.status']()}</TableHead>
+                <TableHead className="w-[104px] text-right">
+                  {i18n['com.affine.admin.actions']()}
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -219,10 +233,16 @@ export function WorkspaceAiProfilesEditor({
                   <TableCell>
                     <div className="flex flex-wrap gap-1.5">
                       <Badge variant={profile.enabled ? 'default' : 'outline'}>
-                        {profile.enabled ? 'Enabled' : 'Disabled'}
+                        {profile.enabled
+                          ? i18n['com.affine.admin.enabled']()
+                          : i18n[
+                              'com.affine.integration.external-mcp.status.disabled'
+                            ]()}
                       </Badge>
                       {profile.isDefault ? (
-                        <Badge variant="outline">Workspace default</Badge>
+                        <Badge variant="outline">
+                          {i18n['com.affine.admin.workspace-default']()}
+                        </Badge>
                       ) : null}
                     </div>
                   </TableCell>
@@ -261,8 +281,10 @@ export function WorkspaceAiProfilesEditor({
                     className="h-24 text-center text-sm text-muted-foreground"
                   >
                     {profilesValidating
-                      ? 'Loading Workspace AI Profiles...'
-                      : 'No AI Profiles configured. Existing enabled credentials remain the compatibility fallback.'}
+                      ? i18n['com.affine.admin.loading-workspace-ai-profiles']()
+                      : i18n[
+                          'com.affine.admin.no-ai-profiles-configured-existing-enabled-credentials-remain-the-compatibility-fallback'
+                        ]()}
                   </TableCell>
                 </TableRow>
               ) : null}
@@ -270,7 +292,9 @@ export function WorkspaceAiProfilesEditor({
           </Table>
           {profileError ? (
             <div className="border-t border-border/70 p-3 text-sm text-destructive">
-              Failed to load Workspace AI Profiles.
+              {i18n[
+                'com.affine.admin.failed-to-load-workspace-ai-profiles'
+              ]()}{' '}
             </div>
           ) : null}
         </div>
@@ -281,21 +305,26 @@ export function WorkspaceAiProfilesEditor({
         >
           <div>
             <div className="text-sm font-semibold">
-              {draft.id ? 'Edit AI Profile' : 'Create AI Profile'}
+              {draft.id
+                ? i18n['com.affine.admin.edit-ai-profile']()
+                : i18n['com.affine.admin.create-ai-profile']()}
             </div>
             <div className="mt-1 text-xs leading-5 text-muted-foreground">
-              A profile with no credentials intentionally disables AI routing
-              for users assigned to it.
+              {i18n[
+                'com.affine.admin.a-profile-with-no-credentials-intentionally-disables-ai-routing-for-users-assigned-to-it'
+              ]()}{' '}
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor={`ai-profile-name-${scope.id}`}>Profile name</Label>
+            <Label htmlFor={`ai-profile-name-${scope.id}`}>
+              {i18n['com.affine.admin.profile-name']()}
+            </Label>
             <Input
               id={`ai-profile-name-${scope.id}`}
               maxLength={120}
               value={draft.name}
-              placeholder="Engineering default"
+              placeholder={i18n['com.affine.admin.engineering-default']()}
               onChange={event =>
                 setDraft(current => ({ ...current, name: event.target.value }))
               }
@@ -304,14 +333,16 @@ export function WorkspaceAiProfilesEditor({
 
           <div className="space-y-2">
             <Label htmlFor={`ai-profile-description-${scope.id}`}>
-              Description
+              {i18n['com.affine.localmind.aiContext.description']()}{' '}
             </Label>
             <Textarea
               id={`ai-profile-description-${scope.id}`}
               maxLength={1000}
               rows={3}
               value={draft.description}
-              placeholder="Department routing policy or ownership notes"
+              placeholder={i18n[
+                'com.affine.admin.department-routing-policy-or-ownership-notes'
+              ]()}
               onChange={event =>
                 setDraft(current => ({
                   ...current,
@@ -322,7 +353,9 @@ export function WorkspaceAiProfilesEditor({
           </div>
 
           <fieldset className="space-y-2">
-            <legend className="text-sm font-medium">Credentials</legend>
+            <legend className="text-sm font-medium">
+              {i18n['com.affine.integration.mcp-server.credentials.title']()}
+            </legend>
             <div className="max-h-56 space-y-1 overflow-y-auto rounded-md border border-border/70 bg-background p-2">
               {credentials.map(credential => (
                 <label
@@ -343,15 +376,18 @@ export function WorkspaceAiProfilesEditor({
                     <span className="block truncate text-xs text-muted-foreground">
                       {credential.provider}
                       {credential.modelId ? ` / ${credential.modelId}` : ''}
-                      {!credential.enabled ? ' / disabled' : ''}
+                      {!credential.enabled
+                        ? i18n['com.affine.admin.disabled']()
+                        : ''}
                     </span>
                   </span>
                 </label>
               ))}
               {!credentials.length ? (
                 <div className="px-2 py-5 text-center text-xs leading-5 text-muted-foreground">
-                  No Workspace AI credentials are available. Create and verify
-                  credentials above before adding them to a profile.
+                  {i18n[
+                    'com.affine.admin.no-workspace-ai-credentials-are-available-create-and-verify-credentials-above-before-adding-them-to-'
+                  ]()}{' '}
                 </div>
               ) : null}
             </div>
@@ -360,7 +396,7 @@ export function WorkspaceAiProfilesEditor({
           <div className="space-y-3 border-t border-border/70 pt-4">
             <div className="flex items-center justify-between gap-4">
               <Label htmlFor={`ai-profile-enabled-${scope.id}`}>
-                Enable profile
+                {i18n['com.affine.admin.enable-profile']()}{' '}
               </Label>
               <Switch
                 id={`ai-profile-enabled-${scope.id}`}
@@ -376,7 +412,7 @@ export function WorkspaceAiProfilesEditor({
             </div>
             <div className="flex items-center justify-between gap-4">
               <Label htmlFor={`ai-profile-default-${scope.id}`}>
-                Workspace default
+                {i18n['com.affine.admin.workspace-default']()}{' '}
               </Label>
               <Switch
                 id={`ai-profile-default-${scope.id}`}
@@ -400,11 +436,13 @@ export function WorkspaceAiProfilesEditor({
                 disabled={isSaving}
                 onClick={resetDraft}
               >
-                Cancel
+                {i18n['com.affine.localmind.aiContext.cancel']()}{' '}
               </Button>
             ) : null}
             <Button type="submit" disabled={!canSave}>
-              {isSaving ? 'Saving...' : 'Save profile'}
+              {isSaving
+                ? i18n['com.affine.admin.saving']()
+                : i18n['com.affine.admin.save-profile']()}
             </Button>
           </div>
         </form>

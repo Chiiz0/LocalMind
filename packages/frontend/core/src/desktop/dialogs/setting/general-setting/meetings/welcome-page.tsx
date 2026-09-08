@@ -27,7 +27,7 @@ export const MeetingsWelcomePage = () => {
       <div className={styles.titleWrapper}>
         <div className={styles.title}>
           {t['com.affine.settings.meetings.setting.welcome']()}
-          <div className={styles.beta}>Beta</div>
+          <div className={styles.beta}>{t['com.affine.ui.beta']()}</div>
         </div>
         <div className={styles.subtitle}>
           {t['com.affine.settings.meetings.setting.prompt']()}

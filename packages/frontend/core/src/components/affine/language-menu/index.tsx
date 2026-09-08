@@ -1,5 +1,6 @@
 import { Menu, MenuItem, MenuTrigger } from '@affine/component/ui/menu';
 import { type I18n, I18nService } from '@affine/core/modules/i18n';
+import { useI18n } from '@affine/i18n';
 import { DoneIcon } from '@blocksuite/icons/rc';
 import { useLiveData, useService } from '@toeverything/infra';
 import type { ReactElement } from 'react';
@@ -17,6 +18,7 @@ const LanguageMenuContent = memo(function LanguageMenuContent({
   current: string;
   onChange: (value: string) => void;
 }) {
+  const t = useI18n();
   return (
     <>
       {i18n.languageList.map(lang => {
@@ -27,7 +29,18 @@ const LanguageMenuContent = memo(function LanguageMenuContent({
             title={lang.name}
             lang={lang.key}
             onSelect={() => onChange(lang.key)}
-            suffix={lang.completeness + '%'}
+            suffix={
+              <span
+                title={t['com.affine.settings.language.coverage']({
+                  percent: String(lang.completeness),
+                })}
+                aria-label={t['com.affine.settings.language.coverage']({
+                  percent: String(lang.completeness),
+                })}
+              >
+                {lang.completeness}%
+              </span>
+            }
             data-selected={selected}
             className={styles.menuItem}
           >

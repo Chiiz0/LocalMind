@@ -386,7 +386,7 @@ export const LinkPreview = ({
           >
             {edgelessLink ? (
               <>
-                [Edgeless]
+                {t['com.affine.ui.edgeless']()}{' '}
                 <AffinePageReference
                   key={link.blockId}
                   pageId={linkGroup.docId}

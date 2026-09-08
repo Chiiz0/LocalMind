@@ -5,38 +5,33 @@ import { ProjectFileRequestModal } from '@affine/core/components/project-file-re
 import { SWRConfigProvider } from '@affine/core/components/providers/swr-config-provider';
 import { NotificationButton } from '@affine/core/components/root-app-sidebar/notification-button';
 import UserInfo from '@affine/core/components/root-app-sidebar/user-info';
-import { WorkspaceSelector } from '@affine/core/components/workspace-selector';
-import { WorkspaceDialogs } from '@affine/core/desktop/dialogs';
-import { getWorkspaceDocPath } from '@affine/core/desktop/route-paths';
-import {
-  MenuItem as SidebarMenuItem,
-  QuickSearchInput,
-} from '@affine/core/modules/app-sidebar/views';
+import { getProjectPath } from '@affine/core/desktop/route-paths';
+import { MenuItem as SidebarMenuItem } from '@affine/core/modules/app-sidebar/views';
 import {
   DefaultServerService,
   GraphQLService,
-  WorkspaceServerService,
 } from '@affine/core/modules/cloud';
 import { useAppLayoutReady } from '@affine/core/modules/desktop-api';
-import { WorkspaceDialogService } from '@affine/core/modules/dialogs';
-import { NotificationCountService } from '@affine/core/modules/notification';
-import { QuickSearchContainer } from '@affine/core/modules/quicksearch';
-import { CMDKQuickSearchService } from '@affine/core/modules/quicksearch/services/cmdk';
 import {
-  type Workspace,
-  type WorkspaceMetadata,
-} from '@affine/core/modules/workspace';
-import { UserFriendlyError } from '@affine/error';
+  projectErrorMessage,
+  reportProjectError,
+} from '@affine/core/modules/project-resources/error';
+import { useProjectRefresh } from '@affine/core/modules/project-resources/realtime';
+import {
+  ProjectsQuickSearchSession,
+  QuickSearchContainer,
+  QuickSearchService,
+} from '@affine/core/modules/quicksearch';
 import {
   confirmCopilotBlockerSuggestionMutation,
   copilotContextProjectCreateMutation,
-  copilotContextProjectDocumentAddMutation,
-  copilotContextProjectDocumentRemoveMutation,
   copilotContextProjectUpdateMutation,
   copilotWorkbenchProjectsGetQuery,
   copilotWorkbenchTaskPanelGetQuery,
   createCopilotBlockerMutation,
   leaveCopilotContextProjectMutation,
+  projectResourcePathQuery,
+  projectResourceQuery,
   removeCopilotContextProjectMemberMutation,
   sendCopilotProjectInvitationMutation,
   setCopilotContextProjectAiPolicyMutation,
@@ -44,40 +39,46 @@ import {
 } from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
 import {
+  AiIcon,
   ArrowLeftSmallIcon,
   CloseIcon,
+  FolderIcon,
+  SearchIcon,
   SettingsIcon,
   SidebarIcon,
 } from '@blocksuite/icons/rc';
-import {
-  FrameworkScope,
-  useService,
-  useServiceOptional,
-} from '@toeverything/infra';
+import type { OfficeAiContext } from '@localmind/office';
+import { FrameworkScope, useFramework, useService } from '@toeverything/infra';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import {
+  useLocation,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from 'react-router-dom';
 
-import { useWorkbenchHost } from './host';
 import * as styles from './index.css';
 import {
   ProjectCollaboration,
   type ProjectCollaborationPendingKey,
 } from './project-collaboration';
+import { ProjectFiles } from './project-files';
+import { ProjectOverview } from './project-overview';
 import { ProjectResourcePreview } from './project-resource-preview';
+import { ProjectShellSettings } from './project-shell-settings';
+import { ProjectSummary } from './project-summary';
 import { ProjectTree } from './project-tree';
-import { SourceDocumentPeek } from './source-document-peek';
 import { TaskPanel } from './task-panel';
 import {
   EMPTY_TASK_PANEL,
-  isWorkbenchDocumentOpenable,
   type WorkbenchBlockerDraft,
-  type WorkbenchDocument,
   type WorkbenchPanelTaskAction,
   type WorkbenchProject,
   type WorkbenchProjectMember,
   type WorkbenchTask,
 } from './types';
 import { useAccessRequestConfirmation } from './use-access-request-confirmation';
+import { useProjectTaskDecision } from './use-project-task-decision';
 import { WorkbenchConversation } from './workbench-conversation';
 import { executeWorkbenchTaskAction } from './workbench-task-action';
 
@@ -85,125 +86,121 @@ export const Component = () => {
   useAppLayoutReady();
 
   const defaultServer = useService(DefaultServerService).server;
-  const { hostMetadata, hostWorkspace, selectHost } = useWorkbenchHost();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const seeded = useRef(false);
   const [searchParams, setSearchParams] = useSearchParams();
-  const [peekDocument, setPeekDocument] = useState<WorkbenchDocument | null>(
-    null
-  );
-  const selectedProjectId = searchParams.get('project');
-  const selectedResourceId = searchParams.get('resource');
+  const {
+    projectId: selectedProjectId = null,
+    resourceId: selectedResourceId = null,
+  } = useParams();
+
+  useEffect(() => {
+    if (
+      !selectedProjectId ||
+      !selectedResourceId ||
+      seeded.current ||
+      window.history.state?.idx !== 0 ||
+      location.state?.projectHistorySeeded
+    )
+      return;
+    seeded.current = true;
+    const target = location.pathname + location.search + location.hash;
+    // A shared resource link needs a Project entry to return to on browser Back.
+    // Seed the current entry before the router pushes, without racing two navigations.
+    window.history.replaceState(
+      window.history.state,
+      '',
+      getProjectPath(selectedProjectId)
+    );
+    void Promise.resolve(
+      navigate(target, {
+        state: { ...location.state, projectHistorySeeded: true },
+      })
+    ).catch(reportProjectError);
+  }, [location, navigate, selectedProjectId, selectedResourceId]);
 
   const selectResource = useCallback(
     (projectId: string, resourceId: string | null) => {
-      setPeekDocument(null);
-      setSearchParams(
-        current => {
-          const next = new URLSearchParams(current);
-          next.set('project', projectId);
-          if (resourceId) next.set('resource', resourceId);
-          else next.delete('resource');
-          return next;
-        },
-        { replace: true }
-      );
+      navigate(getProjectPath(projectId, resourceId));
     },
-    [setSearchParams]
+    [navigate]
   );
 
   const selectProject = useCallback(
     (projectId: string | null) => {
-      setSearchParams(
-        current => {
-          const next = new URLSearchParams(current);
-          if (next.get('project') !== projectId) next.delete('resource');
-          if (projectId) {
-            next.set('project', projectId);
-          } else {
-            next.delete('project');
-          }
-          return next;
-        },
-        { replace: true }
-      );
+      navigate(getProjectPath(projectId));
     },
-    [setSearchParams]
+    [navigate]
   );
 
-  const hostServer =
-    hostWorkspace?.scope.get(WorkspaceServerService).server ?? defaultServer;
-
   return (
-    <FrameworkScope scope={hostServer?.scope}>
-      <FrameworkScope scope={hostWorkspace?.scope}>
-        <SWRConfigProvider>
-          <ProjectFileRequestModal
-            requestId={searchParams.get('fileRequest')}
-            onClose={() =>
-              setSearchParams(
-                current => {
-                  const next = new URLSearchParams(current);
-                  next.delete('fileRequest');
-                  return next;
-                },
-                { replace: true }
-              )
-            }
-          />
-          {hostWorkspace ? (
-            <>
-              <WorkspaceDialogs />
-              <QuickSearchContainer />
-            </>
-          ) : null}
-          <IntelligenceWorkbench
-            hostWorkspace={hostWorkspace ?? undefined}
-            hostMetadata={hostMetadata}
-            selectedProjectId={selectedProjectId}
-            selectedResourceId={selectedResourceId}
-            onSelectResource={selectResource}
-            peekDocument={peekDocument}
-            onSelectHost={selectHost}
-            onSelectProject={selectProject}
-            onOpenDocument={setPeekDocument}
-            onCloseDocument={() => setPeekDocument(null)}
-          />
-        </SWRConfigProvider>
-      </FrameworkScope>
+    <FrameworkScope scope={defaultServer?.scope}>
+      <SWRConfigProvider>
+        <QuickSearchContainer />
+        <ProjectFileRequestModal
+          requestId={searchParams.get('fileRequest')}
+          onClose={() =>
+            setSearchParams(
+              current => {
+                const next = new URLSearchParams(current);
+                next.delete('fileRequest');
+                return next;
+              },
+              { replace: true }
+            )
+          }
+        />
+        <IntelligenceWorkbench
+          selectedProjectId={selectedProjectId}
+          selectedResourceId={selectedResourceId}
+          onSelectResource={selectResource}
+          onSelectProject={selectProject}
+        />
+      </SWRConfigProvider>
     </FrameworkScope>
   );
 };
 
 type IntelligenceWorkbenchProps = {
-  hostWorkspace?: Workspace;
-  hostMetadata: WorkspaceMetadata | null;
   selectedProjectId: string | null;
   selectedResourceId: string | null;
   onSelectResource: (projectId: string, resourceId: string | null) => void;
-  peekDocument: WorkbenchDocument | null;
-  onSelectHost: (metadata: WorkspaceMetadata) => void;
   onSelectProject: (projectId: string | null) => void;
-  onOpenDocument: (document: WorkbenchDocument) => void;
-  onCloseDocument: () => void;
 };
 
 const IntelligenceWorkbench = ({
-  hostWorkspace,
-  hostMetadata,
   selectedProjectId,
   selectedResourceId,
   onSelectResource,
-  peekDocument,
-  onSelectHost,
   onSelectProject,
-  onOpenDocument,
-  onCloseDocument,
 }: IntelligenceWorkbenchProps) => {
   const t = useI18n();
   const navigate = useNavigate();
+  const framework = useFramework();
+  const quickSearch = useService(QuickSearchService).quickSearch;
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [officeContext, setOfficeContext] = useState<OfficeAiContext>();
+  const [mobileView, setMobileView] = useState<'files' | 'chat'>('files');
+  useEffect(() => {
+    setFullscreen(false);
+    setMobileView('files');
+  }, [selectedProjectId, selectedResourceId]);
+  const openSearch = useCallback(() => {
+    quickSearch.show(
+      [framework.createEntity(ProjectsQuickSearchSession)],
+      result => {
+        if (result)
+          navigate(
+            getProjectPath(result.payload.projectId, result.payload.resourceId)
+          );
+      },
+      { placeholder: { i18nKey: 'com.affine.localmind.workbench.projects' } }
+    );
+  }, [framework, navigate, quickSearch]);
+  useEffect(() => () => quickSearch.hide(), [quickSearch]);
   const graphqlService = useService(GraphQLService);
-  const notificationCount = useService(NotificationCountService);
-  const workspaceDialogService = useServiceOptional(WorkspaceDialogService);
-  const quickSearchService = useServiceOptional(CMDKQuickSearchService);
   const { openConfirmModal } = useConfirmModal();
   const [pendingMutationKey, setPendingMutationKey] = useState<string | null>(
     null
@@ -265,13 +262,44 @@ const IntelligenceWorkbench = ({
     },
     {
       suspense: false,
-      refreshInterval: 5000,
       shouldRetryOnError: false,
     }
   );
   const projects = projectsData?.currentUser?.copilot.contextProjects ?? [];
   const selectedProject =
     projects.find(project => project.id === selectedProjectId) ?? null;
+  const resourceQuery = useQuery(
+    selectedProjectId && selectedResourceId
+      ? {
+          query: projectResourceQuery,
+          variables: {
+            projectId: selectedProjectId,
+            resourceId: selectedResourceId,
+          },
+        }
+      : undefined,
+    { suspense: false, shouldRetryOnError: false }
+  );
+  const resourcePath = useQuery(
+    selectedProjectId && selectedResourceId
+      ? {
+          query: projectResourcePathQuery,
+          variables: {
+            projectId: selectedProjectId,
+            resourceId: selectedResourceId,
+          },
+        }
+      : undefined,
+    { suspense: false, shouldRetryOnError: false }
+  );
+  useProjectRefresh(selectedProjectId, 'resource', () =>
+    Promise.all([resourceQuery.mutate(), resourcePath.mutate()])
+  );
+  const resource = resourceQuery.data?.projectResource;
+  const resourceIsFolder = resource?.kind === 'folder';
+  const directoryId = resourceIsFolder
+    ? resource.id
+    : (resource?.parentId ?? null);
   const collaborationProject =
     projects.find(project => project.id === collaborationProjectId) ?? null;
 
@@ -287,20 +315,14 @@ const IntelligenceWorkbench = ({
     },
     {
       suspense: false,
-      refreshInterval: 5000,
       shouldRetryOnError: false,
     }
   );
   const taskPanel =
     taskPanelData?.currentUser?.copilot.workbenchTaskPanel ?? EMPTY_TASK_PANEL;
 
-  useEffect(() => {
-    const subscription = notificationCount.revision$.subscribe(revision => {
-      if (!revision) return;
-      Promise.all([refreshProjects(), refreshTaskPanel()]).catch(console.error);
-    });
-    return () => subscription.unsubscribe();
-  }, [notificationCount, refreshProjects, refreshTaskPanel]);
+  useProjectRefresh(null, 'list', refreshProjects);
+  useProjectRefresh(selectedProjectId, 'task', refreshTaskPanel);
 
   useEffect(() => {
     if (
@@ -310,6 +332,9 @@ const IntelligenceWorkbench = ({
       selectedProjectId &&
       !selectedProject
     ) {
+      notify.error({
+        title: t['com.affine.localmind.project-error.permission'](),
+      });
       onSelectProject(null);
     }
   }, [
@@ -319,33 +344,13 @@ const IntelligenceWorkbench = ({
     projectsLoading,
     selectedProject,
     selectedProjectId,
-  ]);
-
-  useEffect(() => {
-    if (!peekDocument || projectsLoading || projectsError) {
-      return;
-    }
-    const stillGranted = selectedProject?.documents.some(
-      document =>
-        document.status === 'granted' &&
-        document.workspaceId === peekDocument.workspaceId &&
-        document.docId === peekDocument.docId
-    );
-    if (!stillGranted) {
-      onCloseDocument();
-    }
-  }, [
-    onCloseDocument,
-    peekDocument,
-    projectsError,
-    projectsLoading,
-    selectedProject,
+    t,
   ]);
 
   const reportMutationError = useCallback((caught: unknown, title: string) => {
     notify.error({
       title,
-      message: UserFriendlyError.fromAny(caught).message,
+      message: projectErrorMessage(caught),
     });
   }, []);
 
@@ -438,146 +443,6 @@ const IntelligenceWorkbench = ({
       refreshTaskPanel,
       reportMutationError,
       selectedProjectId,
-      t,
-    ]
-  );
-
-  const addDocuments = useCallback(
-    (project: WorkbenchProject, requestedLevel: 'read' | 'write') => {
-      if (!hostWorkspace || !workspaceDialogService) return;
-      const existingIds = new Set(
-        project.documents
-          .filter(document => document.workspaceId === hostWorkspace.id)
-          .flatMap(document => (document.docId ? [document.docId] : []))
-      );
-      const nextSortOrder =
-        Math.max(-1, ...project.documents.map(document => document.sortOrder)) +
-        1;
-      workspaceDialogService.open('doc-selector', { init: [] }, selectedIds => {
-        if (!selectedIds?.length) return;
-        void (async () => {
-          setPendingMutationKey(`project:${project.id}:add-documents`);
-          try {
-            const candidates = [...new Set(selectedIds)].filter(
-              docId => !existingIds.has(docId)
-            );
-            if (!candidates.length) return;
-            const results = await Promise.allSettled(
-              candidates.map((docId, index) =>
-                graphqlService.gql({
-                  query: copilotContextProjectDocumentAddMutation,
-                  variables: {
-                    input: {
-                      projectId: project.id,
-                      workspaceId: hostWorkspace.id,
-                      docId,
-                      requestedLevel,
-                      requestedTitle:
-                        hostWorkspace.docCollection.meta.getDocMeta(docId)
-                          ?.title ?? undefined,
-                      sortOrder: nextSortOrder + index,
-                    },
-                  },
-                })
-              )
-            );
-            const fulfilled = results.flatMap(result =>
-              result.status === 'fulfilled' ? [result.value] : []
-            );
-            const grantedCount = fulfilled.filter(
-              result =>
-                result.addCopilotContextProjectDocument.outcome === 'granted'
-            ).length;
-            const requestedCount = fulfilled.length - grantedCount;
-            if (fulfilled.length) {
-              await Promise.all([refreshProjects(), refreshTaskPanel()]);
-              notify.success({
-                title: t['com.affine.localmind.workbench.document.addResult']({
-                  granted: String(grantedCount),
-                  requested: String(requestedCount),
-                }),
-              });
-            }
-            const rejected = results.find(
-              (result): result is PromiseRejectedResult =>
-                result.status === 'rejected'
-            );
-            if (rejected) {
-              reportMutationError(
-                rejected.reason,
-                t['com.affine.localmind.workbench.document.addFailed']()
-              );
-            }
-          } finally {
-            setPendingMutationKey(null);
-          }
-        })().catch(console.error);
-      });
-    },
-    [
-      graphqlService,
-      hostWorkspace,
-      refreshProjects,
-      refreshTaskPanel,
-      reportMutationError,
-      t,
-      workspaceDialogService,
-    ]
-  );
-
-  const removeDocument = useCallback(
-    (project: WorkbenchProject, document: WorkbenchDocument) => {
-      if (!document.docId) return;
-      const docId = document.docId;
-      openConfirmModal({
-        title: t['com.affine.localmind.workbench.document.removeConfirm'](),
-        description:
-          t['com.affine.localmind.workbench.document.removeDescription'](),
-        confirmText: t['com.affine.localmind.workbench.document.remove'](),
-        cancelText: t['Cancel'](),
-        confirmButtonOptions: { variant: 'error' },
-        onConfirm: async () => {
-          setPendingMutationKey(`project:${project.id}:remove:${docId}`);
-          try {
-            await graphqlService.gql({
-              query: copilotContextProjectDocumentRemoveMutation,
-              variables: {
-                input: {
-                  projectId: project.id,
-                  workspaceId: document.workspaceId,
-                  docId,
-                },
-              },
-            });
-            if (
-              peekDocument?.workspaceId === document.workspaceId &&
-              peekDocument.docId === docId
-            ) {
-              onCloseDocument();
-            }
-            await Promise.all([refreshProjects(), refreshTaskPanel()]);
-            notify.success({
-              title: t['com.affine.localmind.workbench.document.removed'](),
-            });
-          } catch (caught) {
-            reportMutationError(
-              caught,
-              t['com.affine.localmind.workbench.document.removeFailed']()
-            );
-          } finally {
-            setPendingMutationKey(null);
-          }
-        },
-      });
-    },
-    [
-      graphqlService,
-      onCloseDocument,
-      openConfirmModal,
-      peekDocument,
-      refreshProjects,
-      refreshTaskPanel,
-      reportMutationError,
       t,
     ]
   );
@@ -775,9 +640,18 @@ const IntelligenceWorkbench = ({
   ]);
 
   const confirmAccessRequest = useAccessRequestConfirmation();
+  const decideProjectTask = useProjectTaskDecision();
   const controlTask = useCallback(
     async (task: WorkbenchTask, action: WorkbenchPanelTaskAction) => {
       if (pendingTaskAction || !task.availableActions.includes(action)) return;
+      if (
+        task.projectTask &&
+        (action === 'approve' || action === 'reject' || action === 'cancel')
+      ) {
+        if (await decideProjectTask(task.projectTask, action))
+          await refreshTaskPanel();
+        return;
+      }
       if (action === 'approve' && task.kind === 'run') {
         navigate(
           `/tasks?${new URLSearchParams({ taskId: task.id, filter: 'approval' })}`
@@ -823,6 +697,7 @@ const IntelligenceWorkbench = ({
     },
     [
       confirmAccessRequest,
+      decideProjectTask,
       graphqlService,
       navigate,
       pendingTaskAction,
@@ -874,10 +749,10 @@ const IntelligenceWorkbench = ({
         const error = new Error(
           t['com.affine.localmind.workbench.blocker.selectSuggestedProject']()
         );
-        reportMutationError(
-          error,
-          t['com.affine.localmind.workbench.blocker.createFailed']()
-        );
+        notify.error({
+          title: t['com.affine.localmind.workbench.blocker.createFailed'](),
+          message: error.message,
+        });
         throw error;
       }
       try {
@@ -941,15 +816,6 @@ const IntelligenceWorkbench = ({
     [navigate]
   );
 
-  const openProjectDocument = useCallback(
-    (projectId: string, document: WorkbenchDocument) => {
-      if (!isWorkbenchDocumentOpenable(document)) return;
-      onSelectProject(projectId);
-      onOpenDocument(document);
-    },
-    [onOpenDocument, onSelectProject]
-  );
-
   return (
     <main className={styles.root} data-testid="intelligence-workbench">
       <aside
@@ -960,23 +826,12 @@ const IntelligenceWorkbench = ({
       >
         <div className={styles.railHeader}>
           <div className={styles.workspaceAndAccount}>
-            {hostMetadata ? (
-              <div className={styles.workspaceSelector}>
-                <WorkspaceSelector
-                  workspaceMetadata={hostMetadata}
-                  onSelectWorkspace={metadata => {
-                    onSelectHost(metadata);
-                    setMobileNavigationOpen(false);
-                  }}
-                  showEnableCloudButton
-                  showArrowDownIcon
-                  showSyncStatus
-                  dense
-                />
-              </div>
-            ) : (
-              <strong>LocalMind</strong>
-            )}
+            <SidebarMenuItem
+              icon={<ArrowLeftSmallIcon />}
+              onClick={() => navigate('/')}
+            >
+              {t['com.affine.localmind.workbench.returnToWorkspace']()}
+            </SidebarMenuItem>
             <UserInfo />
             <span className={styles.mobileRailClose}>
               <IconButton
@@ -987,64 +842,34 @@ const IntelligenceWorkbench = ({
               />
             </span>
           </div>
-          <QuickSearchInput
-            className={styles.quickSearch}
-            onClick={() => quickSearchService?.toggle()}
-          />
           <div className={styles.railUtilities}>
-            {hostWorkspace ? (
-              <SidebarMenuItem
-                icon={<ArrowLeftSmallIcon />}
-                onClick={() =>
-                  navigate(getWorkspaceDocPath(hostWorkspace.id, 'all'))
-                }
-              >
-                {t['com.affine.localmind.workbench.returnToWorkspace']()}
-              </SidebarMenuItem>
-            ) : null}
             <NotificationButton />
-            {workspaceDialogService ? (
-              <SidebarMenuItem
-                icon={<SettingsIcon />}
-                onClick={() =>
-                  workspaceDialogService.open('setting', {
-                    activeTab: 'appearance',
-                  })
-                }
-              >
-                {t['com.affine.settingSidebar.title']()}
-              </SidebarMenuItem>
-            ) : null}
+            <SidebarMenuItem
+              icon={<SettingsIcon />}
+              onClick={() => setSettingsOpen(true)}
+            >
+              {t['com.affine.settingSidebar.title']()}
+            </SidebarMenuItem>
+            <SidebarMenuItem icon={<SearchIcon />} onClick={openSearch}>
+              {t['Quick search']()}
+            </SidebarMenuItem>
           </div>
         </div>
 
         <ProjectTree
-          workspace={hostWorkspace}
           projects={projects}
           selectedProjectId={selectedProjectId}
-          selectedResourceId={selectedResourceId}
-          onSelectResource={(projectId, resourceId) => {
-            onSelectResource(projectId, resourceId);
-            setMobileNavigationOpen(false);
-          }}
           loading={projectsLoading}
-          error={projectsError?.message}
+          error={projectsError ? projectErrorMessage(projectsError) : undefined}
           mutationsPending={pendingMutationKey !== null}
-          canAddDocuments={!!hostWorkspace}
           onRefresh={() => void refreshProjects()}
           onSelectProject={projectId => {
             onSelectProject(projectId);
             setMobileNavigationOpen(false);
           }}
-          onSelectDocument={(projectId, document) => {
-            openProjectDocument(projectId, document);
-            setMobileNavigationOpen(false);
-          }}
           onCreate={createProject}
           onRename={renameProject}
           onArchive={archiveProject}
-          onAddDocuments={addDocuments}
-          onRemoveDocument={removeDocument}
           onManageCollaboration={project =>
             setCollaborationProjectId(project.id)
           }
@@ -1064,39 +889,139 @@ const IntelligenceWorkbench = ({
         data-testid="intelligence-work-area"
         inert={mobileNavigationOpen || undefined}
       >
-        <TaskPanel
-          panel={taskPanel}
-          loading={taskPanelLoading}
-          error={taskPanelError?.message}
-          pendingAction={pendingTaskAction}
-          navigationToggle={{
-            expanded: mobileNavigationOpen,
-            controls: 'intelligence-project-navigation',
-            icon: <SidebarIcon />,
-            label: t['com.affine.sidebarSwitch.expand'](),
-            onClick: () => setMobileNavigationOpen(true),
-          }}
-          onRefresh={() => void refreshTaskPanel()}
-          onOpenTask={openTask}
-          onViewAll={viewAllTasks}
-          onAction={controlTask}
-          selectedProjectId={selectedProjectId}
-          onCreateBlocker={createBlocker}
-        />
+        <header className={styles.projectHeader}>
+          <span className={styles.mobileRailClose}>
+            <IconButton
+              size="20"
+              icon={<SidebarIcon />}
+              aria-label={t['com.affine.sidebarSwitch.expand']()}
+              onClick={() => setMobileNavigationOpen(true)}
+            />
+          </span>
+          <nav
+            className={styles.projectBreadcrumbs}
+            aria-label={t['com.affine.localmind.project-files.root']()}
+          >
+            <button
+              onClick={() =>
+                selectedProject && onSelectResource(selectedProject.id, null)
+              }
+            >
+              {selectedProject?.name ??
+                t['com.affine.localmind.workbench.projects.all']()}
+            </button>
+            {resourcePath.data?.projectResourcePath.map(part => (
+              <button
+                key={part.id}
+                aria-current={
+                  part.id === selectedResourceId ? 'page' : undefined
+                }
+                onClick={() =>
+                  selectedProject &&
+                  onSelectResource(selectedProject.id, part.id)
+                }
+              >
+                {part.title}
+              </button>
+            ))}
+          </nav>
+          {selectedProject?.canManage ? (
+            <ProjectSummary
+              key={selectedProject.id}
+              projectId={selectedProject.id}
+              projectName={selectedProject.name}
+            />
+          ) : null}
+          {selectedProject ? (
+            <IconButton
+              size="20"
+              icon={<SettingsIcon />}
+              tooltip={t['com.affine.localmind.workbench.project.actions']()}
+              aria-label={t['com.affine.localmind.workbench.project.actions']()}
+              onClick={() => setCollaborationProjectId(selectedProject.id)}
+            />
+          ) : null}
+          {selectedProject ? (
+            <div role="tablist" className={styles.mobileViewTabs}>
+              <IconButton
+                role="tab"
+                size="20"
+                icon={<FolderIcon />}
+                aria-selected={mobileView === 'files'}
+                aria-label={t['com.affine.localmind.project-files.title']()}
+                onClick={() => setMobileView('files')}
+              />
+              <IconButton
+                role="tab"
+                size="20"
+                icon={<AiIcon />}
+                aria-selected={mobileView === 'chat'}
+                aria-label={t['com.affine.localmind.project-files.chat']()}
+                onClick={() => setMobileView('chat')}
+              />
+            </div>
+          ) : null}
+        </header>
         <div
           className={styles.conversationAndPeek}
-          data-peek={!!peekDocument || !!selectedResourceId}
-          data-resource-open={!!selectedResourceId}
+          data-project={!!selectedProject}
+          data-fullscreen={fullscreen}
+          data-view={mobileView}
         >
+          {!selectedProjectId ? (
+            <ProjectOverview
+              projects={projects}
+              loading={projectsLoading}
+              error={
+                projectsError ? projectErrorMessage(projectsError) : undefined
+              }
+              onRefresh={() => void refreshProjects()}
+            />
+          ) : null}
           {selectedProject ? (
-            <div
-              className={styles.conversationPane}
-              hidden={!!selectedResourceId}
-            >
+            <div className={styles.resourcePane}>
+              <div
+                className={styles.filesPane}
+                hidden={!!selectedResourceId && !resourceIsFolder}
+              >
+                <ProjectFiles
+                  key={selectedProject.id}
+                  projectId={selectedProject.id}
+                  parentId={directoryId}
+                  selectedResourceId={selectedResourceId}
+                  onOpen={resourceId =>
+                    onSelectResource(selectedProject.id, resourceId)
+                  }
+                />
+              </div>
+              {selectedResourceId && !resourceIsFolder ? (
+                <ProjectResourcePreview
+                  key={`${selectedProject.id}:${selectedResourceId}`}
+                  projectId={selectedProject.id}
+                  resourceId={selectedResourceId}
+                  fullscreen={fullscreen}
+                  onToggleFullscreen={() => setFullscreen(value => !value)}
+                  onOfficeContextChange={setOfficeContext}
+                  onClose={() =>
+                    onSelectResource(selectedProject.id, directoryId)
+                  }
+                />
+              ) : null}
+            </div>
+          ) : null}
+          {selectedProject ? (
+            <div className={styles.conversationPane} hidden={fullscreen}>
               <WorkbenchConversation
                 onDocumentsChanged={refreshProjects}
                 selectedProjectId={selectedProject.id}
                 selectedProjectName={selectedProject.name}
+                officeContext={
+                  officeContext &&
+                  'projectId' in officeContext &&
+                  officeContext.projectId === selectedProject.id
+                    ? officeContext
+                    : undefined
+                }
                 onOpenResource={resourceId =>
                   onSelectResource(selectedProject.id, resourceId)
                 }
@@ -1104,30 +1029,22 @@ const IntelligenceWorkbench = ({
               />
             </div>
           ) : null}
-          {peekDocument && isWorkbenchDocumentOpenable(peekDocument) ? (
-            <aside className={styles.peekPane}>
-              <SourceDocumentPeek
-                workspaceId={peekDocument.workspaceId}
-                docId={peekDocument.docId}
-                requestedLevel={peekDocument.requestedLevel}
-                title={peekDocument.title ?? undefined}
-                onClose={onCloseDocument}
-              />
-            </aside>
-          ) : null}
-          {selectedProject && selectedResourceId ? (
-            <aside className={styles.peekPane}>
-              <ProjectResourcePreview
-                key={`${selectedProject.id}:${selectedResourceId}`}
-                projectId={selectedProject.id}
-                resourceId={selectedResourceId}
-                onOpenResource={resourceId =>
-                  onSelectResource(selectedProject.id, resourceId)
-                }
-                onClose={() => onSelectResource(selectedProject.id, null)}
-              />
-            </aside>
-          ) : null}
+        </div>
+        <div className={styles.taskArea}>
+          <TaskPanel
+            panel={taskPanel}
+            loading={taskPanelLoading}
+            error={
+              taskPanelError ? projectErrorMessage(taskPanelError) : undefined
+            }
+            pendingAction={pendingTaskAction}
+            onRefresh={() => void refreshTaskPanel()}
+            onOpenTask={openTask}
+            onViewAll={viewAllTasks}
+            onAction={controlTask}
+            selectedProjectId={selectedProjectId}
+            onCreateBlocker={createBlocker}
+          />
         </div>
       </section>
       {collaborationProject ? (
@@ -1147,6 +1064,10 @@ const IntelligenceWorkbench = ({
           onLeave={leaveProject}
         />
       ) : null}
+      <ProjectShellSettings
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+      />
     </main>
   );
 };

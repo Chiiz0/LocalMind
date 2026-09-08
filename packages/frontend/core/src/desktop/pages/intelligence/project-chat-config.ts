@@ -5,20 +5,17 @@ import { GraphQLService } from '@affine/core/modules/cloud';
 import {
   type ProjectResourceFieldsFragment,
   projectResourceQuery,
-  searchProjectResourcesQuery,
 } from '@affine/graphql';
 import { I18n } from '@affine/i18n';
-import type { LinkedMenuItem } from '@blocksuite/affine/widgets/linked-doc';
-import {
-  ArrowLeftSmallIcon,
-  ArrowRightSmallIcon,
-  PageIcon,
-} from '@blocksuite/icons/lit';
+import { PageIcon } from '@blocksuite/icons/lit';
 import { type Signal, signal } from '@preact/signals-core';
 import { useService } from '@toeverything/infra';
 import { useEffect, useMemo } from 'react';
 
-export function useProjectChatConfig(projectId: string) {
+export function useProjectChatConfig(
+  projectId: string,
+  openDocuments: () => void
+) {
   const graphql = useService(GraphQLService);
   const reasoning = useService(AIReasoningService);
   const config = useMemo(() => {
@@ -72,98 +69,7 @@ export function useProjectChatConfig(projectId: string) {
     };
     const searchMenuConfig: SearchMenuConfig = {
       supportsCategories: false,
-      getDocMenuGroup: (query, action, abortSignal) => {
-        const ownerSignal = controller.signal;
-        const items = signal<LinkedMenuItem[]>([]);
-        const loading = signal(false);
-        const load = async (
-          cursor?: string,
-          previous: (string | undefined)[] = []
-        ) => {
-          if (loading.value || abortSignal.aborted || ownerSignal.aborted)
-            return;
-          loading.value = true;
-          try {
-            const result = await graphql.gql({
-              query: searchProjectResourcesQuery,
-              variables: {
-                projectId,
-                query: query.slice(0, 128),
-                cursor,
-                limit: 20,
-              },
-              signal: AbortSignal.any([abortSignal, ownerSignal]),
-            });
-            if (abortSignal.aborted || ownerSignal.aborted) return;
-            const page = result.searchProjectResources;
-            const selected = page.items.map(item => ({
-              name: `${item.path.map(part => part.title).join(' / ')} (v${item.contentVersion})`,
-              key: item.id,
-              icon: PageIcon(),
-              action: () =>
-                action({
-                  id: item.id,
-                  title: item.title,
-                  tags: [],
-                  createDate: 0,
-                }),
-            }));
-            items.value = [
-              ...(previous.length
-                ? [
-                    {
-                      key: 'project-previous',
-                      name: I18n.t(
-                        'com.affine.localmind.documentCreation.previous'
-                      ),
-                      icon: ArrowLeftSmallIcon(),
-                      action: () =>
-                        load(
-                          previous[previous.length - 1],
-                          previous.slice(0, -1)
-                        ),
-                    },
-                  ]
-                : []),
-              ...selected,
-              ...(page.nextCursor
-                ? [
-                    {
-                      key: 'project-more',
-                      name: I18n.t(
-                        'com.affine.localmind.documentCreation.next'
-                      ),
-                      icon: ArrowRightSmallIcon(),
-                      action: () =>
-                        load(page.nextCursor ?? undefined, [
-                          ...previous,
-                          cursor,
-                        ]),
-                    },
-                  ]
-                : []),
-            ];
-          } catch {
-            if (!abortSignal.aborted && !ownerSignal.aborted)
-              items.value = [
-                {
-                  key: 'project-retry',
-                  name: I18n.t('com.affine.localmind.project-files.retry'),
-                  icon: PageIcon(),
-                  action: () => load(cursor, previous),
-                },
-              ];
-          } finally {
-            loading.value = false;
-          }
-        };
-        load().catch(console.error);
-        return {
-          name: I18n.t('com.affine.localmind.project-files.title'),
-          items,
-          loading,
-        };
-      },
+      getDocMenuGroup: () => ({ name: '', items: [] }),
       getTagMenuGroup: () => ({ name: '', items: [] }),
       getCollectionMenuGroup: () => ({ name: '', items: [] }),
     };
@@ -182,7 +88,13 @@ export function useProjectChatConfig(projectId: string) {
   }, [config]);
   return {
     docDisplayConfig: config.docDisplayConfig,
-    searchMenuConfig: config.searchMenuConfig,
+    searchMenuConfig: {
+      ...config.searchMenuConfig,
+      selectDocuments: {
+        label: I18n.t('com.affine.localmind.aiContext.selectDocuments'),
+        open: openDocuments,
+      },
+    },
     reasoningConfig: {
       enabled: reasoning.enabled,
       setEnabled: reasoning.setEnabled,

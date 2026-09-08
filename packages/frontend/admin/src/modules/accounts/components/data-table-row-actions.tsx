@@ -6,6 +6,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@affine/admin/components/ui/dropdown-menu';
+import { useI18n } from '@affine/i18n';
 import {
   AccountBanIcon,
   DeleteIcon,
@@ -36,6 +37,7 @@ interface DataTableRowActionsProps {
 }
 
 export function DataTableRowActions({ user }: DataTableRowActionsProps) {
+  const i18n = useI18n();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [resetPasswordDialogOpen, setResetPasswordDialogOpen] = useState(false);
   const [disableDialogOpen, setDisableDialogOpen] = useState(false);
@@ -67,13 +69,18 @@ export function DataTableRowActions({ user }: DataTableRowActionsProps) {
     navigator.clipboard
       .writeText(resetPasswordLink)
       .then(() => {
-        toast('Reset password link copied to clipboard');
+        toast(
+          i18n['com.affine.admin.reset-password-link-copied-to-clipboard']()
+        );
         setResetPasswordDialogOpen(false);
       })
       .catch(e => {
-        toast.error('Failed to copy reset password link: ' + e.message);
+        toast.error(
+          i18n['com.affine.admin.failed-to-copy-reset-password-link']() +
+            e.message
+        );
       });
-  }, [resetPasswordLink]);
+  }, [resetPasswordLink, i18n]);
 
   const handleDeleting = useCallback(() => {
     if (isOpen) {
@@ -172,7 +179,9 @@ export function DataTableRowActions({ user }: DataTableRowActionsProps) {
             size="icon"
           >
             <MoreHorizontalIcon fontSize={20} />
-            <span className="sr-only">Open menu</span>
+            <span className="sr-only">
+              {i18n['com.affine.admin.open-menu']()}
+            </span>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-[214px] p-1.5">
@@ -181,14 +190,16 @@ export function DataTableRowActions({ user }: DataTableRowActionsProps) {
             className="px-2 py-[6px] text-sm font-normal gap-2 cursor-pointer"
           >
             <EditIcon fontSize={20} />
-            Edit
+            {i18n['com.affine.collection-bar.action.tooltip.edit']()}{' '}
           </DropdownMenuItem>
           <DropdownMenuItem
             className="px-2 py-[6px] text-sm font-normal gap-2 cursor-pointer"
             onSelect={openResetPasswordDialog}
           >
             <LockIcon fontSize={20} />
-            {user.hasPassword ? 'Reset Password' : 'Setup Account'}
+            {user.hasPassword
+              ? i18n['com.affine.admin.reset-password']()
+              : i18n['com.affine.admin.setup-account']()}
           </DropdownMenuItem>
           {user.disabled && (
             <DropdownMenuItem
@@ -196,7 +207,7 @@ export function DataTableRowActions({ user }: DataTableRowActionsProps) {
               onSelect={openEnableDialog}
             >
               <AccountBanIcon fontSize={20} />
-              Enable Email
+              {i18n['com.affine.admin.enable-email']()}{' '}
             </DropdownMenuItem>
           )}
           <DropdownMenuSeparator />
@@ -206,7 +217,7 @@ export function DataTableRowActions({ user }: DataTableRowActionsProps) {
               onSelect={openDisableDialog}
             >
               <AccountBanIcon fontSize={20} />
-              Disable & Delete data
+              {i18n['com.affine.admin.disable-delete-data']()}{' '}
             </DropdownMenuItem>
           )}
           <DropdownMenuItem
@@ -214,7 +225,7 @@ export function DataTableRowActions({ user }: DataTableRowActionsProps) {
             onSelect={openDeleteDialog}
           >
             <DeleteIcon fontSize={20} />
-            Delete
+            {i18n['com.affine.localmind.aiContext.delete']()}{' '}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

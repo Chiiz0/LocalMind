@@ -64,7 +64,7 @@ export const StorageProgress = ({ onUpgrade }: StorageProgressProgress) => {
   if (loading) {
     if (loadError) {
       // TODO(@catsjuice): i18n
-      return <ErrorMessage>Load error</ErrorMessage>;
+      return <ErrorMessage>{t['com.affine.ui.load-error']()}</ErrorMessage>;
     }
     return <Skeleton height={42} />;
   }

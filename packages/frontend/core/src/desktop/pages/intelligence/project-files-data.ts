@@ -1,4 +1,6 @@
 import { GraphQLService } from '@affine/core/modules/cloud';
+import { officeFormatForFileName } from '@affine/core/modules/office/client';
+import { useProjectRefresh } from '@affine/core/modules/project-resources/realtime';
 import {
   createProjectFileMutation,
   importProjectOfficeMutation,
@@ -7,7 +9,6 @@ import {
   uploadProjectBlobMutation,
 } from '@affine/graphql';
 import { useService } from '@toeverything/infra';
-import { useEffect } from 'react';
 import useSWRInfinite from 'swr/infinite';
 
 export type ProjectFile = ProjectResourceFieldsFragment;
@@ -38,32 +39,21 @@ export function useProjectFolder(input: {
       });
       return response.projectResources;
     },
-    { suspense: false, shouldRetryOnError: false, refreshInterval: 15000 }
+    { suspense: false, shouldRetryOnError: false }
   );
   const { mutate } = query;
-  useEffect(() => {
-    const listener = (event: Event) => {
-      if (event instanceof CustomEvent && event.detail === input.projectId)
-        mutate().catch(console.error);
-    };
-    window.addEventListener('localmind:project-files-changed', listener);
-    return () =>
-      window.removeEventListener('localmind:project-files-changed', listener);
-  }, [input.projectId, mutate]);
+  useProjectRefresh(input.projectId, 'resource', mutate);
   return {
     ...query,
+    // SWR retains the error for the inline state; retries must not reject into
+    // the click handler when the server is still unavailable.
+    retry: () => mutate().catch(() => undefined),
     items: query.error ? [] : (query.data?.flatMap(page => page.items) ?? []),
     hasMore: !!query.data?.at(-1)?.nextCursor,
     loadingMore:
       query.isLoading || !!(query.data && !query.data[query.size - 1]),
     loadMore: () => query.setSize(size => size + 1),
   };
-}
-
-export function projectFilesChanged(projectId: string) {
-  window.dispatchEvent(
-    new CustomEvent('localmind:project-files-changed', { detail: projectId })
-  );
 }
 
 export async function uploadProjectFile(
@@ -73,20 +63,41 @@ export async function uploadProjectFile(
     parentId: string | null;
     file: File;
     requestKey: string;
+    uploadBlob?: (file: File) => Promise<string>;
+    onUploaded?: () => void;
+    signal?: AbortSignal;
   }
 ) {
-  const uploaded = await graphql.gql({
-    query: uploadProjectBlobMutation,
-    variables: { projectId: input.projectId, file: input.file },
-  });
-  if (/\.(docx|xlsx|pptx|pdf)$/i.test(input.file.name)) {
+  const office = /\.(docx|xlsx|pptx|pdf)$/i.test(input.file.name)
+    ? officeFormatForFileName(input.file.name)
+    : null;
+  const file =
+    office && input.file.type !== office.mimeType
+      ? new File([input.file], input.file.name, {
+          type: office.mimeType,
+          lastModified: input.file.lastModified,
+        })
+      : input.file;
+  const blobKey = input.uploadBlob
+    ? await input.uploadBlob(file)
+    : (
+        await graphql.gql({
+          query: uploadProjectBlobMutation,
+          variables: { projectId: input.projectId, file },
+          signal: input.signal,
+        })
+      ).uploadProjectBlob;
+  input.signal?.throwIfAborted();
+  input.onUploaded?.();
+  if (office) {
     const imported = await graphql.gql({
       query: importProjectOfficeMutation,
+      signal: input.signal,
       variables: {
         input: {
           projectId: input.projectId,
           parentId: input.parentId,
-          sourceBlobKey: uploaded.uploadProjectBlob,
+          sourceBlobKey: blobKey,
           sourceFileName: input.file.name,
           title: input.file.name.replace(/\.[^.]+$/, ''),
           idempotencyKey: input.requestKey,
@@ -97,11 +108,12 @@ export async function uploadProjectFile(
   }
   const result = await graphql.gql({
     query: createProjectFileMutation,
+    signal: input.signal,
     variables: {
       input: {
         projectId: input.projectId,
         parentId: input.parentId,
-        blobKey: uploaded.uploadProjectBlob,
+        blobKey,
         title: input.file.name,
         requestKey: input.requestKey,
       },

@@ -5,7 +5,7 @@ import { Transactional } from '@nestjs-cls/transactional';
 import type { TransactionalAdapterPrisma } from '@nestjs-cls/transactional-adapter-prisma';
 import type { ProjectResourceKind } from '@prisma/client';
 
-import { BadRequest, EventBus, readBufferWithLimit } from '../../base';
+import { BadRequest, readBufferWithLimit } from '../../base';
 import { Models } from '../../models';
 import {
   COPILOT_COPY_BLOB_PREFIX,
@@ -15,6 +15,7 @@ import {
   type ProjectActor,
   projectResourceHash,
 } from '../../models/project-resource';
+import type { ProjectEditLeaseProof } from '../../models/project-resource-edit-lease';
 import { parseYDocFromBinary, parseYDocToMarkdown } from '../../native';
 import { DocReader } from '../doc';
 import {
@@ -36,7 +37,7 @@ export type ProjectImportInput = ProjectActor & {
   requestKey: string;
   title?: string;
   kind: Exclude<ProjectResourceKind, 'folder'>;
-  legacyOperationId?: string;
+  editLease?: ProjectEditLeaseProof;
   replace?: {
     resourceId: string;
     expectedContentVersion: number;
@@ -56,8 +57,7 @@ export class ProjectImportService {
     private readonly reader: DocReader,
     private readonly sourceBlobs: WorkspaceBlobStorage,
     private readonly projectBlobs: ProjectBlobStorage,
-    private readonly officeImports: OfficeImportService,
-    private readonly events: EventBus
+    private readonly officeImports: OfficeImportService
   ) {}
 
   async authorizeSource(
@@ -94,28 +94,6 @@ export class ProjectImportService {
     )
       throw new BadRequest('Invalid import source');
     const requestKey = `workspace-import:${projectResourceHash(input.requestKey)}`;
-    const legacy = input.legacyOperationId
-      ? await this.models.copilotDocumentOperation.legacyProjectOperation({
-          ...input,
-          operationId: input.legacyOperationId,
-        })
-      : null;
-    const frozen = legacy
-      ? await this.models.copilotDocumentOperation.copySource({
-          actorId: input.actorId,
-          operationId: legacy.id,
-        })
-      : null;
-    if (
-      legacy &&
-      (!frozen ||
-        frozen.workspaceId !== input.workspaceId ||
-        frozen.documentId !== input.sourceResourceId ||
-        input.replace)
-    )
-      throw new BadRequest(
-        'Historical copy identity does not match its frozen source'
-      );
     const requestHash = projectResourceHash({
       workspaceId: input.workspaceId,
       sourceResourceId: input.sourceResourceId,
@@ -123,12 +101,6 @@ export class ProjectImportService {
       title: input.title ?? null,
       kind: input.kind,
       replace: input.replace ?? null,
-      ...(frozen
-        ? {
-            legacyOperationId: input.legacyOperationId,
-            copyFingerprint: frozen.fingerprint,
-          }
-        : {}),
     });
     await this.models.intelligenceWorkbenchAuthorization.lockProjectDocumentAuthorization(
       { ...input, docId: input.sourceResourceId }
@@ -164,6 +136,11 @@ export class ProjectImportService {
           replacement.id
         )
       : null;
+    if (replacement)
+      await this.models.projectResourceEditLease.assertHeld({
+        ...input,
+        resourceId: replacement.id,
+      });
     if (
       replacement &&
       (replacement.kind !== input.kind ||
@@ -232,6 +209,7 @@ export class ProjectImportService {
         importIdempotencyKey: requestKey,
         projectRequestKey: requestKey,
         projectRequestHash: requestHash,
+        editLease: input.editLease,
         replaceProjectArtifact:
           replacement && replacementRevision
             ? {
@@ -252,10 +230,6 @@ export class ProjectImportService {
         requestKey,
         requestHash,
       });
-      this.events.emitDetached('project.resource.changed', {
-        projectId: input.projectId,
-        resourceId: imported.artifact.id,
-      });
       return this.models.projectResource.get({
         ...input,
         resourceId: imported.artifact.id,
@@ -272,7 +246,7 @@ export class ProjectImportService {
       input.sourceResourceId
     );
     if (!currentSource) throw new BadRequest('Source document is unavailable');
-    const source = frozen ? { bin: frozen.snapshot } : currentSource;
+    const source = currentSource;
     if (
       input.replace &&
       hash(source.bin) !== input.replace.expectedSourceVersion
@@ -307,31 +281,17 @@ export class ProjectImportService {
     const attachments: { key: string; bytes: Buffer; mimeType: string }[] = [];
     let byteSize = inspected.binary.length;
     for (const key of inspected.blobIds) {
-      const preserved = frozen?.assets.find(asset => asset.key === key);
-      if (frozen && !preserved)
-        throw new BadRequest('A frozen source attachment is unavailable');
-      const blob = preserved
-        ? { body: undefined, metadata: undefined }
-        : await this.sourceBlobs.get(input.workspaceId, key);
-      if (!preserved && !blob.body)
+      const blob = await this.sourceBlobs.get(input.workspaceId, key);
+      if (!blob.body)
         throw new BadRequest('A source attachment is unavailable');
-      const bytes = preserved
-        ? Buffer.from(preserved.data)
-        : blob.body
-          ? await readBufferWithLimit(blob.body, 16 * 1024 * 1024)
-          : null;
-      if (!bytes) throw new BadRequest('A source attachment is unavailable');
-      if (preserved) blob.body?.destroy();
+      const bytes = await readBufferWithLimit(blob.body, 16 * 1024 * 1024);
       byteSize += bytes.length;
       if (byteSize > 64 * 1024 * 1024)
         throw new BadRequest('Document import exceeds its total byte limit');
       attachments.push({
         key,
         bytes,
-        mimeType:
-          preserved?.contentType ??
-          blob.metadata?.contentType ??
-          'application/octet-stream',
+        mimeType: blob.metadata?.contentType ?? 'application/octet-stream',
       });
     }
     await this.authorize(input);
@@ -420,10 +380,6 @@ export class ProjectImportService {
       attachmentCount: attachments.length,
       requestKey,
       requestHash,
-    });
-    this.events.emitDetached('project.resource.changed', {
-      projectId: input.projectId,
-      resourceId,
     });
     return resource;
   }

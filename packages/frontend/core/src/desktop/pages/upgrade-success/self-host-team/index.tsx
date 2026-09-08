@@ -61,7 +61,9 @@ const Success = ({ licenseKey }: { licenseKey: string | null }) => {
 
   const onCopy = useCallback(() => {
     if (!licenseKey) {
-      notify.error({ title: 'Copy failed, please try again later' });
+      notify.error({
+        title: t['com.affine.ui.copy-failed-please-try-again-later'](),
+      });
       return;
     }
     copyTextToClipboard(licenseKey)
@@ -74,7 +76,9 @@ const Success = ({ licenseKey }: { licenseKey: string | null }) => {
       })
       .catch(err => {
         console.error(err);
-        notify.error({ title: 'Copy failed, please try again later' });
+        notify.error({
+          title: t['com.affine.ui.copy-failed-please-try-again-later'](),
+        });
       });
   }, [licenseKey, t]);
 

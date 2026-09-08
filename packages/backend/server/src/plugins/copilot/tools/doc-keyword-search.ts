@@ -10,7 +10,6 @@ import type { Models } from '../../../models';
 import type { IndexerService } from '../../indexer';
 import { workspaceSyncRequiredError } from './doc-sync';
 import { toolError } from './error';
-import { resolveAuthorizedProjectDocuments } from './project-doc';
 import { defineTool } from './tool';
 import type { CopilotChatOptions } from './types';
 
@@ -40,9 +39,6 @@ export type WorkspaceKeywordSearchResult = {
   createdByUser?: unknown;
   updatedByUser?: unknown;
 };
-
-const projectDocumentKey = (workspaceId: string, docId: string) =>
-  `${workspaceId}\0${docId}`;
 
 function isoDate(value: unknown) {
   if (value instanceof Date) return value.toISOString();
@@ -303,164 +299,6 @@ export const buildDocKeywordSearchGetter = (
   return searchDocs;
 };
 
-export const buildProjectDocKeywordSearchGetter = (
-  ac: PermissionAccess,
-  indexerService: IndexerService,
-  models: Models,
-  docReader: DocReader,
-  logger: Pick<Console, 'debug' | 'warn'> = console
-) => {
-  return async (options: CopilotChatOptions, query?: string, limit = 20) => {
-    const queryTrimmed = query?.trim();
-    if (!options || !queryTrimmed) {
-      return toolError(
-        'Project Doc Keyword Search Failed',
-        'Missing query for project document search.'
-      );
-    }
-    const boundedLimit = Math.min(Math.max(limit, 1), 100);
-    const initialScope = await resolveAuthorizedProjectDocuments({
-      ac,
-      models,
-      options,
-    });
-    const documentsByWorkspace = new Map<string, string[]>();
-    for (const document of initialScope.documents) {
-      const docIds = documentsByWorkspace.get(document.workspaceId) ?? [];
-      docIds.push(document.docId);
-      documentsByWorkspace.set(document.workspaceId, docIds);
-    }
-
-    let matches: WorkspaceKeywordSearchResult[];
-    try {
-      matches = (
-        await Promise.all(
-          [...documentsByWorkspace].map(async ([workspaceId, docIds]) => {
-            const scopedDocIds = new Set(docIds);
-            const docs = await indexerService.searchDocsByKeyword(
-              workspaceId,
-              queryTrimmed,
-              { docIds, limit: boundedLimit }
-            );
-            return docs
-              .filter(doc => scopedDocIds.has(doc.docId))
-              .map(doc => ({
-                sourceWorkspaceId: workspaceId,
-                docId: doc.docId,
-                blockId: doc.blockId,
-                title: doc.title,
-                highlight: doc.highlight,
-                createdAt: isoDate(doc.createdAt),
-                updatedAt: isoDate(doc.updatedAt),
-                createdByUser: doc.createdByUser,
-                updatedByUser: doc.updatedByUser,
-              }));
-          })
-        )
-      ).flat();
-    } catch (error) {
-      const reason =
-        error instanceof SearchProviderNotFound
-          ? 'not configured'
-          : error instanceof Error
-            ? error.name
-            : 'unknown error';
-      logger.warn(
-        `Project keyword index is unavailable (${reason}); using bounded permission-filtered Markdown search.`
-      );
-      const timestampGroups = await Promise.all(
-        [...documentsByWorkspace].map(async ([workspaceId, docIds]) => ({
-          workspaceId,
-          timestamps: await models.doc.findTimestampsByDocIds(
-            workspaceId,
-            docIds
-          ),
-        }))
-      );
-      const timestampByDocument = new Map<string, number>();
-      for (const group of timestampGroups) {
-        for (const [docId, timestamp] of Object.entries(group.timestamps)) {
-          timestampByDocument.set(
-            projectDocumentKey(group.workspaceId, docId),
-            timestamp
-          );
-        }
-      }
-      const boundedDocuments = initialScope.documents
-        .toSorted(
-          (left, right) =>
-            (timestampByDocument.get(
-              projectDocumentKey(right.workspaceId, right.docId)
-            ) ?? 0) -
-            (timestampByDocument.get(
-              projectDocumentKey(left.workspaceId, left.docId)
-            ) ?? 0)
-        )
-        .slice(0, MARKDOWN_KEYWORD_SEARCH_MAX_DOCUMENTS);
-      const boundedByWorkspace = new Map<string, string[]>();
-      for (const document of boundedDocuments) {
-        const docIds = boundedByWorkspace.get(document.workspaceId) ?? [];
-        docIds.push(document.docId);
-        boundedByWorkspace.set(document.workspaceId, docIds);
-      }
-      matches = (
-        await Promise.all(
-          [...boundedByWorkspace].map(async ([workspaceId, docIds]) => {
-            const docs = await searchReadableMarkdown({
-              ac,
-              models,
-              docReader,
-              logger,
-              workspaceId,
-              userId: options.user as string,
-              projectId: initialScope.projectId,
-              docIds,
-              query: queryTrimmed,
-              limit: boundedLimit,
-            });
-            return docs.map(doc => ({
-              ...doc,
-              sourceWorkspaceId: workspaceId,
-            }));
-          })
-        )
-      ).flat();
-    }
-
-    const currentScope = await resolveAuthorizedProjectDocuments({
-      ac,
-      models,
-      options,
-    });
-    if (currentScope.projectId !== initialScope.projectId) {
-      throw new Error('Project selection changed during document search');
-    }
-    const currentlyAuthorized = new Set(
-      currentScope.documents.map(document =>
-        projectDocumentKey(document.workspaceId, document.docId)
-      )
-    );
-    return matches
-      .filter(
-        match =>
-          !!match.sourceWorkspaceId &&
-          currentlyAuthorized.has(
-            projectDocumentKey(match.sourceWorkspaceId, match.docId)
-          )
-      )
-      .toSorted((left, right) => {
-        const leftUpdated = left.updatedAt
-          ? new Date(left.updatedAt).getTime()
-          : 0;
-        const rightUpdated = right.updatedAt
-          ? new Date(right.updatedAt).getTime()
-          : 0;
-        return rightUpdated - leftUpdated;
-      })
-      .slice(0, boundedLimit);
-  };
-};
-
 export const createDocKeywordSearchTool = (
   searchDocs: (
     query: string,
@@ -500,44 +338,3 @@ export const createDocKeywordSearchTool = (
     },
   });
 };
-
-export const createProjectDocKeywordSearchTool = (
-  searchDocs: (
-    query: string,
-    limit?: number
-  ) => Promise<WorkspaceKeywordSearchResult[] | ReturnType<typeof toolError>>
-) =>
-  defineTool({
-    description:
-      'Search only documents currently granted to the selected global Project. Results retain each source workspace and document id, and the total result count is bounded by limit.',
-    inputSchema: z
-      .object({
-        query: z.string().trim().min(1),
-        limit: z.number().int().min(1).max(100).default(20),
-      })
-      .strict(),
-    execute: async ({ query, limit }) => {
-      try {
-        const docs = await searchDocs(query, limit);
-        if (!Array.isArray(docs)) return docs;
-        return docs.map(doc => ({
-          sourceWorkspaceId: doc.sourceWorkspaceId,
-          docId: doc.docId,
-          title: doc.title,
-          blockId: doc.blockId,
-          highlight: doc.highlight,
-          createdAt: doc.createdAt,
-          updatedAt: doc.updatedAt,
-          createdByUser: doc.createdByUser,
-          updatedByUser: doc.updatedByUser,
-        }));
-      } catch (error) {
-        return toolError(
-          'Project Doc Keyword Search Failed',
-          error instanceof Error
-            ? error.message
-            : 'Project document keyword search failed'
-        );
-      }
-    },
-  });

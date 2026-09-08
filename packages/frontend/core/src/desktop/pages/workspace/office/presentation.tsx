@@ -1,4 +1,5 @@
 import { Button, IconButton } from '@affine/component';
+import { I18n, useI18n } from '@affine/i18n';
 import {
   ArrowDownSmallIcon,
   ArrowUpSmallIcon,
@@ -9,7 +10,7 @@ import {
   ShapeIcon,
 } from '@blocksuite/icons/rc';
 import { nanoid } from 'nanoid';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type {
   OfficeCommand,
@@ -20,6 +21,7 @@ import type {
   PptxSlide,
 } from '../../../../modules/office';
 import { officePackagePartUrl } from '../../../../modules/office';
+import { useOfficeEditorDraft, useOfficeSelectionChange } from './edit-draft';
 import {
   executeAndReloadOfficeCommand,
   type NativeOfficeEditorProps,
@@ -49,6 +51,7 @@ function ShapeLayer({
   packageUrl: string;
   onSelect?: (shape: PptxShape) => void;
 }) {
+  const i18n = useI18n();
   return flattenShapes(slide.shapes).map(shape => {
     const geometry = shape.geometry;
     if (!geometry) return null;
@@ -60,7 +63,11 @@ function ShapeLayer({
     const content = shape.image ? (
       <img
         src={officePackagePartUrl(packageUrl, shape.image.part)}
-        alt={shape.description || shape.name || 'Slide image'}
+        alt={
+          shape.description ||
+          shape.name ||
+          i18n['com.affine.office.slide-image']()
+        }
       />
     ) : (
       shape.text || (shape.type === 'picture' ? 'Image' : shape.name)
@@ -74,11 +81,7 @@ function ShapeLayer({
         ? `rotate(${geometry.rotationDeg}deg)`
         : undefined,
       fontFamily: firstRun?.fontFamily,
-      fontSize: firstRun?.fontSizePt
-        ? `${thumbnail ? firstRun.fontSizePt * 0.13 : firstRun.fontSizePt}pt`
-        : thumbnail
-          ? 3
-          : undefined,
+      fontSize: `${((firstRun?.fontSizePt ?? 18) / state.slideSize.widthPt) * 100}cqw`,
       fontWeight: firstRun?.bold ? 700 : undefined,
       fontStyle: firstRun?.italic ? 'italic' : undefined,
       color: firstRun?.color,
@@ -150,7 +153,11 @@ export function PresentationEditor({
   onRevision,
   onCommentAnchorChange,
   onAiSelectionChange,
+  registerDraft,
+  beforeSelectionChange,
 }: NativeOfficeEditorProps<PptxSemanticState>) {
+  const i18n = useI18n();
+  const changeSelection = useOfficeSelectionChange(beforeSelectionChange);
   const [slideId, setSlideId] = useState(state.slides[0]?.id ?? '');
   const slide =
     state.slides.find(candidate => candidate.id === slideId) ?? state.slides[0];
@@ -172,6 +179,17 @@ export function PresentationEditor({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState('Ready');
+  const savedDraft = useRef({
+    text: selectedShape?.text ?? '',
+    geometry: geometryDraft(selectedShape),
+    notes: slide?.notesText ?? '',
+  });
+  const currentDraft = useRef({ text, geometry, notes });
+  currentDraft.current = { text, geometry, notes };
+  const draftTarget = useRef({ shapeId, slideId });
+  const latestRevision = useRef(revision);
+  if (revision.sequence >= latestRevision.current.sequence)
+    latestRevision.current = revision;
 
   useEffect(() => {
     if (!slide && state.slides[0]) setSlideId(state.slides[0].id);
@@ -180,13 +198,39 @@ export function PresentationEditor({
   useEffect(() => {
     const next = shapes.find(shape => shape.id === shapeId) ?? shapes[0];
     if (next && next.id !== shapeId) setShapeId(next.id);
-    setText(next?.text ?? '');
-    setGeometry(geometryDraft(next));
-  }, [shapeId, shapes]);
+    const changedTarget = draftTarget.current.shapeId !== shapeId;
+    const previous = savedDraft.current;
+    setText(current =>
+      !registerDraft || changedTarget || current === previous.text
+        ? (next?.text ?? '')
+        : current
+    );
+    setGeometry(current =>
+      !registerDraft ||
+      changedTarget ||
+      JSON.stringify(current) === JSON.stringify(previous.geometry)
+        ? geometryDraft(next)
+        : current
+    );
+    savedDraft.current = {
+      ...savedDraft.current,
+      text: next?.text ?? '',
+      geometry: geometryDraft(next),
+    };
+    draftTarget.current.shapeId = shapeId;
+  }, [shapeId, shapes, registerDraft]);
 
   useEffect(() => {
-    setNotes(slide?.notesText ?? '');
-  }, [slide]);
+    const previous = savedDraft.current.notes;
+    const changedTarget = draftTarget.current.slideId !== slideId;
+    setNotes(current =>
+      !registerDraft || changedTarget || current === previous
+        ? (slide?.notesText ?? '')
+        : current
+    );
+    savedDraft.current.notes = slide?.notesText ?? '';
+    draftTarget.current.slideId = slideId;
+  }, [slide, slideId, registerDraft]);
 
   useEffect(() => {
     setThemeColor(state.masters[0]?.themeColors[themeSlot] ?? '#000000');
@@ -223,7 +267,9 @@ export function PresentationEditor({
       if (readOnly || saving) return false;
       setSaving(true);
       setError(null);
-      setStatus(`Previewing ${message}`);
+      setStatus(
+        I18n['com.affine.office.previewing-operation']({ operation: message })
+      );
       try {
         const result = await executeAndReloadOfficeCommand<PptxSemanticState>({
           graphql,
@@ -232,17 +278,22 @@ export function PresentationEditor({
           command,
         });
         onRevision(result.revision, result.state);
-        setStatus(`${message} saved in revision ${result.revision.sequence}`);
+        setStatus(
+          I18n['com.affine.office.operation-saved']({
+            operation: message,
+            version: String(result.revision.sequence),
+          })
+        );
         return true;
       } catch (err) {
-        setError(officeErrorMessage(err));
-        setStatus('Save failed');
+        setError(officeErrorMessage(err, owner));
+        setStatus(i18n['com.affine.office.save-failed']());
         return false;
       } finally {
         setSaving(false);
       }
     },
-    [graphql, onRevision, owner, readOnly, saving]
+    [graphql, onRevision, owner, readOnly, saving, i18n]
   );
 
   const saveText = useCallback(async () => {
@@ -260,7 +311,7 @@ export function PresentationEditor({
         target: { type: 'shape', slideId: slide.id, shapeId: selectedShape.id },
         text,
       },
-      'Shape text'
+      i18n['com.affine.office.shape-text']()
     );
   }, [
     artifactId,
@@ -271,6 +322,8 @@ export function PresentationEditor({
     selectedShape,
     slide,
     text,
+
+    i18n,
   ]);
 
   const saveGeometry = useCallback(async () => {
@@ -294,7 +347,7 @@ export function PresentationEditor({
           rotationDeg: geometry.rotationDeg,
         },
       },
-      'Shape geometry'
+      i18n['com.affine.office.shape-geometry']()
     );
   }, [
     artifactId,
@@ -305,6 +358,8 @@ export function PresentationEditor({
     saving,
     selectedShape,
     slide,
+
+    i18n,
   ]);
 
   const commandBase = useCallback(() => {
@@ -333,10 +388,10 @@ export function PresentationEditor({
           operation: 'office.presentation.slides.reorder',
           slideIds: order,
         },
-        'Slide order'
+        i18n['com.affine.office.slide-order']()
       );
     },
-    [commandBase, runCommand, slide, state.slides]
+    [commandBase, runCommand, slide, state.slides, i18n]
   );
 
   const insertShape = useCallback(async () => {
@@ -357,16 +412,26 @@ export function PresentationEditor({
         fillColor: newShape === 'line' ? undefined : '#E8F0FE',
         lineColor: '#2F6FEB',
       },
-      'Shape insertion'
+      i18n['com.affine.office.shape-insertion']()
     );
     setNewShapeText('');
-  }, [commandBase, newShape, newShapeText, runCommand, slide, state.slideSize]);
+  }, [
+    commandBase,
+    newShape,
+    newShapeText,
+    runCommand,
+    slide,
+    state.slideSize,
+    i18n,
+  ]);
 
   const insertImage = useCallback(
     async (file: File) => {
       if (!slide) return;
       if (!['image/png', 'image/jpeg', 'image/gif'].includes(file.type)) {
-        setError('Slides accepts PNG, JPEG, or GIF images.');
+        setError(
+          i18n['com.affine.office.slides-accepts-png-jpeg-or-gif-images']()
+        );
         return;
       }
       const dataBase64 = await fileBase64(file);
@@ -385,10 +450,10 @@ export function PresentationEditor({
           },
           name: file.name,
         },
-        'Image insertion'
+        i18n['com.affine.office.image-insertion']()
       );
     },
-    [commandBase, runCommand, slide, state.slideSize]
+    [commandBase, runCommand, slide, state.slideSize, i18n]
   );
 
   const saveNotes = useCallback(async () => {
@@ -400,9 +465,9 @@ export function PresentationEditor({
         slideId: slide.id,
         text: notes,
       },
-      'Speaker notes'
+      i18n['com.affine.office.speaker-notes']()
     );
-  }, [commandBase, notes, runCommand, slide]);
+  }, [commandBase, notes, runCommand, slide, i18n]);
 
   const saveThemeColor = useCallback(async () => {
     const master = state.masters[0];
@@ -415,15 +480,97 @@ export function PresentationEditor({
         slot: themeSlot,
         color: themeColor,
       },
-      'Theme color'
+      i18n['com.affine.office.theme-color']()
     );
-  }, [commandBase, runCommand, state.masters, themeColor, themeSlot]);
+  }, [commandBase, runCommand, state.masters, themeColor, themeSlot, i18n]);
+
+  useOfficeEditorDraft(registerDraft, {
+    get hasUnsavedChanges() {
+      return (
+        JSON.stringify(currentDraft.current) !==
+        JSON.stringify(savedDraft.current)
+      );
+    },
+    save: async () => {
+      if (readOnly || saving || !slide)
+        throw new Error(
+          i18n['com.affine.office.office-editor-is-not-writable']()
+        );
+      const draft = currentDraft.current;
+      const commands: {
+        field: 'text' | 'geometry' | 'notes';
+        command: OfficeCommand;
+      }[] = [];
+      if (draft.text !== savedDraft.current.text && selectedShape)
+        commands.push({
+          field: 'text',
+          command: {
+            ...commandBase(),
+            operation: 'office.presentation.shape.text.set',
+            target: {
+              type: 'shape',
+              slideId: slide.id,
+              shapeId: selectedShape.id,
+            },
+            text: draft.text,
+          },
+        });
+      if (
+        JSON.stringify(draft.geometry) !==
+          JSON.stringify(savedDraft.current.geometry) &&
+        selectedShape
+      )
+        commands.push({
+          field: 'geometry',
+          command: {
+            ...commandBase(),
+            operation: 'office.presentation.shape.geometry.set',
+            target: {
+              type: 'shape',
+              slideId: slide.id,
+              shapeId: selectedShape.id,
+            },
+            geometry: draft.geometry,
+          },
+        });
+      if (draft.notes !== savedDraft.current.notes)
+        commands.push({
+          field: 'notes',
+          command: {
+            ...commandBase(),
+            operation: 'office.presentation.notes.text.set',
+            slideId: slide.id,
+            text: draft.notes,
+          },
+        });
+      for (const { field, command } of commands) {
+        const result = await executeAndReloadOfficeCommand<PptxSemanticState>({
+          graphql,
+          owner,
+          kind: 'presentation',
+          command: {
+            ...command,
+            expectedRevisionId: latestRevision.current.id,
+          },
+        });
+        latestRevision.current = result.revision;
+        savedDraft.current = { ...savedDraft.current, [field]: draft[field] };
+        onRevision(result.revision, result.state);
+      }
+    },
+    discard: async () => {
+      currentDraft.current = { ...savedDraft.current };
+      setText(savedDraft.current.text);
+      setGeometry(savedDraft.current.geometry);
+      setNotes(savedDraft.current.notes);
+    },
+  });
 
   if (!slide) {
     return (
       <div className={styles.editor}>
         <div className={styles.emptyState} role="status">
-          This presentation has no slides.
+          {i18n['com.affine.office.this-presentation-has-no-slides']()}{' '}
         </div>
       </div>
     );
@@ -439,21 +586,21 @@ export function PresentationEditor({
   };
 
   return (
-    <div className={styles.editor}>
+    <div className={styles.presentationEditor}>
       <div
         className={styles.toolbar}
         role="toolbar"
-        aria-label="Presentation editing"
+        aria-label={i18n['com.affine.office.presentation-editing']()}
       >
         <span>
-          Slide{' '}
+          {i18n['com.affine.office.slide']()}{' '}
           {state.slides.findIndex(candidate => candidate.id === slide.id) + 1}
         </span>
         <span>{slide.name}</span>
         <IconButton
           size="24"
-          tooltip="Add slide"
-          aria-label="Add slide"
+          tooltip={i18n['com.affine.office.add-slide']()}
+          aria-label={i18n['com.affine.office.add-slide']()}
           disabled={readOnly || saving}
           onClick={() =>
             void runCommand(
@@ -462,7 +609,7 @@ export function PresentationEditor({
                 operation: 'office.presentation.slide.add',
                 afterSlideId: slide.id,
               },
-              'Slide insertion'
+              i18n['com.affine.office.slide-insertion']()
             )
           }
         >
@@ -470,8 +617,8 @@ export function PresentationEditor({
         </IconButton>
         <IconButton
           size="24"
-          tooltip="Duplicate slide"
-          aria-label="Duplicate slide"
+          tooltip={i18n['com.affine.office.duplicate-slide']()}
+          aria-label={i18n['com.affine.office.duplicate-slide']()}
           disabled={readOnly || saving}
           onClick={() =>
             void runCommand(
@@ -480,7 +627,7 @@ export function PresentationEditor({
                 operation: 'office.presentation.slide.duplicate',
                 slideId: slide.id,
               },
-              'Slide duplication'
+              i18n['com.affine.office.slide-duplication']()
             )
           }
         >
@@ -488,8 +635,8 @@ export function PresentationEditor({
         </IconButton>
         <IconButton
           size="24"
-          tooltip="Move slide up"
-          aria-label="Move slide up"
+          tooltip={i18n['com.affine.office.move-slide-up']()}
+          aria-label={i18n['com.affine.office.move-slide-up']()}
           disabled={
             readOnly ||
             saving ||
@@ -501,8 +648,8 @@ export function PresentationEditor({
         </IconButton>
         <IconButton
           size="24"
-          tooltip="Move slide down"
-          aria-label="Move slide down"
+          tooltip={i18n['com.affine.office.move-slide-down']()}
+          aria-label={i18n['com.affine.office.move-slide-down']()}
           disabled={
             readOnly ||
             saving ||
@@ -515,8 +662,8 @@ export function PresentationEditor({
         </IconButton>
         <IconButton
           size="24"
-          tooltip="Delete slide"
-          aria-label="Delete slide"
+          tooltip={i18n['com.affine.office.delete-slide']()}
+          aria-label={i18n['com.affine.office.delete-slide']()}
           disabled={readOnly || saving || state.slides.length === 1}
           onClick={() =>
             void runCommand(
@@ -525,7 +672,7 @@ export function PresentationEditor({
                 operation: 'office.presentation.slide.delete',
                 slideId: slide.id,
               },
-              'Slide deletion'
+              i18n['com.affine.office.slide-deletion']()
             )
           }
         >
@@ -537,7 +684,10 @@ export function PresentationEditor({
         </span>
       </div>
       <div className={styles.slidesBody}>
-        <aside className={styles.slideRail} aria-label="Slide thumbnails">
+        <aside
+          className={styles.slideRail}
+          aria-label={i18n['com.affine.office.slide-thumbnails']()}
+        >
           {state.slides.map((candidate, index) => (
             <button
               type="button"
@@ -545,8 +695,11 @@ export function PresentationEditor({
               data-active={candidate.id === slide.id}
               key={candidate.id}
               onClick={() => {
-                setSlideId(candidate.id);
-                setShapeId(candidate.shapes[0]?.id ?? '');
+                if (candidate.id !== slideId)
+                  changeSelection(() => {
+                    setSlideId(candidate.id);
+                    setShapeId(candidate.shapes[0]?.id ?? '');
+                  });
               }}
             >
               <span>{index + 1}</span>
@@ -561,36 +714,54 @@ export function PresentationEditor({
             </button>
           ))}
         </aside>
-        <main className={styles.slideStageScroller} aria-label="Slide canvas">
+        <main
+          className={styles.slideStageScroller}
+          aria-label={i18n['com.affine.office.slide-canvas']()}
+        >
           <div
             className={styles.slideStage}
             style={{
               aspectRatio: `${state.slideSize.widthPt} / ${state.slideSize.heightPt}`,
             }}
-            onClick={() => setShapeId('')}
+            onClick={() => {
+              if (shapeId) changeSelection(() => setShapeId(''));
+            }}
           >
             <ShapeLayer
               slide={slide}
               state={state}
               selectedShapeId={selectedShape?.id}
               packageUrl={revision.packageUrl}
-              onSelect={shape => setShapeId(shape.id)}
+              onSelect={shape => {
+                if (shape.id !== shapeId)
+                  changeSelection(() => setShapeId(shape.id));
+              }}
             />
           </div>
         </main>
-        <aside className={styles.shapeInspector} aria-label="Shape properties">
-          <div className={styles.panelTitle}>Shape properties</div>
+        <aside
+          className={styles.shapeInspector}
+          aria-label={i18n['com.affine.office.shape-properties']()}
+        >
+          <div className={styles.panelTitle}>
+            {i18n['com.affine.office.shape-properties']()}
+          </div>
           {selectedShape ? (
             <>
               <div className={styles.inspectorGroup}>
-                <span>{selectedShape.name ?? `Shape ${selectedShape.id}`}</span>
+                <span>
+                  {selectedShape.name ??
+                    I18n['com.affine.office.named-shape']({
+                      name: selectedShape.id,
+                    })}
+                </span>
                 {selectedShape.paragraphs ? (
                   <>
                     <textarea
                       className={styles.textarea}
                       value={text}
                       disabled={readOnly || saving}
-                      aria-label="Shape text"
+                      aria-label={i18n['com.affine.office.shape-text']()}
                       onChange={event => setText(event.target.value)}
                     />
                     <Button
@@ -599,7 +770,7 @@ export function PresentationEditor({
                       loading={saving}
                       onClick={() => void saveText()}
                     >
-                      Save text
+                      {i18n['com.affine.office.save-text']()}{' '}
                     </Button>
                   </>
                 ) : null}
@@ -617,7 +788,7 @@ export function PresentationEditor({
                   ).map(key => (
                     <label className={styles.fieldLabel} key={key}>
                       {key === 'rotationDeg'
-                        ? 'Rotation'
+                        ? i18n['com.affine.office.rotation']()
                         : key.replace('Pt', '').toUpperCase()}
                       <input
                         className={styles.field}
@@ -642,7 +813,7 @@ export function PresentationEditor({
                   loading={saving}
                   onClick={() => void saveGeometry()}
                 >
-                  Apply geometry
+                  {i18n['com.affine.office.apply-geometry']()}{' '}
                 </Button>
                 <Button
                   disabled={readOnly}
@@ -658,41 +829,53 @@ export function PresentationEditor({
                           shapeId: selectedShape.id,
                         },
                       },
-                      'Shape deletion'
+                      i18n['com.affine.office.shape-deletion']()
                     )
                   }
                 >
                   <DeleteIcon />
-                  Delete shape
+                  {i18n['com.affine.office.delete-shape']()}{' '}
                 </Button>
               </div>
             </>
           ) : (
-            <span>Select a shape on the slide.</span>
+            <span>
+              {i18n['com.affine.office.select-a-shape-on-the-slide']()}
+            </span>
           )}
-          <div className={styles.panelTitle}>Insert</div>
+          <div className={styles.panelTitle}>
+            {i18n['com.affine.ui.insert']()}
+          </div>
           <div className={styles.inspectorGroup}>
             <select
               className={styles.select}
               value={newShape}
               disabled={readOnly || saving}
-              aria-label="New shape type"
+              aria-label={i18n['com.affine.office.new-shape-type']()}
               onChange={event =>
                 setNewShape(event.target.value as typeof newShape)
               }
             >
-              <option value="rectangle">Rectangle</option>
-              <option value="roundedRectangle">Rounded rectangle</option>
-              <option value="ellipse">Ellipse</option>
-              <option value="line">Line</option>
+              <option value="rectangle">
+                {i18n['com.affine.office.rectangle']()}
+              </option>
+              <option value="roundedRectangle">
+                {i18n['com.affine.office.rounded-rectangle']()}
+              </option>
+              <option value="ellipse">
+                {i18n[
+                  'com.affine.settings.editorSettings.edgeless.shape.ellipse'
+                ]()}
+              </option>
+              <option value="line">{i18n['com.affine.office.line']()}</option>
             </select>
             <input
               className={styles.field}
               value={newShapeText}
               maxLength={4096}
               disabled={readOnly || saving || newShape === 'line'}
-              aria-label="New shape text"
-              placeholder="Optional shape text"
+              aria-label={i18n['com.affine.office.new-shape-text']()}
+              placeholder={i18n['com.affine.office.optional-shape-text']()}
               onChange={event => setNewShapeText(event.target.value)}
             />
             <Button
@@ -701,11 +884,11 @@ export function PresentationEditor({
               onClick={() => void insertShape()}
             >
               <ShapeIcon />
-              Add shape
+              {i18n['com.affine.office.add-shape']()}{' '}
             </Button>
             <label className={styles.fileButton}>
               <ImageIcon />
-              Add image
+              {i18n['com.affine.office.add-image']()}{' '}
               <input
                 type="file"
                 accept="image/png,image/jpeg,image/gif"
@@ -718,14 +901,16 @@ export function PresentationEditor({
               />
             </label>
           </div>
-          <div className={styles.panelTitle}>Speaker notes</div>
+          <div className={styles.panelTitle}>
+            {i18n['com.affine.office.speaker-notes']()}
+          </div>
           <div className={styles.inspectorGroup}>
             <textarea
               className={styles.textarea}
               value={notes}
               maxLength={4 * 1024 * 1024}
               disabled={readOnly || saving}
-              aria-label="Speaker notes"
+              aria-label={i18n['com.affine.office.speaker-notes']()}
               onChange={event => setNotes(event.target.value)}
             />
             <Button
@@ -733,18 +918,20 @@ export function PresentationEditor({
               loading={saving}
               onClick={() => void saveNotes()}
             >
-              Save notes
+              {i18n['com.affine.office.save-notes']()}{' '}
             </Button>
           </div>
           {state.masters[0] ? (
             <>
-              <div className={styles.panelTitle}>Theme color</div>
+              <div className={styles.panelTitle}>
+                {i18n['com.affine.office.theme-color']()}
+              </div>
               <div className={styles.inspectorGroup}>
                 <select
                   className={styles.select}
                   value={themeSlot}
                   disabled={readOnly || saving}
-                  aria-label="Theme color slot"
+                  aria-label={i18n['com.affine.office.theme-color-slot']()}
                   onChange={event =>
                     setThemeSlot(
                       event.target
@@ -778,7 +965,7 @@ export function PresentationEditor({
                   type="color"
                   value={themeColor}
                   disabled={readOnly || saving}
-                  aria-label="Theme color value"
+                  aria-label={i18n['com.affine.office.theme-color-value']()}
                   onChange={event => setThemeColor(event.target.value)}
                 />
                 <Button
@@ -786,7 +973,7 @@ export function PresentationEditor({
                   loading={saving}
                   onClick={() => void saveThemeColor()}
                 >
-                  Apply theme color
+                  {i18n['com.affine.office.apply-theme-color']()}{' '}
                 </Button>
               </div>
             </>
@@ -794,12 +981,23 @@ export function PresentationEditor({
         </aside>
       </div>
       <div className={styles.statusBar} role="status" aria-live="polite">
-        <span>{state.stats.slides} slides</span>
-        <span>{state.stats.shapes} shapes</span>
+        <span>
+          {state.stats.slides} {i18n['com.affine.office.slides']()}
+        </span>
+        <span>
+          {state.stats.shapes} {i18n['com.affine.office.shapes']()}
+        </span>
         {state.compatibility.animatedSlideIds.length ? (
-          <span>{state.compatibility.animatedSlideIds.length} animated</span>
+          <span>
+            {state.compatibility.animatedSlideIds.length}{' '}
+            {i18n['com.affine.office.animated']()}
+          </span>
         ) : null}
-        {readOnly ? <span>Historical revision, read only</span> : null}
+        {readOnly ? (
+          <span>
+            {i18n['com.affine.office.historical-revision-read-only']()}
+          </span>
+        ) : null}
         {error ? (
           <span className={styles.statusError}>{error}</span>
         ) : (

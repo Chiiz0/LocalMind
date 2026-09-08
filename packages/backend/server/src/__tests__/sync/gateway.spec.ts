@@ -241,16 +241,6 @@ async function createProjectDocumentGrants(
     },
   });
   const grants = await db.$transaction(async transaction => {
-    await transaction.aiContextProjectDoc.createMany({
-      data: input.docs.map(doc => ({
-        projectId: project.id,
-        workspaceId: input.workspaceId,
-        docId: doc.docId,
-        status: 'granted',
-        requestedLevel: doc.level,
-        addedByUserId: input.ownerId,
-      })),
-    });
     const created = [];
     for (const doc of input.docs) {
       created.push(
@@ -1352,16 +1342,6 @@ test('project-granted document scope is isolated and rechecks live ACLs', async 
           revokerUserIdSnapshot: owner.id,
           revokedAt,
         },
-      });
-      await transaction.aiContextProjectDoc.update({
-        where: {
-          projectId_workspaceId_docId: {
-            projectId: writeGrant!.projectId,
-            workspaceId: workspace.id,
-            docId: writeDocId,
-          },
-        },
-        data: { status: 'revoked', revokedAt },
       });
     });
 

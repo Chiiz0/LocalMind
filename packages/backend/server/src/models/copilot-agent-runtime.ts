@@ -12,6 +12,7 @@ export type CopilotAgentRunStatus =
   | 'running'
   | 'waiting_approval'
   | 'waiting_for_location'
+  | 'waiting_lease'
   | 'completed'
   | 'failed'
   | 'cancelled';

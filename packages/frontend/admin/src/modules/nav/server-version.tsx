@@ -1,9 +1,11 @@
+import { useI18n } from '@affine/i18n';
 import { useCallback } from 'react';
 
 import { Button } from '../../components/ui/button';
 import { useServerConfig } from '../common';
 
 export const ServerVersion = () => {
+  const i18n = useI18n();
   const serverConfig = useServerConfig();
   const availableUpgrade = serverConfig?.availableUpgrade;
   const version = serverConfig?.version;
@@ -23,16 +25,16 @@ export const ServerVersion = () => {
         title={`New Version ${availableUpgrade.version} Available`}
       >
         <span className="overflow-hidden text-ellipsis space-x-1">
-          <span>New Version</span>
+          <span>{i18n['com.affine.admin.new-version']()}</span>
           <span>{availableUpgrade.version}</span>
-          <span>Available</span>
+          <span>{i18n['com.affine.admin.available']()}</span>
         </span>
       </Button>
     );
   }
   return (
     <div className="inline-flex flex-nowrap items-center justify-between gap-1 border-t border-border px-2 pt-2 text-xs text-muted-foreground">
-      <span>ServerVersion</span>
+      <span>{i18n['com.affine.admin.serverversion']()}</span>
       <span
         className="overflow-hidden text-ellipsis whitespace-nowrap"
         title={version}

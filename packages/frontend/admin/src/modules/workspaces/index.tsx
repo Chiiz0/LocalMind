@@ -1,4 +1,5 @@
 import { AdminWorkspaceSort } from '@affine/graphql';
+import { useI18n } from '@affine/i18n';
 import { useState } from 'react';
 
 import { Header } from '../header';
@@ -8,6 +9,7 @@ import type { WorkspaceFlagFilter } from './schema';
 import { useWorkspaceList } from './use-workspace-list';
 
 export function WorkspacePage() {
+  const i18n = useI18n();
   const [keyword, setKeyword] = useState('');
   const [flagFilters, setFlagFilters] = useState<WorkspaceFlagFilter>({});
   const [sort, setSort] = useState<AdminWorkspaceSort | undefined>(
@@ -25,7 +27,7 @@ export function WorkspacePage() {
 
   return (
     <div className="h-dvh flex-1 flex-col flex">
-      <Header title="Workspaces" />
+      <Header title={i18n['com.affine.admin.workspaces']()} />
 
       <DataTable
         data={workspaces}

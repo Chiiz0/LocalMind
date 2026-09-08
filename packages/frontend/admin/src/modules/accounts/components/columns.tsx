@@ -5,6 +5,7 @@ import {
 } from '@affine/admin/components/ui/avatar';
 import { cn } from '@affine/admin/utils';
 import { FeatureType } from '@affine/graphql';
+import { useI18n } from '@affine/i18n';
 import {
   AccountIcon,
   EmailIcon,
@@ -62,6 +63,7 @@ export const useColumns = ({
 }: {
   setSelectedUserIds: Dispatch<SetStateAction<Set<string>>>;
 }) => {
+  const i18n = useI18n();
   const columns: ColumnDef<UserType>[] = useMemo(() => {
     return [
       {
@@ -103,7 +105,7 @@ export const useColumns = ({
 
               table.toggleAllPageRowsSelected(!!value);
             }}
-            aria-label="Select all"
+            aria-label={i18n['com.affine.page.group-header.select-all']()}
             className="translate-y-[2px]"
           />
         ),
@@ -121,7 +123,7 @@ export const useColumns = ({
               }
               row.toggleSelected(!!value);
             }}
-            aria-label="Select row"
+            aria-label={i18n['com.affine.admin.select-row']()}
             className="translate-y-[2px]"
           />
         ),
@@ -137,7 +139,7 @@ export const useColumns = ({
           <DataTableColumnHeader
             className="text-xs"
             column={column}
-            title="Name"
+            title={i18n['com.affine.integration.external-mcp.field.name']()}
           />
         ),
         cell: ({ row }) => (
@@ -153,12 +155,14 @@ export const useColumns = ({
                 <span>{row.original.name}</span>
                 {row.original.features.includes(FeatureType.Admin) && (
                   <span className="ml-2 inline-flex h-5 items-center rounded-md border border-border/60 bg-chip-blue px-2 py-0.5 text-xxs font-medium text-chip-text">
-                    Admin
+                    {i18n['com.affine.admin.admin']()}{' '}
                   </span>
                 )}
                 {row.original.disabled && (
                   <span className="ml-2 inline-flex h-5 items-center rounded-md border border-border/60 bg-chip-white px-2 py-0.5 text-xxs font-medium">
-                    Disabled
+                    {i18n[
+                      'com.affine.integration.external-mcp.status.disabled'
+                    ]()}{' '}
                   </span>
                 )}
               </div>
@@ -177,7 +181,7 @@ export const useColumns = ({
           <DataTableColumnHeader
             className="text-xs max-md:hidden"
             column={column}
-            title="User Detail"
+            title={i18n['com.affine.admin.user-detail']()}
           />
         ),
         cell: ({ row: { original: user } }) => (
@@ -225,7 +229,9 @@ export const useColumns = ({
                     </span>
                   ))
                 ) : (
-                  <span className="text-muted-foreground">No features</span>
+                  <span className="text-muted-foreground">
+                    {i18n['com.affine.admin.no-features']()}
+                  </span>
                 )}
               </div>
             </div>
@@ -241,7 +247,7 @@ export const useColumns = ({
           <DataTableColumnHeader
             className="text-xs"
             column={column}
-            title="Actions"
+            title={i18n['com.affine.admin.actions']()}
           />
         ),
         cell: ({ row: { original: user } }) => (
@@ -249,6 +255,6 @@ export const useColumns = ({
         ),
       },
     ];
-  }, [setSelectedUserIds]);
+  }, [setSelectedUserIds, i18n]);
   return columns;
 };

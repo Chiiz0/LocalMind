@@ -10,7 +10,6 @@ const tokens = vi.hoisted(() => ({
   approveAccess: Symbol('approveAccess'),
   controlTask: Symbol('controlTask'),
   declineInvitation: Symbol('declineInvitation'),
-  rerequest: Symbol('rerequest'),
   rejectAccess: Symbol('rejectAccess'),
   resolveBlocker: Symbol('resolveBlocker'),
   withdrawAccess: Symbol('withdrawAccess'),
@@ -23,7 +22,6 @@ vi.mock('@affine/graphql', () => ({
   approveCopilotAccessRequestMutation: tokens.approveAccess,
   controlCopilotTaskMutation: tokens.controlTask,
   declineCopilotProjectInvitationMutation: tokens.declineInvitation,
-  reRequestCopilotProjectDocumentAccessMutation: tokens.rerequest,
   rejectCopilotAccessRequestMutation: tokens.rejectAccess,
   resolveCopilotBlockerMutation: tokens.resolveBlocker,
   withdrawCopilotAccessRequestMutation: tokens.withdrawAccess,
@@ -34,6 +32,10 @@ const gql = vi.fn();
 const graphql = { gql } as unknown as GraphQLService;
 
 const item = (overrides: Partial<WorkbenchTask> = {}): WorkbenchTask => ({
+  projectName: 'Project',
+  documentTitle: 'Document',
+  relatedUserName: null,
+  relatedUserEmail: null,
   id: 'access-request:request-1',
   entityId: 'request-1',
   kind: 'access_request',
@@ -52,6 +54,7 @@ const item = (overrides: Partial<WorkbenchTask> = {}): WorkbenchTask => ({
   completedAt: null,
   availableActions: ['approve_access_request'],
   blocker: null,
+  projectTask: null,
   run: null,
   ...overrides,
 });

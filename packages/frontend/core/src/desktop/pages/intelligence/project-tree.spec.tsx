@@ -17,6 +17,9 @@ import type {
 } from 'react';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
+vi.mock('@affine/core/modules/project-resources/realtime', () => ({
+  useProjectRefresh: vi.fn(),
+}));
 vi.mock('@affine/component', () => ({
   Button: ({
     children,
@@ -106,36 +109,7 @@ const project: WorkbenchProject = {
   status: 'active',
   aiPolicy: 'read_only',
   role: 'owner',
-  documents: [
-    {
-      workspaceId: 'workspace-b',
-      docId: 'doc-later',
-      title: 'Later document',
-      groupId: null,
-      sortOrder: 20,
-      status: 'granted',
-      requestedLevel: 'read',
-      accessRequestId: null,
-      addedByMe: true,
-      createdAt: '2026-09-04T00:00:00.000Z',
-      updatedAt: '2026-09-04T00:00:00.000Z',
-    },
-    {
-      workspaceId: 'workspace-a',
-      docId: 'doc-first',
-      title: 'First document',
-      groupId: null,
-      sortOrder: 10,
-      status: 'granted',
-      requestedLevel: 'read',
-      accessRequestId: null,
-      addedByMe: true,
-      createdAt: '2026-09-04T00:00:00.000Z',
-      updatedAt: '2026-09-04T00:00:00.000Z',
-    },
-  ],
   members: [],
-  documentCount: 2,
   canManage: true,
   createdAt: '2026-09-04T00:00:00.000Z',
   updatedAt: '2026-09-04T00:00:00.000Z',
@@ -150,39 +124,22 @@ const renderTree = (
       selectedProjectId="project-1"
       loading={false}
       mutationsPending={false}
-      canAddDocuments={true}
       onRefresh={vi.fn()}
       onSelectProject={vi.fn()}
-      onSelectDocument={vi.fn()}
       onCreate={vi.fn()}
       onRename={vi.fn()}
       onArchive={vi.fn()}
-      onAddDocuments={vi.fn()}
-      onRemoveDocument={vi.fn()}
       onManageCollaboration={vi.fn()}
       {...overrides}
     />
   );
 
 describe('ProjectTree', () => {
-  test('renders documents in tree order and returns the full source reference', () => {
-    const onSelectDocument = vi.fn();
-    renderTree({ onSelectDocument });
-
-    const first = screen.getByRole('button', { name: 'First document' });
-    const later = screen.getByRole('button', { name: 'Later document' });
-    expect(
-      first.compareDocumentPosition(later) & Node.DOCUMENT_POSITION_FOLLOWING
-    ).toBeTruthy();
-
-    fireEvent.click(first);
-    expect(onSelectDocument).toHaveBeenCalledWith(
-      'project-1',
-      expect.objectContaining({
-        workspaceId: 'workspace-a',
-        docId: 'doc-first',
-      })
-    );
+  test('selects the Project independently of any Workspace document', () => {
+    const onSelectProject = vi.fn();
+    renderTree({ onSelectProject });
+    fireEvent.click(screen.getByRole('button', { name: 'Project one' }));
+    expect(onSelectProject).toHaveBeenCalledWith('project-1');
   });
 
   test('trims and submits a new project name', async () => {
@@ -205,34 +162,5 @@ describe('ProjectTree', () => {
     await waitFor(() => {
       expect(onCreate).toHaveBeenCalledWith('New project');
     });
-  });
-
-  test('does not expose a route action for a redacted pending placeholder', () => {
-    const onSelectDocument = vi.fn();
-    renderTree({
-      onSelectDocument,
-      projects: [
-        {
-          ...project,
-          documents: [
-            {
-              ...project.documents[0],
-              docId: null,
-              title: null,
-              status: 'pending',
-              accessRequestId: 'request-1',
-              addedByMe: false,
-            },
-          ],
-        },
-      ],
-    });
-
-    const placeholder = screen.getByRole('button', {
-      name: 'com.affine.localmind.workbench.document.pending',
-    });
-    expect(placeholder.hasAttribute('disabled')).toBe(true);
-    fireEvent.click(placeholder);
-    expect(onSelectDocument).not.toHaveBeenCalled();
   });
 });

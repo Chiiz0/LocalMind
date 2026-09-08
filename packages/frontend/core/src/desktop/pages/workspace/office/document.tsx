@@ -20,6 +20,7 @@ import {
   type OfficeRevisionsQuery,
   officeRevisionsQuery,
 } from '@affine/graphql';
+import { I18n, useI18n } from '@affine/i18n';
 import {
   AiIcon,
   BoldIcon,
@@ -92,6 +93,11 @@ import {
 import { OfficeChatPanel, type OfficeTaskRevisionEvidence } from './chat';
 import { OfficeCommentsPanel } from './comments';
 import * as styles from './document.css';
+import {
+  type RegisterOfficeDraft,
+  useOfficeDialogDraft,
+  useOfficeEditorDraft,
+} from './edit-draft';
 import { PdfEditor } from './pdf';
 import { PresentationEditor } from './presentation';
 import {
@@ -245,6 +251,7 @@ function Paragraph({
   packageUrl: string;
   onCommit: (paragraph: DocxParagraph, text: string) => void;
 }) {
+  const i18n = useI18n();
   let runOffset = 0;
   const outlineLevel = paragraph.properties?.outlineLevel;
   return (
@@ -256,7 +263,7 @@ function Paragraph({
       data-outline-level={outlineLevel}
       contentEditable={!disabled}
       suppressContentEditableWarning
-      aria-label="Editable document paragraph"
+      aria-label={i18n['com.affine.office.editable-document-paragraph']()}
       onBlur={event =>
         onCommit(paragraph, event.currentTarget.textContent ?? '')
       }
@@ -313,6 +320,7 @@ function Blocks({
   packageUrl: string;
   onParagraphCommit: (paragraph: DocxParagraph, text: string) => void;
 }) {
+  const i18n = useI18n();
   return blocks.map(block => {
     if (block.type === 'paragraph') {
       return (
@@ -371,7 +379,8 @@ function Blocks({
     }
     return (
       <div className={styles.unsupportedBlock} key={block.id}>
-        Unsupported document object: {block.element}
+        {i18n['com.affine.office.unsupported-document-object']()}{' '}
+        {block.element}
       </div>
     );
   });
@@ -408,6 +417,7 @@ function Header({
   onPrint: () => void;
   onExportPdf?: () => void;
 }) {
+  const i18n = useI18n();
   const icon =
     kind === 'workbook' ? (
       <TableIcon />
@@ -427,7 +437,11 @@ function Header({
       </div>
       <div className={styles.headerActions}>
         <Tooltip content="Open LocalMind AI">
-          <IconButton size="24" onClick={onAI} aria-label="Open LocalMind AI">
+          <IconButton
+            size="24"
+            onClick={onAI}
+            aria-label={i18n['com.affine.office.open-localmind-ai']()}
+          >
             <AiIcon />
           </IconButton>
         </Tooltip>
@@ -436,10 +450,14 @@ function Header({
             variant="plain"
             disabled={returningLatest}
             loading={returningLatest}
-            aria-label={`Return to latest Office revision v${latestSequence}`}
+            aria-label={I18n['com.affine.office.return-latest']({
+              version: String(latestSequence),
+            })}
             onClick={onLatest}
           >
-            Latest v{latestSequence}
+            {i18n['com.affine.office.latest-version']({
+              version: String(latestSequence),
+            })}
           </Button>
         ) : null}
         {onExportPdf ? (
@@ -448,20 +466,20 @@ function Header({
               size="24"
               onClick={onExportPdf}
               disabled={downloading}
-              aria-label="Export PDF"
+              aria-label={i18n['com.affine.office.export-pdf']()}
             >
               <ExportToPdfIcon />
             </IconButton>
           </Tooltip>
         ) : null}
         <Button variant="plain" onClick={onPrint}>
-          Print
+          {i18n['com.affine.export.print']()}{' '}
         </Button>
         <Tooltip content="Comments and collaborators">
           <IconButton
             size="24"
             onClick={onComments}
-            aria-label="Comments and collaborators"
+            aria-label={i18n['com.affine.office.comments-and-collaborators']()}
           >
             <CommentIcon />
           </IconButton>
@@ -470,7 +488,7 @@ function Header({
           <IconButton
             size="24"
             onClick={onHistory}
-            aria-label="Revision history"
+            aria-label={i18n['com.affine.office.revision-history']()}
           >
             <HistoryIcon />
           </IconButton>
@@ -479,8 +497,8 @@ function Header({
           size="24"
           onClick={onDownload}
           disabled={downloading}
-          tooltip="Download native Office file"
-          aria-label="Download native Office file"
+          tooltip={i18n['com.affine.office.download-native-office-file']()}
+          aria-label={i18n['com.affine.office.download-native-office-file']()}
         >
           <DownloadIcon />
         </IconButton>
@@ -506,6 +524,7 @@ function RevisionHistory({
   onOpenChange: (open: boolean) => void;
   onSelect: (revision: HistoryRevision) => void;
 }) {
+  const i18n = useI18n();
   const [compare, setCompare] = useState<RevisionCompare | null>(null);
   const [comparing, setComparing] = useState<string | null>(null);
   const [compareError, setCompareError] = useState<string | null>(null);
@@ -553,25 +572,31 @@ function RevisionHistory({
   return (
     <Modal
       open={open}
-      title="Revision history"
+      title={i18n['com.affine.office.revision-history']()}
       width={680}
       onOpenChange={onOpenChange}
     >
       <div className={surfaceStyles.historyPanel}>
         <div className={surfaceStyles.historyHeader}>
-          <span>Immutable Office revisions</span>
-          <span>Comparing against v{selectedRevision.sequence}</span>
+          <span>{i18n['com.affine.office.immutable-office-revisions']()}</span>
+          <span>
+            {i18n['com.affine.office.comparing-version']({
+              version: String(selectedRevision.sequence),
+            })}
+          </span>
         </div>
         <div className={surfaceStyles.historyList}>
           {query.isLoading ? (
             <CenterState>
               <Loading />
-              <span>Loading revisions…</span>
+              <span>{i18n['com.affine.office.loading-revisions']()}</span>
             </CenterState>
           ) : query.error ? (
             <CenterState>
               <span>{query.error.message}</span>
-              <Button onClick={() => void query.mutate()}>Retry</Button>
+              <Button onClick={() => void query.mutate()}>
+                {i18n['com.affine.localmind.directoryPermissions.retry']()}
+              </Button>
             </CenterState>
           ) : query.data?.officeRevisions.length ? (
             query.data.officeRevisions.map(revision => (
@@ -605,13 +630,15 @@ function RevisionHistory({
                   loading={comparing === revision.id}
                   onClick={() => void compareWithSelected(revision)}
                 >
-                  Compare
+                  {i18n['com.affine.office.compare']()}{' '}
                 </Button>
               </div>
             ))
           ) : (
             <CenterState>
-              <span>No revisions are available.</span>
+              <span>
+                {i18n['com.affine.office.no-revisions-are-available']()}
+              </span>
             </CenterState>
           )}
         </div>
@@ -623,14 +650,24 @@ function RevisionHistory({
         {compare ? (
           <section className={surfaceStyles.historyCompare}>
             <div className={surfaceStyles.historyCompareTitle}>
-              v{compare.beforeRevision.sequence} to v
-              {compare.afterRevision.sequence}
+              {i18n['com.affine.office.compare-versions']({
+                before: String(compare.beforeRevision.sequence),
+                after: String(compare.afterRevision.sequence),
+              })}
             </div>
             <div className={surfaceStyles.historyCompareSummary}>
-              <span>{summary.added ?? 0} added</span>
-              <span>{summary.removed ?? 0} removed</span>
-              <span>{summary.modified ?? 0} modified</span>
-              <span>{summary.unchanged ?? 0} unchanged</span>
+              <span>
+                {summary.added ?? 0} {i18n['com.affine.office.added']()}
+              </span>
+              <span>
+                {summary.removed ?? 0} {i18n['com.affine.office.removed']()}
+              </span>
+              <span>
+                {summary.modified ?? 0} {i18n['com.affine.office.modified']()}
+              </span>
+              <span>
+                {summary.unchanged ?? 0} {i18n['com.affine.office.unchanged']()}
+              </span>
             </div>
             {changes.length ? (
               <div className={surfaceStyles.historyCompareChanges}>
@@ -653,13 +690,17 @@ function RevisionHistory({
                 ))}
                 {compare.truncated ? (
                   <span className={surfaceStyles.historyCompareTruncated}>
-                    More changes exist beyond the bounded comparison result.
+                    {i18n[
+                      'com.affine.office.more-changes-exist-beyond-the-bounded-comparison-result'
+                    ]()}{' '}
                   </span>
                 ) : null}
               </div>
             ) : (
               <span className={surfaceStyles.historyCompareEmpty}>
-                These revisions have the same native semantic state.
+                {i18n[
+                  'com.affine.office.these-revisions-have-the-same-native-semantic-state'
+                ]()}{' '}
               </span>
             )}
           </section>
@@ -672,7 +713,12 @@ function RevisionHistory({
 function finiteNumber(value: string, label: string, minimum = 0.01) {
   const number = Number(value);
   if (!Number.isFinite(number) || number < minimum) {
-    throw new Error(`${label} must be at least ${minimum}.`);
+    throw new Error(
+      I18n['com.affine.office.minimum-value']({
+        label,
+        minimum: String(minimum),
+      })
+    );
   }
   return number;
 }
@@ -695,13 +741,16 @@ function ObjectInsertDialog({
   saving,
   onOpenChange,
   onSubmit,
+  registerDraft,
 }: {
   open: boolean;
   initialType: DocxObject['type'];
   saving: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (object: DocxObject) => Promise<boolean>;
+  registerDraft?: RegisterOfficeDraft;
 }) {
+  const i18n = useI18n();
   const [type, setType] = useState<DocxObject['type']>(initialType);
   const [width, setWidth] = useState('240');
   const [height, setHeight] = useState('160');
@@ -732,9 +781,16 @@ function ObjectInsertDialog({
     try {
       let object: DocxObject;
       if (type === 'image') {
-        if (!image) throw new Error('Choose a PNG, JPEG, or GIF image.');
+        if (!image)
+          throw new Error(
+            i18n['com.affine.office.choose-a-png-jpeg-or-gif-image']()
+          );
         if (!['image/png', 'image/jpeg', 'image/gif'].includes(image.type)) {
-          throw new Error('The selected image format is not supported.');
+          throw new Error(
+            i18n[
+              'com.affine.office.the-selected-image-format-is-not-supported'
+            ]()
+          );
         }
         object = {
           type,
@@ -756,7 +812,8 @@ function ObjectInsertDialog({
           lineColor,
         };
       } else if (type === 'equation') {
-        if (!equation.trim()) throw new Error('Enter an equation.');
+        if (!equation.trim())
+          throw new Error(i18n['com.affine.office.enter-an-equation']());
         object = { type, linearText: equation.trim() };
       } else {
         const categoryValues = categories
@@ -764,7 +821,9 @@ function ObjectInsertDialog({
           .map(value => value.trim())
           .filter(Boolean);
         if (!categoryValues.length) {
-          throw new Error('Enter at least one chart category.');
+          throw new Error(
+            i18n['com.affine.office.enter-at-least-one-chart-category']()
+          );
         }
         const seriesValues = series
           .split('\n')
@@ -774,7 +833,9 @@ function ObjectInsertDialog({
             const separator = line.indexOf(':');
             const name =
               separator === -1
-                ? `Series ${index + 1}`
+                ? I18n['com.affine.office.series-number']({
+                    number: String(index + 1),
+                  })
                 : line.slice(0, separator).trim();
             const values = (separator === -1 ? line : line.slice(separator + 1))
               .split(',')
@@ -785,12 +846,17 @@ function ObjectInsertDialog({
               values.some(value => !Number.isFinite(value))
             ) {
               throw new Error(
-                `Chart series ${index + 1} must have one numeric value per category.`
+                I18n['com.affine.office.series-values-required']({
+                  number: String(index + 1),
+                })
               );
             }
             return { name, values };
           });
-        if (!seriesValues.length) throw new Error('Enter at least one series.');
+        if (!seriesValues.length)
+          throw new Error(
+            i18n['com.affine.office.enter-at-least-one-series']()
+          );
         object = {
           type,
           chartType,
@@ -801,9 +867,12 @@ function ObjectInsertDialog({
           heightPt: finiteNumber(height, 'Height'),
         };
       }
-      if (await onSubmit(object)) onOpenChange(false);
+      const saved = await onSubmit(object);
+      if (saved) onOpenChange(false);
+      return saved;
     } catch (error) {
       setError(error instanceof Error ? error.message : String(error));
+      return false;
     }
   }, [
     categories,
@@ -823,18 +892,23 @@ function ObjectInsertDialog({
     shapeText,
     type,
     width,
+
+    i18n,
   ]);
 
+  const markDirty = useOfficeDialogDraft(registerDraft, submit, () =>
+    onOpenChange(false)
+  );
   return (
     <Modal
       open={open}
-      title="Insert document object"
+      title={i18n['com.affine.office.insert-document-object']()}
       width={520}
       onOpenChange={onOpenChange}
     >
-      <div className={styles.dialogForm}>
+      <div className={styles.dialogForm} onChangeCapture={markDirty}>
         <label className={styles.dialogField}>
-          <span>Object type</span>
+          <span>{i18n['com.affine.office.object-type']()}</span>
           <select
             className={surfaceStyles.select}
             value={type}
@@ -843,17 +917,23 @@ function ObjectInsertDialog({
               setType(event.target.value as DocxObject['type'])
             }
           >
-            <option value="image">Image</option>
-            <option value="shape">Shape</option>
-            <option value="equation">Equation</option>
-            <option value="chart">Chart</option>
+            <option value="image">
+              {i18n['com.affine.keyboardShortcuts.image']()}
+            </option>
+            <option value="shape">
+              {i18n['com.affine.settings.editorSettings.edgeless.shape']()}
+            </option>
+            <option value="equation">
+              {i18n['com.affine.office.equation']()}
+            </option>
+            <option value="chart">{i18n['com.affine.office.chart']()}</option>
           </select>
         </label>
         {type === 'image' ? (
           <>
             <label className={surfaceStyles.fileButton}>
               <ImageIcon />
-              {image?.name ?? 'Choose image'}
+              {image?.name ?? i18n['com.affine.office.choose-image']()}
               <input
                 type="file"
                 accept="image/png,image/jpeg,image/gif"
@@ -863,7 +943,9 @@ function ObjectInsertDialog({
             </label>
             <div className={styles.dialogGrid}>
               <label className={styles.dialogField}>
-                <span>Name</span>
+                <span>
+                  {i18n['com.affine.integration.external-mcp.field.name']()}
+                </span>
                 <input
                   className={surfaceStyles.field}
                   value={imageName}
@@ -873,7 +955,7 @@ function ObjectInsertDialog({
                 />
               </label>
               <label className={styles.dialogField}>
-                <span>Alt text</span>
+                <span>{i18n['com.affine.office.alt-text']()}</span>
                 <input
                   className={surfaceStyles.field}
                   value={imageDescription}
@@ -888,7 +970,9 @@ function ObjectInsertDialog({
           <>
             <div className={styles.dialogGrid}>
               <label className={styles.dialogField}>
-                <span>Shape</span>
+                <span>
+                  {i18n['com.affine.settings.editorSettings.edgeless.shape']()}
+                </span>
                 <select
                   className={surfaceStyles.select}
                   value={shape}
@@ -897,14 +981,26 @@ function ObjectInsertDialog({
                     setShape(event.target.value as typeof shape)
                   }
                 >
-                  <option value="rectangle">Rectangle</option>
-                  <option value="roundedRectangle">Rounded rectangle</option>
-                  <option value="ellipse">Ellipse</option>
-                  <option value="line">Line</option>
+                  <option value="rectangle">
+                    {i18n['com.affine.office.rectangle']()}
+                  </option>
+                  <option value="roundedRectangle">
+                    {i18n['com.affine.office.rounded-rectangle']()}
+                  </option>
+                  <option value="ellipse">
+                    {i18n[
+                      'com.affine.settings.editorSettings.edgeless.shape.ellipse'
+                    ]()}
+                  </option>
+                  <option value="line">
+                    {i18n['com.affine.office.line']()}
+                  </option>
                 </select>
               </label>
               <label className={styles.dialogField}>
-                <span>Text</span>
+                <span>
+                  {i18n['com.affine.settings.editorSettings.edgeless.text']()}
+                </span>
                 <input
                   className={surfaceStyles.field}
                   value={shapeText}
@@ -916,7 +1012,7 @@ function ObjectInsertDialog({
             </div>
             <div className={styles.dialogGrid}>
               <label className={styles.dialogField}>
-                <span>Fill</span>
+                <span>{i18n['com.affine.office.fill']()}</span>
                 <input
                   className={surfaceStyles.colorInput}
                   type="color"
@@ -928,7 +1024,7 @@ function ObjectInsertDialog({
                 />
               </label>
               <label className={styles.dialogField}>
-                <span>Line</span>
+                <span>{i18n['com.affine.office.line']()}</span>
                 <input
                   className={surfaceStyles.colorInput}
                   type="color"
@@ -943,7 +1039,7 @@ function ObjectInsertDialog({
           </>
         ) : type === 'equation' ? (
           <label className={styles.dialogField}>
-            <span>Linear equation</span>
+            <span>{i18n['com.affine.office.linear-equation']()}</span>
             <textarea
               className={surfaceStyles.textarea}
               value={equation}
@@ -956,7 +1052,7 @@ function ObjectInsertDialog({
           <>
             <div className={styles.dialogGrid}>
               <label className={styles.dialogField}>
-                <span>Chart type</span>
+                <span>{i18n['com.affine.office.chart-type']()}</span>
                 <select
                   className={surfaceStyles.select}
                   value={chartType}
@@ -965,14 +1061,20 @@ function ObjectInsertDialog({
                     setChartType(event.target.value as typeof chartType)
                   }
                 >
-                  <option value="column">Column</option>
-                  <option value="bar">Bar</option>
-                  <option value="line">Line</option>
-                  <option value="pie">Pie</option>
+                  <option value="column">
+                    {i18n['com.affine.office.column']()}
+                  </option>
+                  <option value="bar">{i18n['com.affine.office.bar']()}</option>
+                  <option value="line">
+                    {i18n['com.affine.office.line']()}
+                  </option>
+                  <option value="pie">{i18n['com.affine.office.pie']()}</option>
                 </select>
               </label>
               <label className={styles.dialogField}>
-                <span>Title</span>
+                <span>
+                  {i18n['com.affine.localmind.workbench.blocker.title']()}
+                </span>
                 <input
                   className={surfaceStyles.field}
                   value={chartTitle}
@@ -983,7 +1085,7 @@ function ObjectInsertDialog({
               </label>
             </div>
             <label className={styles.dialogField}>
-              <span>Categories</span>
+              <span>{i18n['com.affine.office.categories']()}</span>
               <input
                 className={surfaceStyles.field}
                 value={categories}
@@ -992,7 +1094,7 @@ function ObjectInsertDialog({
               />
             </label>
             <label className={styles.dialogField}>
-              <span>Series</span>
+              <span>{i18n['com.affine.office.series']()}</span>
               <textarea
                 className={surfaceStyles.textarea}
                 value={series}
@@ -1005,7 +1107,7 @@ function ObjectInsertDialog({
         {type !== 'equation' ? (
           <div className={styles.dialogGrid}>
             <label className={styles.dialogField}>
-              <span>Width (pt)</span>
+              <span>{i18n['com.affine.office.width-pt']()}</span>
               <input
                 className={surfaceStyles.field}
                 type="number"
@@ -1016,7 +1118,7 @@ function ObjectInsertDialog({
               />
             </label>
             <label className={styles.dialogField}>
-              <span>Height (pt)</span>
+              <span>{i18n['com.affine.office.height-pt']()}</span>
               <input
                 className={surfaceStyles.field}
                 type="number"
@@ -1031,14 +1133,14 @@ function ObjectInsertDialog({
         {error ? <div className={styles.dialogError}>{error}</div> : null}
         <div className={styles.dialogActions}>
           <Button disabled={saving} onClick={() => onOpenChange(false)}>
-            Cancel
+            {i18n['com.affine.localmind.aiContext.cancel']()}{' '}
           </Button>
           <Button
             variant="primary"
             loading={saving}
             onClick={() => void submit()}
           >
-            Insert
+            {i18n['com.affine.ui.insert']()}{' '}
           </Button>
         </div>
       </div>
@@ -1054,6 +1156,7 @@ function PageLayoutDialog({
   onOpenChange,
   onSubmit,
   onInsertSection,
+  registerDraft,
 }: {
   open: boolean;
   state: DocxSemanticState;
@@ -1068,7 +1171,9 @@ function PageLayoutDialog({
     sectionType: OfficeDocumentInsertSectionCommand['sectionType'],
     sourceSectionIndex: number
   ) => Promise<boolean>;
+  registerDraft?: RegisterOfficeDraft;
 }) {
+  const i18n = useI18n();
   const [sectionIndex, setSectionIndex] = useState(0);
   const [width, setWidth] = useState('612');
   const [height, setHeight] = useState('792');
@@ -1122,22 +1227,51 @@ function PageLayoutDialog({
     setError(null);
     try {
       const success = await onSubmit(sectionIndex, {
-        widthPt: finiteNumber(width, 'Page width'),
-        heightPt: finiteNumber(height, 'Page height'),
+        widthPt: finiteNumber(
+          width,
+          i18n['com.affine.page-properties.property.pageWidth']()
+        ),
+        heightPt: finiteNumber(height, i18n['com.affine.office.page-height']()),
         orientation,
-        marginTopPt: finiteNumber(marginTop, 'Top margin', 0),
-        marginRightPt: finiteNumber(marginRight, 'Right margin', 0),
-        marginBottomPt: finiteNumber(marginBottom, 'Bottom margin', 0),
-        marginLeftPt: finiteNumber(marginLeft, 'Left margin', 0),
-        headerPt: finiteNumber(header, 'Header position', 0),
-        footerPt: finiteNumber(footer, 'Footer position', 0),
+        marginTopPt: finiteNumber(
+          marginTop,
+          i18n['com.affine.office.top-margin'](),
+          0
+        ),
+        marginRightPt: finiteNumber(
+          marginRight,
+          i18n['com.affine.office.right-margin'](),
+          0
+        ),
+        marginBottomPt: finiteNumber(
+          marginBottom,
+          i18n['com.affine.office.bottom-margin'](),
+          0
+        ),
+        marginLeftPt: finiteNumber(
+          marginLeft,
+          i18n['com.affine.office.left-margin'](),
+          0
+        ),
+        headerPt: finiteNumber(
+          header,
+          i18n['com.affine.office.header-position'](),
+          0
+        ),
+        footerPt: finiteNumber(
+          footer,
+          i18n['com.affine.office.footer-position'](),
+          0
+        ),
         gutterPt: finiteNumber(gutter, 'Gutter', 0),
         columns: Math.trunc(finiteNumber(columns, 'Columns', 1)),
         titlePage,
       });
       if (success) onOpenChange(false);
+      return success;
     } catch (error) {
       setError(error instanceof Error ? error.message : String(error));
+      return false;
     }
   }, [
     columns,
@@ -1155,6 +1289,8 @@ function PageLayoutDialog({
     sectionIndex,
     titlePage,
     width,
+
+    i18n,
   ]);
 
   const insertSection = useCallback(async () => {
@@ -1168,26 +1304,39 @@ function PageLayoutDialog({
     }
   }, [onInsertSection, onOpenChange, sectionIndex, sectionType]);
 
+  const markDirty = useOfficeDialogDraft(registerDraft, save, () =>
+    onOpenChange(false)
+  );
   return (
     <Modal
       open={open}
-      title="Page and section setup"
+      title={i18n['com.affine.office.page-and-section-setup']()}
       width={560}
       onOpenChange={onOpenChange}
     >
-      <div className={styles.dialogForm}>
+      <div
+        className={styles.dialogForm}
+        onChangeCapture={event => {
+          if (
+            !(event.target instanceof HTMLElement) ||
+            !Object.hasOwn(event.target.dataset, 'officeSelector')
+          )
+            markDirty();
+        }}
+      >
         <label className={styles.dialogField}>
-          <span>Section</span>
+          <span>{i18n['com.affine.office.section']()}</span>
           <select
             className={surfaceStyles.select}
             value={sectionIndex}
+            data-office-selector
             disabled={saving}
             onChange={event => loadSection(Number(event.target.value))}
           >
             {(state.sections.length ? state.sections : [{ index: 0 }]).map(
               section => (
                 <option value={section.index} key={section.index}>
-                  Section {section.index + 1}
+                  {i18n['com.affine.office.section']()} {section.index + 1}
                 </option>
               )
             )}
@@ -1195,7 +1344,7 @@ function PageLayoutDialog({
         </label>
         <div className={styles.dialogGrid}>
           <label className={styles.dialogField}>
-            <span>Orientation</span>
+            <span>{i18n['com.affine.office.orientation']()}</span>
             <select
               className={surfaceStyles.select}
               value={orientation}
@@ -1226,12 +1375,16 @@ function PageLayoutDialog({
                 }
               }}
             >
-              <option value="portrait">Portrait</option>
-              <option value="landscape">Landscape</option>
+              <option value="portrait">
+                {i18n['com.affine.office.portrait']()}
+              </option>
+              <option value="landscape">
+                {i18n['com.affine.office.landscape']()}
+              </option>
             </select>
           </label>
           <label className={styles.dialogField}>
-            <span>Columns</span>
+            <span>{i18n['com.affine.office.columns']()}</span>
             <input
               className={surfaceStyles.field}
               type="number"
@@ -1245,7 +1398,7 @@ function PageLayoutDialog({
         </div>
         <div className={styles.dialogGrid}>
           <label className={styles.dialogField}>
-            <span>Page width (pt)</span>
+            <span>{i18n['com.affine.office.page-width-pt']()}</span>
             <input
               className={surfaceStyles.field}
               type="number"
@@ -1256,7 +1409,7 @@ function PageLayoutDialog({
             />
           </label>
           <label className={styles.dialogField}>
-            <span>Page height (pt)</span>
+            <span>{i18n['com.affine.office.page-height-pt']()}</span>
             <input
               className={surfaceStyles.field}
               type="number"
@@ -1269,13 +1422,37 @@ function PageLayoutDialog({
         </div>
         <div className={styles.dialogGridFour}>
           {[
-            { label: 'Top', value: marginTop, setValue: setMarginTop },
-            { label: 'Right', value: marginRight, setValue: setMarginRight },
-            { label: 'Bottom', value: marginBottom, setValue: setMarginBottom },
-            { label: 'Left', value: marginLeft, setValue: setMarginLeft },
+            {
+              label: i18n['com.affine.office.top'](),
+              value: marginTop,
+              setValue: setMarginTop,
+            },
+            {
+              label:
+                i18n[
+                  'com.affine.settings.editorSettings.edgeless.text.alignment.right'
+                ](),
+              value: marginRight,
+              setValue: setMarginRight,
+            },
+            {
+              label: i18n['com.affine.office.bottom'](),
+              value: marginBottom,
+              setValue: setMarginBottom,
+            },
+            {
+              label:
+                i18n[
+                  'com.affine.settings.editorSettings.edgeless.text.alignment.left'
+                ](),
+              value: marginLeft,
+              setValue: setMarginLeft,
+            },
           ].map(({ label, value, setValue }) => (
             <label className={styles.dialogField} key={label}>
-              <span>{label} margin</span>
+              <span>
+                {label} {i18n['com.affine.office.margin']()}
+              </span>
               <input
                 className={surfaceStyles.field}
                 type="number"
@@ -1289,12 +1466,26 @@ function PageLayoutDialog({
         </div>
         <div className={styles.dialogGridThree}>
           {[
-            { label: 'Header', value: header, setValue: setHeader },
-            { label: 'Footer', value: footer, setValue: setFooter },
-            { label: 'Gutter', value: gutter, setValue: setGutter },
+            {
+              label: i18n['com.affine.office.header'](),
+              value: header,
+              setValue: setHeader,
+            },
+            {
+              label: i18n['com.affine.office.footer'](),
+              value: footer,
+              setValue: setFooter,
+            },
+            {
+              label: i18n['com.affine.office.gutter'](),
+              value: gutter,
+              setValue: setGutter,
+            },
           ].map(({ label, value, setValue }) => (
             <label className={styles.dialogField} key={label}>
-              <span>{label} (pt)</span>
+              <span>
+                {label} {i18n['com.affine.office.pt']()}
+              </span>
               <input
                 className={surfaceStyles.field}
                 type="number"
@@ -1313,7 +1504,7 @@ function PageLayoutDialog({
             disabled={saving}
             onChange={event => setTitlePage(event.target.checked)}
           />
-          Different first page
+          {i18n['com.affine.office.different-first-page']()}{' '}
         </label>
         <div className={styles.dialogSectionAction}>
           <select
@@ -1324,29 +1515,37 @@ function PageLayoutDialog({
               setSectionType(event.target.value as typeof sectionType)
             }
           >
-            <option value="nextPage">Next page section</option>
-            <option value="continuous">Continuous section</option>
-            <option value="evenPage">Even page section</option>
-            <option value="oddPage">Odd page section</option>
+            <option value="nextPage">
+              {i18n['com.affine.office.next-page-section']()}
+            </option>
+            <option value="continuous">
+              {i18n['com.affine.office.continuous-section']()}
+            </option>
+            <option value="evenPage">
+              {i18n['com.affine.office.even-page-section']()}
+            </option>
+            <option value="oddPage">
+              {i18n['com.affine.office.odd-page-section']()}
+            </option>
           </select>
           <Button
             disabled={saving || !selectionAvailable}
             onClick={() => void insertSection()}
           >
-            Insert after selection
+            {i18n['com.affine.office.insert-after-selection']()}{' '}
           </Button>
         </div>
         {error ? <div className={styles.dialogError}>{error}</div> : null}
         <div className={styles.dialogActions}>
           <Button disabled={saving} onClick={() => onOpenChange(false)}>
-            Cancel
+            {i18n['com.affine.localmind.aiContext.cancel']()}{' '}
           </Button>
           <Button
             variant="primary"
             loading={saving}
             onClick={() => void save()}
           >
-            Apply
+            {i18n['com.affine.m.selector.confirm-default']()}{' '}
           </Button>
         </div>
       </div>
@@ -1361,6 +1560,7 @@ function StoryDialog({
   saving,
   onOpenChange,
   onSubmit,
+  registerDraft,
 }: {
   open: boolean;
   initialKind: 'header' | 'footer';
@@ -1373,7 +1573,9 @@ function StoryDialog({
     storyType: OfficeDocumentHeaderFooterTextCommand['storyType'],
     text: string
   ) => Promise<boolean>;
+  registerDraft?: RegisterOfficeDraft;
 }) {
+  const i18n = useI18n();
   const [sectionIndex, setSectionIndex] = useState(0);
   const [kind, setKind] = useState(initialKind);
   const [storyType, setStoryType] =
@@ -1417,17 +1619,25 @@ function StoryDialog({
     loadStory(0, initialKind, 'default');
   }, [initialKind, loadStory, open]);
 
+  const save = async () => {
+    const saved = await onSubmit(sectionIndex, kind, storyType, text);
+    if (saved) onOpenChange(false);
+    return saved;
+  };
+  const markDirty = useOfficeDialogDraft(registerDraft, save, () =>
+    onOpenChange(false)
+  );
   return (
     <Modal
       open={open}
-      title="Header and footer"
+      title={i18n['com.affine.office.header-and-footer']()}
       width={520}
       onOpenChange={onOpenChange}
     >
       <div className={styles.dialogForm}>
         <div className={styles.dialogGridThree}>
           <label className={styles.dialogField}>
-            <span>Section</span>
+            <span>{i18n['com.affine.office.section']()}</span>
             <select
               className={surfaceStyles.select}
               value={sectionIndex}
@@ -1441,14 +1651,14 @@ function StoryDialog({
               {(state.sections.length ? state.sections : [{ index: 0 }]).map(
                 section => (
                   <option value={section.index} key={section.index}>
-                    Section {section.index + 1}
+                    {i18n['com.affine.office.section']()} {section.index + 1}
                   </option>
                 )
               )}
             </select>
           </label>
           <label className={styles.dialogField}>
-            <span>Area</span>
+            <span>{i18n['com.affine.office.area']()}</span>
             <select
               className={surfaceStyles.select}
               value={kind}
@@ -1459,12 +1669,16 @@ function StoryDialog({
                 loadStory(sectionIndex, next, storyType);
               }}
             >
-              <option value="header">Header</option>
-              <option value="footer">Footer</option>
+              <option value="header">
+                {i18n['com.affine.office.header']()}
+              </option>
+              <option value="footer">
+                {i18n['com.affine.office.footer']()}
+              </option>
             </select>
           </label>
           <label className={styles.dialogField}>
-            <span>Page type</span>
+            <span>{i18n['com.affine.office.page-type']()}</span>
             <select
               className={surfaceStyles.select}
               value={storyType}
@@ -1475,25 +1689,36 @@ function StoryDialog({
                 loadStory(sectionIndex, kind, next);
               }}
             >
-              <option value="default">Default</option>
-              <option value="first">First page</option>
-              <option value="even">Even pages</option>
+              <option value="default">
+                {i18n['com.affine.office.default']()}
+              </option>
+              <option value="first">
+                {i18n['com.affine.office.first-page']()}
+              </option>
+              <option value="even">
+                {i18n['com.affine.office.even-pages']()}
+              </option>
             </select>
           </label>
         </div>
         <label className={styles.dialogField}>
-          <span>Text</span>
+          <span>
+            {i18n['com.affine.settings.editorSettings.edgeless.text']()}
+          </span>
           <textarea
             className={surfaceStyles.textarea}
             value={text}
             maxLength={4 * 1024 * 1024}
             disabled={saving}
-            onChange={event => setText(event.target.value)}
+            onChange={event => {
+              setText(event.target.value);
+              markDirty();
+            }}
           />
         </label>
         <div className={styles.dialogActions}>
           <Button disabled={saving} onClick={() => onOpenChange(false)}>
-            Cancel
+            {i18n['com.affine.localmind.aiContext.cancel']()}{' '}
           </Button>
           <Button
             variant="primary"
@@ -1506,7 +1731,7 @@ function StoryDialog({
               )
             }
           >
-            Save
+            {i18n['com.affine.localmind.aiContext.save']()}{' '}
           </Button>
         </div>
       </div>
@@ -1543,16 +1768,17 @@ function Toolbar({
   onEditStory: (kind: 'header' | 'footer') => void;
   onPreview: () => void;
 }) {
+  const i18n = useI18n();
   return (
     <div
       className={styles.toolbar}
       role="toolbar"
-      aria-label="Document formatting"
+      aria-label={i18n['com.affine.office.document-formatting']()}
     >
       <select
         className={styles.select}
         value={format.paragraphStyleId ?? ''}
-        aria-label="Paragraph style"
+        aria-label={i18n['com.affine.office.paragraph-style']()}
         onChange={event =>
           onFormatChange({
             ...format,
@@ -1560,17 +1786,27 @@ function Toolbar({
           })
         }
       >
-        <option value="">Normal</option>
-        <option value="Title">Title</option>
-        <option value="Subtitle">Subtitle</option>
-        <option value="Heading1">Heading 1</option>
-        <option value="Heading2">Heading 2</option>
-        <option value="Heading3">Heading 3</option>
+        <option value="">{i18n['com.affine.office.normal']()}</option>
+        <option value="Title">
+          {i18n['com.affine.localmind.workbench.blocker.title']()}
+        </option>
+        <option value="Subtitle">{i18n['com.affine.office.subtitle']()}</option>
+        <option value="Heading1">
+          {i18n['com.affine.office.heading-1']()}
+        </option>
+        <option value="Heading2">
+          {i18n['com.affine.office.heading-2']()}
+        </option>
+        <option value="Heading3">
+          {i18n['com.affine.office.heading-3']()}
+        </option>
       </select>
       <select
         className={styles.fontSelect}
         value={format.fontFamily ?? ''}
-        aria-label="Font family"
+        aria-label={i18n[
+          'com.affine.settings.editorSettings.general.font-family.title'
+        ]()}
         onChange={event =>
           onFormatChange({
             ...format,
@@ -1578,7 +1814,7 @@ function Toolbar({
           })
         }
       >
-        <option value="">Document font</option>
+        <option value="">{i18n['com.affine.office.document-font']()}</option>
         {FONT_FAMILIES.map(font => (
           <option key={font} value={font} style={{ fontFamily: font }}>
             {font}
@@ -1588,7 +1824,9 @@ function Toolbar({
       <select
         className={styles.sizeSelect}
         value={format.fontSizePt ?? ''}
-        aria-label="Font size"
+        aria-label={i18n[
+          'com.affine.settings.editorSettings.general.font-size.title'
+        ]()}
         onChange={event =>
           onFormatChange({
             ...format,
@@ -1598,7 +1836,7 @@ function Toolbar({
           })
         }
       >
-        <option value="">Size</option>
+        <option value="">{i18n['com.affine.office.size']()}</option>
         {FONT_SIZES.map(size => (
           <option key={size} value={size}>
             {size}
@@ -1608,8 +1846,8 @@ function Toolbar({
       <div className={styles.toolbarDivider} />
       <IconButton
         size="24"
-        tooltip="Bold"
-        aria-label="Bold"
+        tooltip={i18n['com.affine.keyboardShortcuts.bold']()}
+        aria-label={i18n['com.affine.keyboardShortcuts.bold']()}
         aria-pressed={format.bold === true}
         data-active={format.bold === true}
         onClick={() => onFormatChange({ ...format, bold: !format.bold })}
@@ -1618,8 +1856,8 @@ function Toolbar({
       </IconButton>
       <IconButton
         size="24"
-        tooltip="Italic"
-        aria-label="Italic"
+        tooltip={i18n['com.affine.keyboardShortcuts.italic']()}
+        aria-label={i18n['com.affine.keyboardShortcuts.italic']()}
         aria-pressed={format.italic === true}
         data-active={format.italic === true}
         onClick={() => onFormatChange({ ...format, italic: !format.italic })}
@@ -1628,8 +1866,8 @@ function Toolbar({
       </IconButton>
       <IconButton
         size="24"
-        tooltip="Underline"
-        aria-label="Underline"
+        tooltip={i18n['com.affine.office.annotation-type.underline']()}
+        aria-label={i18n['com.affine.keyboardShortcuts.underline']()}
         aria-pressed={Boolean(format.underline)}
         data-active={Boolean(format.underline)}
         onClick={() =>
@@ -1641,12 +1879,17 @@ function Toolbar({
       >
         <UnderLineIcon />
       </IconButton>
-      <label className={styles.colorControl} title="Text color">
+      <label
+        className={styles.colorControl}
+        title={i18n['com.affine.settings.editorSettings.edgeless.text.color']()}
+      >
         <span>A</span>
         <input
           type="color"
           value={format.textColor ?? '#1f2329'}
-          aria-label="Text color"
+          aria-label={i18n[
+            'com.affine.settings.editorSettings.edgeless.text.color'
+          ]()}
           onChange={event =>
             onFormatChange({
               ...format,
@@ -1659,7 +1902,7 @@ function Toolbar({
         className={styles.select}
         defaultValue=""
         disabled={!selection || saving}
-        aria-label="Paragraph alignment"
+        aria-label={i18n['com.affine.office.paragraph-alignment']()}
         onChange={event => {
           const alignment = event.target.value as
             | OfficeDocumentFormatParagraphCommand['format']['alignment']
@@ -1668,25 +1911,37 @@ function Toolbar({
           event.currentTarget.value = '';
         }}
       >
-        <option value="">Align</option>
-        <option value="left">Left</option>
-        <option value="center">Center</option>
-        <option value="right">Right</option>
-        <option value="both">Justify</option>
+        <option value="">{i18n['com.affine.office.align']()}</option>
+        <option value="left">
+          {i18n[
+            'com.affine.settings.editorSettings.edgeless.text.alignment.left'
+          ]()}
+        </option>
+        <option value="center">
+          {i18n[
+            'com.affine.settings.editorSettings.edgeless.text.alignment.center'
+          ]()}
+        </option>
+        <option value="right">
+          {i18n[
+            'com.affine.settings.editorSettings.edgeless.text.alignment.right'
+          ]()}
+        </option>
+        <option value="both">{i18n['com.affine.office.justify']()}</option>
       </select>
       <Button
         variant="plain"
         disabled={!selection || saving}
         onClick={onInsertPageBreak}
       >
-        Page break
+        {i18n['com.affine.office.page-break']()}{' '}
       </Button>
       <Button
         variant="plain"
         disabled={!selection || saving}
         onClick={onInsertTable}
       >
-        Insert table
+        {i18n['com.affine.office.insert-table']()}{' '}
       </Button>
       <Button
         variant="plain"
@@ -1694,7 +1949,7 @@ function Toolbar({
         onClick={() => onInsertObject('image')}
       >
         <ImageIcon />
-        Image
+        {i18n['com.affine.keyboardShortcuts.image']()}{' '}
       </Button>
       <Button
         variant="plain"
@@ -1702,7 +1957,7 @@ function Toolbar({
         onClick={() => onInsertObject('shape')}
       >
         <ShapeIcon />
-        Shape
+        {i18n['com.affine.settings.editorSettings.edgeless.shape']()}{' '}
       </Button>
       <Button
         variant="plain"
@@ -1710,35 +1965,37 @@ function Toolbar({
         onClick={() => onInsertObject('chart')}
       >
         <ChartPanelIcon />
-        Chart
+        {i18n['com.affine.office.chart']()}{' '}
       </Button>
       <Button
         variant="plain"
         disabled={!selection || saving}
         onClick={() => onInsertObject('equation')}
       >
-        Equation
+        {i18n['com.affine.office.equation']()}{' '}
       </Button>
       <Button variant="plain" disabled={saving} onClick={onOpenPageLayout}>
-        Page setup
+        {i18n['com.affine.office.page-setup']()}{' '}
       </Button>
       <Button
         variant="plain"
         disabled={saving}
         onClick={() => onEditStory('header')}
       >
-        Header
+        {i18n['com.affine.office.header']()}{' '}
       </Button>
       <Button
         variant="plain"
         disabled={saving}
         onClick={() => onEditStory('footer')}
       >
-        Footer
+        {i18n['com.affine.office.footer']()}{' '}
       </Button>
       <div className={styles.toolbarSpacer} />
       <span className={styles.selectionStatus}>
-        {selection ? 'Selection ready' : 'Select text to format'}
+        {selection
+          ? i18n['com.affine.office.selection-ready']()
+          : i18n['com.affine.office.select-text-to-format']()}
       </span>
       <Button
         variant="primary"
@@ -1746,7 +2003,7 @@ function Toolbar({
         loading={pending}
         onClick={onPreview}
       >
-        Preview
+        {i18n['com.affine.editCollection.rules.preview']()}{' '}
       </Button>
     </div>
   );
@@ -1766,6 +2023,7 @@ export function DocumentEditor({
   onRevision,
   onCommentAnchorChange,
   onAiSelectionChange,
+  registerDraft,
 }: {
   state: DocxSemanticState;
   revision: Revision;
@@ -1776,8 +2034,17 @@ export function DocumentEditor({
   onRevision: (revision: Revision, state: DocxSemanticState) => void;
   onCommentAnchorChange: (anchor: OfficeCommentAnchor | null) => void;
   onAiSelectionChange: (selection: OfficeSelection | null) => void;
+  registerDraft?: RegisterOfficeDraft;
 }) {
+  const i18n = useI18n();
   const rootRef = useRef<HTMLDivElement>(null);
+  const paragraphDrafts = useRef(
+    new Map<string, { paragraph: DocxParagraph; text: string }>()
+  );
+  const [, setDraftVersion] = useState(0);
+  const latestRevision = useRef(revision);
+  if (revision.sequence >= latestRevision.current.sequence)
+    latestRevision.current = revision;
   const [selection, setSelection] = useState<OfficeTextRange | null>(null);
   const [format, setFormat] = useState<OfficeDocumentFormat>({});
   const [previewing, setPreviewing] = useState(false);
@@ -1856,7 +2123,7 @@ export function DocumentEditor({
         setSelection(null);
         return true;
       } catch (err) {
-        setError(officeErrorMessage(err));
+        setError(officeErrorMessage(err, owner));
         return false;
       } finally {
         setSaving(false);
@@ -1868,10 +2135,10 @@ export function DocumentEditor({
   const executeImmediateInBackground = useCallback(
     (command: OfficeDocxCommand) => {
       executeImmediate(command).catch(err => {
-        setError(officeErrorMessage(err));
+        setError(officeErrorMessage(err, owner));
       });
     },
-    [executeImmediate]
+    [executeImmediate, owner]
   );
 
   const commandBase = useCallback(() => {
@@ -2052,7 +2319,7 @@ export function DocumentEditor({
         stats: result.previewOfficeDocxCommand.stats as Record<string, number>,
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(officeErrorMessage(err, owner));
     } finally {
       setPreviewing(false);
     }
@@ -2070,10 +2337,16 @@ export function DocumentEditor({
       );
       const next = result.executeOfficeDocxCommand.artifact.currentRevision;
       if (!next.stateUrl)
-        throw new Error('Saved revision has no document state');
+        throw new Error(
+          i18n['com.affine.office.saved-revision-has-no-document-state']()
+        );
       const nextState = await fetchOfficeState(next.stateUrl, 'document');
       if (!isDocxSemanticState(nextState)) {
-        throw new Error('Saved revision has an invalid document state');
+        throw new Error(
+          i18n[
+            'com.affine.office.saved-revision-has-an-invalid-document-state'
+          ]()
+        );
       }
       onRevision(next as Revision, nextState);
       setPreview(null);
@@ -2082,13 +2355,15 @@ export function DocumentEditor({
       const message = err instanceof Error ? err.message : String(err);
       setError(
         message.toLowerCase().includes('stale')
-          ? 'This document changed in another session. Reload the latest revision and try again.'
+          ? i18n[
+              'com.affine.office.this-document-changed-in-another-session-reload-the-latest-revision-and-try-again'
+            ]()
           : message
       );
     } finally {
       setSaving(false);
     }
-  }, [graphql, onRevision, owner, preview, readOnly]);
+  }, [graphql, onRevision, owner, preview, readOnly, i18n]);
 
   const handleParagraphCommit = useCallback(
     async (paragraph: DocxParagraph, text: string) => {
@@ -2097,7 +2372,9 @@ export function DocumentEditor({
       if (!replacement) return;
       if (saving) {
         setError(
-          'Wait for the current save to finish before editing another paragraph.'
+          i18n[
+            'com.affine.office.wait-for-the-current-save-to-finish-before-editing-another-paragraph'
+          ]()
         );
         return;
       }
@@ -2124,20 +2401,90 @@ export function DocumentEditor({
         const result = await executeOfficeDocxCommand(graphql, owner, command);
         const next = result.executeOfficeDocxCommand.artifact.currentRevision;
         if (!next.stateUrl)
-          throw new Error('Saved revision has no document state');
+          throw new Error(
+            i18n['com.affine.office.saved-revision-has-no-document-state']()
+          );
         const nextState = await fetchOfficeState(next.stateUrl, 'document');
         if (!isDocxSemanticState(nextState)) {
-          throw new Error('Saved revision has an invalid document state');
+          throw new Error(
+            i18n[
+              'com.affine.office.saved-revision-has-an-invalid-document-state'
+            ]()
+          );
         }
         onRevision(next as Revision, nextState);
       } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
+        setError(officeErrorMessage(err, owner));
       } finally {
         setSaving(false);
       }
     },
-    [artifactId, graphql, onRevision, readOnly, revision.id, saving, owner]
+    [
+      artifactId,
+      graphql,
+      onRevision,
+      readOnly,
+      revision.id,
+      saving,
+      owner,
+      i18n,
+    ]
   );
+
+  useOfficeEditorDraft(registerDraft, {
+    get hasUnsavedChanges() {
+      return paragraphDrafts.current.size > 0;
+    },
+    save: async () => {
+      if (readOnly || saving)
+        throw new Error(
+          i18n['com.affine.office.office-editor-is-not-writable']()
+        );
+      for (const [key, draft] of paragraphDrafts.current) {
+        const replacement = diffTextReplacement(
+          draft.paragraph.text,
+          draft.text
+        );
+        if (!replacement) {
+          paragraphDrafts.current.delete(key);
+          continue;
+        }
+        const id = nanoid();
+        const result = await executeAndReloadOfficeCommand<DocxSemanticState>({
+          graphql,
+          owner,
+          kind: 'document',
+          command: {
+            version: 'localmind-office-command/v1',
+            commandId: id,
+            idempotencyKey: `office-user:${id}`,
+            artifactId,
+            expectedRevisionId: latestRevision.current.id,
+            source: 'user',
+            operation: 'office.document.text.replace',
+            target: {
+              type: 'text_range',
+              start: { blockId: key, offset: replacement.start },
+              end: { blockId: key, offset: replacement.end },
+            },
+            text: replacement.text,
+          },
+        });
+        latestRevision.current = result.revision;
+        paragraphDrafts.current.delete(key);
+        onRevision(result.revision, result.state);
+      }
+    },
+    discard: async () => {
+      for (const [id, draft] of paragraphDrafts.current) {
+        const element = rootRef.current?.querySelector<HTMLElement>(
+          `[data-office-block-id="${CSS.escape(id)}"]`
+        );
+        if (element) element.textContent = draft.paragraph.text;
+      }
+      paragraphDrafts.current.clear();
+    },
+  });
 
   const handleEditorKeyDown = useCallback((event: KeyboardEvent) => {
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'b') {
@@ -2177,27 +2524,34 @@ export function DocumentEditor({
         {preview ? (
           <div className={styles.previewBar} role="status">
             <span>
-              Preview ready: {preview.stats.changedParagraphs ?? 0}{' '}
-              paragraph(s), {preview.stats.changedRuns ?? 0} run(s)
+              {i18n['com.affine.office.preview-summary']({
+                paragraphs: String(preview.stats.changedParagraphs ?? 0),
+                runs: String(preview.stats.changedRuns ?? 0),
+              })}
             </span>
             <div className={styles.previewActions}>
               <Button variant="plain" onClick={() => setPreview(null)}>
-                Cancel
+                {i18n['com.affine.localmind.aiContext.cancel']()}{' '}
               </Button>
               <Button
                 variant="primary"
                 loading={saving}
                 onClick={() => void handleApply()}
               >
-                Apply and save
+                {i18n['com.affine.office.apply-and-save']()}{' '}
               </Button>
             </div>
           </div>
         ) : null}
         {error ? <div className={styles.errorBar}>{error}</div> : null}
         <div className={styles.workspace}>
-          <aside className={styles.navigation} aria-label="Document navigation">
-            <div className={styles.navigationTitle}>Navigation</div>
+          <aside
+            className={styles.navigation}
+            aria-label={i18n['com.affine.office.document-navigation']()}
+          >
+            <div className={styles.navigationTitle}>
+              {i18n['com.affine.cmdk.affine.category.affine.navigation']()}
+            </div>
             {headings.length ? (
               <nav className={styles.headingList}>
                 {headings.map(heading => (
@@ -2211,11 +2565,15 @@ export function DocumentEditor({
                 ))}
               </nav>
             ) : (
-              <div className={styles.navigationEmpty}>No headings</div>
+              <div className={styles.navigationEmpty}>
+                {i18n['com.affine.office.no-headings']()}
+              </div>
             )}
             {state.references.bookmarks.length ? (
               <>
-                <div className={styles.navigationSectionTitle}>Bookmarks</div>
+                <div className={styles.navigationSectionTitle}>
+                  {i18n['com.affine.office.bookmarks']()}
+                </div>
                 <nav className={styles.headingList}>
                   {state.references.bookmarks.map(bookmark => (
                     <a
@@ -2230,22 +2588,32 @@ export function DocumentEditor({
             ) : null}
             {state.review.changes.length || state.review.comments.length ? (
               <section className={styles.reviewSummary}>
-                <div className={styles.navigationSectionTitle}>Review</div>
-                <span>{state.review.changes.length} tracked change(s)</span>
-                <span>{state.review.comments.length} package comment(s)</span>
+                <div className={styles.navigationSectionTitle}>
+                  {i18n['com.affine.office.review']()}
+                </div>
+                <span>
+                  {i18n.t('com.affine.office.tracked-change-count', {
+                    count: state.review.changes.length,
+                  })}
+                </span>
+                <span>
+                  {i18n.t('com.affine.office.comment-count', {
+                    count: state.review.comments.length,
+                  })}
+                </span>
                 {state.review.changes.length && !readOnly ? (
                   <div className={styles.reviewActions}>
                     <Button
                       variant="plain"
                       onClick={() => handleReview('reject')}
                     >
-                      Reject all
+                      {i18n['com.affine.office.reject-all']()}{' '}
                     </Button>
                     <Button
                       variant="primary"
                       onClick={() => handleReview('accept')}
                     >
-                      Accept all
+                      {i18n['com.affine.office.accept-all']()}{' '}
                     </Button>
                   </div>
                 ) : null}
@@ -2253,7 +2621,9 @@ export function DocumentEditor({
             ) : null}
             {state.notes.footnotes.length || state.notes.endnotes.length ? (
               <section className={styles.notesSummary}>
-                <div className={styles.navigationSectionTitle}>Notes</div>
+                <div className={styles.navigationSectionTitle}>
+                  {i18n['com.affine.audio.notes']()}
+                </div>
                 {state.notes.footnotes.slice(0, 6).map(note => (
                   <span key={`footnote:${note.id}`}>
                     {note.id}.{' '}
@@ -2264,7 +2634,7 @@ export function DocumentEditor({
                 ))}
                 {state.notes.endnotes.slice(0, 6).map(note => (
                   <span key={`endnote:${note.id}`}>
-                    Endnote {note.id}.{' '}
+                    {i18n['com.affine.office.endnote']()} {note.id}.{' '}
                     {collectDocxParagraphs(note.blocks)
                       .map(paragraph => paragraph.text)
                       .join(' ')}
@@ -2272,14 +2642,33 @@ export function DocumentEditor({
                 ))}
               </section>
             ) : null}
-            <div className={styles.pageCount}>{pages.length} page(s)</div>
+            <div className={styles.pageCount}>
+              {i18n.t('com.affine.office.page-count', { count: pages.length })}
+            </div>
           </aside>
           <main
             ref={rootRef}
             className={styles.canvas}
             onKeyDown={handleEditorKeyDown}
+            onInput={event => {
+              if (!registerDraft || readOnly) return;
+              const target =
+                event.target instanceof HTMLElement
+                  ? event.target.closest<HTMLElement>('[data-office-block-id]')
+                  : null;
+              const paragraph = paragraphs.find(
+                item => item.id === target?.dataset.officeBlockId
+              );
+              if (!target || !paragraph) return;
+              const text = target.textContent ?? '';
+              if (text === paragraph.text)
+                paragraphDrafts.current.delete(paragraph.id);
+              else
+                paragraphDrafts.current.set(paragraph.id, { paragraph, text });
+              setDraftVersion(value => value + 1);
+            }}
             tabIndex={0}
-            aria-label="Document pages"
+            aria-label={i18n['com.affine.office.document-pages']()}
           >
             {pages.map(page => (
               <article
@@ -2308,9 +2697,12 @@ export function DocumentEditor({
                     paragraphOrder={paragraphOrder}
                     editingDisabled={saving || readOnly}
                     packageUrl={revision.packageUrl}
-                    onParagraphCommit={(paragraph, text) =>
-                      void handleParagraphCommit(paragraph, text)
-                    }
+                    onParagraphCommit={(paragraph, text) => {
+                      if (!registerDraft)
+                        void handleParagraphCommit(paragraph, text).catch(
+                          caught => setError(officeErrorMessage(caught, owner))
+                        );
+                    }}
                   />
                 </div>
                 {defaultFooter ? (
@@ -2324,39 +2716,49 @@ export function DocumentEditor({
           </main>
         </div>
       </div>
-      <ObjectInsertDialog
-        open={objectDialogType !== null}
-        initialType={objectDialogType ?? 'image'}
-        saving={saving}
-        onOpenChange={open => {
-          if (!open) setObjectDialogType(null);
-        }}
-        onSubmit={handleInsertObject}
-      />
-      <PageLayoutDialog
-        open={pageLayoutOpen}
-        state={state}
-        selectionAvailable={selection !== null}
-        saving={saving}
-        onOpenChange={setPageLayoutOpen}
-        onSubmit={handlePageLayout}
-        onInsertSection={handleInsertSection}
-      />
-      <StoryDialog
-        open={storyDialogKind !== null}
-        initialKind={storyDialogKind ?? 'header'}
-        state={state}
-        saving={saving}
-        onOpenChange={open => {
-          if (!open) setStoryDialogKind(null);
-        }}
-        onSubmit={handleEditStory}
-      />
+      {objectDialogType !== null ? (
+        <ObjectInsertDialog
+          open={objectDialogType !== null}
+          initialType={objectDialogType ?? 'image'}
+          saving={saving}
+          onOpenChange={open => {
+            if (!open) setObjectDialogType(null);
+          }}
+          onSubmit={handleInsertObject}
+          registerDraft={registerDraft}
+        />
+      ) : null}
+      {pageLayoutOpen ? (
+        <PageLayoutDialog
+          open={pageLayoutOpen}
+          state={state}
+          selectionAvailable={selection !== null}
+          saving={saving}
+          onOpenChange={setPageLayoutOpen}
+          onSubmit={handlePageLayout}
+          onInsertSection={handleInsertSection}
+          registerDraft={registerDraft}
+        />
+      ) : null}
+      {storyDialogKind !== null ? (
+        <StoryDialog
+          open={storyDialogKind !== null}
+          initialKind={storyDialogKind ?? 'header'}
+          state={state}
+          saving={saving}
+          onOpenChange={open => {
+            if (!open) setStoryDialogKind(null);
+          }}
+          onSubmit={handleEditStory}
+          registerDraft={registerDraft}
+        />
+      ) : null}
     </>
   );
 }
 
 export const Component = () => {
+  const i18n = useI18n();
   const { artifactId = '' } = useParams<{ artifactId: string }>();
   const workspaceId = useService(WorkspaceService).workspace.id;
   const graphql = useService(GraphQLService);
@@ -2412,7 +2814,11 @@ export const Component = () => {
     const url = revision?.stateUrl;
     if (!url) {
       if (revision)
-        setStateError('This document revision has no editable state.');
+        setStateError(
+          I18n[
+            'com.affine.office.this-document-revision-has-no-editable-state'
+          ]()
+        );
       return;
     }
     const controller = new AbortController();
@@ -2449,13 +2855,17 @@ export const Component = () => {
       setSelectionNotice(
         options.preserveAiSelection && aiSelection
           ? preservedSelection
-            ? `Selection preserved on revision ${nextRevision.sequence}.`
-            : 'Selection cleared because its stable target is not present in the new revision.'
+            ? I18n['com.affine.office.selection-preserved']({
+                version: String(nextRevision.sequence),
+              })
+            : i18n[
+                'com.affine.office.selection-cleared-because-its-stable-target-is-not-present-in-the-new-revision'
+              ]()
           : null
       );
       mutate().catch(console.error);
     },
-    [aiSelection, artifactId, mutate]
+    [aiSelection, artifactId, mutate, i18n]
   );
 
   const handleAiSelectionChange = useCallback(
@@ -2469,7 +2879,11 @@ export const Component = () => {
   const handleTaskRevision = useCallback(
     async (evidence: OfficeTaskRevisionEvidence) => {
       if (evidence.artifactId !== artifactId) {
-        throw new Error('Office task result targets a different artifact.');
+        throw new Error(
+          i18n[
+            'com.affine.office.office-task-result-targets-a-different-artifact'
+          ]()
+        );
       }
       const result = await graphql.gql({
         query: officeArtifactQuery,
@@ -2478,7 +2892,11 @@ export const Component = () => {
       const nextArtifact = result.officeArtifact;
       const latest = nextArtifact?.currentRevision;
       if (!nextArtifact || !latest || nextArtifact.id !== evidence.artifactId) {
-        throw new Error('The completed Office task artifact is unavailable.');
+        throw new Error(
+          i18n[
+            'com.affine.office.the-completed-office-task-artifact-is-unavailable'
+          ]()
+        );
       }
       let evidenceRevision: OfficeRevision | HistoryRevision | undefined =
         latest.id === evidence.revisionId ? latest : undefined;
@@ -2496,21 +2914,35 @@ export const Component = () => {
         evidenceRevision.artifactId !== artifactId ||
         evidenceRevision.origin !== 'ai'
       ) {
-        throw new Error('Office task revision evidence could not be verified.');
+        throw new Error(
+          i18n[
+            'com.affine.office.office-task-revision-evidence-could-not-be-verified'
+          ]()
+        );
       }
       if (
         evidence.sequence !== null &&
         evidenceRevision.sequence !== evidence.sequence
       ) {
         throw new Error(
-          'Office task revision sequence evidence does not match.'
+          i18n[
+            'com.affine.office.office-task-revision-sequence-evidence-does-not-match'
+          ]()
         );
       }
       if (latest.sequence < evidenceRevision.sequence) {
-        throw new Error('The latest Office revision is behind task evidence.');
+        throw new Error(
+          i18n[
+            'com.affine.office.the-latest-office-revision-is-behind-task-evidence'
+          ]()
+        );
       }
       if (!latest.stateUrl) {
-        throw new Error('The latest Office revision has no editable state.');
+        throw new Error(
+          i18n[
+            'com.affine.office.the-latest-office-revision-has-no-editable-state'
+          ]()
+        );
       }
       const nextState = await fetchOfficeState(
         latest.stateUrl,
@@ -2518,7 +2950,7 @@ export const Component = () => {
       );
       handleRevision(latest, nextState, { preserveAiSelection: true });
     },
-    [artifactId, graphql, handleRevision, workspaceId]
+    [artifactId, graphql, handleRevision, workspaceId, i18n]
   );
 
   const openAiChat = useCallback(() => {
@@ -2548,7 +2980,9 @@ export const Component = () => {
       });
       const latest = result.officeArtifact?.currentRevision;
       if (!latest)
-        throw new Error('The latest Office revision is unavailable.');
+        throw new Error(
+          i18n['com.affine.office.the-latest-office-revision-is-unavailable']()
+        );
       latestRevisionRef.current = { artifactId, revision: latest };
       setLatestRevision(latest);
       setRevision(latest);
@@ -2561,7 +2995,7 @@ export const Component = () => {
     } finally {
       setReturningLatest(false);
     }
-  }, [artifactId, graphql, latestRevision, mutate, workspaceId]);
+  }, [artifactId, graphql, latestRevision, mutate, workspaceId, i18n]);
 
   const handleDownload = useCallback(async () => {
     if (!artifact || !revision) return;
@@ -2602,26 +3036,36 @@ export const Component = () => {
     isLoading || (artifact && revision && !state && !stateError) ? (
       <CenterState>
         <Loading />
-        <span>Opening native document…</span>
+        <span>{i18n['com.affine.office.opening-native-document']()}</span>
       </CenterState>
     ) : error ? (
       <CenterState>
-        <strong>Unable to open this document</strong>
+        <strong>
+          {i18n['com.affine.office.unable-to-open-this-document']()}
+        </strong>
         <span>{error.message}</span>
-        <Button onClick={() => void mutate()}>Retry</Button>
+        <Button onClick={() => void mutate()}>
+          {i18n['com.affine.localmind.directoryPermissions.retry']()}
+        </Button>
       </CenterState>
     ) : !artifact || !revision ? (
       <CenterState>
-        <strong>Document not found</strong>
+        <strong>{i18n['com.affine.office.document-not-found']()}</strong>
         <span>
-          The Office artifact may have been removed or you may not have access.
+          {i18n[
+            'com.affine.office.the-office-artifact-may-have-been-removed-or-you-may-not-have-access'
+          ]()}{' '}
         </span>
       </CenterState>
     ) : stateError ? (
       <CenterState>
-        <strong>Unable to load document contents</strong>
+        <strong>
+          {i18n['com.affine.office.unable-to-load-document-contents']()}
+        </strong>
         <span>{stateError}</span>
-        <Button onClick={() => setRevision({ ...revision })}>Retry</Button>
+        <Button onClick={() => setRevision({ ...revision })}>
+          {i18n['com.affine.localmind.directoryPermissions.retry']()}
+        </Button>
       </CenterState>
     ) : state && artifact.kind === 'document' && isDocxSemanticState(state) ? (
       <DocumentEditor
@@ -2675,8 +3119,12 @@ export const Component = () => {
       />
     ) : state ? (
       <CenterState>
-        <strong>Unsupported Office state</strong>
-        <span>The saved state does not match this artifact type.</span>
+        <strong>{i18n['com.affine.office.unsupported-office-state']()}</strong>
+        <span>
+          {i18n[
+            'com.affine.office.the-saved-state-does-not-match-this-artifact-type'
+          ]()}
+        </span>
       </CenterState>
     ) : null;
 
@@ -2732,7 +3180,9 @@ export const Component = () => {
             autoRefreshEnabled={!isHistorical}
             onClearSelection={() => {
               setAiSelection(null);
-              setSelectionNotice('Selection removed from AI context.');
+              setSelectionNotice(
+                i18n['com.affine.office.selection-removed-from-ai-context']()
+              );
             }}
             onTaskRevision={handleTaskRevision}
           />

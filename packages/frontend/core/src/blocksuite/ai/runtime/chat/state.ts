@@ -1,5 +1,6 @@
 import type { AIToolsConfig } from '@affine/core/modules/ai-button';
 import type { CopilotChatHistoryFragment } from '@affine/graphql';
+import { I18n } from '@affine/i18n';
 
 export type AIChatScope =
   | {
@@ -233,7 +234,9 @@ export function createDraftTab(scope: AIChatScope): AIChatTab {
   return {
     kind: 'draft',
     id: `draft:${scope.kind}:${scope.kind === 'project' ? scope.projectId : 'docId' in scope ? (scope.docId ?? '') : ''}`,
-    title: 'New chat',
+    get title() {
+      return I18n['com.affine.localmind.documentUpdate.newChat']();
+    },
     scope,
     hasMessages: false,
   };

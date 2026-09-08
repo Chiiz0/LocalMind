@@ -8,6 +8,7 @@ import {
 } from '@affine/admin/components/ui/select';
 import { Switch } from '@affine/admin/components/ui/switch';
 import { cn } from '@affine/admin/utils';
+import { useI18n } from '@affine/i18n';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { Textarea } from '../../components/ui/textarea';
@@ -85,6 +86,7 @@ const Inputs: Record<
     error,
     onValidationChange,
   }) {
+    const i18n = useI18n();
     const fallbackText = useMemo(
       () =>
         typeof defaultValue === 'string'
@@ -106,7 +108,7 @@ const Inputs: Record<
         onValidationChange?.(undefined);
         onChange(value);
       } catch {
-        onValidationChange?.('Invalid JSON format');
+        onValidationChange?.(i18n['com.affine.admin.invalid-json-format']());
         // Keep the draft "dirty" even when JSON is temporarily invalid
         // so Save/Cancel state can reflect real editing progress.
         onChange(nextText);
@@ -127,13 +129,16 @@ const Inputs: Record<
     );
   },
   Enum: function EnumInput({ defaultValue, onChange, options }) {
+    const i18n = useI18n();
     return (
       <Select
         value={typeof defaultValue === 'string' ? defaultValue : undefined}
         onValueChange={onChange}
       >
         <SelectTrigger>
-          <SelectValue placeholder="Select an option" />
+          <SelectValue
+            placeholder={i18n['com.affine.admin.select-an-option']()}
+          />
         </SelectTrigger>
         <SelectContent>
           {options?.map(option => (

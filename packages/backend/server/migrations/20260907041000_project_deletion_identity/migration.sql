@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX project_resource_deletions_resource_id_project_id_key ON project_resource_deletions(resource_id, project_id);

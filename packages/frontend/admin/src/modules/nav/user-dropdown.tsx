@@ -12,6 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@affine/admin/components/ui/dropdown-menu';
+import { useI18n } from '@affine/i18n';
 import { MoreVerticalIcon } from '@blocksuite/icons/rc';
 import { CircleUser } from 'lucide-react';
 import { useCallback } from 'react';
@@ -36,6 +37,7 @@ const UserInfo = ({
   avatarUrl: string | null;
   name?: string;
 }) => {
+  const i18n = useI18n();
   return (
     <>
       <Avatar className="w-8 h-8">
@@ -46,7 +48,9 @@ const UserInfo = ({
       </Avatar>
       <div className="flex flex-col font-medium gap-1">
         {name ?? email.split('@')[0]}
-        <span className={adminBadgeClass}>Admin</span>
+        <span className={adminBadgeClass}>
+          {i18n['com.affine.admin.admin']()}
+        </span>
       </div>
     </>
   );
@@ -82,19 +86,20 @@ const UserName = ({
 };
 
 export function UserDropdown({ isCollapsed }: UserDropdownProps) {
+  const i18n = useI18n();
   const currentUser = useCurrentUser();
   const relative = useRevalidateCurrentUser();
 
   const handleLogout = useCallback(() => {
     affineFetch('/api/auth/sign-out', { method: 'POST' })
       .then(() => {
-        toast.success('Logged out successfully');
+        toast.success(i18n['com.affine.admin.logged-out-successfully']());
         return relative();
       })
       .catch(err => {
         toast.error(`Failed to logout: ${err.message}`);
       });
-  }, [relative]);
+  }, [relative, i18n]);
 
   if (isCollapsed) {
     return (
@@ -120,7 +125,9 @@ export function UserDropdown({ isCollapsed }: UserDropdownProps) {
             ) : null}
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={handleLogout}>Logout</DropdownMenuItem>
+          <DropdownMenuItem onSelect={handleLogout}>
+            {i18n['com.affine.admin.logout']()}
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     );
@@ -136,7 +143,9 @@ export function UserDropdown({ isCollapsed }: UserDropdownProps) {
           </AvatarFallback>
         </Avatar>
         <UserName name={currentUser?.name} email={currentUser?.email} />
-        <span className={adminBadgeClass}>Admin</span>
+        <span className={adminBadgeClass}>
+          {i18n['com.affine.admin.admin']()}
+        </span>
       </div>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -159,7 +168,9 @@ export function UserDropdown({ isCollapsed }: UserDropdownProps) {
             ) : null}
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={handleLogout}>Logout</DropdownMenuItem>
+          <DropdownMenuItem onSelect={handleLogout}>
+            {i18n['com.affine.admin.logout']()}
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

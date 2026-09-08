@@ -130,6 +130,42 @@ test.serial(
       { projectId: project.id, runId: run.id }
     );
     t.is(cancelled.cancelProjectAgentTask.status, 'cancelled');
+    const decision = `mutation($input: ProjectTaskDecisionInput!) {
+      decideProjectAgentTask(input: $input) { applied decision processedByName processedAt task { status } }
+    }`;
+    const late = await app.gql<{
+      decideProjectAgentTask: {
+        applied: boolean;
+        decision: string;
+        processedByName: string;
+        processedAt: string;
+      };
+    }>(decision, {
+      input: {
+        projectId: project.id,
+        runId: run.id,
+        targetFingerprint: run.targetFingerprint,
+        expectedStatus: 'waiting_approval',
+        action: 'approve',
+        requestKey: 'late-chat',
+      },
+    });
+    t.false(late.decideProjectAgentTask.applied);
+    t.is(late.decideProjectAgentTask.decision, 'cancel');
+    t.truthy(late.decideProjectAgentTask.processedByName);
+    t.truthy(late.decideProjectAgentTask.processedAt);
+    await t.throwsAsync(
+      app.gql(decision, {
+        input: {
+          projectId: other.id,
+          runId: run.id,
+          targetFingerprint: run.targetFingerprint,
+          expectedStatus: 'waiting_approval',
+          action: 'approve',
+          requestKey: 'cross-project',
+        },
+      })
+    );
   }
 );
 
@@ -139,9 +175,9 @@ test.serial(
     const { db, user, project, createSession } = await fixture();
     const session = await createSession(project.id);
     const deployment = env.DEPLOYMENT_TYPE;
-    env.DEPLOYMENT_TYPE = 'selfhosted';
+    Object.assign(env, { DEPLOYMENT_TYPE: 'selfhosted' });
     t.teardown(() => {
-      env.DEPLOYMENT_TYPE = deployment;
+      Object.assign(env, { DEPLOYMENT_TYPE: deployment });
     });
     const scope = { projectId: project.id, actorId: user.id };
     const run = await app.models.copilotProjectAgentRuntime.prepare({
@@ -192,9 +228,9 @@ test.serial(
     const { db, user, project, createSession } = await fixture();
     const session = await createSession(project.id);
     const deployment = env.DEPLOYMENT_TYPE;
-    env.DEPLOYMENT_TYPE = 'affine';
+    Object.assign(env, { DEPLOYMENT_TYPE: 'affine' });
     t.teardown(() => {
-      env.DEPLOYMENT_TYPE = deployment;
+      Object.assign(env, { DEPLOYMENT_TYPE: deployment });
     });
     const prepare = (requestKey: string) =>
       app.models.copilotProjectAgentRuntime.prepare({
@@ -221,7 +257,7 @@ test.serial(
     const revoked = await prepare('revoked');
     const worker = app.get(CopilotProjectAgentRuntimeWorker);
     await worker.run({ projectId: project.id, runId: disabled.id });
-    env.DEPLOYMENT_TYPE = 'selfhosted';
+    Object.assign(env, { DEPLOYMENT_TYPE: 'selfhosted' });
     await db.aiContextProjectMember.delete({
       where: { projectId_userId: { projectId: project.id, userId: user.id } },
     });
@@ -439,9 +475,9 @@ test.serial(
     const session = await createSession(project.id);
     const runtime = app.get(ToolRuntime);
     const deployment = env.DEPLOYMENT_TYPE;
-    env.DEPLOYMENT_TYPE = 'selfhosted';
+    Object.assign(env, { DEPLOYMENT_TYPE: 'selfhosted' });
     t.teardown(() => {
-      env.DEPLOYMENT_TYPE = deployment;
+      Object.assign(env, { DEPLOYMENT_TYPE: deployment });
     });
     const options = {
       user: user.id,
@@ -459,7 +495,7 @@ test.serial(
       { ...options, tools: [...options.tools] },
       'test'
     );
-    env.DEPLOYMENT_TYPE = 'affine';
+    Object.assign(env, { DEPLOYMENT_TYPE: 'affine' });
     const restrictedTools = await runtime.getTools(
       { ...options, tools: [...options.tools] },
       'test'
@@ -467,7 +503,7 @@ test.serial(
     t.truthy(restrictedTools.doc_read);
     t.falsy(restrictedTools.doc_create);
     t.falsy(restrictedTools.project_folder_create);
-    env.DEPLOYMENT_TYPE = 'selfhosted';
+    Object.assign(env, { DEPLOYMENT_TYPE: 'selfhosted' });
     const call = async (
       name: string,
       args: Record<string, unknown>,
@@ -477,6 +513,7 @@ test.serial(
       if (!execute) throw new Error(`Missing tool ${name}`);
       return (await execute(args, { toolCallId })) as {
         resourceId: string;
+        runId: string;
         contentVersion: number;
         version: number;
         markdown: string;
@@ -613,6 +650,15 @@ test.serial(
       2
     );
     await call('doc_read', { doc_id: created.resourceId }, 'second-read');
+    const editor = {
+      projectId: project.id,
+      actorId: user.id,
+      resourceId: created.resourceId,
+      kind: 'user' as const,
+      tabId: 'session-edit',
+    };
+    const held = (await app.models.projectResourceEditLease.acquire(editor))
+      .lease!;
     await app.get(ProjectResourceService).updateMarkdown({
       projectId: project.id,
       actorId: user.id,
@@ -621,7 +667,45 @@ test.serial(
       markdown: 'Concurrent edit',
       origin: 'user',
       requestKey: 'user-save',
+      editLease: {
+        kind: 'user',
+        tabId: 'session-edit',
+        leaseId: held.leaseId,
+      },
     });
+    const waiting = await call(
+      'doc_update',
+      {
+        doc_id: created.resourceId,
+        expected_content_version: 2,
+        content: 'Waiting edit',
+      },
+      'waiting-edit'
+    );
+    t.is(waiting.status, 'waiting_lease');
+    t.is(
+      (
+        await app.models.copilotProjectAgentRuntime.get({
+          ...editor,
+          runId: waiting.runId,
+        })
+      ).status,
+      'waiting_lease'
+    );
+    await app.models.projectResourceEditLease.release({
+      ...editor,
+      leaseId: held.leaseId,
+    });
+    await app.models.copilotProjectAgentRuntime.resumeWaitingLeases();
+    await app
+      .get(CopilotProjectAgentRuntimeWorker)
+      .run({ projectId: project.id, runId: waiting.runId });
+    const resumed = await app.models.copilotProjectAgentRuntime.get({
+      ...editor,
+      runId: waiting.runId,
+    });
+    t.is(resumed.status, 'failed');
+    t.is(resumed.leaseRetryCount, 1);
     await t.throwsAsync(
       call(
         'doc_update',

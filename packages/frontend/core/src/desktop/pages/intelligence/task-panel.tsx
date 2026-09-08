@@ -7,7 +7,6 @@ import {
   CheckBoxCheckLinearIcon,
   CloseIcon,
   PlusIcon,
-  ResetIcon,
   UploadIcon,
   WarningIcon,
 } from '@blocksuite/icons/rc';
@@ -66,7 +65,6 @@ const supportedActions = new Set<WorkbenchPanelTaskAction>([
   'approve_access_request',
   'reject_access_request',
   'withdraw_access_request',
-  'request_project_access',
   'accept_project_invitation',
   'decline_project_invitation',
   'withdraw_project_invitation',
@@ -110,7 +108,7 @@ export const TaskPanel = ({
   const t = useI18n();
   const fileRequestStatus = useFileRequestStatus();
   const [showFileRequest, setShowFileRequest] = useState(false);
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(!selectedProjectId);
   const [showBlockerForm, setShowBlockerForm] = useState(false);
   const [blockerTitle, setBlockerTitle] = useState('');
   const [blockerType, setBlockerType] =
@@ -155,6 +153,7 @@ export const TaskPanel = ({
   const compact = loading || !!error || (empty && !showBlockerForm);
 
   useEffect(() => {
+    setExpanded(!selectedProjectId);
     setShowFileRequest(false);
     setShowBlockerForm(false);
     setBlockerTitle('');
@@ -270,6 +269,8 @@ export const TaskPanel = ({
         return t['com.affine.localmind.tasks.status.running']();
       case 'waiting_approval':
         return t['com.affine.localmind.tasks.status.waiting_approval']();
+      case 'waiting_lease':
+        return t['com.affine.localmind.tasks.status.waiting_lease']();
       case 'waiting_for_location':
         return t['com.affine.localmind.documentCreation.waiting']();
       case 'completed':
@@ -318,8 +319,6 @@ export const TaskPanel = ({
         return t['com.affine.localmind.workbench.action.rejectAccess']();
       case 'withdraw_access_request':
         return t['com.affine.localmind.workbench.action.withdrawRequest']();
-      case 'request_project_access':
-        return t['com.affine.localmind.workbench.action.requestAgain']();
       case 'accept_project_invitation':
         return t['com.affine.localmind.workbench.action.acceptInvite']();
       case 'decline_project_invitation':
@@ -493,7 +492,7 @@ export const TaskPanel = ({
                     needsAction.length ? styles.attentionCount : styles.count
                   }
                 >
-                  {needsAction.length}
+                  {panel.todo.items.length}
                 </span>
               </span>
               <span className={styles.summarySegment}>
@@ -526,14 +525,6 @@ export const TaskPanel = ({
             }}
           />
         ) : null}
-        <IconButton
-          size="16"
-          tooltip={t['com.affine.localmind.tasks.refresh']()}
-          aria-label={t['com.affine.localmind.tasks.refresh']()}
-          icon={<ResetIcon />}
-          disabled={loading}
-          onClick={onRefresh}
-        />
         {selectedProjectId ? (
           <IconButton
             size="20"
@@ -589,7 +580,7 @@ export const TaskPanel = ({
                           : styles.count
                       }
                     >
-                      {needsAction.length}
+                      {panel.todo.items.length}
                     </span>
                   </span>
                 </header>

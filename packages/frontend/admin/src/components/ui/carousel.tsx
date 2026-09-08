@@ -1,5 +1,6 @@
 import { Button } from '@affine/admin/components/ui/button';
 import { cn } from '@affine/admin/utils';
+import { useI18n } from '@affine/i18n';
 import useEmblaCarousel, {
   type UseEmblaCarouselType,
 } from 'embla-carousel-react';
@@ -216,6 +217,7 @@ const CarouselPrevious = forwardRef<
   HTMLButtonElement,
   React.ComponentProps<typeof Button>
 >(({ className, variant = 'outline', size = 'icon', ...props }, ref) => {
+  const i18n = useI18n();
   const { orientation, scrollPrev, canScrollPrev } = useCarousel();
 
   return (
@@ -235,7 +237,9 @@ const CarouselPrevious = forwardRef<
       {...props}
     >
       <ArrowLeft className="h-4 w-4" />
-      <span className="sr-only">Previous slide</span>
+      <span className="sr-only">
+        {i18n['com.affine.admin.previous-slide']()}
+      </span>
     </Button>
   );
 });
@@ -245,6 +249,7 @@ const CarouselNext = forwardRef<
   HTMLButtonElement,
   React.ComponentProps<typeof Button>
 >(({ className, variant = 'outline', size = 'icon', ...props }, ref) => {
+  const i18n = useI18n();
   const { orientation, scrollNext, canScrollNext } = useCarousel();
 
   return (
@@ -264,7 +269,7 @@ const CarouselNext = forwardRef<
       {...props}
     >
       <ArrowRight className="h-4 w-4" />
-      <span className="sr-only">Next slide</span>
+      <span className="sr-only">{i18n['com.affine.admin.next-slide']()}</span>
     </Button>
   );
 });

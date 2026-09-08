@@ -34,14 +34,26 @@ export function useAccessRequestConfirmation() {
             ? task.projectId
               ? t[
                   'com.affine.localmind.accessNotification.projectConfirmation'
-                ]({ project: task.projectId, level })
+                ]({
+                  project:
+                    task.projectName ??
+                    t['com.affine.localmind.workbench.projects'](),
+                  level,
+                })
               : t[
                   'com.affine.localmind.accessNotification.personalConfirmation'
                 ]({ level })
             : (task.title ?? label),
           children: (
             <>
-              <p>{task.documentId}</p>
+              <p>
+                {task.documentTitle ??
+                  task.title ??
+                  t['com.affine.localmind.workbench.document.untitled']()}
+              </p>
+              <p>
+                {task.relatedUserName} {task.relatedUserEmail}
+              </p>
               {!approving ? (
                 <Input
                   maxLength={1000}

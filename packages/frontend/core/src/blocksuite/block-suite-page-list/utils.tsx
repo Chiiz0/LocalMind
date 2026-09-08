@@ -7,12 +7,14 @@ import {
   resolveNewDocTitle,
 } from '@affine/core/modules/editor-setting';
 import { WorkbenchService } from '@affine/core/modules/workbench';
+import { useI18n } from '@affine/i18n';
 import { type DocMode } from '@blocksuite/affine/model';
 import type { Workspace } from '@blocksuite/affine/store';
 import { LiveData, useLiveData, useServices } from '@toeverything/infra';
 import { useCallback, useMemo } from 'react';
 
 export const usePageHelper = (_docCollection: Workspace) => {
+  const i18n = useI18n();
   const {
     docsService,
     workbenchService,
@@ -97,7 +99,11 @@ export const usePageHelper = (_docCollection: Workspace) => {
         resolve();
         if (!result) return;
         if (result.officeArtifactId) {
-          toast('Successfully imported a native Office document.');
+          toast(
+            i18n[
+              'com.affine.ui.successfully-imported-a-native-office-document'
+            ]()
+          );
           workbench.openOffice(result.officeArtifactId);
           return;
         }
@@ -116,7 +122,7 @@ export const usePageHelper = (_docCollection: Workspace) => {
       });
       return await promise;
     },
-    [workbench, workspaceDialogService]
+    [workbench, workspaceDialogService, i18n]
   );
 
   return useMemo(() => {

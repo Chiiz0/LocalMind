@@ -9,6 +9,8 @@ import {
 } from '@affine/component';
 import { useQuery } from '@affine/core/components/hooks/use-query';
 import { GraphQLService } from '@affine/core/modules/cloud';
+import { projectErrorMessage } from '@affine/core/modules/project-resources/error';
+import { useProjectRefresh } from '@affine/core/modules/project-resources/realtime';
 import {
   changeProjectPublicationMutation,
   confirmProjectPublicationMutation,
@@ -30,7 +32,6 @@ import {
   FolderIcon,
   PageIcon,
   PlusIcon,
-  ResetIcon,
   UploadIcon,
 } from '@blocksuite/icons/rc';
 import { useService } from '@toeverything/infra';
@@ -82,7 +83,6 @@ const requestTime = (value: string) =>
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
-    fractionalSecondDigits: 3,
   });
 
 function useStatusLabel() {
@@ -186,8 +186,9 @@ function ProjectPublicationList({
       query: projectPublicationsQuery,
       variables: { projectId, resourceId, cursor, limit: 20 },
     },
-    { suspense: false, shouldRetryOnError: false, refreshInterval: 3000 }
+    { suspense: false, shouldRetryOnError: false }
   );
+  useProjectRefresh(projectId, 'task', query.mutate);
   const create = async (kind: 'publish' | 'update') => {
     if (!resourceId || creating.current) return;
     creating.current = true;
@@ -209,7 +210,7 @@ function ProjectPublicationList({
       setSelected(result.prepareProjectPublication.id);
       await query.mutate();
     } catch (error) {
-      setError(error instanceof Error ? error.message : String(error));
+      setError(projectErrorMessage(error));
     } finally {
       creating.current = false;
       setPending(false);
@@ -230,7 +231,9 @@ function ProjectPublicationList({
         publicationId={selected}
         onBack={() => {
           setSelected(null);
-          void query.mutate().catch(error => setError(String(error)));
+          void query
+            .mutate()
+            .catch(error => setError(projectErrorMessage(error)));
         }}
       />
     );
@@ -273,13 +276,6 @@ function ProjectPublicationList({
             />
           </Menu>
         ) : null}
-        <IconButton
-          size="20"
-          icon={<ResetIcon />}
-          tooltip={t['com.affine.localmind.project-files.reload']()}
-          aria-label={t['com.affine.localmind.project-files.reload']()}
-          onClick={() => void query.mutate()}
-        />
       </div>
       {query.isLoading ? (
         <div className={files.state}>
@@ -287,7 +283,7 @@ function ProjectPublicationList({
         </div>
       ) : query.error ? (
         <p className={styles.error} role="alert">
-          {query.error.message}
+          {projectErrorMessage(query.error)}
         </p>
       ) : items.length === 0 ? (
         <div className={files.state}>
@@ -307,7 +303,11 @@ function ProjectPublicationList({
                   {item.title}
                   <span className={styles.meta}>
                     {' '}
-                    · v{item.sourceSequence} · {requestTime(item.createdAt)}
+                    ·{' '}
+                    {t['com.affine.localmind.project-files.version']({
+                      version: String(item.sourceSequence),
+                    })}{' '}
+                    · {requestTime(item.createdAt)}
                   </span>
                   <div className={styles.meta}>{status(item.status)}</div>
                 </span>
@@ -363,8 +363,9 @@ function PublicationDetail({
   const submitting = useRef(false);
   const query = useQuery(
     { query: projectPublicationQuery, variables: { projectId, publicationId } },
-    { suspense: false, shouldRetryOnError: false, refreshInterval: 3000 }
+    { suspense: false, shouldRetryOnError: false }
   );
+  useProjectRefresh(projectId, 'task', query.mutate);
   const candidate = query.data?.projectPublication;
   const record =
     !query.error &&
@@ -381,8 +382,8 @@ function PublicationDetail({
       await operation();
       await query.mutate();
     } catch (error) {
-      setError(error instanceof Error ? error.message : String(error));
-      await query.mutate().catch(() => undefined);
+      setError(projectErrorMessage(error));
+      await query.mutate().catch(error => setError(projectErrorMessage(error)));
     } finally {
       submitting.current = false;
       setPending(false);
@@ -422,7 +423,7 @@ function PublicationDetail({
         <Loading size={18} />
       ) : query.error ? (
         <div role="alert">
-          <p className={styles.error}>{query.error.message}</p>
+          <p className={styles.error}>{projectErrorMessage(query.error)}</p>
           <Button onClick={() => void query.mutate()}>
             {t['com.affine.localmind.project-files.retry']()}
           </Button>
@@ -431,8 +432,10 @@ function PublicationDetail({
         <>
           <div>
             <div>
-              {t['com.affine.localmind.publications.saved']()} · v
-              {record.sourceSequence}
+              {t['com.affine.localmind.publications.saved']()} ·{' '}
+              {t['com.affine.localmind.project-files.version']({
+                version: String(record.sourceSequence),
+              })}
             </div>
             <div className={styles.meta}>
               {status(record.status)} · {requestTime(record.createdAt)}
@@ -473,7 +476,11 @@ function PublicationDetail({
               <br />
               {(preview.success && preview.data.targetTitle) || record.title}
               {preview.success && preview.data.targetSequence ? (
-                <div>v{preview.data.targetSequence}</div>
+                <div>
+                  {t['com.affine.localmind.project-files.version']({
+                    version: String(preview.data.targetSequence),
+                  })}
+                </div>
               ) : null}
               {preview.success && preview.data.targetModifiedAt ? (
                 <div>{requestTime(preview.data.targetModifiedAt)}</div>
@@ -663,7 +670,7 @@ function DestinationPicker({
         <Loading size={18} />
       ) : query.error ? (
         <div role="alert">
-          <p className={styles.error}>{query.error.message}</p>
+          <p className={styles.error}>{projectErrorMessage(query.error)}</p>
           <Button onClick={() => void query.mutate()}>
             {t['com.affine.localmind.project-files.retry']()}
           </Button>
@@ -728,8 +735,9 @@ function DestinationDirectory({
           variables: { projectId: record.projectId, runId: folderRunId },
         }
       : undefined,
-    { suspense: false, shouldRetryOnError: false, refreshInterval: 3000 }
+    { suspense: false, shouldRetryOnError: false }
   );
+  useProjectRefresh(record.projectId, 'task', folderTask.mutate);
   const task = folderTask.error ? null : folderTask.data?.projectAgentTask;
   const taskMatches =
     task?.id === folderRunId && task?.projectId === record.projectId;
@@ -795,7 +803,7 @@ function DestinationDirectory({
         await query.mutate();
       }
     } catch (error) {
-      setError(error instanceof Error ? error.message : String(error));
+      setError(projectErrorMessage(error));
     } finally {
       submit.current = false;
       setCreating(false);
@@ -862,7 +870,7 @@ function DestinationDirectory({
           </div>
         ) : query.error ? (
           <div className={files.state} role="alert">
-            <span>{query.error.message}</span>
+            <span>{projectErrorMessage(query.error)}</span>
             <Button onClick={() => void query.mutate()}>
               {t['com.affine.localmind.project-files.retry']()}
             </Button>
@@ -942,7 +950,9 @@ function DestinationDirectory({
           className={styles.header}
           onSubmit={event => {
             event.preventDefault();
-            void createFolder().catch(error => setError(String(error)));
+            void createFolder().catch(error =>
+              setError(projectErrorMessage(error))
+            );
           }}
         >
           <Input
@@ -989,11 +999,15 @@ function DestinationDirectory({
             ? task?.title
             : t['com.affine.localmind.project-tasks.queued']()}
           {taskMatches && task?.failureMessage ? (
-            <p className={styles.error}>{task.failureMessage}</p>
+            <p className={styles.error}>
+              {projectErrorMessage(task.failureMessage)}
+            </p>
           ) : null}
           {folderTask.error ? (
             <div role="alert">
-              <p className={styles.error}>{folderTask.error.message}</p>
+              <p className={styles.error}>
+                {projectErrorMessage(folderTask.error)}
+              </p>
               <Button onClick={() => void folderTask.mutate()}>
                 {t['com.affine.localmind.project-files.retry']()}
               </Button>
@@ -1047,7 +1061,7 @@ function TargetDocuments({
           <Loading size={18} />
         ) : query.error ? (
           <p className={styles.error} role="alert">
-            {query.error.message}
+            {projectErrorMessage(query.error)}
           </p>
         ) : data?.items.length ? (
           data.items.map(item => (

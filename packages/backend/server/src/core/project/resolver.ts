@@ -3,7 +3,6 @@ import GraphQLUpload from 'graphql-upload/GraphQLUpload.mjs';
 
 import {
   BadRequest,
-  EventBus,
   type FileUpload,
   readBufferWithLimit,
   Throttle,
@@ -16,6 +15,7 @@ import {
   ChangeProjectResourceInput,
   CreateProjectFileInput,
   CreateProjectResourceInput,
+  PermanentlyDeleteProjectResourceInput,
   ProjectResourcePageType,
   ProjectResourceRevisionType,
   ProjectResourceType,
@@ -28,7 +28,6 @@ export class ProjectResourceResolver {
   constructor(
     private readonly models: Models,
     private readonly resources: ProjectResourceService,
-    private readonly events: EventBus,
     private readonly blobs: ProjectBlobStorage
   ) {}
 
@@ -122,10 +121,6 @@ export class ProjectResourceResolver {
     const scope = { ...input, actorId: user.id };
     if (input.kind === 'folder') {
       const folder = await this.resources.createFolder(scope);
-      this.events.emitDetached('project.resource.changed', {
-        projectId: folder.projectId,
-        resourceId: folder.id,
-      });
       return folder;
     }
     if (input.kind !== 'page' && input.kind !== 'edgeless')
@@ -174,13 +169,24 @@ export class ProjectResourceResolver {
   ) {
     const resource = await this.resources.change({
       ...input,
+      editLease: input.editLease
+        ? { ...input.editLease, kind: 'user' }
+        : undefined,
       actorId: user.id,
     });
-    this.events.emitDetached('project.resource.changed', {
-      projectId: resource.projectId,
-      resourceId: resource.id,
-    });
     return resource;
+  }
+
+  @Mutation(() => Boolean)
+  @Throttle('strict')
+  async permanentlyDeleteProjectResource(
+    @CurrentUser() user: User,
+    @Args('input') input: PermanentlyDeleteProjectResourceInput
+  ) {
+    return this.models.projectResource.permanentlyDelete({
+      ...input,
+      actorId: user.id,
+    });
   }
 
   @Mutation(() => ProjectResourceRevisionType)
@@ -195,6 +201,7 @@ export class ProjectResourceResolver {
       throw new BadRequest('Invalid Project document snapshot');
     return this.resources.saveDocument({
       ...input,
+      editLease: { ...input.editLease, kind: 'user' },
       actorId: user.id,
       bytes: Buffer.from(input.snapshotBase64, 'base64'),
       origin: 'user',

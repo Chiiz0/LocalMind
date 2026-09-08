@@ -12,6 +12,7 @@ import {
   adminWorkspaceQuery,
   adminWorkspacesQuery,
 } from '@affine/graphql';
+import { useI18n } from '@affine/i18n';
 import { AccountIcon } from '@blocksuite/icons/rc';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -30,6 +31,7 @@ export function WorkspacePanel({
   workspaceId: string;
   onClose: () => void;
 }) {
+  const i18n = useI18n();
   const { data } = useQuery({
     query: adminWorkspaceQuery,
     variables: {
@@ -44,13 +46,13 @@ export function WorkspacePanel({
     return (
       <div className="flex flex-col h-full">
         <RightPanelHeader
-          title="Workspace"
+          title={i18n['com.affine.localmind.tasks.authorization.workspace']()}
           handleClose={onClose}
           handleConfirm={onClose}
           canSave={false}
         />
         <div className="p-6 text-sm text-muted-foreground">
-          Workspace not found.
+          {i18n['com.affine.admin.workspace-not-found']()}{' '}
         </div>
       </div>
     );
@@ -66,6 +68,7 @@ function WorkspacePanelContent({
   workspace: WorkspaceDetail;
   onClose: () => void;
 }) {
+  const i18n = useI18n();
   const { setHasDirtyChanges } = useRightPanel();
   const revalidate = useMutateQueryResource();
   const { trigger: updateWorkspace, isMutating } = useMutation({
@@ -127,7 +130,9 @@ function WorkspacePanelContent({
           revalidate(adminWorkspacesQuery),
           revalidate(adminWorkspaceQuery, vars => vars?.id === workspace.id),
         ]);
-        toast.success('Workspace updated successfully');
+        toast.success(
+          i18n['com.affine.admin.workspace-updated-successfully']()
+        );
         setBaseline({
           flags: { ...flags },
         });
@@ -146,6 +151,8 @@ function WorkspacePanelContent({
     setHasDirtyChanges,
     updateWorkspace,
     workspace.id,
+
+    i18n,
   ]);
 
   const memberList = workspace.members ?? [];
@@ -153,31 +160,39 @@ function WorkspacePanelContent({
   return (
     <div className="flex h-full flex-col bg-background">
       <RightPanelHeader
-        title="Update Workspace"
+        title={i18n['com.affine.admin.update-workspace']()}
         handleClose={onClose}
         handleConfirm={handleSave}
         canSave={hasChanges && !isMutating}
       />
       <div className="flex flex-col gap-4 overflow-y-auto p-4">
         <div className="space-y-2 rounded-xl border border-border/60 bg-card p-3 shadow-sm">
-          <div className="text-xs text-muted-foreground">Workspace ID</div>
+          <div className="text-xs text-muted-foreground">
+            {i18n['com.affine.admin.workspace-id']()}
+          </div>
           <div className="text-sm font-mono break-all">{workspace.id}</div>
           <div className="flex flex-col gap-1">
-            <Label className="text-xs text-muted-foreground">Name</Label>
+            <Label className="text-xs text-muted-foreground">
+              {i18n['com.affine.integration.external-mcp.field.name']()}
+            </Label>
             <Input
               value={flags.name}
               onChange={e =>
                 setFlags(prev => ({ ...prev, name: e.target.value }))
               }
-              placeholder="Workspace name"
+              placeholder={i18n[
+                'com.affine.nameWorkspace.subtitle.workspace-name'
+              ]()}
             />
           </div>
         </div>
 
         <div className="rounded-xl border border-border/60 bg-card shadow-sm">
           <FlagItem
-            label="Public"
-            description="Allow public access to workspace pages"
+            label={i18n['com.affine.admin.public']()}
+            description={i18n[
+              'com.affine.admin.allow-public-access-to-workspace-pages'
+            ]()}
             checked={flags.public}
             onCheckedChange={value =>
               setFlags(prev => ({ ...prev, public: value }))
@@ -185,8 +200,12 @@ function WorkspacePanelContent({
           />
           <Separator />
           <FlagItem
-            label="Enable AI"
-            description="Allow AI features in this workspace"
+            label={i18n[
+              'com.affine.settings.workspace.experimental-features.enable-ai.name'
+            ]()}
+            description={i18n[
+              'com.affine.admin.allow-ai-features-in-this-workspace'
+            ]()}
             checked={flags.enableAi}
             onCheckedChange={value =>
               setFlags(prev => ({ ...prev, enableAi: value }))
@@ -194,8 +213,10 @@ function WorkspacePanelContent({
           />
           <Separator />
           <FlagItem
-            label="Enable URL Preview"
-            description="Allow URL previews in shared pages"
+            label={i18n['com.affine.admin.enable-url-preview-2']()}
+            description={i18n[
+              'com.affine.admin.allow-url-previews-in-shared-pages'
+            ]()}
             checked={flags.enableUrlPreview}
             onCheckedChange={value =>
               setFlags(prev => ({ ...prev, enableUrlPreview: value }))
@@ -203,8 +224,10 @@ function WorkspacePanelContent({
           />
           <Separator />
           <FlagItem
-            label="Allow Workspace Sharing"
-            description="Allow pages in this workspace to be shared publicly"
+            label={i18n['com.affine.admin.allow-workspace-sharing']()}
+            description={i18n[
+              'com.affine.admin.allow-pages-in-this-workspace-to-be-shared-publicly'
+            ]()}
             checked={flags.enableSharing}
             onCheckedChange={value =>
               setFlags(prev => ({ ...prev, enableSharing: value }))
@@ -212,8 +235,10 @@ function WorkspacePanelContent({
           />
           <Separator />
           <FlagItem
-            label="Enable Doc Embedding"
-            description="Allow document embedding for search"
+            label={i18n['com.affine.admin.enable-doc-embedding-2']()}
+            description={i18n[
+              'com.affine.admin.allow-document-embedding-for-search'
+            ]()}
             checked={flags.enableDocEmbedding}
             onCheckedChange={value =>
               setFlags(prev => ({ ...prev, enableDocEmbedding: value }))
@@ -223,37 +248,40 @@ function WorkspacePanelContent({
 
         <div className="grid grid-cols-2 gap-3">
           <MetricCard
-            label="Snapshot Size"
+            label={i18n['com.affine.admin.snapshot-size-2']()}
             value={formatBytes(workspace.snapshotSize)}
           />
           <MetricCard
-            label="Snapshot Count"
+            label={i18n['com.affine.admin.snapshot-count-2']()}
             value={`${workspace.snapshotCount}`}
           />
           <MetricCard
-            label="Blob Size"
+            label={i18n['com.affine.admin.blob-size-2']()}
             value={formatBytes(workspace.blobSize)}
           />
-          <MetricCard label="Blob Count" value={`${workspace.blobCount}`} />
           <MetricCard
-            label="Active Members"
+            label={i18n['com.affine.admin.blob-count-2']()}
+            value={`${workspace.blobCount}`}
+          />
+          <MetricCard
+            label={i18n['com.affine.admin.active-members']()}
             value={`${workspace.memberCount}`}
           />
           <MetricCard
-            label="Shared Pages"
+            label={i18n['com.affine.admin.shared-pages-2']()}
             value={`${workspace.publicPageCount}`}
           />
         </div>
 
         <div className="rounded-xl border border-border/60 bg-card shadow-sm">
           <div className="px-3 py-2 text-sm font-medium">
-            Members and Invitations
+            {i18n['com.affine.admin.members-and-invitations']()}{' '}
           </div>
           <Separator />
           <div className="flex flex-col divide-y">
             {memberList.length === 0 ? (
               <div className="px-3 py-3 text-xs text-muted-foreground">
-                No members or invitations.
+                {i18n['com.affine.admin.no-members-or-invitations']()}{' '}
               </div>
             ) : (
               memberList.map(member => (
@@ -279,7 +307,8 @@ function WorkspacePanelContent({
                     <div className="rounded border px-2 py-1">
                       {member.role}
                     </div>
-                    {member.status !== 'Accepted' ? (
+                    {member.status !==
+                    i18n['com.affine.localmind.workbench.status.accepted']() ? (
                       <div className="text-muted-foreground">
                         {member.status}
                       </div>

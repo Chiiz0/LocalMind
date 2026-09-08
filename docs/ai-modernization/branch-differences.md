@@ -30,9 +30,12 @@ an AI operations layer with:
   tags.
 
 Projects own native resources and file trees, with independent internal copies,
-explicit Workspace publication, member authorization and recoverable migration;
+explicit Workspace publication and member authorization;
 see
 [Project Native Resources](./tracks/project-native-resources.md).
+The [Project Workbench Redesign](./tracks/project-workbench-redesign.md) retires
+the old reference model and migration bridge, and adds a standalone shell,
+realtime updates and exclusive edit leases.
 
 ## What This Branch Is Not
 

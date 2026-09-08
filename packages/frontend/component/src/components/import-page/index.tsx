@@ -1,3 +1,4 @@
+import { useI18n } from '@affine/i18n';
 import {
   CloseIcon,
   ExportToHtmlIcon,
@@ -29,62 +30,71 @@ export const ImportPage = ({
   importHtml: () => void;
   importNotion: () => void;
   onClose: () => void;
-}) => (
-  <div className={importPageContainerStyle}>
-    <IconButton
-      style={{
-        position: 'absolute',
-        right: 6,
-        top: 6,
-      }}
-      onClick={() => {
-        onClose();
-      }}
-    >
-      <CloseIcon />
-    </IconButton>
-    <div className={importPageBodyStyle}>
-      <div className="title">Import</div>
-      <span>
-        LocalMind will gradually support more file types for import.&nbsp;
-        <a
-          href={`${BUILD_CONFIG.githubUrl}/issues/new/choose`}
-          target="_blank"
-          rel="noreferrer"
-        >
-          Provide feedback.
-        </a>
-      </span>
-    </div>
-    <div className={importPageButtonContainerStyle}>
-      <BlockCard
-        left={<ExportToMarkdownIcon width={20} height={20} />}
-        title="Markdown"
-        onClick={importMarkdown}
-      />
-      <BlockCard
-        left={<ExportToHtmlIcon width={20} height={20} />}
-        title="HTML"
-        onClick={importHtml}
-      />
-      <BlockCard
-        left={<NotionIcon width={20} height={20} />}
-        title="Notion"
-        right={
-          <Tooltip
-            content={'Learn how to import your Notion pages into LocalMind.'}
+}) => {
+  const uiI18n = useI18n();
+  return (
+    <div className={importPageContainerStyle}>
+      <IconButton
+        style={{
+          position: 'absolute',
+          right: 6,
+          top: 6,
+        }}
+        onClick={() => {
+          onClose();
+        }}
+      >
+        <CloseIcon />
+      </IconButton>
+      <div className={importPageBodyStyle}>
+        <div className="title">
+          {uiI18n[
+            'com.affine.integration.readwise.setting.start-import-button'
+          ]()}
+        </div>
+        <span>
+          {uiI18n[
+            'com.affine.ui.localmind-will-gradually-support-more-file-types-for-import-nbsp'
+          ]()}{' '}
+          <a
+            href={`${BUILD_CONFIG.githubUrl}/issues/new/choose`}
+            target="_blank"
+            rel="noreferrer"
           >
-            <HelpIcon width={20} height={20} />
-          </Tooltip>
-        }
-        onClick={importNotion}
-      />
-      <BlockCard
-        left={<NewIcon width={20} height={20} />}
-        title="Coming soon..."
-        disabled
-        onClick={importHtml}
-      />
+            {uiI18n['com.affine.ui.provide-feedback']()}{' '}
+          </a>
+        </span>
+      </div>
+      <div className={importPageButtonContainerStyle}>
+        <BlockCard
+          left={<ExportToMarkdownIcon width={20} height={20} />}
+          title="Markdown"
+          onClick={importMarkdown}
+        />
+        <BlockCard
+          left={<ExportToHtmlIcon width={20} height={20} />}
+          title="HTML"
+          onClick={importHtml}
+        />
+        <BlockCard
+          left={<NotionIcon width={20} height={20} />}
+          title="Notion"
+          right={
+            <Tooltip
+              content={'Learn how to import your Notion pages into LocalMind.'}
+            >
+              <HelpIcon width={20} height={20} />
+            </Tooltip>
+          }
+          onClick={importNotion}
+        />
+        <BlockCard
+          left={<NewIcon width={20} height={20} />}
+          title={uiI18n['com.affine.ui.coming-soon']()}
+          disabled
+          onClick={importHtml}
+        />
+      </div>
     </div>
-  </div>
-);
+  );
+};

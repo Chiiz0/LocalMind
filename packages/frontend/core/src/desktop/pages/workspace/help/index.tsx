@@ -386,7 +386,7 @@ export const HelpCenterPage = () => {
   );
 
   const openAIChat = useCallback(() => {
-    navigate('/intelligence');
+    navigate('/project');
   }, [navigate]);
 
   const openAIContext = useCallback(() => {

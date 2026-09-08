@@ -1,6 +1,7 @@
 import { Field, ID, InputType, ObjectType, OmitType } from '@nestjs/graphql';
 import { GraphQLJSONObject } from 'graphql-scalars';
 
+import { ProjectEditLeaseProofInput } from '../project/edit-lease-resolver';
 import {
   ImportOfficeArtifactRequestInput,
   OfficeArtifactType,
@@ -59,4 +60,6 @@ export class ProjectOfficeCommandInput extends OmitType(OfficeCommandInput, [
   'workspaceId',
 ] as const) {
   @Field(() => ID) projectId!: string;
+  @Field(() => ProjectEditLeaseProofInput, { nullable: true })
+  editLease?: ProjectEditLeaseProofInput;
 }

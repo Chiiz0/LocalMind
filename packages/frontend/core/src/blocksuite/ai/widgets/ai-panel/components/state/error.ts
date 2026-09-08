@@ -1,3 +1,4 @@
+import { I18nController } from '@affine/core/modules/i18n/lit-controller';
 import { I18n } from '@affine/i18n';
 import { WithDisposable } from '@blocksuite/affine/global/lit';
 import type { EditorHost } from '@blocksuite/affine/std';
@@ -21,12 +22,14 @@ export function renderByokNotConfiguredError(
         @click=${config.cancel}
         class="action-button primary"
       >
-        <span>${I18n['Cancel']()}</span>
+        <span>${I18n['com.affine.localmind.project-files.cancel']()}</span>
       </button>
     </div>`;
 }
 
 export class AIPanelError extends WithDisposable(LitElement) {
+  readonly languageController = new I18nController(this);
+
   static override styles = css`
     :host {
       width: 100%;
@@ -173,10 +176,18 @@ export class AIPanelError extends WithDisposable(LitElement) {
               </div>
               <div class="action-button-group">
                 <div @click=${this.config.cancel} class="action-button">
-                  <span>Cancel</span>
+                  <span
+                    >${I18n[
+                      'com.affine.localmind.project-files.cancel'
+                    ]()}</span
+                  >
                 </div>
                 <div @click=${this.config.login} class="action-button primary">
-                  <span>Login</span>
+                  <span
+                    >${I18n[
+                      'com.affine.payment.ai.action.login.button-label'
+                    ]()}</span
+                  >
                 </div>
               </div>`,
         ],
@@ -190,13 +201,17 @@ export class AIPanelError extends WithDisposable(LitElement) {
               </div>
               <div class="action-button-group">
                 <div @click=${this.config.cancel} class="action-button">
-                  <span>Cancel</span>
+                  <span
+                    >${I18n[
+                      'com.affine.localmind.project-files.cancel'
+                    ]()}</span
+                  >
                 </div>
                 <div
                   @click=${this.config.upgrade}
                   class="action-button primary"
                 >
-                  <span>Upgrade</span>
+                  <span>${I18n['com.affine.ai.action-label.upgrade']()}</span>
                 </div>
               </div>`,
         ],
@@ -236,7 +251,9 @@ export class AIPanelError extends WithDisposable(LitElement) {
     return html`
       <div class="error" data-testid="ai-error">
         <div class="answer-tip">
-          <div class="answer-label">Answer</div>
+          <div class="answer-label">
+            ${I18n['com.affine.ai.action-label.answer']()}
+          </div>
           <slot></slot>
         </div>
         ${errorTemplate}

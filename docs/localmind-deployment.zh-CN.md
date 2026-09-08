@@ -165,6 +165,13 @@ docker compose \
 `affine_migration` 会先执行数据库 schema 和数据迁移。只有它成功退出后，LocalMind
 主服务才会启动。
 
+Project 工作台重构包含 `20260907010000_project_reference_retirement` 删表迁移。
+升级前先备份当前数据库、Blob 与配置，并在同平台 Linux 的一次性数据库中验证
+空库全量迁移及真实备份恢复后的升级。该迁移会丢弃旧 Workspace 引用与迁移桥接
+记录，应记录旧引用总数及尚未复制的数量；原生资源、版本、文件和来源授权审计
+必须保留。旧引用没有过渡兼容或在线恢复入口，备份用于恢复升级前的完整状态。
+具体证据见 [工作台实施记录](ai-modernization/project-workbench-redesign.execution.md)。
+
 ## 6. 验证部署
 
 查看服务：

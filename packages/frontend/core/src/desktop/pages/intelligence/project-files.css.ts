@@ -1,7 +1,39 @@
 import { cssVarV2 } from '@toeverything/theme/v2';
 import { globalStyle, style } from '@vanilla-extract/css';
 
-export const root = style({ minWidth: 0, padding: '8px 0' });
+export const selectionCheckbox = style({
+  appearance: 'auto',
+  width: 16,
+  height: 16,
+  flex: '0 0 16px',
+});
+
+export const root = style({
+  minWidth: 0,
+  minHeight: 0,
+  height: '100%',
+  display: 'flex',
+  flexDirection: 'column',
+  padding: 12,
+});
+export const fileScroll = style({ flex: 1, minHeight: 0, overflow: 'auto' });
+export const uploads = style({
+  margin: 0,
+  padding: 0,
+  listStyle: 'none',
+  maxHeight: 160,
+  overflow: 'auto',
+});
+export const uploadRow = style({
+  display: 'flex',
+  gap: 8,
+  alignItems: 'center',
+  flexWrap: 'wrap',
+  minHeight: 36,
+  fontSize: 12,
+  padding: '4px 8px',
+});
+globalStyle(`${uploadRow} progress`, { width: 80, height: 5 });
 export const toolbar = style({
   display: 'flex',
   flexWrap: 'wrap',
@@ -13,7 +45,7 @@ export const heading = style({
   flex: 1,
   minWidth: 0,
   margin: 0,
-  fontSize: 12,
+  fontSize: 14,
   fontWeight: 600,
   overflowWrap: 'anywhere',
 });
@@ -32,6 +64,17 @@ export const row = style({
   borderRadius: 4,
   selectors: {
     '&:hover': { background: cssVarV2('layer/background/hoverOverlay') },
+    '&[data-dragging="true"]': { opacity: 0.45 },
+    '&[data-drop="make-child"]': {
+      background: cssVarV2('layer/background/hoverOverlay'),
+      outline: `1px solid ${cssVarV2('button/primary')}`,
+    },
+    '&[data-drop="reorder-above"]': {
+      boxShadow: `inset 0 2px ${cssVarV2('button/primary')}`,
+    },
+    '&[data-drop="reorder-below"]': {
+      boxShadow: `inset 0 -2px ${cssVarV2('button/primary')}`,
+    },
   },
 });
 export const open = style({
@@ -48,7 +91,7 @@ export const open = style({
   background: 'transparent',
   color: cssVarV2('text/primary'),
   cursor: 'pointer',
-  fontSize: 12,
+  fontSize: 14,
   selectors: {
     '&:focus-visible': {
       outline: `2px solid ${cssVarV2('button/primary')}`,

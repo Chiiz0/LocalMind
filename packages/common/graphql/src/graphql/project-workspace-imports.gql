@@ -1,0 +1,8 @@
+#import "./fragments/project-workspace-import-task.gql"
+
+query projectWorkspaceImports($projectId: String!, $parentId: ID, $cursor: String) {
+  projectWorkspaceImports(projectId: $projectId, parentId: $parentId, cursor: $cursor) {
+    items { ...ProjectWorkspaceImportTask }
+    nextCursor
+  }
+}

@@ -6,7 +6,6 @@ import {
   controlCopilotTaskMutation,
   declineCopilotProjectInvitationMutation,
   rejectCopilotAccessRequestMutation,
-  reRequestCopilotProjectDocumentAccessMutation,
   resolveCopilotBlockerMutation,
   withdrawCopilotAccessRequestMutation,
   withdrawCopilotProjectInvitationMutation,
@@ -108,13 +107,6 @@ export async function executeWorkbenchTaskAction(
       });
       return;
     }
-  }
-  if (task.kind === 'project_grant' && action === 'request_project_access') {
-    await graphqlService.gql({
-      query: reRequestCopilotProjectDocumentAccessMutation,
-      variables: { input: { grantId: task.entityId } },
-    });
-    return;
   }
   if (task.kind === 'blocker') {
     const query =

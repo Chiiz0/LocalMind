@@ -1,3 +1,5 @@
+import { Trans, useI18n } from '@affine/i18n';
+
 import { TypeConfirmDialog } from '../../../components/shared/type-confirm-dialog';
 
 export const DisableAccountDialog = ({
@@ -13,21 +15,22 @@ export const DisableAccountDialog = ({
   onDisable: () => void;
   onOpenChange: (open: boolean) => void;
 }) => {
+  const i18n = useI18n();
   return (
     <TypeConfirmDialog
       open={open}
       onOpenChange={onOpenChange}
-      title="Disable Account ?"
+      title={i18n['com.affine.admin.disable-account']()}
       description={
-        <>
-          The data associated with <span className="font-bold">{email}</span>{' '}
-          will be deleted and cannot be used for logging in. This operation is
-          irreversible. Please proceed with caution.
-        </>
+        <Trans
+          i18nKey="com.affine.admin.disable-account-description"
+          values={{ email }}
+          components={{ strong: <span className="font-bold" /> }}
+        />
       }
       targetText={email}
-      inputPlaceholder="Please type email to confirm"
-      confirmText="Disable"
+      inputPlaceholder={i18n['com.affine.admin.please-type-email-to-confirm']()}
+      confirmText={i18n['com.affine.integration.external-mcp.action.disable']()}
       confirmButtonVariant="destructive"
       onConfirm={onDisable}
       onClose={onClose}

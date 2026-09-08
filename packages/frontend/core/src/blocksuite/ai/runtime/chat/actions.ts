@@ -52,6 +52,12 @@ export type AIChatAction =
   | { type: 'addAttachment'; attachment: string | Blob | File }
   | { type: 'removeAttachment'; index: number }
   | { type: 'addContextItem'; item: AIChatContextItem; promptName?: string }
+  | {
+      type: 'setProjectContextResources';
+      tabId: string | null;
+      resourceIds: string[];
+      baseResourceIds: string[];
+    }
   | { type: 'removeContextItem'; item: AIChatContextItem }
   | { type: 'loadContext' }
   | { type: 'pollContext' }

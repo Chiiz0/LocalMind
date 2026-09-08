@@ -136,6 +136,17 @@ async function prepare(
   });
 }
 
+async function editProof(scope: Awaited<ReturnType<typeof fixture>>) {
+  const identity = { kind: 'user' as const, tabId: randomUUID() };
+  const result = await app.models.projectResourceEditLease.acquire({
+    ...scope,
+    ...identity,
+  });
+  if (!result.acquired || !result.lease)
+    throw new Error('Fixture lease denied');
+  return { ...identity, leaseId: result.lease.leaseId };
+}
+
 async function execute(
   scope: Awaited<ReturnType<typeof fixture>>,
   record: Awaited<ReturnType<typeof prepare>>
@@ -285,6 +296,7 @@ test.serial(
       expectedContentVersion: 1,
       markdown: 'Internal second version',
       requestKey: 'internal-edit',
+      editLease: await editProof(scope),
       origin: 'user',
     });
     const update = await prepare(scope, {
@@ -340,6 +352,7 @@ test.serial(
       expectedContentVersion: 1,
       markdown: 'New internal content',
       requestKey: 'edit',
+      editLease: await editProof(scope),
       origin: 'user',
     });
     await t.throwsAsync(execute(scope, stale), {
@@ -671,6 +684,7 @@ test.serial(
       expectedContentVersion: 1,
       bytes: Buffer.from(encodeStateAsUpdate(doc)),
       requestKey: 'attachment',
+      editLease: await editProof(scope),
     });
     doc.destroy();
     const record = await prepare(scope);

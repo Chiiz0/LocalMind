@@ -9,6 +9,7 @@ import {
 import { Transactional } from '@nestjs-cls/transactional';
 import { z } from 'zod';
 
+import { BadRequest } from '../../base';
 import {
   type CopilotContextDocumentRef,
   type CopilotContextMemoryInput,
@@ -17,7 +18,6 @@ import {
   type CopilotContextMemoryStatus,
   type CopilotContextMemoryWriterDecision,
   type CopilotContextPlanTraceInput,
-  type CopilotContextProjectDocumentInput,
   type CopilotContextProjectStatus,
   Models,
 } from '../../models';
@@ -347,31 +347,6 @@ export class ContextMemoryService implements OnModuleInit {
     await this.ensureStrategyHistory();
   }
 
-  private async projectMemorySourceDocuments(input: {
-    userId: string;
-    projectId: string;
-    readableDocumentRefs?: CopilotContextDocumentRef[];
-  }) {
-    const grants =
-      await this.models.intelligenceWorkbenchAuthorization.listGrantedProjectDocuments(
-        { projectId: input.projectId, userId: input.userId }
-      );
-    const grantKeys = new Set(
-      grants.map(grant => `${grant.workspaceId}\0${grant.docId}`)
-    );
-    const candidates = input.readableDocumentRefs ?? grants;
-    const sources = new Map<string, CopilotContextDocumentRef>();
-    for (const document of candidates) {
-      const key = `${document.workspaceId}\0${document.docId}`;
-      if (grantKeys.has(key)) sources.set(key, document);
-    }
-    return [...sources.values()].sort(
-      (left, right) =>
-        left.workspaceId.localeCompare(right.workspaceId) ||
-        left.docId.localeCompare(right.docId)
-    );
-  }
-
   private async ensureStrategyHistory() {
     this.strategyHistoryReady ??= Promise.all([
       this.models.copilotContextMemory.ensureStrategyRevision({
@@ -490,15 +465,7 @@ export class ContextMemoryService implements OnModuleInit {
     projectIds?: string[];
     includeDisabled?: boolean;
   }) {
-    const projectIds =
-      input.projectIds ??
-      (input.workspaceId && input.docId
-        ? await this.models.copilotContextMemory.listProjectIdsForDoc({
-            userId: input.userId,
-            workspaceId: input.workspaceId,
-            docId: input.docId,
-          })
-        : []);
+    const projectIds = input.projectIds ?? [];
     return await this.models.copilotContextMemory.listVisible({
       ...input,
       projectIds,
@@ -955,25 +922,11 @@ export class ContextMemoryService implements OnModuleInit {
               : [];
       if (!targets.length) return [];
 
-      const targetsWithSources = await Promise.all(
-        targets.map(async target => ({
-          ...target,
-          sourceDocuments:
-            target.projectId && workspaceId
-              ? await this.projectMemorySourceDocuments({
-                  userId: input.userId,
-                  projectId: target.projectId,
-                  readableDocumentRefs: input.scope?.readableDocumentRefs,
-                })
-              : undefined,
-        }))
-      );
-      if (
-        targetsWithSources.some(
-          target =>
-            workspaceId && target.projectId && !target.sourceDocuments?.length
-        )
-      ) {
+      const targetsWithSources = targets.map(target => ({
+        ...target,
+        sourceDocuments: undefined,
+      }));
+      if (targetsWithSources.some(target => workspaceId && target.projectId)) {
         return [];
       }
 
@@ -1091,6 +1044,20 @@ export class ContextMemoryService implements OnModuleInit {
       sourceDocuments?: CopilotContextDocumentRef[];
     }
   ) {
+    if (
+      input.scope === 'project' &&
+      input.kind === 'project_summary' &&
+      input.projectId &&
+      !input.workspaceId &&
+      !input.docId &&
+      !input.sourceDocuments?.length
+    ) {
+      return this.models.copilotContextMemory.createProjectSummary(
+        ownerUserId,
+        input.projectId,
+        input.content
+      );
+    }
     const memory = await this.models.copilotContextMemory.put({
       ownerUserId,
       ...input,
@@ -1127,12 +1094,12 @@ export class ContextMemoryService implements OnModuleInit {
     const operationUserId =
       current?.scope === 'project' ? actorUserId : current?.ownerUserId;
     if (!current || !operationUserId) return null;
-    const sourceDocuments = current.projectId
-      ? await this.projectMemorySourceDocuments({
-          userId: operationUserId,
-          projectId: current.projectId,
-        })
-      : undefined;
+    if (current.projectId && current.workspaceId) {
+      throw new BadRequest(
+        'Historical Workspace memory cannot be rewritten as Project memory'
+      );
+    }
+    const sourceDocuments = undefined;
     if (
       current &&
       current.kind === 'auto_memory' &&
@@ -1320,47 +1287,8 @@ export class ContextMemoryService implements OnModuleInit {
     createdByUserId: string;
     name: string;
     description?: string;
-    documents: CopilotContextProjectDocumentInput[];
   }) {
     return await this.models.copilotContextMemory.createProject(input);
-  }
-
-  async addProjectDocument(
-    projectId: string,
-    actorUserId: string,
-    document: CopilotContextProjectDocumentInput
-  ) {
-    return await this.models.copilotContextMemory.addProjectDocument(
-      projectId,
-      actorUserId,
-      document
-    );
-  }
-
-  async removeProjectDocument(
-    projectId: string,
-    actorUserId: string,
-    document: CopilotContextDocumentRef
-  ) {
-    return await this.models.copilotContextMemory.removeProjectDocument(
-      projectId,
-      actorUserId,
-      document
-    );
-  }
-
-  async updateProjectDocument(
-    projectId: string,
-    actorUserId: string,
-    document: CopilotContextDocumentRef,
-    input: { groupId?: string | null; sortOrder?: number }
-  ) {
-    return await this.models.copilotContextMemory.updateProjectDocument(
-      projectId,
-      actorUserId,
-      document,
-      input
-    );
   }
 
   async updateProject(
@@ -1370,10 +1298,6 @@ export class ContextMemoryService implements OnModuleInit {
       name?: string;
       description?: string;
       status?: CopilotContextProjectStatus;
-      workspaceDocuments?: {
-        workspaceId: string;
-        documents: CopilotContextProjectDocumentInput[];
-      };
     }
   ) {
     return await this.models.copilotContextMemory.updateProject(

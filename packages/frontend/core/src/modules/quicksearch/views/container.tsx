@@ -48,9 +48,14 @@ export const QuickSearchContainer = () => {
         options?.searchModes &&
         (mode === 'commands'
           ? item.source !== 'commands'
-          : !['docs', 'recent-doc', 'link', 'tags', 'collections'].includes(
-              item.source
-            ))
+          : ![
+              'docs',
+              'recent-doc',
+              'link',
+              'tags',
+              'collections',
+              'project',
+            ].includes(item.source))
       )
         continue;
       const group = item.group;

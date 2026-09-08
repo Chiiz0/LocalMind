@@ -1,12 +1,11 @@
 import { Button, Loading, notify, useConfirmModal } from '@affine/component';
 import { useQuery } from '@affine/core/components/hooks/use-query';
 import { GraphQLService } from '@affine/core/modules/cloud';
-import { UserFriendlyError } from '@affine/error';
+import { projectErrorMessage } from '@affine/core/modules/project-resources/error';
 import {
   approveCopilotAccessRequestMutation,
   copilotWorkbenchSourceAuthorizationGetQuery,
   rejectCopilotAccessRequestMutation,
-  revokeCopilotProjectGrantMutation,
 } from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
 import { useService } from '@toeverything/infra';
@@ -42,7 +41,7 @@ export const ProjectAccess = ({
     (caught: unknown) => {
       notify.error({
         title: t['com.affine.localmind.share.projectAccess.actionFailed'](),
-        message: UserFriendlyError.fromAny(caught).message,
+        message: projectErrorMessage(caught),
       });
     },
     [t]
@@ -76,38 +75,52 @@ export const ProjectAccess = ({
     [graphqlService, mutate, pendingKey, reportError, t]
   );
 
-  const revokeGrant = useCallback(
-    (grant: (typeof grants)[number]) => {
-      openConfirmModal({
-        title: t['com.affine.localmind.share.projectAccess.revokeConfirm'](),
-        description: t[
-          'com.affine.localmind.share.projectAccess.revokeDescription'
-        ]({ project: grant.projectName }),
-        confirmText: t['com.affine.localmind.share.projectAccess.revoke'](),
-        cancelText: t['Cancel'](),
-        confirmButtonOptions: { variant: 'error' },
-        onConfirm: async () => {
-          if (pendingKey) return;
-          setPendingKey(`revoke:${grant.id}`);
-          try {
-            await graphqlService.gql({
-              query: revokeCopilotProjectGrantMutation,
-              variables: { input: { grantId: grant.id } },
-            });
-            await mutate();
-            notify.success({
-              title: t['com.affine.localmind.share.projectAccess.revoked'](),
-            });
-          } catch (caught) {
-            reportError(caught);
-          } finally {
-            setPendingKey(null);
-          }
-        },
-      });
-    },
-    [graphqlService, mutate, openConfirmModal, pendingKey, reportError, t]
-  );
+  const levelName = (level: string) =>
+    t[
+      level === 'write'
+        ? 'com.affine.localmind.accessNotification.write'
+        : 'com.affine.localmind.accessNotification.read'
+    ]();
+  const confirmRequest = (
+    request: (typeof requests)[number],
+    decision: 'approve' | 'reject'
+  ) => {
+    const approving = decision === 'approve';
+    const label =
+      t[
+        approving
+          ? 'com.affine.localmind.share.projectAccess.approve'
+          : 'com.affine.localmind.share.projectAccess.reject'
+      ]();
+    openConfirmModal({
+      title: label,
+      description: approving
+        ? request.beneficiaryType === 'project'
+          ? t['com.affine.localmind.accessNotification.projectConfirmation']({
+              project:
+                request.projectName ??
+                t['com.affine.localmind.workbench.projects'](),
+              level: levelName(request.requestedLevel),
+            })
+          : t['com.affine.localmind.accessNotification.personalConfirmation']({
+              level: levelName(request.requestedLevel),
+            })
+        : (request.requestedTitle ?? label),
+      children: (
+        <>
+          <p>{request.requestedTitle}</p>
+          <p>
+            {request.requesterName} {request.requesterEmail}
+          </p>
+        </>
+      ),
+      confirmText: label,
+      cancelText: t['Cancel'](),
+      autoFocusConfirm: false,
+      confirmButtonOptions: { variant: approving ? 'primary' : 'error' },
+      onConfirm: () => resolveRequest(request.id, decision),
+    });
+  };
 
   return (
     <section
@@ -123,8 +136,8 @@ export const ProjectAccess = ({
         </div>
       ) : error ? (
         <div className={styles.centerState} role="alert">
-          <span>{error.message}</span>
-          <Button onClick={() => void mutate()}>
+          <span>{projectErrorMessage(error)}</span>
+          <Button onClick={() => void mutate().catch(reportError)}>
             {t['com.affine.localmind.workbench.retry']()}
           </Button>
         </div>
@@ -155,7 +168,7 @@ export const ProjectAccess = ({
                         {t[
                           'com.affine.localmind.share.projectAccess.requestMeta'
                         ]({
-                          level: request.requestedLevel,
+                          level: levelName(request.requestedLevel),
                           time: formatDate(request.createdAt),
                         })}
                       </span>
@@ -163,15 +176,20 @@ export const ProjectAccess = ({
                         {projectBeneficiary
                           ? t[
                               'com.affine.localmind.share.projectAccess.projectBeneficiary'
-                            ]({ id: request.beneficiaryProjectId ?? '-' })
+                            ]({ id: request.projectName ?? '-' })
                           : t[
                               'com.affine.localmind.share.projectAccess.userBeneficiary'
-                            ]({ id: request.beneficiaryUserId ?? '-' })}
+                            ]({ id: request.beneficiaryName ?? '-' })}
                       </span>
                       <span>
                         {t[
                           'com.affine.localmind.share.projectAccess.requester'
-                        ]({ id: request.requesterUserId ?? '-' })}
+                        ]({
+                          id:
+                            [request.requesterName, request.requesterEmail]
+                              .filter(Boolean)
+                              .join(' ') || '-',
+                        })}
                       </span>
                     </div>
                     <div className={styles.actions}>
@@ -180,9 +198,7 @@ export const ProjectAccess = ({
                         variant="primary"
                         disabled={pendingKey !== null}
                         loading={pendingKey === `approve:${request.id}`}
-                        onClick={() =>
-                          void resolveRequest(request.id, 'approve')
-                        }
+                        onClick={() => confirmRequest(request, 'approve')}
                       >
                         {t[
                           'com.affine.localmind.share.projectAccess.approve'
@@ -193,9 +209,7 @@ export const ProjectAccess = ({
                         variant="error"
                         disabled={pendingKey !== null}
                         loading={pendingKey === `reject:${request.id}`}
-                        onClick={() =>
-                          void resolveRequest(request.id, 'reject')
-                        }
+                        onClick={() => confirmRequest(request, 'reject')}
                       >
                         {t['com.affine.localmind.share.projectAccess.reject']()}
                       </Button>
@@ -217,22 +231,16 @@ export const ProjectAccess = ({
                     </strong>
                     <span>
                       {t['com.affine.localmind.share.projectAccess.grantMeta']({
-                        level: grant.level,
-                        source: grant.source,
-                        grantor: grant.grantedByUserId ?? '-',
+                        level: levelName(grant.level),
+                        source:
+                          t[
+                            'com.affine.localmind.share.projectAccess.approved'
+                          ](),
+                        grantor: grant.grantedByName ?? '-',
                         time: formatDate(grant.grantedAt),
                       })}
                     </span>
                   </div>
-                  <Button
-                    size="custom"
-                    variant="error"
-                    disabled={!grant.revocable || pendingKey !== null}
-                    loading={pendingKey === `revoke:${grant.id}`}
-                    onClick={() => revokeGrant(grant)}
-                  >
-                    {t['com.affine.localmind.share.projectAccess.revoke']()}
-                  </Button>
                 </div>
               ))
             ) : (

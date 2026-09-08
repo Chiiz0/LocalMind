@@ -42,16 +42,18 @@ transportTest(
       email: `transport-requester-${suffix}@example.invalid`,
     });
     const workspace = await models.workspace.create(owner.id);
+    const project = await models.copilotContextMemory.createProject({
+      createdByUserId: requester.id,
+      name: 'Transport approval',
+    });
     const request =
-      await models.intelligenceWorkbenchAuthorization.requestUserDocumentAccess(
-        {
-          workspaceId: workspace.id,
-          docId: `synthetic-${suffix}`,
-          requesterUserId: requester.id,
-          requestedLevel: 'read',
-          idempotencyKey: suffix,
-        }
-      );
+      await models.intelligenceWorkbenchAuthorization.requestProjectCopy({
+        projectId: project.id,
+        workspaceId: workspace.id,
+        docId: `synthetic-${suffix}`,
+        actorId: requester.id,
+        requestKey: suffix,
+      });
     const clients = Array.from(
       { length: 4 },
       () =>
@@ -135,7 +137,7 @@ transportTest(
       );
       const notifications = await models.notification.findManyByUserId(
         requester.id,
-        { includeRead: true, first: 10 }
+        { includeRead: true, first: 10, offset: 0 }
       );
       assert(
         notifications.some(

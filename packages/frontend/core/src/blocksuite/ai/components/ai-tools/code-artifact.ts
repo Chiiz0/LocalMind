@@ -1,3 +1,4 @@
+import { I18n } from '@affine/i18n';
 import { CodeBlockHighlighter } from '@blocksuite/affine/blocks/code';
 import { SignalWatcher, WithDisposable } from '@blocksuite/affine/global/lit';
 import { ColorScheme } from '@blocksuite/affine/model';
@@ -545,7 +546,9 @@ export class CodeArtifactTool extends ArtifactTool<
           blobs: {},
         }),
       }));
-      this.notificationService.toast('Copied HTML to clipboard');
+      this.notificationService.toast(
+        I18n['com.affine.ui.copied-html-to-clipboard']()
+      );
     };
 
     const downloadHTML = () => {
@@ -577,7 +580,9 @@ export class CodeArtifactTool extends ArtifactTool<
           { text: new Text(html), language: 'html', preview: true },
           parentId
         );
-        this.notificationService.toast('Inserted to current doc');
+        this.notificationService.toast(
+          I18n['com.affine.ui.inserted-to-current-doc']()
+        );
       } catch (e) {
         console.error(e);
       }
@@ -615,7 +620,7 @@ export class CodeArtifactTool extends ArtifactTool<
           })}
           @click=${setPreviewMode}
         >
-          Preview
+          ${I18n['com.affine.editCollection.rules.preview']()}
         </div>
       </div>
       <div style="flex: 1"></div>

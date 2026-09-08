@@ -127,7 +127,7 @@ describe('LocalMind help center', () => {
     render(<HelpCenterPage />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Open AI Chat' }));
-    expect(navigate).toHaveBeenCalledWith('/intelligence');
+    expect(navigate).toHaveBeenCalledWith('/project');
 
     fireEvent.click(screen.getByRole('button', { name: 'Manage AI context' }));
     expect(openDialog).toHaveBeenCalledWith('setting', {

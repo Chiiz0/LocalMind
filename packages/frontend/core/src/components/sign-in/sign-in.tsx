@@ -117,8 +117,8 @@ export const SignInStep = ({
         }));
       } else {
         notify.error({
-          title: 'Failed to sign in',
-          message: 'This email is not available for sign in.',
+          title: t['com.affine.ui.failed-to-sign-in'](),
+          message: t['com.affine.ui.this-email-is-not-available-for-sign-in'](),
         });
       }
     } catch (err: any) {
@@ -126,13 +126,13 @@ export const SignInStep = ({
 
       // TODO(@eyhn): better error handling
       notify.error({
-        title: 'Failed to sign in',
+        title: t['com.affine.ui.failed-to-sign-in'](),
         message: err.message,
       });
     }
 
     setIsMutating(false);
-  }, [authService, changeState, email]);
+  }, [authService, changeState, email, t]);
 
   const onAddSelfhosted = useCallback(() => {
     changeState(prev => ({

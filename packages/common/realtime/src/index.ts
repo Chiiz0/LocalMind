@@ -4,6 +4,28 @@ export type RealtimeTopicName = keyof RealtimeTopicMap;
 export const WORKSPACE_MEMBERS_REQUEST_TAKE_MAX = 100;
 
 export interface RealtimeRequestMap {
+  'project.lease.get': {
+    input: { projectId: string };
+    output: {
+      leases: {
+        resourceId: string;
+        projectId: string;
+        kind: string;
+        holderId: string;
+        holderName: string;
+        acquiredAt: string | Date;
+        expiresAt: string | Date;
+      }[];
+    };
+  };
+  'project.list.get': {
+    input: Record<string, never>;
+    output: { projects: ProjectListSnapshot[] };
+  };
+  'project.task.get': {
+    input: Record<string, never>;
+    output: { tasks: ProjectTaskSnapshot[] };
+  };
   'workspace.access.get': {
     input: { workspaceId: string };
     output: { access: WorkspaceAccessSnapshot };
@@ -79,6 +101,21 @@ export interface RealtimeRequestMap {
     input: { workspaceId: string };
     output: { state: WorkspaceQuotaStateSnapshot };
   };
+}
+
+export interface ProjectListSnapshot {
+  id: string;
+  name: string;
+  status: string;
+  aiPolicy: string;
+  role: string;
+}
+
+export interface ProjectTaskSnapshot {
+  id: string;
+  projectId: string | null;
+  status: string;
+  segment: string;
 }
 
 export type WorkspaceRoleSnapshot =
@@ -244,6 +281,18 @@ export type WorkspaceEmbeddingProgressReason =
   | 'resync';
 
 export interface RealtimeTopicMap {
+  'project.list.changed': {
+    input: Record<string, never>;
+    event: { changed: true; reason: string };
+  };
+  'project.task.changed': {
+    input: Record<string, never>;
+    event: { changed: true; reason: string };
+  };
+  'project.lease.changed': {
+    input: { projectId: string };
+    event: { changed: true; reason: string };
+  };
   'workspace.access.changed': {
     input: { workspaceId: string };
     event: { changed: true; reason: string };

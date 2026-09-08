@@ -9,6 +9,7 @@ import {
   Prisma,
 } from '@prisma/client';
 
+import { ResourceConflict } from '../base';
 import { BaseModel } from './base';
 import {
   type OfficeOwner,
@@ -355,9 +356,7 @@ export class OfficeArtifactModel extends BaseModel {
       },
     });
     if (!parent || parent.id !== expectedParentRevisionId) {
-      throw new Error(
-        `Office artifact revision conflict: expected ${expectedParentRevisionId}`
-      );
+      throw new ResourceConflict('Office artifact revision conflict');
     }
 
     await this.requireAvailableBlob(owner, packageBlob, 'package');

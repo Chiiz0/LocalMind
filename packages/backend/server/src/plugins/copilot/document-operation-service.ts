@@ -349,34 +349,7 @@ export class CopilotDocumentOperationService {
       await this.revalidate(operation);
       if (operation.projectStatus === 'not_requested')
         return await model.finish({ ...lease, projectStatus: 'not_requested' });
-      await model.renew(lease);
-      try {
-        if (!operation.projectId)
-          throw new BadRequest('Project addition requires a project');
-        const result =
-          await this.models.intelligenceWorkbenchAuthorization.addProjectDocument(
-            {
-              projectId: operation.projectId,
-              requesterUserId: operation.actorId,
-              workspaceId,
-              docId: operation.documentId,
-              requestedLevel: 'write',
-            }
-          );
-        return await model.finish({
-          ...lease,
-          projectStatus:
-            result.kind === 'granted'
-              ? 'granted'
-              : result.request.status === 'pending'
-                ? 'requested'
-                : 'failed',
-          accessRequestId:
-            result.kind === 'requested' ? result.request.id : undefined,
-        });
-      } catch {
-        return await model.finish({ ...lease, projectStatus: 'failed' });
-      }
+      throw new BadRequest('Workspace reference creation has been retired');
     } catch (error) {
       await model
         .fail({ ...lease, failureCode: 'storage_unavailable' })

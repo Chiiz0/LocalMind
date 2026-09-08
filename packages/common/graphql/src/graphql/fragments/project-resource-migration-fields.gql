@@ -1,9 +1,0 @@
-fragment ProjectResourceMigrationFields on ProjectResourceMigrationType {
-  id
-  projectId
-  status
-  revision
-  title
-  failureCode
-  resourceId
-}

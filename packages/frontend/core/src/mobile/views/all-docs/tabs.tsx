@@ -2,6 +2,7 @@ import {
   WorkbenchLink,
   WorkbenchService,
 } from '@affine/core/modules/workbench';
+import { I18n } from '@affine/i18n';
 import { useLiveData, useService } from '@toeverything/infra';
 
 import * as styles from './style.css';
@@ -14,15 +15,21 @@ interface Tab {
 const tabs: Tab[] = [
   {
     to: '/all',
-    label: 'Docs',
+    get label() {
+      return I18n['com.affine.editCollection.pages']();
+    },
   },
   {
     to: '/collection',
-    label: 'Collections',
+    get label() {
+      return I18n['com.affine.editor.at-menu.collections']();
+    },
   },
   {
     to: '/tag',
-    label: 'Tags',
+    get label() {
+      return I18n['com.affine.editor.at-menu.tags']();
+    },
   },
 ];
 

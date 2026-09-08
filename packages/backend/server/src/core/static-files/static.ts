@@ -6,6 +6,7 @@ import type { Application, Request, Response } from 'express';
 import { static as serveStatic } from 'express';
 
 import { Config } from '../../base';
+import { registerProjectRedirects } from '../project/redirect';
 import { isMobileRequest } from '../utils/user-agent';
 
 const staticPathRegex = /^\/(_plugin|assets|imgs|js|plugins|static)\//;
@@ -34,6 +35,7 @@ export class StaticFilesResolver implements OnModuleInit {
 
     const app = this.adapterHost.httpAdapter.getInstance<Application>();
     const basePath = this.config.server.path;
+    registerProjectRedirects(app, basePath);
     const rootPath = basePath || '/';
     const staticPath = join(env.projectRoot, 'static');
     const adminPath = join(staticPath, 'admin');

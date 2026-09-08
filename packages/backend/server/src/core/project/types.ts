@@ -9,6 +9,8 @@ import {
 } from '@nestjs/graphql';
 import { ProjectResourceKind } from '@prisma/client';
 
+import { ProjectEditLeaseProofInput } from './edit-lease-resolver';
+
 registerEnumType(ProjectResourceKind, { name: 'ProjectResourceKind' });
 
 @ObjectType()
@@ -89,6 +91,8 @@ export class CreateProjectFileInput {
 
 @InputType()
 export class ChangeProjectResourceInput {
+  @Field(() => ProjectEditLeaseProofInput, { nullable: true })
+  editLease?: ProjectEditLeaseProofInput;
   @Field() requestKey!: string;
   @Field(() => ID) projectId!: string;
   @Field(() => ID) resourceId!: string;
@@ -100,7 +104,17 @@ export class ChangeProjectResourceInput {
 }
 
 @InputType()
+export class PermanentlyDeleteProjectResourceInput {
+  @Field(() => ID) projectId!: string;
+  @Field(() => ID) resourceId!: string;
+  @Field(() => Int) expectedVersion!: number;
+  @Field() requestKey!: string;
+}
+
+@InputType()
 export class SaveProjectDocumentInput {
+  @Field(() => ProjectEditLeaseProofInput)
+  editLease!: ProjectEditLeaseProofInput;
   @Field(() => ID) projectId!: string;
   @Field(() => ID) resourceId!: string;
   @Field(() => Int) expectedContentVersion!: number;

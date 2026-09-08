@@ -26,7 +26,7 @@ import {
   WorkspaceService,
 } from '@affine/core/modules/workspace';
 import { DebugLogger } from '@affine/debug';
-import { useI18n } from '@affine/i18n';
+import { I18n, useI18n } from '@affine/i18n';
 import track from '@affine/track';
 import { openDirectory, openFilesWith } from '@blocksuite/affine/shared/utils';
 import type { Workspace } from '@blocksuite/affine/store';
@@ -146,7 +146,9 @@ function toImportErrorState(error: unknown): ImportErrorState {
   if (error instanceof DOMException && error.name === 'AbortError') {
     return {
       code: 'cancelled',
-      message: 'Import cancelled',
+      get message() {
+        return I18n['com.affine.ui.import-cancelled']();
+      },
       sourcePath,
     };
   }
@@ -159,7 +161,9 @@ function toImportErrorState(error: unknown): ImportErrorState {
   }
   return {
     code: 'unknown',
-    message: 'Unknown error occurred',
+    get message() {
+      return I18n['com.affine.ui.unknown-error-occurred']();
+    },
     sourcePath,
   };
 }

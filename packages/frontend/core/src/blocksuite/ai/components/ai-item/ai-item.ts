@@ -1,3 +1,5 @@
+import { I18nController } from '@affine/core/modules/i18n/lit-controller';
+import { I18n } from '@affine/i18n';
 import { ArrowRightIcon, EnterIcon } from '@blocksuite/affine/components/icons';
 import { WithDisposable } from '@blocksuite/affine/global/lit';
 import { ColorScheme } from '@blocksuite/affine/model';
@@ -9,6 +11,7 @@ import {
 import { css, html, LitElement, nothing } from 'lit';
 import { property, query } from 'lit/decorators.js';
 
+import { aiActionLabel } from './labels';
 import { menuItemStyles } from './styles';
 import type { AIItemConfig } from './types';
 
@@ -17,6 +20,8 @@ import type { AIItemConfig } from './types';
   item: PropTypes.object,
 })
 export class AIItem extends WithDisposable(LitElement) {
+  readonly languageController = new I18nController(this);
+
   static override styles = css`
     ${menuItemStyles}
   `;
@@ -40,8 +45,8 @@ export class AIItem extends WithDisposable(LitElement) {
     >
       <span class="item-icon">${item.icon}</span>
       <div class="item-name">
-        ${item.name}${item.beta
-          ? html`<div class="item-beta">(Beta)</div>`
+        ${aiActionLabel(item.name)}${item.beta
+          ? html`<div class="item-beta">${I18n['com.affine.ui.beta']()}</div>`
           : nothing}
       </div>
       ${item.subItem

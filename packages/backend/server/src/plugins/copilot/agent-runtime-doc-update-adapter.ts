@@ -361,6 +361,9 @@ export class CopilotAgentRuntimeDocUpdateAdapter {
       );
     }
     const projectId = request.projectId;
+    if (request.projectId || session?.selectedContextProjectId) {
+      throw new Error('Project writes require a native Project resource task');
+    }
     if (!delegation) {
       this.assertApprovalSatisfied(run);
     }

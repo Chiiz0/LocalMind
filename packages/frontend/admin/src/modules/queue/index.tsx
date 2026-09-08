@@ -1,5 +1,6 @@
 import './queuedash.css';
 
+import { useI18n } from '@affine/i18n';
 import { QueueDashApp } from '@queuedash/ui';
 import { useEffect } from 'react';
 
@@ -10,6 +11,7 @@ const PORTAL_CONTENT_SELECTOR =
   '.react-aria-ModalOverlay, .react-aria-Menu, [data-rac][data-placement][data-trigger]';
 
 export function QueuePage() {
+  const i18n = useI18n();
   useEffect(() => {
     const marked = new Set<HTMLElement>();
 
@@ -85,7 +87,7 @@ export function QueuePage() {
 
   return (
     <div className="h-dvh flex-1 flex-col flex overflow-hidden">
-      <Header title="Queue" />
+      <Header title={i18n['com.affine.admin.queue']()} />
       <div className="flex-1 overflow-hidden">
         <div className={`${QUEUEDASH_SCOPE_CLASS} h-full`}>
           <QueueDashApp

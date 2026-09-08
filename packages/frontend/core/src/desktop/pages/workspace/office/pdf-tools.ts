@@ -1,3 +1,5 @@
+import { officeAssetUrl } from '@affine/core/modules/office';
+import { I18n } from '@affine/i18n';
 export type PdfSearchResult = {
   pageIndex: number;
   matches: number;
@@ -12,9 +14,13 @@ type PdfRect = {
 };
 
 async function fetchPdfBytes(url: string) {
-  const response = await fetch(url, { credentials: 'include' });
+  const response = await fetch(officeAssetUrl(url), { credentials: 'include' });
   if (!response.ok) {
-    throw new Error(`Failed to load PDF (${response.status})`);
+    throw new Error(
+      I18n['com.affine.office.pdf-load-failed']({
+        status: String(response.status),
+      })
+    );
   }
   return new Uint8Array(await response.arrayBuffer());
 }
@@ -99,11 +105,18 @@ function canvasPngBase64(canvas: HTMLCanvasElement) {
   return new Promise<string>((resolve, reject) => {
     canvas.toBlob(blob => {
       if (!blob) {
-        reject(new Error('Failed to encode the redacted PDF page'));
+        reject(
+          new Error(
+            I18n['com.affine.office.failed-to-encode-the-redacted-pdf-page']()
+          )
+        );
         return;
       }
       const reader = new FileReader();
-      reader.onerror = () => reject(new Error('Failed to read redacted page'));
+      reader.onerror = () =>
+        reject(
+          new Error(I18n['com.affine.office.failed-to-read-redacted-page']())
+        );
       reader.onload = () => {
         const value = String(reader.result ?? '');
         resolve(value.slice(value.indexOf(',') + 1));
@@ -127,7 +140,10 @@ export async function renderRedactedPdfPage(
     canvas.width = Math.ceil(viewport.width);
     canvas.height = Math.ceil(viewport.height);
     const context = canvas.getContext('2d', { alpha: false });
-    if (!context) throw new Error('Canvas rendering is unavailable');
+    if (!context)
+      throw new Error(
+        I18n['com.affine.office.canvas-rendering-is-unavailable']()
+      );
     await page.render({ canvas, viewport, background: '#ffffff' }).promise;
     const scaleX = canvas.width / pageSize.widthPt;
     const scaleY = canvas.height / pageSize.heightPt;

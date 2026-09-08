@@ -1,4 +1,4 @@
-import { Button, IconButton, Loading } from '@affine/component';
+import { Button, IconButton, Loading, notify } from '@affine/component';
 import { useQuery } from '@affine/core/components/hooks/use-query';
 import { GraphQLService } from '@affine/core/modules/cloud';
 import {
@@ -12,28 +12,34 @@ import {
   type OfficeResourceOwner,
 } from '@affine/core/modules/office';
 import {
-  type ProjectAgentTaskFieldsFragment,
+  useProjectEditGuard,
+  useProjectUnsavedConfirmation,
+} from '@affine/core/modules/project-resources/edit-guard';
+import { useProjectEditLease } from '@affine/core/modules/project-resources/edit-lease';
+import { projectErrorMessage } from '@affine/core/modules/project-resources/error';
+import { useProjectRefresh } from '@affine/core/modules/project-resources/realtime';
+import {
   projectOfficeArtifactQuery,
   projectOfficeRevisionCompareQuery,
   projectOfficeRevisionsQuery,
 } from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
 import {
-  AiIcon,
-  CloseIcon,
   DownloadIcon,
   HistoryIcon,
   ResetIcon,
+  SaveIcon,
 } from '@blocksuite/icons/rc';
 import type { OfficeAiContext, OfficeSelection } from '@localmind/office';
 import { useService } from '@toeverything/infra';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { officeSelectionLabel } from '../workspace/office/chat';
 import {
   DocumentEditor,
   revisionCompareChanges,
 } from '../workspace/office/document';
+import type { OfficeEditorDraft } from '../workspace/office/edit-draft';
 import { PdfEditor } from '../workspace/office/pdf';
 import { PresentationEditor } from '../workspace/office/presentation';
 import {
@@ -42,30 +48,58 @@ import {
 } from '../workspace/office/shared';
 import { SpreadsheetEditor } from '../workspace/office/spreadsheet';
 import * as styles from './project-files.css';
-import { projectFilesChanged } from './project-files-data';
-import { WorkbenchConversation } from './workbench-conversation';
 
 const ignoreSelection = () => {};
 
 export function ProjectOffice({
   projectId,
   artifactId,
-  onOpenResource,
+  onContextChange,
 }: {
   projectId: string;
   artifactId: string;
-  onOpenResource: (resourceId: string) => void;
+  onContextChange: (context: OfficeAiContext | undefined) => void;
 }) {
   const t = useI18n();
   const graphql = useService(GraphQLService);
+  const confirmUnsaved = useProjectUnsavedConfirmation();
+  const editLease = useProjectEditLease();
+  const drafts = useRef(new Set<OfficeEditorDraft>());
+  const [unsaved, setUnsaved] = useState(false);
+  const registerDraft = useCallback((draft: OfficeEditorDraft) => {
+    drafts.current.add(draft);
+    setUnsaved([...drafts.current].some(item => item.hasUnsavedChanges));
+    return () => {
+      drafts.current.delete(draft);
+      setUnsaved([...drafts.current].some(item => item.hasUnsavedChanges));
+    };
+  }, []);
+  const saveDrafts = async () => {
+    for (const draft of drafts.current)
+      if (draft.hasUnsavedChanges) await draft.save();
+  };
+  useProjectEditGuard({
+    get hasUnsavedChanges() {
+      return [...drafts.current].some(draft => draft.hasUnsavedChanges);
+    },
+    save: saveDrafts,
+    discard: async () => {
+      for (const draft of drafts.current) await draft.discard();
+    },
+  });
   const owner = useMemo<OfficeResourceOwner>(
-    () => ({ kind: 'project', projectId }),
-    [projectId]
+    () => ({
+      kind: 'project',
+      projectId,
+      editLease: editLease?.proof ?? undefined,
+    }),
+    [projectId, editLease?.proof]
   );
   const query = useQuery(
     { query: projectOfficeArtifactQuery, variables: { projectId, artifactId } },
-    { suspense: false, shouldRetryOnError: false, refreshInterval: 15000 }
+    { suspense: false, shouldRetryOnError: false }
   );
+  useProjectRefresh(projectId, 'resource', query.mutate);
   const artifact = query.data?.projectOfficeArtifact;
   const mutateArtifact = query.mutate;
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -92,7 +126,6 @@ export function ProjectOffice({
   > | null>(null);
   const [pending, setPending] = useState(false);
   const [retry, setRetry] = useState(0);
-  const [chatOpen, setChatOpen] = useState(false);
   const [selection, setSelection] = useState<OfficeSelection | null>(null);
   const officeContext = useMemo<OfficeAiContext | undefined>(
     () =>
@@ -110,8 +143,26 @@ export function ProjectOffice({
   );
 
   useEffect(() => {
-    if (artifact?.currentRevision)
-      setEditingRevision(current => current ?? artifact.currentRevision);
+    onContextChange(officeContext);
+    return () => onContextChange(undefined);
+  }, [officeContext, onContextChange]);
+
+  const report = useCallback((caught: unknown) => {
+    const message = projectErrorMessage(caught);
+    setError(message);
+    notify.error({ title: message });
+  }, []);
+
+  useEffect(() => {
+    if (
+      artifact?.currentRevision &&
+      ![...drafts.current].some(draft => draft.hasUnsavedChanges)
+    )
+      setEditingRevision(current =>
+        !current || current.sequence < artifact.currentRevision.sequence
+          ? artifact.currentRevision
+          : current
+      );
   }, [artifact?.currentRevision]);
 
   useEffect(() => {
@@ -124,11 +175,10 @@ export function ProjectOffice({
         if (!controller.signal.aborted) setState(value);
       })
       .catch(caught => {
-        if (!controller.signal.aborted)
-          setError(caught instanceof Error ? caught.message : String(caught));
+        if (!controller.signal.aborted) report(caught);
       });
     return () => controller.abort();
-  }, [kind, revision?.stateUrl, query.error, retry]);
+  }, [kind, revision?.stateUrl, query.error, retry, report]);
 
   const onRevision = useCallback(
     (next: OfficeRevision, nextState: NativeOfficeState) => {
@@ -158,37 +208,10 @@ export function ProjectOffice({
               }
             : current,
         { revalidate: true }
-      ).catch(console.error);
-      if (historyOpen) mutateHistory().catch(console.error);
-      projectFilesChanged(projectId);
+      ).catch(report);
+      if (historyOpen) mutateHistory().catch(report);
     },
-    [artifactId, mutateHistory, historyOpen, projectId, mutateArtifact]
-  );
-
-  const onTaskCompleted = useCallback(
-    async (task: ProjectAgentTaskFieldsFragment) => {
-      const receipt = task.receipt as Record<string, unknown> | null;
-      if (
-        historical ||
-        receipt?.artifactId !== artifactId ||
-        typeof receipt.sequence !== 'number' ||
-        receipt.sequence <= (revision?.sequence ?? 0)
-      )
-        return;
-      const result = await graphql.gql({
-        query: projectOfficeArtifactQuery,
-        variables: { projectId, artifactId },
-      });
-      const next = result.projectOfficeArtifact.currentRevision;
-      if (!next.stateUrl)
-        throw new Error('Project Office revision state is unavailable');
-      const nextState = await fetchOfficeState(
-        next.stateUrl,
-        result.projectOfficeArtifact.kind
-      );
-      onRevision(next, nextState);
-    },
-    [artifactId, graphql, historical, onRevision, projectId, revision?.sequence]
+    [artifactId, mutateHistory, historyOpen, projectId, mutateArtifact, report]
   );
 
   const run = async (operation: () => Promise<void>) => {
@@ -198,7 +221,7 @@ export function ProjectOffice({
     try {
       await operation();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : String(caught));
+      report(caught);
     } finally {
       setPending(false);
     }
@@ -214,10 +237,11 @@ export function ProjectOffice({
     return (
       <div className={styles.state} role="alert">
         <span>
-          {query.error?.message ??
-            t['com.affine.localmind.project-files.empty']()}
+          {query.error
+            ? projectErrorMessage(query.error)
+            : t['com.affine.localmind.project-files.empty']()}
         </span>
-        <Button onClick={() => void query.mutate()}>
+        <Button onClick={() => void query.mutate().catch(report)}>
           {t['com.affine.localmind.project-files.retry']()}
         </Button>
       </div>
@@ -228,42 +252,55 @@ export function ProjectOffice({
     artifactId,
     revision,
     graphql,
-    readOnly: !!historical,
+    readOnly: !!historical || !editLease?.proof,
     onRevision,
     onCommentAnchorChange: ignoreSelection,
     onAiSelectionChange: setSelection,
+    registerDraft,
+    beforeSelectionChange: confirmUnsaved,
   };
   return (
     <div className={styles.preview}>
       <div className={styles.toolbar}>
+        <IconButton
+          size="20"
+          icon={<SaveIcon />}
+          disabled={pending || !!historical || !editLease?.proof}
+          tooltip={t['com.affine.localmind.project-files.save']()}
+          aria-label={t['com.affine.localmind.project-files.save']()}
+          onClick={() => void run(saveDrafts)}
+        />
         <span className={styles.heading}>
           {historical
             ? t['com.affine.localmind.project-files.readOnly']()
-            : t['com.affine.localmind.project-files.saved']()}{' '}
-          · {revision.sequence}
+            : t[
+                unsaved
+                  ? 'com.affine.localmind.project-files.unsaved'
+                  : 'com.affine.localmind.project-files.saved'
+              ]()}{' '}
+          ·{' '}
+          {t['com.affine.localmind.project-files.version']({
+            version: String(revision.sequence),
+          })}
         </span>
-        <IconButton
-          size="20"
-          icon={<AiIcon />}
-          disabled={!!historical}
-          tooltip={t['com.affine.localmind.project-files.chat']()}
-          aria-label={t['com.affine.localmind.project-files.chat']()}
-          aria-pressed={chatOpen}
-          onClick={() => setChatOpen(value => !value)}
-        />
-        <IconButton
-          size="20"
-          icon={<ResetIcon />}
-          disabled={pending}
-          tooltip={t['com.affine.localmind.project-files.reload']()}
-          aria-label={t['com.affine.localmind.project-files.reload']()}
-          onClick={() => {
-            setHistorical(null);
-            setEditingRevision(artifact.currentRevision);
-            setRetry(value => value + 1);
-            query.mutate().catch(console.error);
-          }}
-        />
+        {historical || artifact.currentRevision.sequence > revision.sequence ? (
+          <IconButton
+            size="20"
+            icon={<ResetIcon />}
+            disabled={pending}
+            tooltip={t['com.affine.localmind.project-files.current']()}
+            aria-label={t['com.affine.localmind.project-files.current']()}
+            onClick={() =>
+              void run(async () => {
+                if (!(await confirmUnsaved())) return;
+                setHistorical(null);
+                setEditingRevision(artifact.currentRevision);
+                setRetry(value => value + 1);
+                await query.mutate();
+              })
+            }
+          />
+        ) : null}
         <IconButton
           size="20"
           icon={<HistoryIcon />}
@@ -298,19 +335,22 @@ export function ProjectOffice({
           {history.isLoading ? (
             <Loading size={16} />
           ) : history.error ? (
-            <span role="alert">{history.error.message}</span>
+            <span role="alert">{projectErrorMessage(history.error)}</span>
           ) : (
             <>
               <select
                 aria-label={t['com.affine.localmind.project-files.history']()}
                 value={historical?.id ?? ''}
                 onChange={event => {
-                  setDiff(null);
-                  setHistorical(
+                  const next =
                     history.data?.projectOfficeRevisions.find(
                       item => item.id === event.target.value
-                    ) ?? null
-                  );
+                    ) ?? null;
+                  void run(async () => {
+                    if (!(await confirmUnsaved())) return;
+                    setDiff(null);
+                    setHistorical(next);
+                  }).catch(report);
                 }}
               >
                 <option value="">
@@ -320,8 +360,10 @@ export function ProjectOffice({
                   .filter(item => item.id !== artifact.currentRevision.id)
                   .map(item => (
                     <option value={item.id} key={item.id}>
-                      {item.sequence} ·{' '}
-                      {new Date(item.createdAt).toLocaleString()}
+                      {t['com.affine.localmind.project-files.version']({
+                        version: String(item.sequence),
+                      })}{' '}
+                      · {new Date(item.createdAt).toLocaleString()}
                     </option>
                   ))}
               </select>
@@ -373,10 +415,23 @@ export function ProjectOffice({
           ))}
         </ul>
       ) : null}
-      <div
-        className={styles.officeBody}
-        data-chat-open={chatOpen && !historical}
-      >
+      {selection && !historical ? (
+        <div className={styles.toolbar}>
+          <span className={styles.heading}>
+            {officeSelectionLabel(selection)}
+          </span>
+          <IconButton
+            size="20"
+            icon={<ResetIcon />}
+            tooltip={t['com.affine.localmind.project-files.clearSelection']()}
+            aria-label={t[
+              'com.affine.localmind.project-files.clearSelection'
+            ]()}
+            onClick={() => setSelection(null)}
+          />
+        </div>
+      ) : null}
+      <div className={styles.officeBody}>
         <div className={styles.officeEditor}>
           {!state && !error ? (
             <div className={styles.state}>
@@ -392,44 +447,6 @@ export function ProjectOffice({
             <PdfEditor {...editorProps} state={state} />
           ) : null}
         </div>
-        {chatOpen && officeContext ? (
-          <aside className={styles.officeChat}>
-            <div className={styles.toolbar}>
-              <span className={styles.heading}>
-                {selection ? officeSelectionLabel(selection) : artifact.title} ·{' '}
-                {revision.sequence}
-              </span>
-              {selection ? (
-                <IconButton
-                  size="20"
-                  icon={<ResetIcon />}
-                  tooltip={t[
-                    'com.affine.localmind.project-files.clearSelection'
-                  ]()}
-                  aria-label={t[
-                    'com.affine.localmind.project-files.clearSelection'
-                  ]()}
-                  onClick={() => setSelection(null)}
-                />
-              ) : null}
-              <IconButton
-                size="20"
-                icon={<CloseIcon />}
-                tooltip={t['com.affine.localmind.project-files.close']()}
-                aria-label={t['com.affine.localmind.project-files.close']()}
-                onClick={() => setChatOpen(false)}
-              />
-            </div>
-            <div className={styles.officeConversation}>
-              <WorkbenchConversation
-                selectedProjectId={projectId}
-                officeContext={officeContext}
-                onTaskCompleted={onTaskCompleted}
-                onOpenResource={onOpenResource}
-              />
-            </div>
-          </aside>
-        ) : null}
       </div>
     </div>
   );

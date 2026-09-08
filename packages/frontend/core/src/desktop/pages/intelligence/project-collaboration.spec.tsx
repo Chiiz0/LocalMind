@@ -61,7 +61,6 @@ const project: WorkbenchProject = {
   status: 'active',
   aiPolicy: 'read_only',
   role: 'owner',
-  documents: [],
   members: [
     {
       userId: 'owner-1',
@@ -80,7 +79,6 @@ const project: WorkbenchProject = {
       createdAt: '2026-09-04T00:00:00.000Z',
     },
   ],
-  documentCount: 0,
   canManage: true,
   createdAt: '2026-09-04T00:00:00.000Z',
   updatedAt: '2026-09-04T00:00:00.000Z',

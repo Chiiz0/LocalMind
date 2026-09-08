@@ -270,6 +270,164 @@ describe('AIChatRuntime', () => {
     runtime.dispose();
   });
 
+  test('file-tree selection is persisted atomically and isolated by conversation', async () => {
+    const projectSession = (sessionId: string) =>
+      session({
+        sessionId,
+        workspaceId: null,
+        docId: null,
+        selectedContextProjectId: 'project-1',
+      });
+    const request = createRequest({
+      createSessionWithHistory: vi
+        .fn()
+        .mockResolvedValue(projectSession('session-1')),
+    });
+    type Context = Awaited<
+      ReturnType<AIRequestService['projectContext']['get']>
+    >;
+    const contexts = new Map<string, Context>();
+    vi.mocked(request.projectContext.get).mockImplementation(
+      async (projectId, sessionId) =>
+        contexts.get(sessionId) ?? {
+          projectId,
+          sessionId,
+          version: 0,
+          items: [],
+        }
+    );
+    vi.mocked(request.projectContext.resource).mockImplementation(
+      async (_projectId, resourceId) => ({
+        kind: 'resource',
+        resourceId,
+        sequence: 3,
+      })
+    );
+    vi.mocked(request.projectContext.set).mockImplementation(
+      async (projectId, sessionId, version, items) => {
+        const context: Context = {
+          projectId,
+          sessionId,
+          version: version + 1,
+          items: items.map(item => ({
+            kind: item.kind,
+            resourceId: item.resourceId ?? null,
+            sequence: item.sequence ?? null,
+            currentSequence: item.sequence ?? null,
+            title: 'Project document',
+            available: true,
+            blobKey: null,
+            name: null,
+            resourceKind: 'page',
+            mimeType: null,
+            byteSize: null,
+          })),
+        };
+        contexts.set(sessionId, context);
+        return context;
+      }
+    );
+    const runtime = new AIChatRuntime({
+      request,
+      scope: { kind: 'project', projectId: 'project-1' },
+      strategy: new ProjectAIChatSessionStrategy(),
+    });
+    await runtime.dispatch({ type: 'initialize' });
+    await runtime.dispatch({
+      type: 'setProjectContextResources',
+      tabId: runtime.getSnapshot().activeTabId,
+      baseResourceIds: [],
+      resourceIds: ['resource-a', 'resource-b', 'resource-a'],
+    });
+    expect(request.projectContext.set).toHaveBeenCalledExactlyOnceWith(
+      'project-1',
+      'session-1',
+      0,
+      [
+        { kind: 'resource', resourceId: 'resource-a', sequence: 3 },
+        { kind: 'resource', resourceId: 'resource-b', sequence: 3 },
+      ]
+    );
+    expect(runtime.getSnapshot().composer.context.items).toHaveLength(2);
+    await runtime.dispatch({
+      type: 'openSessionObject',
+      session: projectSession('session-2'),
+    });
+    await runtime.dispatch({ type: 'loadContext' });
+    expect(runtime.getSnapshot().composer.context.items).toEqual([]);
+    await runtime.dispatch({
+      type: 'openSessionObject',
+      session: projectSession('session-1'),
+    });
+    await runtime.dispatch({ type: 'loadContext' });
+    expect(
+      runtime
+        .getSnapshot()
+        .composer.context.items.map(item =>
+          item.kind === 'doc' ? item.docId : null
+        )
+    ).toEqual(['resource-a', 'resource-b']);
+    const currentTab = runtime.getSnapshot().activeTabId;
+    await expect(
+      runtime.dispatch({
+        type: 'setProjectContextResources',
+        tabId: currentTab,
+        baseResourceIds: [],
+        resourceIds: ['resource-c'],
+      })
+    ).rejects.toThrow('Project context changed');
+    expect(request.projectContext.set).toHaveBeenCalledTimes(1);
+    runtime.dispose();
+  });
+
+  test('a late file-tree resource lookup cannot write into a switched conversation', async () => {
+    const request = createRequest({
+      createSessionWithHistory: vi.fn().mockResolvedValue(
+        session({
+          workspaceId: null,
+          docId: null,
+          selectedContextProjectId: 'project-1',
+        })
+      ),
+    });
+    const pending =
+      Promise.withResolvers<
+        Awaited<ReturnType<AIRequestService['projectContext']['resource']>>
+      >();
+    vi.mocked(request.projectContext.resource).mockReturnValue(pending.promise);
+    const runtime = new AIChatRuntime({
+      request,
+      scope: { kind: 'project', projectId: 'project-1' },
+      strategy: new ProjectAIChatSessionStrategy(),
+    });
+    await runtime.dispatch({ type: 'initialize' });
+    const selected = runtime.dispatch({
+      type: 'setProjectContextResources',
+      tabId: runtime.getSnapshot().activeTabId,
+      baseResourceIds: [],
+      resourceIds: ['resource-a'],
+    });
+    const rejected = expect(selected).rejects.toThrow(
+      'Project conversation selection changed'
+    );
+    await vi.waitFor(() =>
+      expect(request.projectContext.resource).toHaveBeenCalledOnce()
+    );
+    await runtime.dispatch({
+      type: 'setScope',
+      scope: { kind: 'project', projectId: 'project-2' },
+    });
+    pending.resolve({
+      kind: 'resource',
+      resourceId: 'resource-a',
+      sequence: 1,
+    });
+    await rejected;
+    expect(request.projectContext.set).not.toHaveBeenCalled();
+    expect(runtime.getSnapshot().composer.context.items).toEqual([]);
+    runtime.dispose();
+  });
+
   test.each(['success', 'failure'] as const)(
     'late Project attachment %s does not change the newly selected Project',
     async outcome => {

@@ -15,6 +15,7 @@ import {
   ViewIcon,
   ViewTitle,
 } from '@affine/core/modules/workbench';
+import { useI18n } from '@affine/i18n';
 import { useLiveData, useService } from '@toeverything/infra';
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
@@ -27,6 +28,7 @@ import * as styles from './index.css';
 import { TagListHeader } from './list-header';
 
 export const TagDetail = ({ tagId }: { tagId?: string }) => {
+  const i18n = useI18n();
   const [explorerContextValue] = useState(createDocExplorerContext);
   const collectionRulesService = useService(CollectionRulesService);
   const globalContext = useService(GlobalContextService).globalContext;
@@ -122,7 +124,9 @@ export const TagDetail = ({ tagId }: { tagId?: string }) => {
 
   return (
     <DocExplorerContext.Provider value={explorerContextValue}>
-      <ViewTitle title={tagName ?? 'Untitled'} />
+      <ViewTitle
+        title={tagName ?? i18n['com.affine.localmind.aiContext.untitled']()}
+      />
       <ViewIcon icon="tag" />
       <ViewHeader>
         <TagDetailHeader

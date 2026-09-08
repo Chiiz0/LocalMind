@@ -7,6 +7,8 @@ import { Package } from '@affine-tools/utils/workspace';
 import { runCli } from '@magic-works/i18n-codegen';
 import { glob } from 'glob';
 
+import { translationCoverage } from './src/coverage';
+
 const isDev = process.argv.includes('--dev');
 const shouldCleanup = process.argv.includes('--cleanup');
 
@@ -143,20 +145,15 @@ function calcCompletenesses() {
       {} as Record<string, Record<string, string>>
     );
 
-  const base = Object.keys(langs.en).length;
-
-  const completenesses = {};
+  const completenesses: Record<string, number> = {};
 
   for (const key in langs) {
     const [langPart, variantPart] = key.split('-');
 
-    const completeness = Object.keys(
-      variantPart ? { ...langs[langPart], ...langs[key] } : langs[key]
-    ).length;
-
-    completenesses[key] = Math.min(
-      Math.ceil(/* avoid 0% */ (completeness / base) * 100),
-      100
+    completenesses[key] = translationCoverage(
+      langs.en,
+      langs[key],
+      variantPart ? langs[langPart] : undefined
     );
   }
 
@@ -238,4 +235,10 @@ if (shouldCleanup) {
   await cleanupResources();
 }
 i18nnext();
+if (!isDev) {
+  // The code generator leaves spaces on blank lines in plural documentation.
+  const generatedPath = i18nPkg.join('src', 'i18n.gen.ts').toString();
+  const generated = readFileSync(generatedPath, 'utf8');
+  writeFileSync(generatedPath, generated.replace(/^[\t ]+$/gm, ''));
+}
 calcCompletenesses();

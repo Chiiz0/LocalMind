@@ -1,3 +1,4 @@
+import { useI18n } from '@affine/i18n';
 import type { FC, RefObject } from 'react';
 
 import type { ParsedUser } from '../../utils/csv-utils';
@@ -17,12 +18,14 @@ export const ImportPreviewContent: FC<ImportPreviewContentProps> = ({
   parsedUsers,
   isImported,
 }) => {
+  const t = useI18n();
   return (
     <div className="grid gap-3">
       {!isImported && (
         <p className="text-sm text-muted-foreground">
-          {parsedUsers.length} users detected from the CSV file. Please confirm
-          the user list below and import.
+          {t.t('com.affine.admin.import-preview-count', {
+            count: parsedUsers.length,
+          })}
         </p>
       )}
       <UserTable users={parsedUsers} />
@@ -47,11 +50,13 @@ export const ImportInitialContent: FC<ImportInitialContentProps> = ({
   fileUploadRef,
   onFileSelected,
 }) => {
+  const i18n = useI18n();
   return (
     <div className="grid gap-3">
       <p className="text-sm text-muted-foreground">
-        You need to import the accounts by importing a CSV file in the correct
-        format. Please download the CSV template.
+        {i18n[
+          'com.affine.admin.you-need-to-import-the-accounts-by-importing-a-csv-file-in-the-correct-format-please-download-the-cs'
+        ]()}{' '}
       </p>
       <CsvFormatGuidance passwordLimits={passwordLimits} />
       <FileUploadArea ref={fileUploadRef} onFileSelected={onFileSelected} />
@@ -67,7 +72,13 @@ interface ImportErrorContentProps {
  * Component for displaying import errors
  */
 export const ImportErrorContent: FC<ImportErrorContentProps> = ({
-  message = 'You need to import the accounts by importing a CSV file in the correct format. Please download the CSV template.',
+  message,
 }) => {
+  const i18n = useI18n();
+  if (message === undefined)
+    message =
+      i18n[
+        'com.affine.admin.you-need-to-import-the-accounts-by-importing-a-csv-file-in-the-correct-format-please-download-the-cs'
+      ]();
   return message;
 };

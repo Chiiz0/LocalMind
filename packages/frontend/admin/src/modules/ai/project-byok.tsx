@@ -20,6 +20,7 @@ import {
   setProjectByokEnabledMutation,
   testProjectByokConfigMutation,
 } from '@affine/graphql';
+import { useI18n } from '@affine/i18n';
 import { FlaskConicalIcon, RefreshCwIcon, SaveIcon } from 'lucide-react';
 import { type FormEvent, useState } from 'react';
 import { toast } from 'sonner';
@@ -42,6 +43,7 @@ function ProjectByokForm({
   settings: Settings;
   onSaved: () => Promise<unknown>;
 }) {
+  const i18n = useI18n();
   const [provider, setProvider] = useState(settings.provider);
   const [endpoint, setEndpoint] = useState(settings.endpoint ?? '');
   const [modelId, setModelId] = useState(settings.modelId ?? '');
@@ -79,13 +81,15 @@ function ProjectByokForm({
       const { testProjectByokConfig: result } = await test({ input });
       setFeedback({
         ok: result.ok,
-        message: result.message ?? 'Provider verified.',
+        message: result.message ?? i18n['com.affine.admin.provider-verified'](),
       });
     } catch {
       setFeedback({
         ok: false,
         message:
-          'Test failed. Check the configuration or reload the latest settings.',
+          i18n[
+            'com.affine.admin.test-failed-check-the-configuration-or-reload-the-latest-settings'
+          ](),
       });
     }
   };
@@ -97,13 +101,15 @@ function ProjectByokForm({
     try {
       await save({ input });
       setApiKey('');
-      toast.success('Global Project BYOK saved.');
+      toast.success(i18n['com.affine.admin.global-project-byok-saved']());
       await onSaved();
     } catch {
       setFeedback({
         ok: false,
         message:
-          'Save failed. Check the endpoint, model and key, or reload if another administrator changed the settings.',
+          i18n[
+            'com.affine.admin.save-failed-check-the-endpoint-model-and-key-or-reload-if-another-administrator-changed-the-settings'
+          ](),
       });
     }
   };
@@ -113,20 +119,28 @@ function ProjectByokForm({
     if (
       !enabled &&
       !window.confirm(
-        'Disable AI for all Project conversations? New requests will stop until global Project BYOK is enabled again.'
+        i18n[
+          'com.affine.admin.disable-ai-for-all-project-conversations-new-requests-will-stop-until-global-project-byok-is-enabled'
+        ]()
       )
     )
       return;
     setFeedback(null);
     try {
       await setEnabled({ expectedRevision: settings.revision, enabled });
-      toast.success(enabled ? 'Project AI enabled.' : 'Project AI disabled.');
+      toast.success(
+        enabled
+          ? i18n['com.affine.admin.project-ai-enabled-2']()
+          : i18n['com.affine.admin.project-ai-disabled']()
+      );
       await onSaved();
     } catch {
       setFeedback({
         ok: false,
         message:
-          'Update failed. Reload the settings and check the provider connection.',
+          i18n[
+            'com.affine.admin.update-failed-reload-the-settings-and-check-the-provider-connection'
+          ](),
       });
     }
   };
@@ -135,7 +149,7 @@ function ProjectByokForm({
     <form
       onSubmit={event => {
         handleSave(event).catch(() =>
-          toast.error('Could not save Project BYOK.')
+          toast.error(i18n['com.affine.admin.could-not-save-project-byok']())
         );
       }}
       className="space-y-5"
@@ -148,20 +162,28 @@ function ProjectByokForm({
           disabled={!settings.configured || busy}
           onCheckedChange={enabled => {
             handleEnabled(enabled).catch(() =>
-              toast.error('Could not update Project BYOK.')
+              toast.error(
+                i18n['com.affine.admin.could-not-update-project-byok']()
+              )
             );
           }}
         />
-        <Label htmlFor="project-byok-enabled">Project AI enabled</Label>
+        <Label htmlFor="project-byok-enabled">
+          {i18n['com.affine.admin.project-ai-enabled']()}
+        </Label>
         <Badge variant="secondary">
           {settings.configured
-            ? `Revision ${settings.revision}`
-            : 'Not configured'}
+            ? i18n['com.affine.localmind.aiContext.revision']({
+                revision: String(settings.revision),
+              })
+            : i18n['com.affine.admin.not-configured']()}
         </Badge>
       </div>
       <fieldset disabled={busy} className="grid min-w-0 gap-4 sm:grid-cols-2">
         <div className="min-w-0 space-y-2">
-          <Label htmlFor="project-byok-provider">Provider</Label>
+          <Label htmlFor="project-byok-provider">
+            {i18n['com.affine.integration.calendar.caldav.field.provider']()}
+          </Label>
           <Select
             value={provider}
             disabled={busy}
@@ -183,7 +205,9 @@ function ProjectByokForm({
           </Select>
         </div>
         <div className="min-w-0 space-y-2">
-          <Label htmlFor="project-byok-model">Model ID</Label>
+          <Label htmlFor="project-byok-model">
+            {i18n['com.affine.admin.model-id']()}
+          </Label>
           <Input
             id="project-byok-model"
             value={modelId}
@@ -193,7 +217,9 @@ function ProjectByokForm({
           />
         </div>
         <div className="min-w-0 space-y-2">
-          <Label htmlFor="project-byok-endpoint">Endpoint</Label>
+          <Label htmlFor="project-byok-endpoint">
+            {i18n['com.affine.integration.external-mcp.field.endpoint']()}
+          </Label>
           <Input
             id="project-byok-endpoint"
             type="url"
@@ -201,11 +227,13 @@ function ProjectByokForm({
             onChange={event => setEndpoint(event.target.value)}
             disabled={!settings.customEndpointSupported || busy}
             maxLength={2048}
-            placeholder="Provider default"
+            placeholder={i18n['com.affine.admin.provider-default']()}
           />
         </div>
         <div className="min-w-0 space-y-2">
-          <Label htmlFor="project-byok-key">API key</Label>
+          <Label htmlFor="project-byok-key">
+            {i18n['com.affine.admin.api-key']()}
+          </Label>
           <Input
             id="project-byok-key"
             type="password"
@@ -215,7 +243,7 @@ function ProjectByokForm({
             maxLength={8192}
             placeholder={
               settings.configured && provider === settings.provider
-                ? 'Keep saved key'
+                ? i18n['com.affine.admin.keep-saved-key']()
                 : ''
             }
           />
@@ -240,18 +268,24 @@ function ProjectByokForm({
           variant="outline"
           onClick={() => {
             handleTest().catch(() =>
-              toast.error('Could not test Project BYOK.')
+              toast.error(
+                i18n['com.affine.admin.could-not-test-project-byok']()
+              )
             );
           }}
           disabled={busy || !canSubmit}
           className="gap-2"
         >
           <FlaskConicalIcon className="h-4 w-4" />
-          {testing ? 'Testing...' : 'Test connection'}
+          {testing
+            ? i18n['com.affine.admin.testing']()
+            : i18n['com.affine.admin.test-connection']()}
         </Button>
         <Button type="submit" disabled={busy || !canSubmit} className="gap-2">
           <SaveIcon className="h-4 w-4" />
-          {saving ? 'Verifying...' : 'Verify and save'}
+          {saving
+            ? i18n['com.affine.admin.verifying']()
+            : i18n['com.affine.admin.verify-and-save']()}
         </Button>
       </div>
     </form>
@@ -259,6 +293,7 @@ function ProjectByokForm({
 }
 
 export function ProjectByokAdmin() {
+  const i18n = useI18n();
   const { data, error, isValidating, mutate } = useQuery({
     query: adminProjectByokSettingsQuery,
   });
@@ -270,17 +305,19 @@ export function ProjectByokAdmin() {
     >
       <div className="flex items-center justify-between gap-4">
         <h2 id="project-byok-title" className="text-lg font-semibold">
-          Global Project BYOK
+          {i18n['com.affine.admin.global-project-byok']()}{' '}
         </h2>
         <Button
           variant="ghost"
           size="icon"
-          title="Reload Project BYOK"
-          aria-label="Reload Project BYOK"
+          title={i18n['com.affine.admin.reload-project-byok']()}
+          aria-label={i18n['com.affine.admin.reload-project-byok']()}
           disabled={isValidating}
           onClick={() => {
             void mutate().catch(() =>
-              toast.error('Could not reload Project BYOK.')
+              toast.error(
+                i18n['com.affine.admin.could-not-reload-project-byok']()
+              )
             );
           }}
         >
@@ -289,17 +326,23 @@ export function ProjectByokAdmin() {
       </div>
       <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
         <div className="flex gap-3">
-          <dt className="text-muted-foreground">Applies to</dt>
-          <dd>All Project conversations</dd>
+          <dt className="text-muted-foreground">
+            {i18n['com.affine.localmind.directoryPermissions.principal']()}
+          </dt>
+          <dd>{i18n['com.affine.admin.all-project-conversations']()}</dd>
         </div>
         <div className="flex gap-3">
-          <dt className="text-muted-foreground">Managed by</dt>
-          <dd>Instance administrators</dd>
+          <dt className="text-muted-foreground">
+            {i18n['com.affine.admin.managed-by']()}
+          </dt>
+          <dd>{i18n['com.affine.admin.instance-administrators']()}</dd>
         </div>
       </dl>
       {error ? (
         <p role="alert" className="text-sm text-destructive">
-          Could not load the latest settings. Reload before saving.
+          {i18n[
+            'com.affine.admin.could-not-load-the-latest-settings-reload-before-saving'
+          ]()}{' '}
         </p>
       ) : (
         <ProjectByokForm
@@ -311,7 +354,7 @@ export function ProjectByokAdmin() {
       {settings.auditEvents.length ? (
         <details className="text-sm">
           <summary className="cursor-pointer py-2 font-medium">
-            Recent changes
+            {i18n['com.affine.admin.recent-changes']()}{' '}
           </summary>
           <ul className="divide-y divide-border">
             {settings.auditEvents.map(event => (
@@ -324,7 +367,11 @@ export function ProjectByokAdmin() {
                   {providerLabels[event.provider]} / {event.modelId}
                 </span>
                 <span>
-                  {event.enabled ? 'Enabled' : 'Disabled'}
+                  {event.enabled
+                    ? i18n['com.affine.admin.enabled']()
+                    : i18n[
+                        'com.affine.integration.external-mcp.status.disabled'
+                      ]()}
                   {event.credentialChanged ? ' / Key updated' : ''}
                 </span>
                 <span className="min-w-0 break-all text-muted-foreground">

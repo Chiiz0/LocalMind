@@ -1,4 +1,5 @@
 import { Toaster } from '@affine/admin/components/ui/sonner';
+import { useI18n } from '@affine/i18n';
 import { lazy, ROUTES } from '@affine/routes';
 import { withSentryReactRouterV7Routing } from '@sentry/react';
 import { useEffect } from 'react';
@@ -51,13 +52,18 @@ const Routes = window.SENTRY_RELEASE
   : ReactRouterRoutes;
 
 function AuthenticatedRoutes() {
+  const i18n = useI18n();
   const user = useCurrentUser();
 
   useEffect(() => {
     if (user && !isAdmin(user)) {
-      toast.error('You are not an admin, please login the admin account.');
+      toast.error(
+        i18n[
+          'com.affine.admin.you-are-not-an-admin-please-login-the-admin-account'
+        ]()
+      );
     }
-  }, [user]);
+  }, [user, i18n]);
 
   if (!user || !isAdmin(user)) {
     return <Navigate to="/admin/auth" />;

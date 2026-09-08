@@ -4,13 +4,14 @@ import { Injectable } from '@nestjs/common';
 import { Transactional } from '@nestjs-cls/transactional';
 import { applyUpdate, Doc, encodeStateAsUpdate } from 'yjs';
 
-import { BadRequest, EventBus, readBufferWithLimit } from '../../base';
+import { BadRequest, readBufferWithLimit } from '../../base';
 import { Models } from '../../models';
 import {
   PROJECT_BLOB_MAX_BYTES,
   type ProjectActor,
   projectResourceHash,
 } from '../../models/project-resource';
+import type { ProjectEditLeaseProof } from '../../models/project-resource-edit-lease';
 import {
   createDocWithMarkdown,
   parseYDocFromBinary,
@@ -112,8 +113,7 @@ export class ProjectBlobStorage {
 export class ProjectResourceService {
   constructor(
     private readonly models: Models,
-    private readonly blobs: ProjectBlobStorage,
-    private readonly events: EventBus
+    private readonly blobs: ProjectBlobStorage
   ) {}
 
   async createDocument(
@@ -167,7 +167,6 @@ export class ProjectResourceService {
         requestHash,
       });
     });
-    this.changed(resource.projectId, resource.id);
     return resource;
   }
 
@@ -205,7 +204,6 @@ export class ProjectResourceService {
           ...input,
           kind: 'file',
         });
-        this.changed(file.projectId, file.id);
         return file;
       },
       true
@@ -230,6 +228,7 @@ export class ProjectResourceService {
       origin?: 'user' | 'ai';
       sourceSessionId?: string;
       requestHash?: string;
+      editLease?: ProjectEditLeaseProof;
     }
   ) {
     return this.withWriteSources(input, async () => {
@@ -282,7 +281,6 @@ export class ProjectResourceService {
           expectedVersion: resource.version,
           title: parsed.title,
         });
-      this.changed(input.projectId, input.resourceId);
       return revision;
     });
   }
@@ -296,6 +294,7 @@ export class ProjectResourceService {
       origin: 'user' | 'ai';
       sourceSessionId?: string;
       readContentVersion?: number;
+      editLease?: ProjectEditLeaseProof;
     }
   ) {
     if (Buffer.byteLength(input.markdown) > 1024 * 1024)
@@ -351,7 +350,6 @@ export class ProjectResourceService {
     const folder = await this.withWriteSources(input, () =>
       this.models.projectResource.create({ ...input, kind: 'folder' })
     );
-    this.changed(folder.projectId, folder.id);
     return folder;
   }
 
@@ -359,6 +357,7 @@ export class ProjectResourceService {
     input: Parameters<Models['projectResource']['change']>[0] & {
       origin?: 'user' | 'ai';
       sourceSessionId?: string;
+      editLease?: ProjectEditLeaseProof;
     }
   ) {
     return this.withWriteSources(input, async () => {
@@ -369,6 +368,8 @@ export class ProjectResourceService {
         ...input,
         includeTrash: input.trash === false,
       });
+      if (input.origin === 'ai' || (input.title && input.title !== node.title))
+        await this.models.projectResourceEditLease.assertHeld(input);
       if (
         input.title &&
         input.title !== node.title &&
@@ -399,7 +400,6 @@ export class ProjectResourceService {
         });
       }
       const changed = await this.models.projectResource.change(input);
-      this.changed(changed.projectId, changed.id);
       return changed;
     });
   }
@@ -428,12 +428,5 @@ export class ProjectResourceService {
       );
     }
     return this.models.projectResource.withMember(input, execute, true);
-  }
-
-  private changed(projectId: string, resourceId: string) {
-    this.events.emitDetached('project.resource.changed', {
-      projectId,
-      resourceId,
-    });
   }
 }

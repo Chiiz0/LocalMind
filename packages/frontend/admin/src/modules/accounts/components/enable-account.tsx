@@ -1,3 +1,5 @@
+import { Trans, useI18n } from '@affine/i18n';
+
 import { ConfirmDialog } from '../../../components/shared/confirm-dialog';
 
 export const EnableAccountDialog = ({
@@ -13,19 +15,20 @@ export const EnableAccountDialog = ({
   onConfirm: () => void;
   onOpenChange: (open: boolean) => void;
 }) => {
+  const i18n = useI18n();
   return (
     <ConfirmDialog
       open={open}
       onOpenChange={onOpenChange}
-      title="Enable Account"
+      title={i18n['com.affine.admin.enable-account']()}
       description={
-        <>
-          Are you sure you want to enable the account? After enabling the
-          account, the <span className="font-bold">{email}</span> email can be
-          used to log in.
-        </>
+        <Trans
+          i18nKey="com.affine.admin.enable-account-description"
+          values={{ email }}
+          components={{ strong: <span className="font-bold" /> }}
+        />
       }
-      confirmText="Enable"
+      confirmText={i18n['com.affine.admin.enable']()}
       confirmButtonVariant="default"
       onConfirm={onConfirm}
       onClose={onClose}

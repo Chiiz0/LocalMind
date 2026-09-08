@@ -1,7 +1,0 @@
-query projectResourceMigrations($projectId: String!, $cursor: String) {
-  projectResourceMigrations(projectId: $projectId, cursor: $cursor) {
-    items { ...ProjectResourceMigrationFields }
-    nextCursor
-  }
-}
-#import './fragments/project-resource-migration-fields.gql'

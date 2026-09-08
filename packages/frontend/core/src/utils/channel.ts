@@ -1,3 +1,4 @@
+import { I18n } from '@affine/i18n';
 import { z } from 'zod';
 
 export const appSchemes = z.enum([
@@ -59,5 +60,9 @@ export const appSchemaUrl = z.custom<string>(
       return false;
     }
   },
-  { message: 'Invalid URL or protocol' }
+  {
+    get message() {
+      return I18n['com.affine.ui.invalid-url-or-protocol']();
+    },
+  }
 );

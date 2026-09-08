@@ -1,3 +1,4 @@
+import { I18nController } from '@affine/core/modules/i18n/lit-controller';
 import { EnterIcon } from '@blocksuite/affine/components/icons';
 import { WithDisposable } from '@blocksuite/affine/global/lit';
 import { stopPropagation } from '@blocksuite/affine/shared/utils';
@@ -11,6 +12,7 @@ import { css, html, LitElement, nothing, unsafeCSS } from 'lit';
 import { property } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 
+import { aiActionLabel } from './labels';
 import { menuItemStyles } from './styles';
 import type { AIItemConfig, AISubItemConfig } from './types';
 
@@ -19,6 +21,8 @@ import type { AIItemConfig, AISubItemConfig } from './types';
   item: PropTypes.object,
 })
 export class AISubItemList extends WithDisposable(LitElement) {
+  readonly languageController = new I18nController(this);
+
   static override styles = css`
     .ai-sub-menu {
       display: flex;
@@ -74,7 +78,7 @@ export class AISubItemList extends WithDisposable(LitElement) {
             class="menu-item"
             @click=${() => this._handleClick(subItem)}
           >
-            <div class="item-name">${subItem.type}</div>
+            <div class="item-name">${aiActionLabel(subItem.type)}</div>
             <span class="enter-icon">${EnterIcon}</span>
           </div>`
       )}

@@ -1,0 +1,10 @@
+mutation decideProjectAgentTask($input: ProjectTaskDecisionInput!) {
+  decideProjectAgentTask(input: $input) {
+    applied
+    decision
+    processedByName
+    processedAt
+    task { ...ProjectAgentTaskFields }
+  }
+}
+#import './fragments/project-agent-task-fields.gql'

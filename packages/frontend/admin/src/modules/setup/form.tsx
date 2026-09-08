@@ -7,6 +7,7 @@ import {
 } from '@affine/admin/components/ui/carousel';
 import { validateEmailAndPassword } from '@affine/admin/utils';
 import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hooks';
+import { useI18n } from '@affine/i18n';
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -22,32 +23,36 @@ export enum CarouselSteps {
 }
 
 const Welcome = () => {
+  const i18n = useI18n();
   return (
     <div
       className="flex flex-col h-full w-full mt-60 max-lg:items-center max-lg:mt-16"
       style={{ minHeight: '300px' }}
     >
       <h1 className="text-5xl font-extrabold max-lg:text-3xl max-lg:font-bold">
-        Welcome to LocalMind
+        {i18n['com.affine.admin.welcome-to-localmind']()}{' '}
       </h1>
       <p className="mt-5 font-semibold text-xl max-lg:px-4 max-lg:text-lg">
-        Configure your self-hosted LocalMind with a few simple settings.
+        {i18n[
+          'com.affine.admin.configure-your-self-hosted-localmind-with-a-few-simple-settings'
+        ]()}{' '}
       </p>
     </div>
   );
 };
 
 const SettingsDone = () => {
+  const i18n = useI18n();
   return (
     <div
       className="flex flex-col h-full w-full mt-60 max-lg:items-center max-lg:mt-16"
       style={{ minHeight: '300px' }}
     >
       <h1 className="text-5xl font-extrabold max-lg:text-3xl max-lg:font-bold">
-        All Settings Done
+        {i18n['com.affine.admin.all-settings-done']()}{' '}
       </h1>
       <p className="mt-5 font-semibold text-xl max-lg:px-4 max-lg:text-lg">
-        LocalMind is ready to use.
+        {i18n['com.affine.admin.localmind-is-ready-to-use']()}{' '}
       </p>
     </div>
   );
@@ -60,6 +65,7 @@ const CarouselItemElements = {
 };
 
 export const Form = () => {
+  const i18n = useI18n();
   const [api, setApi] = useState<CarouselApi>();
   const [current, setCurrent] = useState(0);
   const [count, setCount] = useState(0);
@@ -110,18 +116,22 @@ export const Form = () => {
 
       if (!createResponse.ok) {
         const errorData = await createResponse.json();
-        throw new Error(errorData.message || 'Failed to create admin');
+        throw new Error(
+          errorData.message || i18n['com.affine.admin.failed-to-create-admin']()
+        );
       }
 
       await createResponse.json();
       await refreshServerConfig();
-      toast.success('Admin account created successfully.');
+      toast.success(
+        i18n['com.affine.admin.admin-account-created-successfully']()
+      );
     } catch (err) {
       toast.error((err as Error).message);
       console.error(err);
       throw err;
     }
-  }, [nameValue, emailValue, passwordValue, refreshServerConfig]);
+  }, [nameValue, emailValue, passwordValue, refreshServerConfig, i18n]);
 
   const onNext = useAsyncCallback(async () => {
     if (isCreateAdminStep) {
@@ -171,11 +181,13 @@ export const Form = () => {
       if (serverConfig.initialized === true) {
         return navigate('/admin', { replace: true });
       }
-      toast.error('Goto Admin Panel failed, please try again.');
+      toast.error(
+        i18n['com.affine.admin.goto-admin-panel-failed-please-try-again']()
+      );
       return;
     }
     api?.scrollPrev();
-  }, [api, count, current, serverConfig.initialized, navigate]);
+  }, [api, count, current, serverConfig.initialized, navigate, i18n]);
 
   return (
     <div className="flex flex-col justify-between h-full w-full  lg:pl-36 max-lg:items-center ">
@@ -205,11 +217,15 @@ export const Form = () => {
       <div>
         {current > 1 && (
           <Button className="mr-3" onClick={onPrevious} variant="outline">
-            {current === count ? 'Goto Admin Panel' : 'Back'}
+            {current === count
+              ? i18n['com.affine.admin.goto-admin-panel']()
+              : i18n['com.affine.backButton']()}
           </Button>
         )}
         <Button onClick={onNext} disabled={disableContinue}>
-          {current === count ? 'Open LocalMind' : 'Continue'}
+          {current === count
+            ? i18n['com.affine.payment.license-success.open-affine']()
+            : i18n['com.affine.admin.continue']()}
         </Button>
       </div>
 

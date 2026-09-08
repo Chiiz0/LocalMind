@@ -1,6 +1,7 @@
 import { Button } from '@affine/admin/components/ui/button';
 import { Input } from '@affine/admin/components/ui/input';
 import type { FeatureType } from '@affine/graphql';
+import { useI18n } from '@affine/i18n';
 import { ExportIcon, ImportIcon, PlusIcon } from '@blocksuite/icons/rc';
 import type { Table } from '@tanstack/react-table';
 import {
@@ -39,6 +40,7 @@ export function DataTableToolbar<TData>({
   selectedFeatures,
   onFeaturesChange,
 }: DataTableToolbarProps<TData>) {
+  const i18n = useI18n();
   const [value, setValue] = useState(keyword);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
@@ -113,12 +115,14 @@ export function DataTableToolbar<TData>({
     const selectedRows = table.getFilteredSelectedRowModel().rows;
 
     if (selectedRows.length === 0) {
-      alert('Please select at least one user to export');
+      alert(
+        i18n['com.affine.admin.please-select-at-least-one-user-to-export']()
+      );
       return;
     }
 
     setExportDialogOpen(true);
-  }, [table]);
+  }, [table, i18n]);
 
   const handleImportUsers = useCallback(() => {
     setImportDialogOpen(true);
@@ -134,7 +138,11 @@ export function DataTableToolbar<TData>({
           onClick={handleImportUsers}
         >
           <ImportIcon fontSize={20} />
-          <span className="ml-2 hidden md:inline-block">Import</span>
+          <span className="ml-2 hidden md:inline-block">
+            {i18n[
+              'com.affine.integration.readwise.setting.start-import-button'
+            ]()}
+          </span>
         </Button>
 
         <Button
@@ -147,7 +155,9 @@ export function DataTableToolbar<TData>({
           }
         >
           <ExportIcon fontSize={20} />
-          <span className="ml-2 hidden md:inline-block">Export</span>
+          <span className="ml-2 hidden md:inline-block">
+            {i18n['com.affine.ui.export']()}
+          </span>
         </Button>
 
         {table && (
@@ -173,7 +183,7 @@ export function DataTableToolbar<TData>({
         />
         <div className="flex">
           <Input
-            placeholder="Search Email / UUID"
+            placeholder={i18n['com.affine.admin.search-email-uuid']()}
             value={value}
             onChange={onValueChange}
             className="h-8 w-[150px] lg:w-[250px]"
@@ -183,7 +193,8 @@ export function DataTableToolbar<TData>({
           className="h-8 px-2 lg:px-3 space-x-[6px] text-sm font-medium"
           onClick={handleOpenConfirm}
         >
-          <PlusIcon fontSize={20} /> <span>Add User</span>
+          <PlusIcon fontSize={20} />{' '}
+          <span>{i18n['com.affine.admin.add-user']()}</span>
         </Button>
       </div>
 

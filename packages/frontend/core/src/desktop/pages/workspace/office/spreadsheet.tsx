@@ -1,4 +1,5 @@
 import { Button, IconButton } from '@affine/component';
+import { I18n, useI18n } from '@affine/i18n';
 import {
   ArrowDownSmallIcon,
   ArrowUpSmallIcon,
@@ -16,7 +17,7 @@ import {
 } from '@blocksuite/icons/rc';
 import { columnIndexToName, parseCellAddress } from '@localmind/office/xlsx';
 import { nanoid } from 'nanoid';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type {
   OfficeCommand,
@@ -24,6 +25,7 @@ import type {
   XlsxCell,
   XlsxSemanticState,
 } from '../../../../modules/office';
+import { useOfficeEditorDraft, useOfficeSelectionChange } from './edit-draft';
 import {
   executeAndReloadOfficeCommand,
   type NativeOfficeEditorProps,
@@ -140,12 +142,20 @@ export function SpreadsheetEditor({
   onRevision,
   onCommentAnchorChange,
   onAiSelectionChange,
+  registerDraft,
+  beforeSelectionChange,
 }: NativeOfficeEditorProps<XlsxSemanticState>) {
+  const i18n = useI18n();
+  const changeSelection = useOfficeSelectionChange(beforeSelectionChange);
   const [activeSheetId, setActiveSheetId] = useState(
     state.sheets[state.activeSheetIndex]?.id ?? state.sheets[0]?.id ?? ''
   );
   const [activeAddress, setActiveAddress] = useState('A1');
   const [draft, setDraft] = useState('');
+  const savedDraft = useRef('');
+  const formulaInputRef = useRef<HTMLInputElement>(null);
+  const currentDraft = useRef(draft);
+  currentDraft.current = draft;
   const [range, setRange] = useState('A1:A1');
   const [fontFamily, setFontFamily] = useState('Aptos');
   const [fontSize, setFontSize] = useState(11);
@@ -190,11 +200,14 @@ export function SpreadsheetEditor({
     : undefined;
 
   useEffect(() => {
+    if (registerDraft && currentDraft.current !== savedDraft.current) return;
     setDraft(cellInput(activeCell));
+    savedDraft.current = cellInput(activeCell);
+    currentDraft.current = cellInput(activeCell);
     if (parsedActiveAddress) {
       setRange(`${parsedActiveAddress.address}:${parsedActiveAddress.address}`);
     }
-  }, [activeCell, parsedActiveAddress]);
+  }, [activeCell, parsedActiveAddress, registerDraft]);
 
   useEffect(() => {
     const format = cellFormatDraft(state, activeCell);
@@ -293,10 +306,12 @@ export function SpreadsheetEditor({
 
   const runCommand = useCallback(
     async (command: OfficeCommand, message: string) => {
-      if (readOnly || saving) return;
+      if (readOnly || saving) return false;
       setSaving(true);
       setError(null);
-      setStatus(`Previewing ${message}`);
+      setStatus(
+        I18n['com.affine.office.previewing-operation']({ operation: message })
+      );
       try {
         const result = await executeAndReloadOfficeCommand<XlsxSemanticState>({
           graphql,
@@ -305,23 +320,32 @@ export function SpreadsheetEditor({
           command,
         });
         onRevision(result.revision, result.state);
-        setStatus(`${message} saved in revision ${result.revision.sequence}`);
+        setStatus(
+          I18n['com.affine.office.operation-saved']({
+            operation: message,
+            version: String(result.revision.sequence),
+          })
+        );
+        return true;
       } catch (err) {
-        setError(officeErrorMessage(err));
-        setStatus('Save failed');
+        setError(officeErrorMessage(err, owner));
+        setStatus(i18n['com.affine.office.save-failed']());
+        return false;
       } finally {
         setSaving(false);
       }
     },
-    [graphql, onRevision, owner, readOnly, saving]
+    [graphql, onRevision, owner, readOnly, saving, i18n]
   );
 
   const save = useCallback(async () => {
-    if (!sheet || readOnly || saving) return;
+    if (!sheet || readOnly || saving) return false;
     if (!parsedActiveAddress) {
-      setError('Enter a valid cell address, for example A1.');
-      setStatus('Invalid cell address');
-      return;
+      setError(
+        i18n['com.affine.office.enter-a-valid-cell-address-for-example-a1']()
+      );
+      setStatus(i18n['com.affine.office.invalid-cell-address']());
+      return false;
     }
     const command = {
       ...commandBase(),
@@ -334,7 +358,9 @@ export function SpreadsheetEditor({
       input: parseCellInput(draft),
       styleIndex: activeCell?.styleIndex,
     } satisfies OfficeWorkbookSetCellCommand;
-    await runCommand(command, parsedActiveAddress.address);
+    const saved = await runCommand(command, parsedActiveAddress.address);
+    if (saved) savedDraft.current = draft;
+    return saved;
   }, [
     activeCell?.styleIndex,
     commandBase,
@@ -344,7 +370,25 @@ export function SpreadsheetEditor({
     runCommand,
     saving,
     sheet,
+
+    i18n,
   ]);
+
+  useOfficeEditorDraft(registerDraft, {
+    get hasUnsavedChanges() {
+      return currentDraft.current !== savedDraft.current;
+    },
+    save: async () => {
+      if (!(await save()))
+        throw new Error(
+          i18n['com.affine.office.office-draft-could-not-be-saved']()
+        );
+    },
+    discard: async () => {
+      currentDraft.current = savedDraft.current;
+      setDraft(savedDraft.current);
+    },
+  });
 
   const applyFormat = useCallback(async () => {
     if (!sheet) return;
@@ -365,7 +409,7 @@ export function SpreadsheetEditor({
           wrapText,
         },
       },
-      'Range formatting'
+      i18n['com.affine.office.range-formatting']()
     );
   }, [
     alignment,
@@ -381,14 +425,20 @@ export function SpreadsheetEditor({
     textColor,
     underline,
     wrapText,
+
+    i18n,
   ]);
 
   const changeDimension = useCallback(
     async (axis: 'row' | 'column', action: 'insert' | 'delete') => {
       if (!sheet) return;
       if (!parsedActiveAddress) {
-        setError('Enter a valid cell address before changing rows or columns.');
-        setStatus('Invalid cell address');
+        setError(
+          i18n[
+            'com.affine.office.enter-a-valid-cell-address-before-changing-rows-or-columns'
+          ]()
+        );
+        setStatus(i18n['com.affine.office.invalid-cell-address']());
         return;
       }
       await runCommand(
@@ -407,7 +457,7 @@ export function SpreadsheetEditor({
         `${action === 'insert' ? 'Insert' : 'Delete'} ${axis}`
       );
     },
-    [commandBase, dimensionCount, parsedActiveAddress, runCommand, sheet]
+    [commandBase, dimensionCount, parsedActiveAddress, runCommand, sheet, i18n]
   );
 
   const moveSheet = useCallback(
@@ -424,17 +474,17 @@ export function SpreadsheetEditor({
           operation: 'office.workbook.sheets.reorder',
           sheetIds: order,
         },
-        'Worksheet order'
+        i18n['com.affine.office.worksheet-order']()
       );
     },
-    [commandBase, runCommand, sheet, state.sheets]
+    [commandBase, runCommand, sheet, state.sheets, i18n]
   );
 
   if (!sheet) {
     return (
       <div className={styles.editor}>
         <div className={styles.emptyState} role="status">
-          This workbook has no worksheets.
+          {i18n['com.affine.office.this-workbook-has-no-worksheets']()}{' '}
         </div>
       </div>
     );
@@ -446,20 +496,27 @@ export function SpreadsheetEditor({
       <div
         className={styles.toolbar}
         role="toolbar"
-        aria-label="Spreadsheet editing"
+        aria-label={i18n['com.affine.office.spreadsheet-editing']()}
       >
         <input
           className={styles.compactInput}
           value={activeAddress}
-          aria-label="Active cell address"
-          onChange={event => setActiveAddress(event.target.value.toUpperCase())}
+          aria-label={i18n['com.affine.office.active-cell-address']()}
+          onChange={event => {
+            const value = event.target.value.toUpperCase();
+            changeSelection(() => setActiveAddress(value));
+          }}
           onBlur={() => {
             if (parsedActiveAddress) {
-              setActiveAddress(parsedActiveAddress.address);
+              changeSelection(() =>
+                setActiveAddress(parsedActiveAddress.address)
+              );
             } else {
-              setActiveAddress('A1');
-              setError('Cell address was reset to A1.');
-              setStatus('Invalid cell address');
+              changeSelection(() => setActiveAddress('A1'));
+              setError(
+                i18n['com.affine.office.cell-address-was-reset-to-a1']()
+              );
+              setStatus(i18n['com.affine.office.invalid-cell-address']());
             }
           }}
         />
@@ -467,8 +524,11 @@ export function SpreadsheetEditor({
           className={styles.formulaInput}
           value={draft}
           disabled={readOnly || saving}
-          aria-label="Cell value or formula"
-          placeholder="Enter a value or start a formula with ="
+          ref={formulaInputRef}
+          aria-label={i18n['com.affine.office.cell-value-or-formula']()}
+          placeholder={i18n[
+            'com.affine.office.enter-a-value-or-start-a-formula-with'
+          ]()}
           onChange={event => setDraft(event.target.value)}
           onKeyDown={event => {
             if (event.key === 'Enter') save().catch(console.error);
@@ -482,18 +542,18 @@ export function SpreadsheetEditor({
             save().catch(console.error);
           }}
         >
-          Save cell
+          {i18n['com.affine.office.save-cell']()}{' '}
         </Button>
         <input
           className={styles.compactRangeInput}
           value={range}
-          aria-label="Selected cell range"
+          aria-label={i18n['com.affine.office.selected-cell-range']()}
           onChange={event => setRange(event.target.value.toUpperCase())}
         />
         <IconButton
           size="24"
-          tooltip="Bold"
-          aria-label="Bold"
+          tooltip={i18n['com.affine.keyboardShortcuts.bold']()}
+          aria-label={i18n['com.affine.keyboardShortcuts.bold']()}
           data-active={bold}
           disabled={readOnly || saving}
           onClick={() => setBold(value => !value)}
@@ -502,8 +562,8 @@ export function SpreadsheetEditor({
         </IconButton>
         <IconButton
           size="24"
-          tooltip="Italic"
-          aria-label="Italic"
+          tooltip={i18n['com.affine.keyboardShortcuts.italic']()}
+          aria-label={i18n['com.affine.keyboardShortcuts.italic']()}
           data-active={italic}
           disabled={readOnly || saving}
           onClick={() => setItalic(value => !value)}
@@ -512,8 +572,8 @@ export function SpreadsheetEditor({
         </IconButton>
         <IconButton
           size="24"
-          tooltip="Underline"
-          aria-label="Underline"
+          tooltip={i18n['com.affine.office.annotation-type.underline']()}
+          aria-label={i18n['com.affine.keyboardShortcuts.underline']()}
           data-active={underline}
           disabled={readOnly || saving}
           onClick={() => setUnderline(value => !value)}
@@ -525,7 +585,7 @@ export function SpreadsheetEditor({
           loading={saving}
           onClick={() => void applyFormat()}
         >
-          Apply format
+          {i18n['com.affine.office.apply-format']()}{' '}
         </Button>
       </div>
       <div className={styles.sheetsBody}>
@@ -533,7 +593,9 @@ export function SpreadsheetEditor({
           <div
             className={styles.gridScroller}
             role="region"
-            aria-label={`${sheet.name} worksheet`}
+            aria-label={I18n['com.affine.office.named-worksheet']({
+              name: sheet.name,
+            })}
           >
             <div
               className={styles.sheetGrid}
@@ -572,14 +634,15 @@ export function SpreadsheetEditor({
                           data-active={address === activeAddress}
                           key={address}
                           style={cellStyle(state, cell)}
-                          onClick={() => setActiveAddress(address)}
+                          onClick={() => {
+                            if (address !== activeAddress)
+                              changeSelection(() => setActiveAddress(address));
+                          }}
                           onDoubleClick={() => {
-                            setActiveAddress(address);
-                            document
-                              .querySelector<HTMLInputElement>(
-                                `[aria-label="Cell value or formula"]`
-                              )
-                              ?.focus();
+                            changeSelection(() => {
+                              setActiveAddress(address);
+                              formulaInputRef.current?.focus();
+                            });
                           }}
                         >
                           {cellDisplay(cell)}
@@ -591,16 +654,23 @@ export function SpreadsheetEditor({
               })}
             </div>
           </div>
-          <aside className={styles.sheetInspector} aria-label="Sheet tools">
+          <aside
+            className={styles.sheetInspector}
+            aria-label={i18n['com.affine.office.sheet-tools']()}
+          >
             <fieldset
               className={styles.inspectorFieldset}
               disabled={readOnly || saving}
             >
-              <div className={styles.panelTitle}>Range format</div>
+              <div className={styles.panelTitle}>
+                {i18n['com.affine.office.range-format']()}
+              </div>
               <div className={styles.inspectorGroup}>
                 <div className={styles.inspectorGrid}>
                   <label className={styles.fieldLabel}>
-                    Font
+                    {i18n[
+                      'com.affine.settings.editorSettings.edgeless.text.font'
+                    ]()}{' '}
                     <input
                       className={styles.field}
                       value={fontFamily}
@@ -609,7 +679,7 @@ export function SpreadsheetEditor({
                     />
                   </label>
                   <label className={styles.fieldLabel}>
-                    Size
+                    {i18n['com.affine.office.size']()}{' '}
                     <input
                       className={styles.field}
                       type="number"
@@ -622,7 +692,7 @@ export function SpreadsheetEditor({
                     />
                   </label>
                   <label className={styles.fieldLabel}>
-                    Text
+                    {i18n['com.affine.settings.editorSettings.edgeless.text']()}{' '}
                     <input
                       className={styles.colorInput}
                       type="color"
@@ -631,7 +701,7 @@ export function SpreadsheetEditor({
                     />
                   </label>
                   <label className={styles.fieldLabel}>
-                    Fill
+                    {i18n['com.affine.office.fill']()}{' '}
                     <input
                       className={styles.colorInput}
                       type="color"
@@ -643,14 +713,26 @@ export function SpreadsheetEditor({
                 <select
                   className={styles.select}
                   value={alignment}
-                  aria-label="Horizontal alignment"
+                  aria-label={i18n['com.affine.office.horizontal-alignment']()}
                   onChange={event =>
                     setAlignment(event.target.value as typeof alignment)
                   }
                 >
-                  <option value="left">Left</option>
-                  <option value="center">Center</option>
-                  <option value="right">Right</option>
+                  <option value="left">
+                    {i18n[
+                      'com.affine.settings.editorSettings.edgeless.text.alignment.left'
+                    ]()}
+                  </option>
+                  <option value="center">
+                    {i18n[
+                      'com.affine.settings.editorSettings.edgeless.text.alignment.center'
+                    ]()}
+                  </option>
+                  <option value="right">
+                    {i18n[
+                      'com.affine.settings.editorSettings.edgeless.text.alignment.right'
+                    ]()}
+                  </option>
                 </select>
                 <label className={styles.checkRow}>
                   <input
@@ -658,7 +740,7 @@ export function SpreadsheetEditor({
                     checked={wrapText}
                     onChange={event => setWrapText(event.target.checked)}
                   />
-                  Wrap text
+                  {i18n['com.affine.office.wrap-text']()}{' '}
                 </label>
                 <div className={styles.buttonRow}>
                   <Button
@@ -676,11 +758,11 @@ export function SpreadsheetEditor({
                           },
                           merged: true,
                         },
-                        'Merge cells'
+                        i18n['com.affine.office.merge-cells']()
                       )
                     }
                   >
-                    Merge
+                    {i18n['com.affine.office.merge']()}{' '}
                   </Button>
                   <Button
                     disabled={readOnly}
@@ -697,20 +779,22 @@ export function SpreadsheetEditor({
                           },
                           merged: false,
                         },
-                        'Unmerge cells'
+                        i18n['com.affine.office.unmerge-cells']()
                       )
                     }
                   >
-                    Unmerge
+                    {i18n['com.affine.office.unmerge']()}{' '}
                   </Button>
                 </div>
               </div>
 
-              <div className={styles.panelTitle}>Rows and columns</div>
+              <div className={styles.panelTitle}>
+                {i18n['com.affine.office.rows-and-columns']()}
+              </div>
               <div className={styles.inspectorGroup}>
                 <div className={styles.inspectorGrid}>
                   <label className={styles.fieldLabel}>
-                    Row height
+                    {i18n['com.affine.office.row-height']()}{' '}
                     <input
                       className={styles.field}
                       type="number"
@@ -730,13 +814,13 @@ export function SpreadsheetEditor({
                             row: parsedActiveAddress.row,
                             heightPt: rowHeight,
                           },
-                          'Row height'
+                          i18n['com.affine.office.row-height']()
                         ).catch(console.error);
                       }}
                     />
                   </label>
                   <label className={styles.fieldLabel}>
-                    Column width
+                    {i18n['com.affine.office.column-width']()}{' '}
                     <input
                       className={styles.field}
                       type="number"
@@ -757,14 +841,14 @@ export function SpreadsheetEditor({
                             endColumn: parsedActiveAddress.column,
                             width: columnWidth,
                           },
-                          'Column width'
+                          i18n['com.affine.office.column-width']()
                         ).catch(console.error);
                       }}
                     />
                   </label>
                 </div>
                 <label className={styles.fieldLabel}>
-                  Insert or delete count
+                  {i18n['com.affine.office.insert-or-delete-count']()}{' '}
                   <input
                     className={styles.field}
                     type="number"
@@ -779,8 +863,8 @@ export function SpreadsheetEditor({
                 <div className={styles.iconButtonRow}>
                   <IconButton
                     size="24"
-                    tooltip="Insert rows"
-                    aria-label="Insert rows"
+                    tooltip={i18n['com.affine.office.insert-rows']()}
+                    aria-label={i18n['com.affine.office.insert-rows']()}
                     disabled={readOnly || saving || !parsedActiveAddress}
                     onClick={() => void changeDimension('row', 'insert')}
                   >
@@ -788,8 +872,8 @@ export function SpreadsheetEditor({
                   </IconButton>
                   <IconButton
                     size="24"
-                    tooltip="Delete rows"
-                    aria-label="Delete rows"
+                    tooltip={i18n['com.affine.office.delete-rows']()}
+                    aria-label={i18n['com.affine.office.delete-rows']()}
                     disabled={readOnly || saving || !parsedActiveAddress}
                     onClick={() => void changeDimension('row', 'delete')}
                   >
@@ -797,8 +881,8 @@ export function SpreadsheetEditor({
                   </IconButton>
                   <IconButton
                     size="24"
-                    tooltip="Insert columns"
-                    aria-label="Insert columns"
+                    tooltip={i18n['com.affine.office.insert-columns']()}
+                    aria-label={i18n['com.affine.office.insert-columns']()}
                     disabled={readOnly || saving || !parsedActiveAddress}
                     onClick={() => void changeDimension('column', 'insert')}
                   >
@@ -806,8 +890,8 @@ export function SpreadsheetEditor({
                   </IconButton>
                   <IconButton
                     size="24"
-                    tooltip="Delete columns"
-                    aria-label="Delete columns"
+                    tooltip={i18n['com.affine.office.delete-columns']()}
+                    aria-label={i18n['com.affine.office.delete-columns']()}
                     disabled={readOnly || saving || !parsedActiveAddress}
                     onClick={() => void changeDimension('column', 'delete')}
                   >
@@ -816,13 +900,17 @@ export function SpreadsheetEditor({
                 </div>
               </div>
 
-              <div className={styles.panelTitle}>Data tools</div>
+              <div className={styles.panelTitle}>
+                {i18n['com.affine.office.data-tools']()}
+              </div>
               <div className={styles.inspectorGroup}>
                 <input
                   className={styles.field}
                   value={filterValues}
-                  aria-label="Filter values"
-                  placeholder="Filter values, comma separated"
+                  aria-label={i18n['com.affine.office.filter-values']()}
+                  placeholder={i18n[
+                    'com.affine.office.filter-values-comma-separated'
+                  ]()}
                   onChange={event => setFilterValues(event.target.value)}
                 />
                 <div className={styles.buttonRow}>
@@ -854,7 +942,7 @@ export function SpreadsheetEditor({
                     }
                   >
                     <FilterIcon />
-                    Apply
+                    {i18n['com.affine.m.selector.confirm-default']()}{' '}
                   </Button>
                   <Button
                     disabled={readOnly}
@@ -871,18 +959,22 @@ export function SpreadsheetEditor({
                           },
                           criteria: [],
                         },
-                        'Clear filter'
+                        i18n['com.affine.office.clear-filter']()
                       )
                     }
                   >
-                    Clear
+                    {i18n['com.affine.office.clear']()}{' '}
                   </Button>
                 </div>
                 <input
                   className={styles.field}
                   value={validationValues}
-                  aria-label="Validation list values"
-                  placeholder="Allowed values, comma separated"
+                  aria-label={i18n[
+                    'com.affine.office.validation-list-values'
+                  ]()}
+                  placeholder={i18n[
+                    'com.affine.office.allowed-values-comma-separated'
+                  ]()}
                   onChange={event => setValidationValues(event.target.value)}
                 />
                 <div className={styles.buttonRow}>
@@ -905,11 +997,11 @@ export function SpreadsheetEditor({
                             allowBlank: true,
                           },
                         },
-                        'Data validation'
+                        i18n['com.affine.office.data-validation']()
                       )
                     }
                   >
-                    Set validation
+                    {i18n['com.affine.office.set-validation']()}{' '}
                   </Button>
                   <Button
                     disabled={readOnly}
@@ -926,22 +1018,24 @@ export function SpreadsheetEditor({
                           },
                           validation: false,
                         },
-                        'Clear validation'
+                        i18n['com.affine.office.clear-validation']()
                       )
                     }
                   >
-                    Clear
+                    {i18n['com.affine.office.clear']()}{' '}
                   </Button>
                 </div>
               </div>
 
-              <div className={styles.panelTitle}>Table</div>
+              <div className={styles.panelTitle}>
+                {i18n['com.affine.office.table']()}
+              </div>
               <div className={styles.inspectorGroup}>
                 <input
                   className={styles.field}
                   value={tableName}
                   maxLength={255}
-                  aria-label="Table name"
+                  aria-label={i18n['com.affine.office.table-name-label']()}
                   onChange={event => setTableName(event.target.value)}
                 />
                 <div className={styles.buttonRow}>
@@ -968,7 +1062,7 @@ export function SpreadsheetEditor({
                     }
                   >
                     <TableIcon />
-                    Create
+                    {i18n['com.affine.nameWorkspace.button.create']()}{' '}
                   </Button>
                   <Button
                     disabled={readOnly}
@@ -985,40 +1079,48 @@ export function SpreadsheetEditor({
                           },
                           table: false,
                         },
-                        'Remove table'
+                        i18n['com.affine.office.remove-table']()
                       )
                     }
                   >
-                    Remove
+                    {i18n[
+                      'com.affine.share-menu.member-management.remove'
+                    ]()}{' '}
                   </Button>
                 </div>
               </div>
 
-              <div className={styles.panelTitle}>Chart</div>
+              <div className={styles.panelTitle}>
+                {i18n['com.affine.office.chart']()}
+              </div>
               <div className={styles.inspectorGroup}>
                 <select
                   className={styles.select}
                   value={chartType}
-                  aria-label="Chart type"
+                  aria-label={i18n['com.affine.office.chart-type']()}
                   onChange={event =>
                     setChartType(event.target.value as typeof chartType)
                   }
                 >
-                  <option value="column">Column</option>
-                  <option value="bar">Bar</option>
-                  <option value="line">Line</option>
-                  <option value="pie">Pie</option>
+                  <option value="column">
+                    {i18n['com.affine.office.column']()}
+                  </option>
+                  <option value="bar">{i18n['com.affine.office.bar']()}</option>
+                  <option value="line">
+                    {i18n['com.affine.office.line']()}
+                  </option>
+                  <option value="pie">{i18n['com.affine.office.pie']()}</option>
                 </select>
                 <input
                   className={styles.field}
                   value={categoryRange}
-                  aria-label="Chart category range"
+                  aria-label={i18n['com.affine.office.chart-category-range']()}
                   onChange={event => setCategoryRange(event.target.value)}
                 />
                 <input
                   className={styles.field}
                   value={valueRange}
-                  aria-label="Chart value range"
+                  aria-label={i18n['com.affine.office.chart-value-range']()}
                   onChange={event => setValueRange(event.target.value)}
                 />
                 <Button
@@ -1031,7 +1133,9 @@ export function SpreadsheetEditor({
                         operation: 'office.workbook.chart.add',
                         sheetId: sheet.id,
                         chartType,
-                        title: `${sheet.name} chart`,
+                        title: I18n['com.affine.office.named-chart']({
+                          name: sheet.name,
+                        }),
                         categoryRange: sheetFormulaRange(
                           sheet.name,
                           categoryRange
@@ -1052,15 +1156,17 @@ export function SpreadsheetEditor({
                   }
                 >
                   <ChartPanelIcon />
-                  Add chart
+                  {i18n['com.affine.office.add-chart']()}{' '}
                 </Button>
                 {sheet.charts.map(chart => (
                   <div className={styles.objectRow} key={chart.id}>
                     <span>{chart.title || chart.type}</span>
                     <IconButton
                       size="24"
-                      tooltip="Delete chart"
-                      aria-label={`Delete ${chart.title || chart.type} chart`}
+                      tooltip={i18n['com.affine.office.delete-chart']()}
+                      aria-label={I18n['com.affine.office.delete-named-chart']({
+                        name: chart.title || chart.type,
+                      })}
                       disabled={readOnly || saving}
                       onClick={() =>
                         void runCommand(
@@ -1070,7 +1176,7 @@ export function SpreadsheetEditor({
                             sheetId: sheet.id,
                             chartId: chart.id,
                           },
-                          'Chart deletion'
+                          i18n['com.affine.office.chart-deletion']()
                         )
                       }
                     >
@@ -1085,7 +1191,7 @@ export function SpreadsheetEditor({
         <div
           className={styles.sheetTabs}
           role="tablist"
-          aria-label="Worksheets"
+          aria-label={i18n['com.affine.office.worksheets']()}
         >
           {state.sheets.map(candidate => (
             <button
@@ -1096,8 +1202,11 @@ export function SpreadsheetEditor({
               data-active={candidate.id === sheet.id}
               key={candidate.id}
               onClick={() => {
-                setActiveSheetId(candidate.id);
-                setActiveAddress('A1');
+                if (candidate.id !== activeSheetId)
+                  changeSelection(() => {
+                    setActiveSheetId(candidate.id);
+                    setActiveAddress('A1');
+                  });
               }}
             >
               {candidate.name}
@@ -1107,7 +1216,7 @@ export function SpreadsheetEditor({
             className={styles.sheetNameInput}
             value={sheetName}
             maxLength={31}
-            aria-label="Current worksheet name"
+            aria-label={i18n['com.affine.office.current-worksheet-name']()}
             disabled={readOnly || saving}
             onChange={event => setSheetName(event.target.value)}
           />
@@ -1121,16 +1230,16 @@ export function SpreadsheetEditor({
                   sheetId: sheet.id,
                   name: sheetName,
                 },
-                'Worksheet rename'
+                i18n['com.affine.office.worksheet-rename']()
               )
             }
           >
-            Rename
+            {i18n['com.affine.m.explorer.doc.rename']()}{' '}
           </Button>
           <IconButton
             size="24"
-            tooltip="Move worksheet left"
-            aria-label="Move worksheet left"
+            tooltip={i18n['com.affine.office.move-worksheet-left']()}
+            aria-label={i18n['com.affine.office.move-worksheet-left']()}
             disabled={
               readOnly ||
               saving ||
@@ -1142,8 +1251,8 @@ export function SpreadsheetEditor({
           </IconButton>
           <IconButton
             size="24"
-            tooltip="Move worksheet right"
-            aria-label="Move worksheet right"
+            tooltip={i18n['com.affine.office.move-worksheet-right']()}
+            aria-label={i18n['com.affine.office.move-worksheet-right']()}
             disabled={
               readOnly ||
               saving ||
@@ -1156,8 +1265,8 @@ export function SpreadsheetEditor({
           </IconButton>
           <IconButton
             size="24"
-            tooltip="Delete worksheet"
-            aria-label="Delete worksheet"
+            tooltip={i18n['com.affine.office.delete-worksheet']()}
+            aria-label={i18n['com.affine.office.delete-worksheet']()}
             disabled={readOnly || saving || state.sheets.length === 1}
             onClick={() =>
               void runCommand(
@@ -1166,7 +1275,7 @@ export function SpreadsheetEditor({
                   operation: 'office.workbook.sheet.delete',
                   sheetId: sheet.id,
                 },
-                'Worksheet deletion'
+                i18n['com.affine.office.worksheet-deletion']()
               )
             }
           >
@@ -1176,14 +1285,14 @@ export function SpreadsheetEditor({
             className={styles.sheetNameInput}
             value={newSheetName}
             maxLength={31}
-            aria-label="New worksheet name"
+            aria-label={i18n['com.affine.office.new-worksheet-name']()}
             disabled={readOnly || saving}
             onChange={event => setNewSheetName(event.target.value)}
           />
           <IconButton
             size="24"
-            tooltip="Add worksheet"
-            aria-label="Add worksheet"
+            tooltip={i18n['com.affine.office.add-worksheet']()}
+            aria-label={i18n['com.affine.office.add-worksheet']()}
             disabled={readOnly || saving || !newSheetName.trim()}
             onClick={() =>
               void runCommand(
@@ -1193,7 +1302,7 @@ export function SpreadsheetEditor({
                   name: newSheetName,
                   afterSheetId: sheet.id,
                 },
-                'Worksheet insertion'
+                i18n['com.affine.office.worksheet-insertion']()
               )
             }
           >
@@ -1203,11 +1312,23 @@ export function SpreadsheetEditor({
       </div>
       <div className={styles.statusBar} role="status" aria-live="polite">
         <span>{sheet.name}</span>
-        <span>{state.stats.cells} cells</span>
-        <span>{state.stats.formulas} formulas</span>
-        <span>{state.stats.tables} tables</span>
-        <span>{state.stats.charts} charts</span>
-        {readOnly ? <span>Historical revision, read only</span> : null}
+        <span>
+          {state.stats.cells} {i18n['com.affine.office.cells']()}
+        </span>
+        <span>
+          {state.stats.formulas} {i18n['com.affine.office.formulas']()}
+        </span>
+        <span>
+          {state.stats.tables} {i18n['com.affine.office.tables']()}
+        </span>
+        <span>
+          {state.stats.charts} {i18n['com.affine.office.charts']()}
+        </span>
+        {readOnly ? (
+          <span>
+            {i18n['com.affine.office.historical-revision-read-only']()}
+          </span>
+        ) : null}
         {error ? (
           <span className={styles.statusError}>{error}</span>
         ) : (

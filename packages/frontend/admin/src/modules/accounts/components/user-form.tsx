@@ -15,6 +15,7 @@ import {
   adminUserAiProfileAssignmentQuery,
   type FeatureType,
 } from '@affine/graphql';
+import { useI18n } from '@affine/i18n';
 import { ChevronRightIcon } from 'lucide-react';
 import type { ChangeEvent, HTMLInputTypeAttribute } from 'react';
 import { useCallback, useEffect, useId, useMemo, useState } from 'react';
@@ -53,6 +54,7 @@ function UserForm({
   submitting = false,
   onDirtyChange,
 }: UserFormProps) {
+  const i18n = useI18n();
   const serverConfig = useServerConfig();
   const passwordLimits = serverConfig.credentialsRequirement.password;
 
@@ -149,30 +151,32 @@ function UserForm({
       <div className="flex-grow space-y-3 overflow-y-auto p-4">
         <div className="flex flex-col rounded-xl border border-border bg-card shadow-sm">
           <InputItem
-            label="User name"
+            label={i18n['com.affine.admin.user-name']()}
             field="name"
             value={changes.name}
             onChange={setField}
-            placeholder="Enter user name"
+            placeholder={i18n['com.affine.admin.enter-user-name']()}
           />
           <Separator />
           <InputItem
-            label="Email"
+            label={i18n['com.affine.settings.email']()}
             field="email"
             value={changes.email}
             onChange={setField}
-            placeholder="Enter email address"
+            placeholder={i18n['com.affine.admin.enter-email-address']()}
           />
           {showOption && (
             <>
               <Separator />
               <InputItem
-                label="Password"
+                label={i18n[
+                  'com.affine.integration.calendar.caldav.field.password'
+                ]()}
                 field="password"
                 value={changes.password}
                 onChange={setField}
                 optional
-                placeholder="Enter password"
+                placeholder={i18n['com.affine.admin.enter-password']()}
                 type="password"
                 autoComplete="new-password"
                 minLength={passwordLimits.minLength}
@@ -214,6 +218,7 @@ function AiProfileSelect({
   value: string | null;
   onChange: (value: string | null) => void;
 }) {
+  const i18n = useI18n();
   const { data, error, isValidating } = useQuery({
     query: adminAiProfilesQuery,
     variables: {},
@@ -226,7 +231,7 @@ function AiProfileSelect({
         htmlFor="admin-user-ai-profile"
         className="text-xs font-medium text-muted-foreground uppercase tracking-wide"
       >
-        Default AI Profile
+        {i18n['com.affine.admin.default-ai-profile']()}{' '}
       </Label>
       <Select
         value={value ?? WORKSPACE_DEFAULT_AI_PROFILE}
@@ -239,13 +244,15 @@ function AiProfileSelect({
       >
         <SelectTrigger
           id="admin-user-ai-profile"
-          aria-label="Default AI Profile"
+          aria-label={i18n['com.affine.admin.default-ai-profile']()}
         >
-          <SelectValue placeholder="Use workspace default" />
+          <SelectValue
+            placeholder={i18n['com.affine.admin.use-workspace-default']()}
+          />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value={WORKSPACE_DEFAULT_AI_PROFILE}>
-            Use workspace default
+            {i18n['com.affine.admin.use-workspace-default']()}{' '}
           </SelectItem>
           {profiles.map(profile => (
             <SelectItem
@@ -253,19 +260,24 @@ function AiProfileSelect({
               value={profile.id}
               disabled={!profile.enabled}
             >
-              {profile.name} / {profile.workspaceName || 'Untitled workspace'}
-              {!profile.enabled ? ' / disabled' : ''}
+              {profile.name} /{' '}
+              {profile.workspaceName ||
+                i18n['com.affine.admin.untitled-workspace']()}
+              {!profile.enabled ? i18n['com.affine.admin.disabled']() : ''}
             </SelectItem>
           ))}
         </SelectContent>
       </Select>
       <p className="text-xs leading-5 text-muted-foreground">
-        The explicit profile applies in its workspace. Other workspaces use
-        their enabled default profile.
+        {i18n[
+          'com.affine.admin.the-explicit-profile-applies-in-its-workspace-other-workspaces-use-their-enabled-default-profile'
+        ]()}{' '}
       </p>
       {error ? (
         <p className="text-xs leading-5 text-destructive" role="alert">
-          AI Profiles could not be loaded. Account details can still be edited.
+          {i18n[
+            'com.affine.admin.ai-profiles-could-not-be-loaded-account-details-can-still-be-edited'
+          ]()}{' '}
         </p>
       ) : null}
     </div>
@@ -299,6 +311,7 @@ function InputItem({
   description?: string;
   invalid?: boolean;
 }) {
+  const i18n = useI18n();
   const inputId = useId();
   const descriptionId = description ? `${inputId}-description` : undefined;
   const onValueChange = useCallback(
@@ -317,7 +330,7 @@ function InputItem({
         {label}
         {optional && (
           <span className="ml-1 font-normal text-muted-foreground">
-            (optional)
+            {i18n['com.affine.admin.optional']()}{' '}
           </span>
         )}
       </Label>
@@ -369,6 +382,7 @@ export function CreateUserForm({
   onComplete: () => void;
   onDirtyChange?: (dirty: boolean) => void;
 }) {
+  const i18n = useI18n();
   const { create, creating } = useCreateUser();
   const serverConfig = useServerConfig();
   const passwordLimits = serverConfig.credentialsRequirement.password;
@@ -397,7 +411,7 @@ export function CreateUserForm({
 
   return (
     <UserForm
-      title="Create User"
+      title={i18n['com.affine.admin.create-user']()}
       onClose={onComplete}
       onConfirm={handleCreateUser}
       onValidate={validateCreateUser}
@@ -421,6 +435,7 @@ export function UpdateUserForm({
   onComplete: () => void;
   onDirtyChange?: (dirty: boolean) => void;
 }) {
+  const i18n = useI18n();
   const { update, updating } = useUpdateUser();
   const { data } = useQuery({
     query: adminUserAiProfileAssignmentQuery,
@@ -445,7 +460,7 @@ export function UpdateUserForm({
 
   return (
     <UserForm
-      title="Update User"
+      title={i18n['com.affine.admin.update-user']()}
       defaultValue={{
         ...user,
         aiProfileId: data.adminUserAiProfileAssignment?.profile.id ?? null,
@@ -462,7 +477,7 @@ export function UpdateUserForm({
             variant="outline"
             onClick={onResetPassword}
           >
-            <span>Reset Password</span>
+            <span>{i18n['com.affine.admin.reset-password']()}</span>
             <ChevronRightIcon size={16} className="text-muted-foreground" />
           </Button>
           <Button
@@ -470,7 +485,7 @@ export function UpdateUserForm({
             variant="outline"
             onClick={onDeleteAccount}
           >
-            <span>Delete Account</span>
+            <span>{i18n['com.affine.admin.delete-account-2']()}</span>
             <ChevronRightIcon size={16} />
           </Button>
         </div>

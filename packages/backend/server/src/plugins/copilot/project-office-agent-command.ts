@@ -188,12 +188,17 @@ export class ProjectOfficeAgentCommandService {
             })
           ).request;
         }
+        const resource = await this.models.projectResource.get({
+          projectId: input.projectId,
+          actorId: input.actorId,
+          resourceId: value.artifactId,
+        });
         const run = await this.models.copilotProjectAgentRuntime.prepare({
           ...input,
           workflow: PROJECT_OFFICE_AGENT_WORKFLOW,
           sourceType: 'project_resource',
           requestKey: `office:${request.id}`,
-          title: input.title ?? 'Approve Project Office changes',
+          title: input.title ?? resource.title,
           status: 'waiting_approval',
           command: {
             version: 1,
@@ -220,6 +225,10 @@ export class ProjectOfficeAgentCommandService {
   }
 
   async execute(run: ProjectAgentRun): Promise<Prisma.InputJsonObject> {
+    return (await this.prepareExecution(run))();
+  }
+
+  async prepareExecution(run: ProjectAgentRun) {
     if (!run.sessionId || run.workflow !== PROJECT_OFFICE_AGENT_WORKFLOW)
       throw new BadRequest('Project Office task identity is invalid');
     if (!(env.dev || env.selfhosted || env.namespaces.canary))
@@ -282,29 +291,51 @@ export class ProjectOfficeAgentCommandService {
       throw new BadRequest(
         'Project Office preview changed; create a new request'
       );
-    const result = batch
-      ? await this.commands.executeBatch({
+    const persist = batch
+      ? await this.commands.prepareBatchExecution({
           ...scope,
+          editLease: await this.editLease(run, request.artifactId),
           sourceSessionId: run.sessionId,
           batch: value,
         })
-      : await this.commands.execute({
+      : await this.commands.prepareExecution({
           ...scope,
+          editLease: await this.editLease(run, request.artifactId),
           sourceSessionId: run.sessionId,
           command: value,
         });
-    return {
-      status: 'saved',
-      owner: { kind: 'project', projectId: run.projectId },
-      sideEffectKind: 'office_revision',
-      sideEffectRecordId: result.revision.id,
-      artifactId: result.revision.artifactId,
-      revisionId: result.revision.id,
-      sequence: result.revision.sequence,
-      requestId: request.id,
-      packageFingerprint: result.packageFingerprint,
-      stateFingerprint: result.stateFingerprint,
+    return async (): Promise<Prisma.InputJsonObject> => {
+      await this.authorize(scope);
+      const result = await persist();
+      return {
+        status: 'saved',
+        owner: { kind: 'project', projectId: run.projectId },
+        sideEffectKind: 'office_revision',
+        sideEffectRecordId: result.revision.id,
+        artifactId: result.revision.artifactId,
+        revisionId: result.revision.id,
+        sequence: result.revision.sequence,
+        requestId: request.id,
+        packageFingerprint: result.packageFingerprint,
+        stateFingerprint: result.stateFingerprint,
+      };
     };
+  }
+
+  private async editLease(run: ProjectAgentRun, artifactId: string) {
+    if (!run.workerLeaseId)
+      throw new BadRequest('Project Office task requires its worker lease');
+    const scope = { projectId: run.projectId, actorId: run.actorId };
+    const resource = await this.models.projectResource.assertOfficeResource({
+      ...scope,
+      artifactId,
+    });
+    return this.models.projectResourceEditLease.proofForTask({
+      ...scope,
+      resourceId: resource.id,
+      runId: run.id,
+      workerLeaseId: run.workerLeaseId,
+    });
   }
 }
 
@@ -316,6 +347,7 @@ export class ProjectOfficeAgentCommandAdapter {
   ) {
     registry.registerProject({
       workflow: PROJECT_OFFICE_AGENT_WORKFLOW,
+      prepare: run => service.prepareExecution(run),
       capabilities: {
         version: 'agent-runtime-workflow-adapter-capabilities/v1',
         supportedStepTypes: ['approval', 'tool'],

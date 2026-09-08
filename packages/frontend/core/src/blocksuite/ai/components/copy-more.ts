@@ -1,4 +1,6 @@
+import { I18nController } from '@affine/core/modules/i18n/lit-controller';
 import type { CopilotChatHistoryFragment } from '@affine/graphql';
+import { I18n } from '@affine/i18n';
 import { Tooltip } from '@blocksuite/affine/components/tooltip';
 import { WithDisposable } from '@blocksuite/affine/global/lit';
 import { noop } from '@blocksuite/affine/global/utils';
@@ -21,6 +23,8 @@ import { copyText } from '../utils/editor-actions';
 noop(Tooltip);
 
 export class ChatCopyMore extends WithDisposable(LitElement) {
+  readonly languageController = new I18nController(this);
+
   static override styles = css`
     .copy-more {
       display: flex;
@@ -184,13 +188,17 @@ export class ChatCopyMore extends WithDisposable(LitElement) {
               @click=${async () => {
                 const success = await copyText(content);
                 if (success) {
-                  this._notifySuccess('Copied to clipboard');
+                  this._notifySuccess(
+                    I18n['com.affine.ui.copied-to-clipboard']()
+                  );
                 }
               }}
               data-testid="action-copy-button"
             >
               ${CopyIcon({ width: '20px', height: '20px' })}
-              <affine-tooltip>Copy</affine-tooltip>
+              <affine-tooltip
+                >${I18n['com.affine.ai.action-label.copy']()}</affine-tooltip
+              >
             </div>`
           : nothing}
         ${isLast
@@ -200,7 +208,11 @@ export class ChatCopyMore extends WithDisposable(LitElement) {
               data-testid="action-retry-button"
             >
               ${ResetIcon({ width: '20px', height: '20px' })}
-              <affine-tooltip .autoShift=${true}>Retry</affine-tooltip>
+              <affine-tooltip .autoShift=${true}
+                >${I18n[
+                  'com.affine.localmind.project-files.retry'
+                ]()}</affine-tooltip
+              >
             </div>`
           : nothing}
         ${showMoreIcon && host

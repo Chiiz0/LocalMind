@@ -1,3 +1,5 @@
+import { I18nController } from '@affine/core/modules/i18n/lit-controller';
+import { I18n } from '@affine/i18n';
 import { sortEdgelessElements } from '@blocksuite/affine/blocks/root';
 import { AIStarIcon } from '@blocksuite/affine/components/icons';
 import { WithDisposable } from '@blocksuite/affine/global/lit';
@@ -13,6 +15,8 @@ import type { AIItemGroupConfig } from '../../components/ai-item/types';
 import { CopilotTool } from '../../tool/copilot-tool';
 
 export class EdgelessCopilotToolbarEntry extends WithDisposable(LitElement) {
+  readonly languageController = new I18nController(this);
+
   static override styles = css`
     .copilot-icon-button {
       line-height: 20px;
@@ -65,7 +69,10 @@ export class EdgelessCopilotToolbarEntry extends WithDisposable(LitElement) {
       data-testid="ask-ai-button"
       @click=${this._onClick}
     >
-      ${AIStarIcon} <span class="label medium">Ask AI</span>
+      ${AIStarIcon}
+      <span class="label medium"
+        >${I18n['com.affine.ai.action-label.ask-ai']()}</span
+      >
     </edgeless-tool-icon-button>`;
   }
 

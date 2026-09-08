@@ -338,20 +338,25 @@ export const sheetTab = style({
   },
 });
 
+export const presentationEditor = style([
+  editor,
+  { containerType: 'inline-size', containerName: 'presentation-editor' },
+]);
+
 export const slidesBody = style({
   minWidth: 0,
   minHeight: 0,
   display: 'grid',
   gridTemplateColumns: '180px minmax(0, 1fr) 260px',
   overflow: 'hidden',
-  '@media': {
-    'screen and (max-width: 900px)': {
+  '@container': {
+    'presentation-editor (max-width: 900px)': {
       gridTemplateColumns: '132px minmax(0, 1fr)',
       gridTemplateRows: 'minmax(260px, 1fr) minmax(180px, 36%)',
     },
-    'screen and (max-width: 620px)': {
+    'presentation-editor (max-width: 620px)': {
       gridTemplateColumns: 'minmax(0, 1fr)',
-      gridTemplateRows: 'minmax(220px, 44%) minmax(260px, 1fr)',
+      gridTemplateRows: '76px minmax(180px, 1fr) minmax(180px, 40%)',
     },
   },
 });
@@ -364,6 +369,16 @@ export const slideRail = style({
   borderRight: `0.5px solid ${cssVarV2('layer/insideBorder/border')}`,
   background: cssVarV2('layer/background/primary'),
   '@media': { 'screen and (max-width: 620px)': { display: 'none' } },
+  '@container': {
+    'presentation-editor (max-width: 620px)': {
+      display: 'flex',
+      overflowX: 'auto',
+      overflowY: 'hidden',
+      padding: 6,
+      borderRight: 0,
+      borderBottom: `0.5px solid ${cssVarV2('layer/insideBorder/border')}`,
+    },
+  },
 });
 
 export const slideThumbButton = style({
@@ -380,6 +395,12 @@ export const slideThumbButton = style({
   background: 'transparent',
   fontSize: 11,
   textAlign: 'right',
+  '@container': {
+    'presentation-editor (max-width: 620px)': {
+      flex: '0 0 120px',
+      marginBottom: 0,
+    },
+  },
   selectors: {
     '&:hover': { background: cssVarV2('layer/background/hoverOverlay') },
     '&:focus-visible': { outline: `2px solid ${cssVarV2('button/primary')}` },
@@ -389,6 +410,7 @@ export const slideThumbButton = style({
 
 export const thumbnail = style({
   position: 'relative',
+  containerType: 'inline-size',
   width: '100%',
   overflow: 'hidden',
   aspectRatio: '16 / 9',
@@ -409,6 +431,7 @@ export const slideStageScroller = style({
 
 export const slideStage = style({
   position: 'relative',
+  containerType: 'inline-size',
   width: 'min(100%, 960px)',
   overflow: 'hidden',
   background: '#ffffff',
@@ -458,6 +481,17 @@ export const shapeInspector = style({
       borderLeft: 0,
     },
     'screen and (max-width: 620px)': {
+      gridColumn: 'auto',
+      padding: 12,
+    },
+  },
+  '@container': {
+    'presentation-editor (max-width: 900px)': {
+      gridColumn: '1 / -1',
+      borderTop: `0.5px solid ${cssVarV2('layer/insideBorder/border')}`,
+      borderLeft: 0,
+    },
+    'presentation-editor (max-width: 620px)': {
       gridColumn: 'auto',
       padding: 12,
     },

@@ -1,8 +1,9 @@
 /**
  * @vitest-environment happy-dom
  */
-
+import { getOrCreateI18n } from '@affine/i18n';
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -10,9 +11,10 @@ import {
   waitFor,
 } from '@testing-library/react';
 import type { ButtonHTMLAttributes, PropsWithChildren } from 'react';
-import { afterEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
 
 import type { XlsxSemanticState } from '../../../../modules/office';
+import type { OfficeEditorDraft } from './edit-draft';
 import { SpreadsheetEditor } from './spreadsheet';
 
 vi.mock('@affine/component', () => ({
@@ -130,6 +132,47 @@ const state = {
 } as XlsxSemanticState;
 
 describe('SpreadsheetEditor', () => {
+  test('Project cell drafts can be discarded without a write', async () => {
+    const guards = new Set<OfficeEditorDraft>();
+    const gql = vi.fn();
+    const confirm = vi.fn(async () => false);
+    render(
+      <SpreadsheetEditor
+        state={state}
+        revision={{ id: 'revision-1', sequence: 1 } as never}
+        artifactId="artifact-1"
+        owner={{ kind: 'project', projectId: 'project-1' }}
+        graphql={{ gql } as never}
+        readOnly={false}
+        onRevision={vi.fn()}
+        onCommentAnchorChange={vi.fn()}
+        onAiSelectionChange={vi.fn()}
+        beforeSelectionChange={confirm}
+        registerDraft={guard => {
+          guards.add(guard);
+          return () => {
+            guards.delete(guard);
+          };
+        }}
+      />
+    );
+    const formula = screen.getByLabelText<HTMLInputElement>(
+      'Cell value or formula'
+    );
+    fireEvent.change(formula, { target: { value: '=SUM(A2:A4)' } });
+    const guard = [...guards][0];
+    expect(guard.hasUnsavedChanges).toBe(true);
+    fireEvent.click(screen.getByRole('gridcell', { name: /^B1:/ }));
+    await waitFor(() => expect(confirm).toHaveBeenCalledOnce());
+    expect(formula.value).toBe('=SUM(A2:A4)');
+    expect(
+      screen.getByLabelText<HTMLInputElement>('Active cell address').value
+    ).toBe('A1');
+    await act(() => guard.discard());
+    expect(guard.hasUnsavedChanges).toBe(false);
+    expect(formula.value).toBe('');
+    expect(gql).not.toHaveBeenCalled();
+  });
   afterEach(cleanup);
 
   test('loads the selected cell format into the editing controls', async () => {
@@ -177,4 +220,39 @@ describe('SpreadsheetEditor', () => {
       screen.getByRole('button', { name: 'Underline' }).dataset.active
     ).toBe('true');
   });
+
+  test('switching to Chinese keeps the draft and double-click focuses the formula input', async () => {
+    const i18n = getOrCreateI18n();
+    render(
+      <SpreadsheetEditor
+        state={state}
+        revision={{ id: 'revision-1', sequence: 1 } as never}
+        artifactId="artifact-1"
+        owner={{ kind: 'project', projectId: 'project-1' }}
+        graphql={{} as never}
+        readOnly={false}
+        onRevision={vi.fn()}
+        onCommentAnchorChange={vi.fn()}
+        onAiSelectionChange={vi.fn()}
+      />
+    );
+    const formula = screen.getByLabelText<HTMLInputElement>(
+      'Cell value or formula'
+    );
+    fireEvent.change(formula, { target: { value: '=SUM(A2:A4)' } });
+    try {
+      await act(() => i18n.changeLanguage('zh-Hans'));
+      expect(screen.getByLabelText('单元格值或公式')).toBe(formula);
+      expect(formula.value).toBe('=SUM(A2:A4)');
+      fireEvent.doubleClick(screen.getByRole('gridcell', { name: /^A1:/ }));
+      await waitFor(() => expect(document.activeElement).toBe(formula));
+      expect(screen.getByRole('button', { name: '保存单元格' })).toBeDefined();
+    } finally {
+      await act(() => i18n.changeLanguage('en'));
+    }
+  });
+});
+
+beforeAll(async () => {
+  await getOrCreateI18n().changeLanguage('en');
 });

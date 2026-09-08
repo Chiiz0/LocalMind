@@ -2,6 +2,7 @@ import { Popover, uniReactRoot } from '@affine/component';
 import { Button } from '@affine/component/ui/button';
 import { Menu, MenuItem } from '@affine/component/ui/menu';
 import { PeekViewService } from '@affine/core/modules/peek-view/services/peek-view';
+import { useI18n } from '@affine/i18n';
 import {
   type Cell,
   type CellRenderProps,
@@ -360,6 +361,7 @@ const FileCellComponent: ForwardRefRenderFunction<
   DataViewCellLifeCycle,
   CellRenderProps<{}, FileCellRawValueType, FileCellJsonValueType>
 > = (props, ref): ReactNode => {
+  const i18n = useI18n();
   const peekView = useService(PeekViewService);
   const manager = useMemo(
     () => new FileCellManager(props, peekView), // eslint-disable-line react-hooks/preserve-manual-memoization
@@ -417,15 +419,15 @@ const FileCellComponent: ForwardRefRenderFunction<
             variant="primary"
             className={styles.uploadButton}
           >
-            Choose a file
+            {i18n['com.affine.ui.choose-a-file']()}{' '}
           </Button>
 
           <div className={styles.fileInfoContainer}>
             <div className={styles.fileSizeInfo}>
-              The maximum size per file is 100MB
+              {i18n['com.affine.ui.the-maximum-size-per-file-is-100mb']()}{' '}
             </div>
             <a className={styles.upgradeLink} onClick={jumpToPricePlan}>
-              Upgrade to Pro
+              {i18n['com.affine.ui.upgrade-to-pro']()}{' '}
             </a>
           </div>
         </div>
@@ -462,7 +464,7 @@ const FileCellComponent: ForwardRefRenderFunction<
             className={styles.uploadButtonStyle}
           >
             <PlusIcon className={styles.iconPrimary} width={20} height={20} />
-            <span>Add a file or image</span>
+            <span>{i18n['com.affine.ui.add-a-file-or-image']()}</span>
           </div>
         </div>
       </div>
@@ -563,6 +565,7 @@ export const FileListItem = (props: {
   handleRemoveFile: (file: FileItemRenderType, e?: MouseEvent) => void;
   manager: FileCellManager;
 }) => {
+  const i18n = useI18n();
   const { file, handleRemoveFile, manager } = props;
   const { preview, fileType, onPreview } = useFilePreview(file, manager);
   const fileUploadManager = manager.fileUploadManager;
@@ -603,7 +606,7 @@ export const FileListItem = (props: {
           onClick={onPreview}
           prefixIcon={<FileIcon width={20} height={20} />}
         >
-          Preview
+          {i18n['com.affine.editCollection.rules.preview']()}{' '}
         </MenuItem>
       )}
       {(fileType === 'file' || fileType === 'image') && (
@@ -615,7 +618,7 @@ export const FileListItem = (props: {
           }}
           prefixIcon={<DownloadIcon width={20} height={20} />}
         >
-          Download
+          {i18n['com.affine.localmind.project-files.download']()}{' '}
         </MenuItem>
       )}
       <MenuItem
@@ -625,7 +628,7 @@ export const FileListItem = (props: {
         type={'danger'}
         prefixIcon={<DeleteIcon width={20} height={20} />}
       >
-        Delete
+        {i18n['com.affine.localmind.aiContext.delete']()}{' '}
       </MenuItem>
     </>
   );

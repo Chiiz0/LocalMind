@@ -3,6 +3,7 @@ import { Label } from '@affine/admin/components/ui/label';
 import { Separator } from '@affine/admin/components/ui/separator';
 import { Switch } from '@affine/admin/components/ui/switch';
 import type { FeatureType } from '@affine/graphql';
+import { useI18n } from '@affine/i18n';
 import { useCallback } from 'react';
 
 import { cn } from '../../utils';
@@ -26,6 +27,7 @@ export const FeatureToggleList = ({
   showSeparators = false,
   className,
 }: FeatureToggleListProps) => {
+  const i18n = useI18n();
   const Control = control === 'switch' ? Switch : Checkbox;
 
   const handleToggle = useCallback(
@@ -42,7 +44,7 @@ export const FeatureToggleList = ({
   if (!features.length) {
     return (
       <div className={cn(className, 'px-3 py-2 text-xs text-muted-foreground')}>
-        No configurable features.
+        {i18n['com.affine.admin.no-configurable-features']()}{' '}
       </div>
     );
   }

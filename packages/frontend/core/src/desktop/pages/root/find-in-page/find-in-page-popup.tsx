@@ -1,5 +1,6 @@
 import { IconButton, observeResize, RowInput } from '@affine/component';
 import { FindInPageService } from '@affine/core/modules/find-in-page';
+import { useI18n } from '@affine/i18n';
 import {
   ArrowDownSmallIcon,
   ArrowUpSmallIcon,
@@ -81,6 +82,7 @@ const CanvasText = ({
 };
 
 export const FindInPagePopup = () => {
+  const i18n = useI18n();
   const [value, setValue] = useState('');
 
   const findInPage = useService(FindInPageService).findInPage;
@@ -247,7 +249,7 @@ export const FindInPagePopup = () => {
                   <span>{result?.matches || 0}</span>
                 </>
               ) : value.length ? (
-                <span>No matches</span>
+                <span>{i18n['com.affine.ui.no-matches']()}</span>
               ) : null}
             </div>
           </div>

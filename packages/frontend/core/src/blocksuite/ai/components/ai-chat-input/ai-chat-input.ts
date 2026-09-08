@@ -8,7 +8,9 @@ import type {
   SubscriptionService,
 } from '@affine/core/modules/cloud';
 import type { FeatureFlagService } from '@affine/core/modules/feature-flag';
+import { I18nController } from '@affine/core/modules/i18n/lit-controller';
 import type { CopilotChatHistoryFragment } from '@affine/graphql';
+import { I18n } from '@affine/i18n';
 import track, { type EventArgs } from '@affine/track';
 import { combine } from '@atlaskit/pragmatic-drag-and-drop/combine';
 import { dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
@@ -43,6 +45,8 @@ function getFirstTwoLines(text: string) {
 export class AIChatInput extends SignalWatcher(
   WithDisposable(ShadowlessElement)
 ) {
+  readonly languageController = new I18nController(this);
+
   static override styles = css`
     :host {
       width: 100%;
@@ -579,7 +583,9 @@ export class AIChatInput extends SignalWatcher(
       @drop=${this._handleDrop}
     >
       ${this.isDragOver
-        ? html`<div class="chat-panel-input-drop-overlay">Drop to attach</div>`
+        ? html`<div class="chat-panel-input-drop-overlay">
+            ${I18n['com.affine.ai.action-label.drop-to-attach']()}
+          </div>`
         : nothing}
       ${hasImages
         ? html`
@@ -611,7 +617,7 @@ export class AIChatInput extends SignalWatcher(
         : nothing}
       <textarea
         rows="1"
-        placeholder="What are your thoughts?"
+        placeholder=${I18n.t('com.affine.ai.chat.input-placeholder')}
         @input=${this._handleInput}
         @keydown=${this._handleKeyDown}
         @focus=${() => {

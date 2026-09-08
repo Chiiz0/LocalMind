@@ -176,10 +176,13 @@ export const ImportDialog = ({ onClose }: { onClose: () => void }) => {
 };
 
 const CrawlerError = ({ onRetry }: { onRetry: () => void }) => {
+  const i18n = useI18n();
   return (
     <>
-      Unexpected error occurred, please try again.
-      <Button onClick={onRetry}>Retry</Button>
+      {i18n['com.affine.ui.unexpected-error-occurred-please-try-again']()}{' '}
+      <Button onClick={onRetry}>
+        {i18n['com.affine.localmind.directoryPermissions.retry']()}
+      </Button>
     </>
   );
 };

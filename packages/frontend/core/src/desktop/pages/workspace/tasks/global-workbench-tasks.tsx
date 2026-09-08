@@ -7,7 +7,11 @@ import {
 } from '@affine/core/components/project-file-request/detail';
 import { getWorkspaceDocPath } from '@affine/core/desktop/route-paths';
 import { GraphQLService, ServerService } from '@affine/core/modules/cloud';
-import { UserFriendlyError } from '@affine/error';
+import {
+  projectErrorMessage,
+  reportProjectError,
+} from '@affine/core/modules/project-resources/error';
+import { useProjectRefresh } from '@affine/core/modules/project-resources/realtime';
 import {
   type CopilotWorkbenchTaskGetQuery,
   copilotWorkbenchTaskGetQuery,
@@ -29,6 +33,7 @@ import type {
   WorkbenchTask,
 } from '../../intelligence/types';
 import { useAccessRequestConfirmation } from '../../intelligence/use-access-request-confirmation';
+import { useProjectTaskDecision } from '../../intelligence/use-project-task-decision';
 import { executeWorkbenchTaskAction } from '../../intelligence/workbench-task-action';
 import * as styles from './index.css';
 
@@ -50,7 +55,6 @@ const supportedActions = new Set<WorkbenchPanelTaskAction>([
   'approve_access_request',
   'reject_access_request',
   'withdraw_access_request',
-  'request_project_access',
   'accept_project_invitation',
   'decline_project_invitation',
   'withdraw_project_invitation',
@@ -74,14 +78,18 @@ export const filterWorkbenchTasks = (
     return tasks.filter(task => task.segment === 'in_progress');
   }
   if (filter === 'approval') {
-    return tasks.filter(task => task.attention === 'needs_my_action');
+    return tasks.filter(
+      task =>
+        task.attention === 'needs_my_action' || task.status === 'waiting_lease'
+    );
   }
   return tasks.filter(task => task.segment === 'done');
 };
 
 const filterForTask = (task: WorkbenchTask): WorkbenchTaskFilter => {
   if (task.kind === 'run' && task.status === 'failed') return 'all';
-  if (task.attention === 'needs_my_action') return 'approval';
+  if (task.attention === 'needs_my_action' || task.status === 'waiting_lease')
+    return 'approval';
   if (task.segment === 'in_progress') return 'active';
   if (task.segment === 'done') return 'completed';
   return 'all';
@@ -115,7 +123,6 @@ export const GlobalWorkbenchTasks = () => {
     },
     {
       suspense: false,
-      refreshInterval: 5000,
       shouldRetryOnError: false,
     }
   );
@@ -135,8 +142,11 @@ export const GlobalWorkbenchTasks = () => {
           variables: { taskId: selectedTaskId },
         }
       : undefined,
-    { suspense: false, refreshInterval: 5000, shouldRetryOnError: false }
+    { suspense: false, shouldRetryOnError: false }
   );
+  useProjectRefresh(null, 'task', async () => {
+    await Promise.all([mutate(), selectedTaskId ? refreshDetail() : undefined]);
+  });
   const detail = detailData?.currentUser?.copilot.workbenchTask;
   const selectedTask = detail?.id === selectedTaskId ? detail : null;
 
@@ -237,6 +247,7 @@ export const GlobalWorkbenchTasks = () => {
         case 'file_request':
           return t['com.affine.localmind.fileRequest.title']();
         case 'run':
+        case 'project_run':
           return t['com.affine.localmind.tasks.authorization.kind.run']();
         case 'access_request':
           return t[
@@ -273,8 +284,6 @@ export const GlobalWorkbenchTasks = () => {
           t['com.affine.localmind.workbench.action.rejectAccess'](),
         withdraw_access_request:
           t['com.affine.localmind.workbench.action.withdrawRequest'](),
-        request_project_access:
-          t['com.affine.localmind.workbench.action.requestAgain'](),
         accept_project_invitation:
           t['com.affine.localmind.workbench.action.acceptInvite'](),
         decline_project_invitation:
@@ -290,11 +299,20 @@ export const GlobalWorkbenchTasks = () => {
   );
 
   const confirmAccessRequest = useAccessRequestConfirmation();
+  const decideProjectTask = useProjectTaskDecision();
   const runAction = useCallback(
     async (task: WorkbenchTask, action: WorkbenchPanelTaskAction) => {
       if (pending || !task.availableActions.includes(action)) return;
       setPending({ action, taskId: task.id });
       try {
+        if (
+          task.projectTask &&
+          (action === 'approve' || action === 'reject' || action === 'cancel')
+        ) {
+          if (await decideProjectTask(task.projectTask, action))
+            await Promise.all([mutate(), refreshDetail()]);
+          return;
+        }
         const confirmation =
           action === 'approve_access_request' ||
           action === 'reject_access_request'
@@ -317,15 +335,20 @@ export const GlobalWorkbenchTasks = () => {
           title: t['com.affine.localmind.tasks.action.success'](),
         });
       } catch (caught) {
-        notify.error({
-          title: t['com.affine.localmind.tasks.action.failed'](),
-          message: UserFriendlyError.fromAny(caught).message,
-        });
+        reportProjectError(caught);
       } finally {
         setPending(null);
       }
     },
-    [confirmAccessRequest, graphqlService, mutate, refreshDetail, pending, t]
+    [
+      confirmAccessRequest,
+      decideProjectTask,
+      graphqlService,
+      mutate,
+      refreshDetail,
+      pending,
+      t,
+    ]
   );
 
   const filterLabel = (value: WorkbenchTaskFilter) =>
@@ -338,9 +361,9 @@ export const GlobalWorkbenchTasks = () => {
           <IconButton
             size="20"
             icon={<ArrowLeftSmallIcon />}
-            tooltip={t['com.affine.workspaceSubPath.chat']()}
-            aria-label={t['com.affine.workspaceSubPath.chat']()}
-            onClick={() => navigate('/intelligence')}
+            tooltip={t['com.affine.localmind.workbench.projects']()}
+            aria-label={t['com.affine.localmind.workbench.projects']()}
+            onClick={() => navigate('/project')}
           />
           <h1 className={styles.globalTitle}>
             {t['com.affine.workspaceSubPath.tasks']()}
@@ -382,8 +405,10 @@ export const GlobalWorkbenchTasks = () => {
               </div>
             ) : error ? (
               <div className={styles.centerState} role="alert">
-                <span className={styles.errorText}>{error.message}</span>
-                <Button onClick={() => void mutate()}>
+                <span className={styles.errorText}>
+                  {projectErrorMessage(error)}
+                </span>
+                <Button onClick={() => void mutate().catch(reportProjectError)}>
                   {t['com.affine.localmind.tasks.refresh']()}
                 </Button>
               </div>
@@ -460,8 +485,10 @@ export const GlobalWorkbenchTasks = () => {
               </div>
             ) : detailError ? (
               <div className={styles.centerState} role="alert">
-                <span>{detailError.message}</span>
-                <Button onClick={() => void refreshDetail()}>
+                <span>{projectErrorMessage(detailError)}</span>
+                <Button
+                  onClick={() => void refreshDetail().catch(reportProjectError)}
+                >
                   {t['com.affine.localmind.tasks.refresh']()}
                 </Button>
               </div>
@@ -562,7 +589,6 @@ const GlobalTaskDetail = ({
                 action === 'resume' ||
                 action === 'approve_access_request' ||
                 action === 'accept_project_invitation' ||
-                action === 'request_project_access' ||
                 action === 'resolve_blocker'
                   ? 'primary'
                   : action === 'reject' ||
@@ -660,18 +686,10 @@ const GlobalTaskDetail = ({
           <dl className={styles.metadata}>
             <div>
               <dt className={styles.metadataLabel}>
-                {t['com.affine.localmind.tasks.authorization.workspace']()}
-              </dt>
-              <dd className={styles.metadataValue}>
-                {task.run.documentUpdate.workspaceId}
-              </dd>
-            </div>
-            <div>
-              <dt className={styles.metadataLabel}>
                 {t['com.affine.localmind.tasks.authorization.document']()}
               </dt>
               <dd className={styles.metadataValue}>
-                {task.run.documentUpdate.docId}
+                {task.documentTitle || task.title}
               </dd>
             </div>
             {task.run.documentUpdate.previousVersion ? (
@@ -723,39 +741,39 @@ const GlobalTaskDetail = ({
             <dt className={styles.metadataLabel}>
               {t['com.affine.localmind.tasks.authorization.level']()}
             </dt>
-            <dd className={styles.metadataValue}>{task.requestedLevel}</dd>
+            <dd className={styles.metadataValue}>
+              {t[
+                task.requestedLevel === 'write'
+                  ? 'com.affine.localmind.accessNotification.write'
+                  : 'com.affine.localmind.accessNotification.read'
+              ]()}
+            </dd>
           </div>
         ) : null}
-        {task.workspaceId ? (
-          <div>
-            <dt className={styles.metadataLabel}>
-              {t['com.affine.localmind.tasks.authorization.workspace']()}
-            </dt>
-            <dd className={styles.metadataValue}>{task.workspaceId}</dd>
-          </div>
-        ) : null}
-        {task.projectId ? (
+        {task.projectName ? (
           <div>
             <dt className={styles.metadataLabel}>
               {t['com.affine.localmind.tasks.authorization.project']()}
             </dt>
-            <dd className={styles.metadataValue}>{task.projectId}</dd>
+            <dd className={styles.metadataValue}>{task.projectName}</dd>
           </div>
         ) : null}
-        {!task.redacted && task.documentId ? (
+        {!task.redacted && task.documentTitle ? (
           <div>
             <dt className={styles.metadataLabel}>
               {t['com.affine.localmind.tasks.authorization.document']()}
             </dt>
-            <dd className={styles.metadataValue}>{task.documentId}</dd>
+            <dd className={styles.metadataValue}>{task.documentTitle}</dd>
           </div>
         ) : null}
-        {task.relatedUserId ? (
+        {task.relatedUserName || task.relatedUserEmail ? (
           <div>
             <dt className={styles.metadataLabel}>
               {t['com.affine.localmind.tasks.authorization.relatedUser']()}
             </dt>
-            <dd className={styles.metadataValue}>{task.relatedUserId}</dd>
+            <dd className={styles.metadataValue}>
+              {task.relatedUserName} {task.relatedUserEmail}
+            </dd>
           </div>
         ) : null}
         {task.blocker ? (
@@ -821,7 +839,7 @@ const GlobalTaskDetail = ({
             {t['com.affine.localmind.tasks.failure']()}
           </h2>
           <p className={styles.detailSectionText} data-failure="true">
-            {task.run.failureMessage}
+            {t['com.affine.localmind.project-error.failed']()}
           </p>
         </section>
       ) : null}

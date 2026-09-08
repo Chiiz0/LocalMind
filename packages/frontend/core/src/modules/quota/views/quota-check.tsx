@@ -1,6 +1,6 @@
 import { useConfirmModal } from '@affine/component';
 import { WorkspaceDialogService } from '@affine/core/modules/dialogs';
-import { type I18nString, useI18n } from '@affine/i18n';
+import { I18n, type I18nString, useI18n } from '@affine/i18n';
 import { InformationFillDuotoneIcon } from '@blocksuite/icons/rc';
 import { useLiveData, useService } from '@toeverything/infra';
 import { useCallback, useEffect } from 'react';
@@ -122,7 +122,9 @@ const messages: Record<
         'com.affine.payment.sync-paused.owner.both.tips-1',
         'com.affine.payment.sync-paused.owner.both.tips-2',
       ],
-      cancelText: 'Cancel',
+      get cancelText() {
+        return I18n['com.affine.localmind.aiContext.cancel']();
+      },
       confirmText: 'com.affine.payment.upgrade',
     },
     storage: {
@@ -132,7 +134,9 @@ const messages: Record<
         'com.affine.payment.sync-paused.owner.storage.tips-1',
         'com.affine.payment.sync-paused.owner.storage.tips-2',
       ],
-      cancelText: 'Cancel',
+      get cancelText() {
+        return I18n['com.affine.localmind.aiContext.cancel']();
+      },
       confirmText: 'com.affine.payment.upgrade',
     },
     member: {
@@ -142,7 +146,9 @@ const messages: Record<
         'com.affine.payment.sync-paused.owner.member.tips-1',
         'com.affine.payment.sync-paused.owner.member.tips-2',
       ],
-      cancelText: 'Cancel',
+      get cancelText() {
+        return I18n['com.affine.localmind.aiContext.cancel']();
+      },
       confirmText: 'com.affine.payment.upgrade',
     },
   },

@@ -85,6 +85,7 @@ import {
   retryCopilotProviderHealthProbeAttemptMutation,
   updateAppConfigMutation,
 } from '@affine/graphql';
+import { I18n, useI18n } from '@affine/i18n';
 import { AlertCircleIcon, CheckCircle2Icon, RefreshCwIcon } from 'lucide-react';
 import {
   type FormEvent,
@@ -101,7 +102,8 @@ import { Header } from '../header';
 import { ProjectByokAdmin } from './project-byok';
 import { WorkspaceByokAdmin } from './workspace-byok';
 
-const ADMIN_AI_DEFAULT_PROMPT_NAME = 'Chat With LocalMind AI';
+const ADMIN_AI_DEFAULT_PROMPT_NAME =
+  I18n['com.affine.admin.chat-with-localmind-ai']();
 const ADMIN_AI_DEFAULT_PROMPT_DISPLAY_NAME = formatAIModelPromptDisplayName(
   ADMIN_AI_DEFAULT_PROMPT_NAME
 );
@@ -163,17 +165,23 @@ const DEFAULT_ANTHROPIC_BASE_URL = 'https://api.anthropic.com/v1';
 const ENTERPRISE_CLI_PROVIDERS = [
   {
     id: 'WECOM',
-    label: 'WeCom',
+    get label() {
+      return I18n['com.affine.integration.enterprise.provider.wecom']();
+    },
     toolsKey: 'enterpriseCliWecomAllowedTools',
   },
   {
     id: 'LARK',
-    label: 'Lark',
+    get label() {
+      return I18n['com.affine.integration.enterprise.provider.lark']();
+    },
     toolsKey: 'enterpriseCliLarkAllowedTools',
   },
   {
     id: 'DINGTALK',
-    label: 'DingTalk',
+    get label() {
+      return I18n['com.affine.integration.enterprise.provider.dingtalk']();
+    },
     toolsKey: 'enterpriseCliDingTalkAllowedTools',
   },
 ] as const;
@@ -1198,9 +1206,15 @@ function formatWorkspaceScopeLabel(workspace: WorkspaceScopeItem) {
   return compactList([
     workspace.id,
     workspace.team ? 'Team' : 'Personal',
-    workspace.initialized ? 'Initialized' : 'Not initialized',
-    workspace.enableAi ? 'AI enabled' : 'AI disabled',
-    workspace.enableDocEmbedding ? 'Embedding enabled' : 'Embedding disabled',
+    workspace.initialized
+      ? 'Initialized'
+      : I18n['com.affine.admin.not-initialized'](),
+    workspace.enableAi
+      ? I18n['com.affine.admin.ai-enabled']()
+      : I18n['com.affine.admin.ai-disabled'](),
+    workspace.enableDocEmbedding
+      ? I18n['com.affine.admin.embedding-enabled']()
+      : I18n['com.affine.admin.embedding-disabled'](),
   ]);
 }
 
@@ -1247,8 +1261,13 @@ function RecommendedChecks({
 }: {
   actions: AIModelTaskRouteReasonRemediationActionKind[];
 }) {
+  const i18n = useI18n();
   if (!actions.length) {
-    return <span className="text-muted-foreground">No action required</span>;
+    return (
+      <span className="text-muted-foreground">
+        {i18n['com.affine.admin.no-action-required']()}
+      </span>
+    );
   }
 
   return (
@@ -1263,7 +1282,7 @@ function RecommendedChecks({
           >
             <div className="min-w-0 space-y-1">
               <div className="text-[11px] font-medium uppercase text-muted-foreground">
-                Action
+                {i18n['com.affine.admin.action']()}{' '}
               </div>
               <Badge
                 variant="outline"
@@ -1274,7 +1293,7 @@ function RecommendedChecks({
             </div>
             <div className="min-w-0 space-y-1">
               <div className="text-[11px] font-medium uppercase text-muted-foreground">
-                Target
+                {i18n['com.affine.admin.target']()}{' '}
               </div>
               <Badge
                 variant="outline"
@@ -1286,7 +1305,7 @@ function RecommendedChecks({
             </div>
             <div className="min-w-0 space-y-1">
               <div className="text-[11px] font-medium uppercase text-muted-foreground">
-                Details
+                {i18n['com.affine.admin.details']()}{' '}
               </div>
               <div className="break-words text-xs leading-5 text-muted-foreground">
                 {target.description}
@@ -1312,18 +1331,25 @@ function ReasonSummary({
 }: {
   route: AIModelTaskRouteDiagnosticsSummary;
 }) {
+  const i18n = useI18n();
   if (!route.reasonSummary.reasons.length) {
     return (
       <div className="space-y-2">
-        <div className="text-sm font-medium">Route reasons</div>
-        <EmptyState>No route reason diagnostics returned.</EmptyState>
+        <div className="text-sm font-medium">
+          {i18n['com.affine.admin.route-reasons']()}
+        </div>
+        <EmptyState>
+          {i18n['com.affine.admin.no-route-reason-diagnostics-returned']()}
+        </EmptyState>
       </div>
     );
   }
 
   return (
     <div className="space-y-2">
-      <div className="text-sm font-medium">Route reasons</div>
+      <div className="text-sm font-medium">
+        {i18n['com.affine.admin.route-reasons']()}
+      </div>
       <div className="flex flex-wrap gap-2">
         {route.reasonSummary.reasons.map(reason => (
           <Badge
@@ -1347,8 +1373,13 @@ function PolicyValueBadges({
   formatValue?: (value: string) => string;
   values: string[];
 }) {
+  const i18n = useI18n();
   if (!values.length) {
-    return <span className="text-muted-foreground">Any</span>;
+    return (
+      <span className="text-muted-foreground">
+        {i18n['com.affine.admin.any']()}
+      </span>
+    );
   }
 
   return (
@@ -1367,41 +1398,52 @@ function RoutePolicySummary({
 }: {
   route: AIModelTaskRouteDiagnosticsSummary;
 }) {
+  const i18n = useI18n();
   const { policy } = route;
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="text-sm font-medium">Route policy</div>
+        <div className="text-sm font-medium">
+          {i18n['com.affine.ui.route-policy']()}
+        </div>
         <Badge variant="outline" className="font-normal">
           {policy.enabled == null
-            ? 'Unknown'
+            ? i18n['com.affine.ui.unknown']()
             : policy.enabled
-              ? 'Enabled'
-              : 'Disabled'}
+              ? i18n['com.affine.admin.enabled']()
+              : i18n['com.affine.integration.external-mcp.status.disabled']()}
         </Badge>
         <Badge variant="outline" className="font-normal">
           {formatFeatureKind(policy.featureKind)}
         </Badge>
         <Badge variant="outline" className="font-normal">
-          {policy.workspaceId ? `Workspace ${policy.workspaceId}` : 'Global'}
+          {policy.workspaceId
+            ? `Workspace ${policy.workspaceId}`
+            : i18n['com.affine.admin.global']()}
         </Badge>
       </div>
       <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
         <div>
-          <div className="text-xs text-muted-foreground">Allowed privacy</div>
+          <div className="text-xs text-muted-foreground">
+            {i18n['com.affine.admin.allowed-privacy']()}
+          </div>
           <div className="mt-1">
             <PolicyValueBadges values={policy.allowedPrivacy} />
           </div>
         </div>
         <div>
-          <div className="text-xs text-muted-foreground">Preferred privacy</div>
+          <div className="text-xs text-muted-foreground">
+            {i18n['com.affine.ui.preferred-privacy']()}
+          </div>
           <div className="mt-1">
             <PolicyValueBadges values={policy.preferredPrivacy} />
           </div>
         </div>
         <div>
-          <div className="text-xs text-muted-foreground">Allowed providers</div>
+          <div className="text-xs text-muted-foreground">
+            {i18n['com.affine.admin.allowed-providers']()}
+          </div>
           <div className="mt-1">
             <PolicyValueBadges
               values={policy.allowedProviderIds}
@@ -1410,7 +1452,9 @@ function RoutePolicySummary({
           </div>
         </div>
         <div>
-          <div className="text-xs text-muted-foreground">Blocked providers</div>
+          <div className="text-xs text-muted-foreground">
+            {i18n['com.affine.admin.blocked-providers']()}
+          </div>
           <div className="mt-1">
             <PolicyValueBadges
               values={policy.blockedProviderIds}
@@ -1433,17 +1477,26 @@ function PreparedRoutesSummary({
 }: {
   routes: AIModelPreparedTaskRoute[];
 }) {
+  const i18n = useI18n();
   return (
     <div className="space-y-2">
-      <div className="text-sm font-medium">Prepared routes</div>
+      <div className="text-sm font-medium">
+        {i18n['com.affine.admin.prepared-routes']()}
+      </div>
       {routes.length ? (
         <TableViewport>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Provider</TableHead>
-                <TableHead>Model</TableHead>
-                <TableHead>Runtime metadata</TableHead>
+                <TableHead>
+                  {i18n[
+                    'com.affine.integration.calendar.caldav.field.provider'
+                  ]()}
+                </TableHead>
+                <TableHead>{i18n['com.affine.admin.model']()}</TableHead>
+                <TableHead>
+                  {i18n['com.affine.admin.runtime-metadata']()}
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1480,7 +1533,10 @@ function PreparedRoutesSummary({
                           route.providerPriority != null
                             ? `Priority ${route.providerPriority}`
                             : null,
-                        ]) || 'Provider metadata unavailable'}
+                        ]) ||
+                          i18n[
+                            'com.affine.admin.provider-metadata-unavailable'
+                          ]()}
                       </div>
                       {providerProfileLabel ? (
                         <div className="mt-1 text-xs text-muted-foreground">
@@ -1518,8 +1574,10 @@ function PreparedRoutesSummary({
                         route.modelEmbeddingDimensions != null
                           ? `Model ${route.modelEmbeddingDimensions}d`
                           : null,
-                        route.dimensionMismatch ? 'Dimension mismatch' : null,
-                      ]) || 'No runtime metadata'}
+                        route.dimensionMismatch
+                          ? i18n['com.affine.admin.dimension-mismatch']()
+                          : null,
+                      ]) || i18n['com.affine.admin.no-runtime-metadata']()}
                     </TableCell>
                   </TableRow>
                 );
@@ -1528,7 +1586,9 @@ function PreparedRoutesSummary({
           </Table>
         </TableViewport>
       ) : (
-        <EmptyState>No prepared routes returned.</EmptyState>
+        <EmptyState>
+          {i18n['com.affine.admin.no-prepared-routes-returned']()}
+        </EmptyState>
       )}
     </div>
   );
@@ -1556,23 +1616,25 @@ function formatRoutePolicyText(
           : 'Disabled'
     }`,
     `Feature ${formatFeatureKind(policy.featureKind)}`,
-    policy.workspaceId ? `Workspace ${policy.workspaceId}` : 'Workspace Global',
+    policy.workspaceId
+      ? `Workspace ${policy.workspaceId}`
+      : I18n['com.affine.admin.workspace-global'](),
     policy.allowedPrivacy.length
       ? `Allowed privacy ${policy.allowedPrivacy
           .map(value => formatProviderMetadata(value, PROVIDER_PRIVACY_LABELS))
           .join(', ')}`
-      : 'Allowed privacy Any',
+      : I18n['com.affine.admin.allowed-privacy-any'](),
     policy.preferredPrivacy.length
       ? `Preferred privacy ${policy.preferredPrivacy
           .map(value => formatProviderMetadata(value, PROVIDER_PRIVACY_LABELS))
           .join(', ')}`
-      : 'Preferred privacy Any',
+      : I18n['com.affine.admin.preferred-privacy-any'](),
     policy.allowedProviderIds.length
       ? `Allowed providers ${policy.allowedProviderIds.join(', ')}`
-      : 'Allowed providers Any',
+      : I18n['com.affine.admin.allowed-providers-any'](),
     policy.blockedProviderIds.length
       ? `Blocked providers ${policy.blockedProviderIds.join(', ')}`
-      : 'Blocked providers None',
+      : I18n['com.affine.admin.blocked-providers-none'](),
   ]);
 }
 
@@ -2154,7 +2216,7 @@ function buildTaskRouteDiagnosticsText({
             return `${formatActionKind(action)} -> ${target.label}`;
           })
           .join(', ')}`
-      : 'Recommended none',
+      : I18n['com.affine.admin.recommended-none'](),
     formatRoutePolicyText(route.policy),
     `Prepared routes ${preparedRoutes.length}`,
     ...preparedRoutes.map(
@@ -2190,6 +2252,7 @@ function RouteSummaryCard({
   rawRoute?: AIModelTaskRoute | null;
   route: AIModelTaskRouteDiagnosticsSummary;
 }) {
+  const i18n = useI18n();
   const { readiness } = route;
   const identity = compactList([readiness.providerId, readiness.modelId]);
   const requestedModelId =
@@ -2225,7 +2288,9 @@ function RouteSummaryCard({
       </CardHeader>
       <CardContent className="space-y-5">
         <div className="rounded-md border border-border/70 bg-muted/30 p-3">
-          <div className="text-sm font-medium">Task route diagnostics</div>
+          <div className="text-sm font-medium">
+            {i18n['com.affine.admin.task-route-diagnostics']()}
+          </div>
           <pre
             className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words text-xs text-muted-foreground"
             data-testid={`task-route-diagnostics-${readiness.featureKind.replaceAll(
@@ -2239,41 +2304,48 @@ function RouteSummaryCard({
 
         <div className="grid grid-cols-1 gap-3 text-sm lg:grid-cols-2 xl:grid-cols-4">
           <div>
-            <div className="text-xs text-muted-foreground">Route</div>
+            <div className="text-xs text-muted-foreground">
+              {i18n['com.affine.admin.route']()}
+            </div>
             <div className="mt-1 break-words font-medium">
-              {identity || 'Not configured'}
+              {identity || i18n['com.affine.admin.not-configured']()}
             </div>
           </div>
           <div>
-            <div className="text-xs text-muted-foreground">Requested model</div>
+            <div className="text-xs text-muted-foreground">
+              {i18n['com.affine.admin.requested-model']()}
+            </div>
             <div className="mt-1 break-words font-medium">
-              {requestedModelId || 'Auto provider default'}
+              {requestedModelId ||
+                i18n['com.affine.admin.auto-provider-default']()}
             </div>
             {requestedModelSource ? (
               <div className="mt-1 text-xs text-muted-foreground">
-                Source {formatAIModelTaskModelSourceLabel(requestedModelSource)}
+                {i18n['com.affine.integration.readwise-prop.source']()}{' '}
+                {formatAIModelTaskModelSourceLabel(requestedModelSource)}
               </div>
             ) : null}
             {requestedModelConfigPath ? (
               <div className="mt-1 break-words text-xs text-muted-foreground">
-                Config {requestedModelConfigPath}
+                {i18n['com.affine.admin.config']()} {requestedModelConfigPath}
               </div>
             ) : null}
             {rawRoute?.taskRoutePolicyRevision ? (
               <div className="mt-1 break-words text-xs text-muted-foreground">
-                Revision {rawRoute.taskRoutePolicyRevision}
+                {i18n['com.affine.localmind.tasks.approval.revision']()}{' '}
+                {rawRoute.taskRoutePolicyRevision}
               </div>
             ) : null}
             {rawRoute?.taskRoutePolicyRevisionSourceChainFingerprint ? (
               <div className="mt-1 break-words text-xs text-muted-foreground">
-                Source chain{' '}
+                {i18n['com.affine.admin.source-chain']()}{' '}
                 {rawRoute.taskRoutePolicyRevisionSourceChainFingerprint}
               </div>
             ) : null}
           </div>
           <div>
             <div className="text-xs text-muted-foreground">
-              Prepared providers
+              {i18n['com.affine.admin.prepared-providers']()}{' '}
             </div>
             <div className="mt-1 font-medium">
               {readiness.preparedProviderCount}
@@ -2285,15 +2357,19 @@ function RouteSummaryCard({
             ) : null}
             {preparedRouteTargetFingerprint ? (
               <div className="mt-1 break-words text-xs text-muted-foreground">
-                Target fingerprint {preparedRouteTargetFingerprint}
+                {i18n['com.affine.admin.target-fingerprint']()}{' '}
+                {preparedRouteTargetFingerprint}
               </div>
             ) : null}
           </div>
           <div>
-            <div className="text-xs text-muted-foreground">Checks</div>
+            <div className="text-xs text-muted-foreground">
+              {i18n['com.affine.admin.checks']()}
+            </div>
             <div className="mt-1">
               <SeverityText severity={readiness.severity}>
-                {route.reasonSummary.reasons.length} reason
+                {route.reasonSummary.reasons.length}{' '}
+                {i18n['com.affine.admin.reason']()}{' '}
                 {route.reasonSummary.reasons.length === 1 ? '' : 's'}
               </SeverityText>
             </div>
@@ -2315,7 +2391,9 @@ function RouteSummaryCard({
         ) : null}
 
         <div className="space-y-2">
-          <div className="text-sm font-medium">Recommended checks</div>
+          <div className="text-sm font-medium">
+            {i18n['com.affine.admin.recommended-checks']()}
+          </div>
           <RecommendedChecks actions={route.actionKinds} />
         </div>
 
@@ -2323,7 +2401,9 @@ function RouteSummaryCard({
         <RoutePolicySummary route={route} />
         {taskRoutePolicySourceChain.length ? (
           <div className="space-y-2">
-            <div className="text-sm font-medium">Task route policy source</div>
+            <div className="text-sm font-medium">
+              {i18n['com.affine.admin.task-route-policy-source']()}
+            </div>
             <div className="space-y-1 text-xs text-muted-foreground">
               {taskRoutePolicySourceChain.map((entry, index) => (
                 <div key={`${entry.source}-${entry.scope}-${index}`}>
@@ -2347,19 +2427,30 @@ function PolicyCandidateTrace({
 }: {
   rows: AIModelTaskRoutePolicyCandidateTraceRow[];
 }) {
+  const i18n = useI18n();
   return (
     <div className="space-y-2">
-      <div className="text-sm font-medium">Policy candidates</div>
+      <div className="text-sm font-medium">
+        {i18n['com.affine.admin.policy-candidates']()}
+      </div>
       {rows.length ? (
         <TableViewport minWidth="min-w-[860px]">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Provider</TableHead>
-                <TableHead>Privacy</TableHead>
-                <TableHead>Health</TableHead>
-                <TableHead className="w-[120px]">Status</TableHead>
-                <TableHead>Reasons</TableHead>
+                <TableHead>
+                  {i18n[
+                    'com.affine.integration.calendar.caldav.field.provider'
+                  ]()}
+                </TableHead>
+                <TableHead>
+                  {i18n['com.affine.mobile.setting.others.privacy']()}
+                </TableHead>
+                <TableHead>{i18n['com.affine.admin.health']()}</TableHead>
+                <TableHead className="w-[120px]">
+                  {i18n['com.affine.admin.status']()}
+                </TableHead>
+                <TableHead>{i18n['com.affine.admin.reasons']()}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -2387,7 +2478,8 @@ function PolicyCandidateTrace({
                     ) : null}
                     {row.providerPriority != null ? (
                       <div className="mt-1 text-xs text-muted-foreground">
-                        Priority {row.providerPriority}
+                        {i18n['com.affine.admin.priority']()}{' '}
+                        {row.providerPriority}
                       </div>
                     ) : null}
                   </TableCell>
@@ -2406,7 +2498,8 @@ function PolicyCandidateTrace({
                     </div>
                     {row.healthCheckedAt ? (
                       <div className="mt-1 text-xs text-muted-foreground">
-                        Checked {row.healthCheckedAt}
+                        {i18n['com.affine.all-docs.group.is-checked']()}{' '}
+                        {row.healthCheckedAt}
                       </div>
                     ) : null}
                   </TableCell>
@@ -2425,7 +2518,7 @@ function PolicyCandidateTrace({
                     <SeverityText severity={row.severity}>
                       {row.reasonSummary.reasons
                         .map(reason => reason.label)
-                        .join(', ') || 'No issues'}
+                        .join(', ') || i18n['com.affine.admin.no-issues']()}
                     </SeverityText>
                   </TableCell>
                 </TableRow>
@@ -2434,25 +2527,36 @@ function PolicyCandidateTrace({
           </Table>
         </TableViewport>
       ) : (
-        <EmptyState>No policy candidate diagnostics returned.</EmptyState>
+        <EmptyState>
+          {i18n['com.affine.admin.no-policy-candidate-diagnostics-returned']()}
+        </EmptyState>
       )}
     </div>
   );
 }
 
 function PhaseTrace({ phases }: { phases: AIModelTaskRoutePhaseTraceRow[] }) {
+  const i18n = useI18n();
   return (
     <div className="space-y-2">
-      <div className="text-sm font-medium">Phase trace</div>
+      <div className="text-sm font-medium">
+        {i18n['com.affine.admin.phase-trace']()}
+      </div>
       {phases.length ? (
         <TableViewport minWidth="min-w-[680px]">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Phase</TableHead>
-                <TableHead className="w-[120px]">Candidates</TableHead>
-                <TableHead className="w-[120px]">Selected</TableHead>
-                <TableHead>Reasons</TableHead>
+                <TableHead>{i18n['com.affine.admin.phase']()}</TableHead>
+                <TableHead className="w-[120px]">
+                  {i18n['com.affine.admin.candidates']()}
+                </TableHead>
+                <TableHead className="w-[120px]">
+                  {i18n[
+                    'com.affine.settings.workspace.storage.unused-blobs.selected'
+                  ]()}
+                </TableHead>
+                <TableHead>{i18n['com.affine.admin.reasons']()}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -2467,7 +2571,7 @@ function PhaseTrace({ phases }: { phases: AIModelTaskRoutePhaseTraceRow[] }) {
                     <SeverityText severity={phase.severity}>
                       {phase.reasonSummary.reasons
                         .map(reason => reason.label)
-                        .join(', ') || 'No issues'}
+                        .join(', ') || i18n['com.affine.admin.no-issues']()}
                     </SeverityText>
                   </TableCell>
                 </TableRow>
@@ -2476,7 +2580,9 @@ function PhaseTrace({ phases }: { phases: AIModelTaskRoutePhaseTraceRow[] }) {
           </Table>
         </TableViewport>
       ) : (
-        <EmptyState>No phase diagnostics returned.</EmptyState>
+        <EmptyState>
+          {i18n['com.affine.admin.no-phase-diagnostics-returned']()}
+        </EmptyState>
       )}
     </div>
   );
@@ -2487,18 +2593,27 @@ function CandidateTrace({
 }: {
   rows: AIModelTaskRouteCandidateTraceRow[];
 }) {
+  const i18n = useI18n();
   return (
     <div className="space-y-2">
-      <div className="text-sm font-medium">Candidate trace</div>
+      <div className="text-sm font-medium">
+        {i18n['com.affine.admin.candidate-trace']()}
+      </div>
       {rows.length ? (
         <TableViewport minWidth="min-w-[860px]">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Provider</TableHead>
-                <TableHead>Model</TableHead>
-                <TableHead className="w-[120px]">Status</TableHead>
-                <TableHead>Reasons</TableHead>
+                <TableHead>
+                  {i18n[
+                    'com.affine.integration.calendar.caldav.field.provider'
+                  ]()}
+                </TableHead>
+                <TableHead>{i18n['com.affine.admin.model']()}</TableHead>
+                <TableHead className="w-[120px]">
+                  {i18n['com.affine.admin.status']()}
+                </TableHead>
+                <TableHead>{i18n['com.affine.admin.reasons']()}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -2556,7 +2671,8 @@ function CandidateTrace({
                       ) : null}
                       {row.providerPriority != null ? (
                         <div className="mt-1 text-xs text-muted-foreground">
-                          Priority {row.providerPriority}
+                          {i18n['com.affine.admin.priority']()}{' '}
+                          {row.providerPriority}
                         </div>
                       ) : null}
                       {providerProfileLabel ? (
@@ -2582,7 +2698,8 @@ function CandidateTrace({
                       ) : null}
                       {row.healthCheckedAt ? (
                         <div className="mt-1 text-xs text-muted-foreground">
-                          Checked {row.healthCheckedAt}
+                          {i18n['com.affine.all-docs.group.is-checked']()}{' '}
+                          {row.healthCheckedAt}
                         </div>
                       ) : null}
                     </TableCell>
@@ -2595,7 +2712,7 @@ function CandidateTrace({
                         row.requestedModelId
                           ? `requested ${row.requestedModelId}`
                           : null,
-                      ]) || 'Not selected'}
+                      ]) || i18n['com.affine.admin.not-selected']()}
                       {modelDefinitionLabel ? (
                         <div className="mt-1 text-xs text-muted-foreground">
                           {modelDefinitionLabel}
@@ -2607,7 +2724,7 @@ function CandidateTrace({
                       <SeverityText severity={row.severity}>
                         {row.reasonSummary.reasons
                           .map(reason => reason.label)
-                          .join(', ') || 'No issues'}
+                          .join(', ') || i18n['com.affine.admin.no-issues']()}
                       </SeverityText>
                       {row.errorCode || row.errorCategory ? (
                         <div className="mt-1 text-xs text-muted-foreground">
@@ -2629,13 +2746,16 @@ function CandidateTrace({
           </Table>
         </TableViewport>
       ) : (
-        <EmptyState>No candidate diagnostics returned.</EmptyState>
+        <EmptyState>
+          {i18n['com.affine.admin.no-candidate-diagnostics-returned']()}
+        </EmptyState>
       )}
     </div>
   );
 }
 
 function ModelDefaultBadges({ model }: { model: AIModel }) {
+  const i18n = useI18n();
   const isPromptDefault = model.promptDefaultModel === model.id;
   const isFallbackDefault =
     model.isDefault &&
@@ -2643,7 +2763,11 @@ function ModelDefaultBadges({ model }: { model: AIModel }) {
     model.promptDefaultModel !== model.id;
 
   if (!model.isDefault && !isPromptDefault) {
-    return <span className="text-muted-foreground">No</span>;
+    return (
+      <span className="text-muted-foreground">
+        {i18n['com.affine.admin.no']()}
+      </span>
+    );
   }
 
   return (
@@ -2653,12 +2777,12 @@ function ModelDefaultBadges({ model }: { model: AIModel }) {
           variant="outline"
           className="border-emerald-500/30 bg-emerald-500/10 text-emerald-700"
         >
-          Active default
+          {i18n['com.affine.admin.active-default']()}{' '}
         </Badge>
       ) : null}
       {isPromptDefault ? (
         <Badge variant="outline" className="font-normal">
-          Prompt default
+          {i18n['com.affine.admin.prompt-default']()}{' '}
         </Badge>
       ) : null}
       {isFallbackDefault ? (
@@ -2671,7 +2795,7 @@ function ModelDefaultBadges({ model }: { model: AIModel }) {
               : undefined
           }
         >
-          Prompt fallback
+          {i18n['com.affine.admin.prompt-fallback']()}{' '}
         </Badge>
       ) : null}
     </div>
@@ -2685,6 +2809,7 @@ function ModelTable({
   models: AIModel[];
   promptName: string;
 }) {
+  const i18n = useI18n();
   const candidateDiagnosticsText = buildModelCandidateDiagnosticsText(
     models,
     promptName
@@ -2693,9 +2818,12 @@ function ModelTable({
   return (
     <Card className="min-w-0 border-border/60 bg-card shadow-1">
       <CardHeader>
-        <CardTitle className="text-base">Prompt model candidates</CardTitle>
+        <CardTitle className="text-base">
+          {i18n['com.affine.admin.prompt-model-candidates']()}
+        </CardTitle>
         <CardDescription>
-          Models returned for {formatAIModelPromptDisplayName(promptName)}
+          {i18n['com.affine.admin.models-returned-for']()}{' '}
+          {formatAIModelPromptDisplayName(promptName)}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -2703,7 +2831,7 @@ function ModelTable({
           <div className="space-y-4">
             <div>
               <div className="text-sm font-medium">
-                Model candidates diagnostics
+                {i18n['com.affine.admin.model-candidates-diagnostics']()}{' '}
               </div>
               <pre
                 className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border/60 bg-muted/30 p-3 text-xs text-muted-foreground"
@@ -2716,16 +2844,28 @@ function ModelTable({
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Model</TableHead>
-                    <TableHead>Provider</TableHead>
-                    <TableHead>Route</TableHead>
-                    <TableHead>Fallback</TableHead>
-                    <TableHead>Definition</TableHead>
-                    <TableHead className="w-[160px]">Source</TableHead>
-                    <TableHead>Capabilities</TableHead>
-                    <TableHead>Limits</TableHead>
-                    <TableHead>Cost</TableHead>
-                    <TableHead className="w-[120px]">Default</TableHead>
+                    <TableHead>{i18n['com.affine.admin.model']()}</TableHead>
+                    <TableHead>
+                      {i18n[
+                        'com.affine.integration.calendar.caldav.field.provider'
+                      ]()}
+                    </TableHead>
+                    <TableHead>{i18n['com.affine.admin.route']()}</TableHead>
+                    <TableHead>{i18n['com.affine.admin.fallback']()}</TableHead>
+                    <TableHead>
+                      {i18n['com.affine.admin.definition']()}
+                    </TableHead>
+                    <TableHead className="w-[160px]">
+                      {i18n['com.affine.integration.readwise-prop.source']()}
+                    </TableHead>
+                    <TableHead>
+                      {i18n['com.affine.admin.capabilities']()}
+                    </TableHead>
+                    <TableHead>{i18n['com.affine.admin.limits']()}</TableHead>
+                    <TableHead>{i18n['com.affine.admin.cost']()}</TableHead>
+                    <TableHead className="w-[120px]">
+                      {i18n['com.affine.office.default']()}
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -2748,7 +2888,7 @@ function ModelTable({
                         <TableCell className="break-words">
                           <div>
                             {formatAIModelProviderLabel(model) ||
-                              'Unknown provider'}
+                              i18n['com.affine.admin.unknown-provider']()}
                           </div>
                           {providerProfileLabel ? (
                             <div className="mt-1 text-xs text-muted-foreground">
@@ -2757,44 +2897,54 @@ function ModelTable({
                           ) : null}
                         </TableCell>
                         <TableCell className="break-words">
-                          {formatAIModelRouteLabel(model) || 'Unknown'}
+                          {formatAIModelRouteLabel(model) ||
+                            i18n['com.affine.ui.unknown']()}
                         </TableCell>
                         <TableCell className="break-words">
-                          {formatAIModelFallbackLabel(model) || 'None'}
+                          {formatAIModelFallbackLabel(model) ||
+                            i18n[
+                              'com.affine.settings.editorSettings.edgeless.note.border.none'
+                            ]()}
                         </TableCell>
                         <TableCell className="break-words">
-                          {formatAIModelDefinitionLabel(model) || 'Unknown'}
+                          {formatAIModelDefinitionLabel(model) ||
+                            i18n['com.affine.ui.unknown']()}
                         </TableCell>
                         <TableCell className="break-words">
                           <div>
-                            {formatAIModelSourcesLabel(model) || 'Prompt'}
+                            {formatAIModelSourcesLabel(model) ||
+                              i18n['com.affine.admin.prompt']()}
                           </div>
                           {model.promptModelSource ? (
                             <div className="mt-1 text-xs text-muted-foreground">
-                              Model source{' '}
+                              {i18n['com.affine.admin.model-source']()}{' '}
                               {formatFeatureKind(model.promptModelSource)}
                             </div>
                           ) : null}
                           {model.promptModelConfigPath ? (
                             <div className="mt-1 text-xs text-muted-foreground">
-                              Config {model.promptModelConfigPath}
+                              {i18n['com.affine.admin.config']()}{' '}
+                              {model.promptModelConfigPath}
                             </div>
                           ) : null}
                           {model.promptModelSources?.length ? (
                             <div className="mt-1 text-xs text-muted-foreground">
-                              Source chain{' '}
+                              {i18n['com.affine.admin.source-chain']()}{' '}
                               {formatAIModelPromptSourcesLabel(model)}
                             </div>
                           ) : null}
                         </TableCell>
                         <TableCell className="break-words">
-                          {formatAIModelCapabilityLabel(model) || 'Unknown'}
+                          {formatAIModelCapabilityLabel(model) ||
+                            i18n['com.affine.ui.unknown']()}
                         </TableCell>
                         <TableCell className="break-words">
-                          {formatAIModelLimitsLabel(model) || 'Unknown'}
+                          {formatAIModelLimitsLabel(model) ||
+                            i18n['com.affine.ui.unknown']()}
                         </TableCell>
                         <TableCell className="break-words">
-                          {formatAIModelCostLabel(model) || 'Unknown'}
+                          {formatAIModelCostLabel(model) ||
+                            i18n['com.affine.ui.unknown']()}
                         </TableCell>
                         <TableCell>
                           <ModelDefaultBadges model={model} />
@@ -2813,7 +2963,11 @@ function ModelTable({
             </TableViewport>
           </div>
         ) : (
-          <EmptyState>No model candidates returned for this prompt.</EmptyState>
+          <EmptyState>
+            {i18n[
+              'com.affine.admin.no-model-candidates-returned-for-this-prompt'
+            ]()}
+          </EmptyState>
         )}
       </CardContent>
     </Card>
@@ -2854,10 +3008,13 @@ function PromptCatalogSummary({
   prompt: PromptCatalogItem | undefined;
   workspaceId: string | undefined;
 }) {
+  const i18n = useI18n();
   if (!prompt) {
     return (
       <div className="rounded-md border border-dashed border-border/70 p-3 text-sm text-muted-foreground">
-        Prompt metadata is not available for the submitted prompt name.
+        {i18n[
+          'com.affine.admin.prompt-metadata-is-not-available-for-the-submitted-prompt-name'
+        ]()}{' '}
       </div>
     );
   }
@@ -2868,7 +3025,9 @@ function PromptCatalogSummary({
   return (
     <div className="space-y-3 rounded-md border border-border/60 p-4 text-sm">
       <div>
-        <div className="text-sm font-medium">Prompt catalog diagnostics</div>
+        <div className="text-sm font-medium">
+          {i18n['com.affine.admin.prompt-catalog-diagnostics']()}
+        </div>
         <pre
           className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border/60 bg-muted/30 p-3 text-xs text-muted-foreground"
           data-testid={`prompt-catalog-diagnostics-${prompt.name}`}
@@ -2877,7 +3036,9 @@ function PromptCatalogSummary({
         </pre>
       </div>
       <div>
-        <div className="text-xs text-muted-foreground">Version evidence</div>
+        <div className="text-xs text-muted-foreground">
+          {i18n['com.affine.admin.version-evidence']()}
+        </div>
         <div
           className="mt-1 break-words font-medium"
           data-testid={`prompt-catalog-version-evidence-${prompt.name}`}
@@ -2891,31 +3052,40 @@ function PromptCatalogSummary({
       />
       <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
         <div>
-          <div className="text-xs text-muted-foreground">Catalog category</div>
+          <div className="text-xs text-muted-foreground">
+            {i18n['com.affine.admin.catalog-category']()}
+          </div>
           <div className="mt-1 font-medium">
             {formatFeatureKind(prompt.category)}
           </div>
         </div>
         <div>
-          <div className="text-xs text-muted-foreground">Catalog source</div>
+          <div className="text-xs text-muted-foreground">
+            {i18n['com.affine.admin.catalog-source']()}
+          </div>
           <div className="mt-1 font-medium">
             {formatFeatureKind(prompt.source)}
           </div>
           <div className="mt-1 break-words text-xs text-muted-foreground">
-            Revision {prompt.revision}
+            {i18n['com.affine.localmind.tasks.approval.revision']()}{' '}
+            {prompt.revision}
           </div>
           <div className="mt-1 break-words text-xs text-muted-foreground">
-            Fingerprint {prompt.fingerprint}
+            {i18n['com.affine.admin.fingerprint']()} {prompt.fingerprint}
           </div>
           <div className="mt-1 break-words text-xs text-muted-foreground">
-            Model strategy {prompt.modelStrategyFingerprint}
+            {i18n['com.affine.admin.model-strategy']()}{' '}
+            {prompt.modelStrategyFingerprint}
           </div>
           <div className="mt-1 break-words text-xs text-muted-foreground">
-            Template {prompt.templateFingerprint}
+            {i18n['com.affine.page-starter-bar.template']()}{' '}
+            {prompt.templateFingerprint}
           </div>
         </div>
         <div>
-          <div className="text-xs text-muted-foreground">Default model</div>
+          <div className="text-xs text-muted-foreground">
+            {i18n['com.affine.admin.default-model']()}
+          </div>
           <div className="mt-1 break-words font-medium">{prompt.model}</div>
           <PromptCatalogSourceSummary
             configPath={prompt.modelConfigPath}
@@ -2923,7 +3093,9 @@ function PromptCatalogSummary({
           />
         </div>
         <div>
-          <div className="text-xs text-muted-foreground">Prompt policy</div>
+          <div className="text-xs text-muted-foreground">
+            {i18n['com.affine.admin.prompt-policy']()}
+          </div>
           <div className="mt-1 flex flex-wrap gap-1.5">
             {prompt.defaultPolicy ? (
               <Badge variant="outline" className="font-normal">
@@ -2935,16 +3107,20 @@ function PromptCatalogSummary({
                 variant="outline"
                 className="border-amber-500/30 bg-amber-500/10 font-normal text-amber-700"
               >
-                Override
+                {i18n['com.affine.admin.override']()}{' '}
               </Badge>
             ) : null}
             {!prompt.defaultPolicy && !prompt.overrideApplied ? (
-              <span className="text-muted-foreground">Built-in default</span>
+              <span className="text-muted-foreground">
+                {i18n['com.affine.admin.built-in-default']()}
+              </span>
             ) : null}
           </div>
         </div>
         <div>
-          <div className="text-xs text-muted-foreground">Optional models</div>
+          <div className="text-xs text-muted-foreground">
+            {i18n['com.affine.admin.optional-models']()}
+          </div>
           <div className="mt-1 font-medium">{prompt.optionalModelCount}</div>
           <PromptCatalogSourceSummary
             configPath={prompt.optionalModelsConfigPath}
@@ -2952,7 +3128,9 @@ function PromptCatalogSummary({
           />
         </div>
         <div>
-          <div className="text-xs text-muted-foreground">Pro models</div>
+          <div className="text-xs text-muted-foreground">
+            {i18n['com.affine.admin.pro-models']()}
+          </div>
           <div className="mt-1 font-medium">{prompt.proModelCount}</div>
           <PromptCatalogSourceSummary
             configPath={prompt.proModelsConfigPath}
@@ -2960,30 +3138,41 @@ function PromptCatalogSummary({
           />
         </div>
         <div>
-          <div className="text-xs text-muted-foreground">Params</div>
+          <div className="text-xs text-muted-foreground">
+            {i18n['com.affine.admin.params']()}
+          </div>
           <div className="mt-1 font-medium">{prompt.paramCount}</div>
         </div>
         <div>
-          <div className="text-xs text-muted-foreground">Action</div>
+          <div className="text-xs text-muted-foreground">
+            {i18n['com.affine.admin.action']()}
+          </div>
           <div className="mt-1 break-words font-medium">
-            {prompt.action || 'None'}
+            {prompt.action ||
+              i18n[
+                'com.affine.settings.editorSettings.edgeless.note.border.none'
+              ]()}
           </div>
         </div>
         <div>
-          <div className="text-xs text-muted-foreground">Registry source</div>
+          <div className="text-xs text-muted-foreground">
+            {i18n['com.affine.admin.registry-source']()}
+          </div>
           <div className="mt-1 break-words font-medium">
             {prompt.registryRecordSource
               ? formatFeatureKind(prompt.registryRecordSource)
-              : 'Config fallback'}
+              : i18n['com.affine.admin.config-fallback']()}
           </div>
           {prompt.registryRevision ? (
             <div className="mt-1 break-words text-xs text-muted-foreground">
-              Revision {prompt.registryRevision}
+              {i18n['com.affine.localmind.tasks.approval.revision']()}{' '}
+              {prompt.registryRevision}
             </div>
           ) : null}
           {prompt.registryRevisionScope ? (
             <div className="mt-1 break-words text-xs text-muted-foreground">
-              Scope {formatFeatureKind(prompt.registryRevisionScope)}
+              {i18n['com.affine.admin.scope']()}{' '}
+              {formatFeatureKind(prompt.registryRevisionScope)}
               {prompt.registryRevisionWorkspaceId
                 ? ` / ${prompt.registryRevisionWorkspaceId}`
                 : ''}
@@ -2991,22 +3180,26 @@ function PromptCatalogSummary({
           ) : null}
           {prompt.registryRevisionStatus ? (
             <div className="mt-1 break-words text-xs text-muted-foreground">
-              Revision status {formatFeatureKind(prompt.registryRevisionStatus)}
+              {i18n['com.affine.admin.revision-status']()}{' '}
+              {formatFeatureKind(prompt.registryRevisionStatus)}
             </div>
           ) : null}
           {prompt.registryRevisionActorId ? (
             <div className="mt-1 break-words text-xs text-muted-foreground">
-              Actor {prompt.registryRevisionActorId}
+              {i18n['com.affine.admin.actor']()}{' '}
+              {prompt.registryRevisionActorId}
             </div>
           ) : null}
           {prompt.registryRevisionFingerprint ? (
             <div className="mt-1 break-words text-xs text-muted-foreground">
-              Revision fingerprint {prompt.registryRevisionFingerprint}
+              {i18n['com.affine.admin.revision-fingerprint']()}{' '}
+              {prompt.registryRevisionFingerprint}
             </div>
           ) : null}
           {prompt.registrySourceChainFingerprint ? (
             <div className="mt-1 break-words text-xs text-muted-foreground">
-              Source chain fingerprint {prompt.registrySourceChainFingerprint}
+              {i18n['com.affine.admin.source-chain-fingerprint']()}{' '}
+              {prompt.registrySourceChainFingerprint}
             </div>
           ) : null}
           {(prompt.registrySourceChain ?? []).map(entry => (
@@ -3014,51 +3207,59 @@ function PromptCatalogSummary({
               className="mt-1 break-words text-xs text-muted-foreground"
               key={`${entry.source}:${entry.scope}:${entry.revision ?? ''}:${entry.fingerprint ?? ''}`}
             >
-              Source chain {formatPromptRegistrySourceChain(entry)}
+              {i18n['com.affine.admin.source-chain']()}{' '}
+              {formatPromptRegistrySourceChain(entry)}
             </div>
           ))}
         </div>
         {prompt.registryId != null ? (
           <div>
-            <div className="text-xs text-muted-foreground">Registry record</div>
+            <div className="text-xs text-muted-foreground">
+              {i18n['com.affine.admin.registry-record']()}
+            </div>
             <div className="mt-1 break-words font-medium">
               {prompt.registryId}
             </div>
             <div className="mt-1 break-words text-xs text-muted-foreground">
-              Status{' '}
+              {i18n['com.affine.admin.status']()}{' '}
               {prompt.registryValidationStatus
                 ? formatFeatureKind(prompt.registryValidationStatus)
-                : 'Unknown'}
+                : i18n['com.affine.ui.unknown']()}
             </div>
             {prompt.registryValidationReason ? (
               <div className="mt-1 break-words text-xs text-muted-foreground">
-                Reason {formatFeatureKind(prompt.registryValidationReason)}
+                {i18n['com.affine.office.reason']()}{' '}
+                {formatFeatureKind(prompt.registryValidationReason)}
               </div>
             ) : null}
             {prompt.registryValidationDetail ? (
               <div className="mt-1 break-words text-xs text-muted-foreground">
-                Detail {prompt.registryValidationDetail}
+                {i18n['com.affine.admin.detail']()}{' '}
+                {prompt.registryValidationDetail}
               </div>
             ) : null}
             {prompt.registryValidationPublishStatus ? (
               <div className="mt-1 break-words text-xs text-muted-foreground">
-                Publish{' '}
+                {i18n['com.affine.admin.publish']()}{' '}
                 {formatFeatureKind(prompt.registryValidationPublishStatus)}
               </div>
             ) : null}
             {prompt.registryValidationBlockingCount != null ? (
               <div className="mt-1 break-words text-xs text-muted-foreground">
-                Blocking {prompt.registryValidationBlockingCount}
+                {i18n['com.affine.admin.blocking']()}{' '}
+                {prompt.registryValidationBlockingCount}
               </div>
             ) : null}
             {prompt.registryValidationIssueCount != null ? (
               <div className="mt-1 break-words text-xs text-muted-foreground">
-                Issues {prompt.registryValidationIssueCount}
+                {i18n['com.affine.admin.issues']()}{' '}
+                {prompt.registryValidationIssueCount}
               </div>
             ) : null}
             {prompt.registryValidationErrorCount != null ? (
               <div className="mt-1 break-words text-xs text-muted-foreground">
-                Errors {prompt.registryValidationErrorCount}
+                {i18n['com.affine.admin.errors']()}{' '}
+                {prompt.registryValidationErrorCount}
               </div>
             ) : null}
             {(prompt.registryValidationIssues ?? []).map(issue => (
@@ -3066,7 +3267,8 @@ function PromptCatalogSummary({
                 className="mt-1 break-words text-xs text-muted-foreground"
                 key={`${issue.path}:${issue.code}:${issue.detail}`}
               >
-                Issue {formatPromptRegistryValidationIssue(issue)}
+                {i18n['com.affine.admin.issue']()}{' '}
+                {formatPromptRegistryValidationIssue(issue)}
               </div>
             ))}
             {(prompt.registryValidationRemediations ?? []).map(remediation => (
@@ -3074,19 +3276,22 @@ function PromptCatalogSummary({
                 className="mt-1 break-words text-xs text-muted-foreground"
                 key={`${remediation.kind}:${remediation.target}`}
               >
-                Remediation{' '}
+                {i18n['com.affine.admin.remediation']()}{' '}
                 {formatPromptRegistryValidationRemediation(remediation)}
               </div>
             ))}
             <div className="mt-1 break-words text-xs text-muted-foreground">
-              Messages {prompt.registryMessageCount ?? 0}
+              {i18n['com.affine.admin.messages']()}{' '}
+              {prompt.registryMessageCount ?? 0}
             </div>
             <div className="mt-1 break-words text-xs text-muted-foreground">
-              Modified {prompt.registryModified ? 'yes' : 'no'}
+              {i18n['com.affine.admin.modified']()}{' '}
+              {prompt.registryModified ? 'yes' : 'no'}
             </div>
             {prompt.registryUpdatedAt ? (
               <div className="mt-1 break-words text-xs text-muted-foreground">
-                Updated {prompt.registryUpdatedAt}
+                {i18n['com.affine.localmind.aiContext.operation.update']()}{' '}
+                {prompt.registryUpdatedAt}
               </div>
             ) : null}
           </div>
@@ -3103,10 +3308,13 @@ function PromptRegistryPublishGatePanel({
   prompt: PromptCatalogItem;
   workspaceId: string | undefined;
 }) {
+  const i18n = useI18n();
   if (prompt.registryId == null) {
     return (
       <div className="rounded-md border border-dashed border-border/70 p-3 text-sm text-muted-foreground">
-        Prompt registry publish gate is not available for non-registry prompts.
+        {i18n[
+          'com.affine.admin.prompt-registry-publish-gate-is-not-available-for-non-registry-prompts'
+        ]()}{' '}
       </div>
     );
   }
@@ -3414,19 +3622,22 @@ function PromptRegistryPublishGateResult({
   setRepairExecutionResumePayloadJson: (value: string) => void;
   verdict: PromptRegistryPublishGateVerdict | null;
 }) {
+  const i18n = useI18n();
   if (!verdict) {
     return (
       <div className="rounded-md border border-border/60 p-3 text-sm">
         <div className="flex flex-wrap items-center gap-2">
-          <div className="font-medium">Prompt registry publish gate</div>
+          <div className="font-medium">
+            {i18n['com.affine.admin.prompt-registry-publish-gate']()}
+          </div>
           {isValidating ? (
             <Badge variant="outline" className="font-normal">
-              Refreshing
+              {i18n['com.affine.admin.refreshing']()}{' '}
             </Badge>
           ) : null}
         </div>
         <div className="mt-2 text-sm text-muted-foreground">
-          No publish gate verdict returned for{' '}
+          {i18n['com.affine.admin.no-publish-gate-verdict-returned-for']()}{' '}
           {formatAIModelPromptDisplayName(promptName)}.
         </div>
       </div>
@@ -3496,7 +3707,9 @@ function PromptRegistryPublishGateResult({
   return (
     <div className="rounded-md border border-border/60 p-3 text-sm">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="font-medium">Prompt registry publish gate</div>
+        <div className="font-medium">
+          {i18n['com.affine.admin.prompt-registry-publish-gate']()}
+        </div>
         <Badge
           variant="outline"
           className={cn(
@@ -3506,17 +3719,20 @@ function PromptRegistryPublishGateResult({
               : 'border-destructive/30 bg-destructive/10 text-destructive'
           )}
         >
-          {verdict.allowed ? 'Allowed' : 'Blocked'}
+          {verdict.allowed
+            ? i18n['com.affine.admin.allowed']()
+            : i18n['com.affine.admin.blocked']()}
         </Badge>
         <Badge variant="outline" className="font-normal">
           {formatFeatureKind(verdict.status)}
         </Badge>
         <Badge variant="outline" className="font-normal">
-          Publish {formatFeatureKind(verdict.publishStatus)}
+          {i18n['com.affine.admin.publish']()}{' '}
+          {formatFeatureKind(verdict.publishStatus)}
         </Badge>
         {isValidating ? (
           <Badge variant="outline" className="font-normal">
-            Refreshing
+            {i18n['com.affine.admin.refreshing']()}{' '}
           </Badge>
         ) : null}
         <Button
@@ -3529,8 +3745,8 @@ function PromptRegistryPublishGateResult({
           variant="outline"
         >
           {isRequestingRepairExecution
-            ? 'Checking request gate'
-            : 'Check request gate'}
+            ? i18n['com.affine.admin.checking-request-gate']()
+            : i18n['com.affine.admin.check-request-gate']()}
         </Button>
       </div>
       <pre
@@ -3549,7 +3765,7 @@ function PromptRegistryPublishGateResult({
       {repairExecutionRequest ? (
         <div className="mt-2 space-y-2 break-words text-xs text-muted-foreground">
           <div>
-            Repair execution request{' '}
+            {i18n['com.affine.admin.repair-execution-request']()}{' '}
             {formatPromptRegistryRepairExecutionRequest(repairExecutionRequest)}
           </div>
           {canDecideRepairExecution ? (
@@ -3561,7 +3777,7 @@ function PromptRegistryPublishGateResult({
                 type="button"
                 variant="outline"
               >
-                Approve execution
+                {i18n['com.affine.admin.approve-execution']()}{' '}
               </Button>
               <Button
                 disabled={isDecidingRepairExecutionApproval}
@@ -3570,7 +3786,7 @@ function PromptRegistryPublishGateResult({
                 type="button"
                 variant="outline"
               >
-                Reject execution
+                {i18n['com.affine.admin.reject-execution']()}{' '}
               </Button>
             </div>
           ) : null}
@@ -3588,7 +3804,7 @@ function PromptRegistryPublishGateResult({
                     type="button"
                     variant="outline"
                   >
-                    Cancel execution
+                    {i18n['com.affine.admin.cancel-execution']()}{' '}
                   </Button>
                 ) : null}
                 {canRetryRepairExecution ? (
@@ -3599,14 +3815,16 @@ function PromptRegistryPublishGateResult({
                     type="button"
                     variant="outline"
                   >
-                    Retry execution
+                    {i18n['com.affine.admin.retry-execution']()}{' '}
                   </Button>
                 ) : null}
               </div>
               {canResumeRepairExecutionWithPayload ? (
                 <div className="space-y-2">
                   <Textarea
-                    aria-label="Repair execution executor payload JSON"
+                    aria-label={i18n[
+                      'com.affine.admin.repair-execution-executor-payload-json'
+                    ]()}
                     className="min-h-24 font-mono text-xs"
                     value={repairExecutionResumePayloadJson}
                     onChange={event => {
@@ -3622,7 +3840,7 @@ function PromptRegistryPublishGateResult({
                     type="button"
                     variant="outline"
                   >
-                    Resume with payload
+                    {i18n['com.affine.admin.resume-with-payload']()}{' '}
                   </Button>
                 </div>
               ) : null}
@@ -3632,59 +3850,74 @@ function PromptRegistryPublishGateResult({
       ) : null}
       {approvalDecisionRecord ? (
         <div className="mt-2 break-words text-xs text-muted-foreground">
-          Repair execution approval decision{' '}
+          {i18n['com.affine.admin.repair-execution-approval-decision']()}{' '}
           {formatRepairExecutionRecord(approvalDecisionRecord)}
         </div>
       ) : null}
       {repairExecutionControlRecord ? (
         <div className="mt-2 break-words text-xs text-muted-foreground">
-          Repair execution control{' '}
+          {i18n['com.affine.admin.repair-execution-control']()}{' '}
           {formatRepairExecutionRecord(repairExecutionControlRecord)}
         </div>
       ) : null}
       {approvalDecisionError ? (
         <div className="mt-2 break-words text-xs text-destructive">
-          Repair execution approval decision error {approvalDecisionError}
+          {i18n['com.affine.admin.repair-execution-approval-decision-error']()}{' '}
+          {approvalDecisionError}
         </div>
       ) : null}
       {repairExecutionControlError ? (
         <div className="mt-2 break-words text-xs text-destructive">
-          Repair execution control error {repairExecutionControlError}
+          {i18n['com.affine.admin.repair-execution-control-error']()}{' '}
+          {repairExecutionControlError}
         </div>
       ) : null}
       {repairExecutionRequestError ? (
         <div className="mt-2 break-words text-xs text-destructive">
-          Repair execution request error {repairExecutionRequestError}
+          {i18n['com.affine.admin.repair-execution-request-error']()}{' '}
+          {repairExecutionRequestError}
         </div>
       ) : null}
       <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-4">
         <div>
-          <div className="text-xs text-muted-foreground">Registry row</div>
+          <div className="text-xs text-muted-foreground">
+            {i18n['com.affine.admin.registry-row']()}
+          </div>
           <div className="mt-1 break-words font-medium">
             {verdict.registryId}
           </div>
           <div className="mt-1 break-words text-xs text-muted-foreground">
-            Fingerprint {verdict.registryFingerprint}
+            {i18n['com.affine.admin.fingerprint']()}{' '}
+            {verdict.registryFingerprint}
           </div>
         </div>
         <div>
-          <div className="text-xs text-muted-foreground">Updated</div>
+          <div className="text-xs text-muted-foreground">
+            {i18n['com.affine.localmind.aiContext.operation.update']()}
+          </div>
           <div className="mt-1 break-words font-medium">
             {verdict.registryUpdatedAt}
           </div>
         </div>
         <div>
-          <div className="text-xs text-muted-foreground">Issues</div>
+          <div className="text-xs text-muted-foreground">
+            {i18n['com.affine.admin.issues']()}
+          </div>
           <div className="mt-1 break-words font-medium">
-            {verdict.issueCount} total / {verdict.errorCount} error
+            {verdict.issueCount} total / {verdict.errorCount}{' '}
+            {i18n['com.affine.ui.error']()}{' '}
             {verdict.errorCount === 1 ? '' : 's'} / {verdict.blockingCount}{' '}
-            blocking
+            {i18n['com.affine.admin.blocking-2']()}{' '}
           </div>
         </div>
         <div>
-          <div className="text-xs text-muted-foreground">Stale check</div>
+          <div className="text-xs text-muted-foreground">
+            {i18n['com.affine.admin.stale-check']()}
+          </div>
           <div className="mt-1 break-words font-medium">
-            {verdict.stale ? 'Stale' : 'Current'}
+            {verdict.stale
+              ? i18n['com.affine.admin.stale']()
+              : i18n['com.affine.admin.current']()}
           </div>
           {verdict.staleReasons.length ? (
             <div className="mt-1 break-words text-xs text-muted-foreground">
@@ -3695,10 +3928,12 @@ function PromptRegistryPublishGateResult({
         {verdict.modelRoute ? (
           <div>
             <div className="text-xs text-muted-foreground">
-              Default model route
+              {i18n['com.affine.admin.default-model-route']()}{' '}
             </div>
             <div className="mt-1 break-words font-medium">
-              {verdict.modelRoute.available ? 'Available' : 'Unavailable'}
+              {verdict.modelRoute.available
+                ? i18n['com.affine.admin.available']()
+                : i18n['com.affine.localmind.aiContext.unavailable']()}
             </div>
             <div className="mt-1 break-words text-xs text-muted-foreground">
               {compactList([
@@ -3710,15 +3945,16 @@ function PromptRegistryPublishGateResult({
                 verdict.modelRoute.requestedModelId
                   ? `requested ${verdict.modelRoute.requestedModelId}`
                   : null,
-              ]) || 'No route'}
+              ]) || i18n['com.affine.admin.no-route']()}
             </div>
             {verdict.modelRoute.providerProfileConfigPath ? (
               <div className="mt-1 break-words text-xs text-muted-foreground">
-                Config {verdict.modelRoute.providerProfileConfigPath}
+                {i18n['com.affine.admin.config']()}{' '}
+                {verdict.modelRoute.providerProfileConfigPath}
               </div>
             ) : null}
             <div className="mt-1 break-words text-xs text-muted-foreground">
-              Reasons{' '}
+              {i18n['com.affine.admin.reasons']()}{' '}
               {verdict.modelRoute.reasons.map(formatFeatureKind).join(', ') ||
                 'none'}
             </div>
@@ -3727,7 +3963,7 @@ function PromptRegistryPublishGateResult({
         {modelRoutes.length ? (
           <div className="md:col-span-3">
             <div className="text-xs text-muted-foreground">
-              Model route candidates
+              {i18n['com.affine.admin.model-route-candidates']()}{' '}
             </div>
             <div className="mt-1 space-y-1">
               {modelRoutes.map(route => (
@@ -3740,7 +3976,7 @@ function PromptRegistryPublishGateResult({
                     <div className="mt-1 space-y-1 pl-3">
                       {route.policyCandidates.map((candidate, index) => (
                         <div key={`${candidate.providerId}:policy:${index}`}>
-                          Policy candidate{' '}
+                          {i18n['com.affine.admin.policy-candidate']()}{' '}
                           {formatPromptRegistryPublishGatePolicyCandidate(
                             candidate
                           )}
@@ -3754,7 +3990,7 @@ function PromptRegistryPublishGateResult({
                         <div
                           key={`${route.candidateKind}:${route.candidateIndex}:phase:${phase.phase}:${index}`}
                         >
-                          Phase{' '}
+                          {i18n['com.affine.admin.phase']()}{' '}
                           {formatPromptRegistryPublishGateRoutePhaseText(phase)}
                         </div>
                       ))}
@@ -3764,7 +4000,7 @@ function PromptRegistryPublishGateResult({
                     <div className="mt-1 space-y-1 pl-3">
                       {route.routeCandidates.map((candidate, index) => (
                         <div key={`${candidate.providerId}:${index}`}>
-                          Candidate{' '}
+                          {i18n['com.affine.admin.candidate']()}{' '}
                           {formatPromptRegistryPublishGateRouteCandidate(
                             candidate
                           )}
@@ -3780,7 +4016,7 @@ function PromptRegistryPublishGateResult({
         {taskRoutes.length ? (
           <div className="md:col-span-4">
             <div className="text-xs text-muted-foreground">
-              Task route evidence
+              {i18n['com.affine.admin.task-route-evidence']()}{' '}
             </div>
             <div className="mt-1 space-y-1">
               {taskRoutes.map(({ diagnostics, raw }) => (
@@ -3788,7 +4024,7 @@ function PromptRegistryPublishGateResult({
                   className="break-words text-xs text-muted-foreground"
                   key={raw.featureKind}
                 >
-                  Task route{' '}
+                  {i18n['com.affine.admin.task-route']()}{' '}
                   {formatPromptRegistryPublishGateTaskRoute({
                     diagnostics,
                     raw,
@@ -3797,7 +4033,8 @@ function PromptRegistryPublishGateResult({
                     <div className="mt-1 space-y-1 pl-3">
                       {diagnostics.phaseTrace.phases.map((phase, index) => (
                         <div key={`${raw.featureKind}:phase:${index}`}>
-                          Phase {formatTaskRoutePhaseText(phase)}
+                          {i18n['com.affine.admin.phase']()}{' '}
+                          {formatTaskRoutePhaseText(phase)}
                         </div>
                       ))}
                     </div>
@@ -3809,7 +4046,8 @@ function PromptRegistryPublishGateResult({
                           <div
                             key={`${raw.featureKind}:candidate:${candidate.providerId}:${index}`}
                           >
-                            Candidate {formatTaskRouteCandidateText(candidate)}
+                            {i18n['com.affine.admin.candidate']()}{' '}
+                            {formatTaskRouteCandidateText(candidate)}
                           </div>
                         )
                       )}
@@ -3823,7 +4061,7 @@ function PromptRegistryPublishGateResult({
         {verdict.actionRouteDryRun ? (
           <div className="md:col-span-4">
             <div className="text-xs text-muted-foreground">
-              Action route dry-run evidence
+              {i18n['com.affine.admin.action-route-dry-run-evidence']()}{' '}
             </div>
             <div className="mt-1 break-words text-xs text-muted-foreground">
               {formatPromptRegistryPublishGateActionRouteDryRun(
@@ -3837,7 +4075,7 @@ function PromptRegistryPublishGateResult({
                     className="break-words text-xs text-muted-foreground"
                     key={`${step.stepId}:${step.kind}`}
                   >
-                    Step{' '}
+                    {i18n['com.affine.admin.step']()}{' '}
                     {formatPromptRegistryPublishGateActionRouteDryRunStep(step)}
                     {step.routes.length ? (
                       <div className="mt-1 space-y-1 pl-3">
@@ -3845,7 +4083,7 @@ function PromptRegistryPublishGateResult({
                           <div
                             key={`${step.stepId}:${route.routeIndex}:${route.providerId}:${route.modelId}`}
                           >
-                            Route{' '}
+                            {i18n['com.affine.admin.route']()}{' '}
                             {formatPromptRegistryPublishGateActionRouteDryRunRoute(
                               route
                             )}
@@ -3862,26 +4100,31 @@ function PromptRegistryPublishGateResult({
       </div>
       {verdict.issues.length ? (
         <div className="mt-3 space-y-1">
-          <div className="text-xs text-muted-foreground">Gate issues</div>
+          <div className="text-xs text-muted-foreground">
+            {i18n['com.affine.admin.gate-issues']()}
+          </div>
           {verdict.issues.map(issue => (
             <div
               className="break-words text-xs text-muted-foreground"
               key={`${issue.path}:${issue.code}:${issue.detail}`}
             >
-              Issue {formatPromptRegistryValidationIssue(issue)}
+              {i18n['com.affine.admin.issue']()}{' '}
+              {formatPromptRegistryValidationIssue(issue)}
             </div>
           ))}
         </div>
       ) : null}
       {verdict.remediations.length ? (
         <div className="mt-3 space-y-1">
-          <div className="text-xs text-muted-foreground">Gate remediations</div>
+          <div className="text-xs text-muted-foreground">
+            {i18n['com.affine.admin.gate-remediations']()}
+          </div>
           {verdict.remediations.map(remediation => (
             <div
               className="break-words text-xs text-muted-foreground"
               key={`${remediation.kind}:${remediation.target}`}
             >
-              Remediation{' '}
+              {i18n['com.affine.admin.remediation']()}{' '}
               {formatPromptRegistryValidationRemediation(remediation)}
             </div>
           ))}
@@ -3890,14 +4133,14 @@ function PromptRegistryPublishGateResult({
       {verdict.repairRecommendations.length ? (
         <div className="mt-3 space-y-1">
           <div className="text-xs text-muted-foreground">
-            Repair recommendations
+            {i18n['com.affine.admin.repair-recommendations']()}{' '}
           </div>
           {verdict.repairRecommendations.map(recommendation => (
             <div
               className="break-words text-xs text-muted-foreground"
               key={`${recommendation.category}:${recommendation.code}:${recommendation.target}:${recommendation.instanceKey ?? ''}`}
             >
-              Recommendation{' '}
+              {i18n['com.affine.admin.recommendation']()}{' '}
               {formatPromptRegistryPublishGateRepairRecommendation(
                 recommendation
               )}
@@ -3967,13 +4210,13 @@ function buildPromptRegistryPublishGateDiagnosticsText(
     `Stale ${verdict.stale ? 'yes' : 'no'}`,
     verdict.staleReasons.length
       ? `Stale reasons ${verdict.staleReasons.map(formatFeatureKind).join(', ')}`
-      : 'Stale reasons none',
+      : I18n['com.affine.admin.stale-reasons-none'](),
     `Issues ${verdict.issueCount}`,
     `Errors ${verdict.errorCount}`,
     `Blocking ${verdict.blockingCount}`,
     verdict.modelRoute
       ? `Model route ${formatPromptRegistryPublishGateModelRoute(verdict.modelRoute)}`
-      : 'Model route not checked',
+      : I18n['com.affine.admin.model-route-not-checked'](),
     modelRoutes.length
       ? `Model routes ${modelRoutes
           .map(formatPromptRegistryPublishGateModelRoute)
@@ -3996,7 +4239,9 @@ function buildPromptRegistryPublishGateDiagnosticsText(
           `Model route provider candidate ${formatPromptRegistryPublishGateRouteCandidate(candidate)}`
       ),
     ]),
-    taskRoutes.length ? `Task routes ${taskRoutes.length}` : 'Task routes 0',
+    taskRoutes.length
+      ? `Task routes ${taskRoutes.length}`
+      : I18n['com.affine.admin.task-routes-0'](),
     ...taskRoutes.flatMap(({ diagnostics, raw }) => [
       `Task route ${formatPromptRegistryPublishGateTaskRoute({
         diagnostics,
@@ -4024,7 +4269,7 @@ function buildPromptRegistryPublishGateDiagnosticsText(
       ? `Action route dry-run ${formatPromptRegistryPublishGateActionRouteDryRun(
           verdict.actionRouteDryRun
         )}`
-      : 'Action route dry-run not checked',
+      : I18n['com.affine.admin.action-route-dry-run-not-checked'](),
     ...(verdict.actionRouteDryRun?.steps ?? []).flatMap(step => [
       `Action route dry-run step ${formatPromptRegistryPublishGateActionRouteDryRunStep(
         step
@@ -4038,7 +4283,7 @@ function buildPromptRegistryPublishGateDiagnosticsText(
     ]),
     verdict.repairActionCatalog.length
       ? `Repair action catalog ${verdict.repairActionCatalog.length}`
-      : 'Repair action catalog 0',
+      : I18n['com.affine.admin.repair-action-catalog-0'](),
     verdict.repairActionCatalogFingerprint
       ? `Repair action catalog fingerprint ${verdict.repairActionCatalogFingerprint}`
       : null,
@@ -4056,12 +4301,12 @@ function buildPromptRegistryPublishGateDiagnosticsText(
     )}`,
     repairPreflight
       ? `Repair action preflight ${formatPromptRegistryRepairPreflight(repairPreflight)}`
-      : 'Repair action preflight not checked',
+      : I18n['com.affine.admin.repair-action-preflight-not-checked'](),
     repairExecutionRequest
       ? `Repair execution request ${formatPromptRegistryRepairExecutionRequest(
           repairExecutionRequest
         )}`
-      : 'Repair execution request not checked',
+      : I18n['com.affine.admin.repair-execution-request-not-checked'](),
     ...verdict.repairActionPreview.operations.map(
       operation =>
         `Repair action preview operation ${formatPromptRegistryPublishGateRepairActionPreviewOperation(
@@ -4076,7 +4321,7 @@ function buildPromptRegistryPublishGateDiagnosticsText(
     ),
     verdict.repairRecommendations.length
       ? `Repair recommendations ${verdict.repairRecommendations.length}`
-      : 'Repair recommendations 0',
+      : I18n['com.affine.admin.repair-recommendations-0'](),
     ...verdict.repairRecommendations.map(
       recommendation =>
         `Repair recommendation ${formatPromptRegistryPublishGateRepairRecommendation(
@@ -4761,10 +5006,14 @@ function parseRepairExecutionExecutorPayloadJson(value: string) {
   try {
     parsed = JSON.parse(value);
   } catch {
-    throw new Error('Executor payload JSON is invalid.');
+    throw new Error(
+      I18n['com.affine.admin.executor-payload-json-is-invalid']()
+    );
   }
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new Error('Executor payload JSON must be an object.');
+    throw new Error(
+      I18n['com.affine.admin.executor-payload-json-must-be-an-object']()
+    );
   }
   return parsed as Record<string, string>;
 }
@@ -4820,10 +5069,13 @@ function PromptRegistryRepairGateManifestArtifactPanel({
   promptName: string;
   verdict: PromptRegistryPublishGateVerdict;
 }) {
+  const i18n = useI18n();
   return (
     <div className="mt-2 space-y-2 rounded-md border border-border/70 bg-muted/30 p-2">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="text-xs font-medium">Repair gate manifest artifact</div>
+        <div className="text-xs font-medium">
+          {i18n['com.affine.admin.repair-gate-manifest-artifact']()}
+        </div>
         <Button
           type="button"
           variant="outline"
@@ -4832,7 +5084,7 @@ function PromptRegistryRepairGateManifestArtifactPanel({
             navigator.clipboard?.writeText(manifestJson).catch(() => {});
           }}
         >
-          Copy manifest JSON
+          {i18n['com.affine.admin.copy-manifest-json']()}{' '}
         </Button>
         <Button
           type="button"
@@ -4842,7 +5094,7 @@ function PromptRegistryRepairGateManifestArtifactPanel({
             downloadPromptRegistryRepairGateManifestJson(verdict, manifestJson);
           }}
         >
-          Download manifest JSON
+          {i18n['com.affine.admin.download-manifest-json']()}{' '}
         </Button>
         <Button
           type="button"
@@ -4852,7 +5104,7 @@ function PromptRegistryRepairGateManifestArtifactPanel({
             navigator.clipboard?.writeText(metadataText).catch(() => {});
           }}
         >
-          Copy manifest metadata
+          {i18n['com.affine.admin.copy-manifest-metadata']()}{' '}
         </Button>
         <Button
           type="button"
@@ -4862,7 +5114,7 @@ function PromptRegistryRepairGateManifestArtifactPanel({
             navigator.clipboard?.writeText(metadataJson).catch(() => {});
           }}
         >
-          Copy manifest metadata JSON
+          {i18n['com.affine.admin.copy-manifest-metadata-json']()}{' '}
         </Button>
         <Button
           type="button"
@@ -4875,7 +5127,7 @@ function PromptRegistryRepairGateManifestArtifactPanel({
             );
           }}
         >
-          Download manifest metadata JSON
+          {i18n['com.affine.admin.download-manifest-metadata-json']()}{' '}
         </Button>
       </div>
       <pre
@@ -6983,10 +7235,18 @@ function PromptCatalogSourceSummary({
   configPath?: string | null;
   source: string;
 }) {
+  const i18n = useI18n();
   return (
     <div className="mt-1 space-y-0.5 break-words text-xs text-muted-foreground">
-      <div>Source {formatFeatureKind(source)}</div>
-      {configPath ? <div>Config {configPath}</div> : null}
+      <div>
+        {i18n['com.affine.integration.readwise-prop.source']()}{' '}
+        {formatFeatureKind(source)}
+      </div>
+      {configPath ? (
+        <div>
+          {i18n['com.affine.admin.config']()} {configPath}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -6996,8 +7256,13 @@ function ActionRunTraceRoutes({
 }: {
   routes: ActionRunPreparedRouteTrace['steps'][number]['routes'];
 }) {
+  const i18n = useI18n();
   if (!routes.length) {
-    return <span className="text-muted-foreground">No routes</span>;
+    return (
+      <span className="text-muted-foreground">
+        {i18n['com.affine.admin.no-routes']()}
+      </span>
+    );
   }
 
   return (
@@ -7018,7 +7283,7 @@ function ActionRunTraceRoutes({
                 : null,
               route.protocol ? `Protocol ${route.protocol}` : null,
               route.requestLayer ? `Layer ${route.requestLayer}` : null,
-            ]) || 'No protocol metadata'}
+            ]) || i18n['com.affine.admin.no-protocol-metadata']()}
           </div>
           <div className="break-words text-xs text-muted-foreground">
             {compactList([
@@ -7047,7 +7312,7 @@ function ActionRunTraceRoutes({
               route.providerPriority != null
                 ? `Priority ${route.providerPriority}`
                 : null,
-            ]) || 'No provider metadata'}
+            ]) || i18n['com.affine.admin.no-provider-metadata']()}
           </div>
           {route.providerProfileId ||
           route.providerProfileConfigPath ||
@@ -7082,7 +7347,7 @@ function ActionRunTraceRoutes({
           route.behaviorFlags?.length ||
           route.routeModelDefinitionAliases?.length ? (
             <div className="break-words text-xs text-muted-foreground">
-              Definition{' '}
+              {i18n['com.affine.admin.definition']()}{' '}
               {formatAIModelDefinitionLabel({
                 routeBackendKind: route.modelBackendKind,
                 routeBehaviorFlags: route.behaviorFlags,
@@ -7101,7 +7366,7 @@ function ActionRunTraceRoutes({
           route.modelEmbeddingDimensions != null ||
           route.dimensionMismatch != null ? (
             <div className="break-words text-xs text-muted-foreground">
-              Dimensions{' '}
+              {i18n['com.affine.admin.dimensions']()}{' '}
               {formatDimensionEvidenceLabel(route, {
                 includeNegativeMismatch: true,
               })}
@@ -7239,7 +7504,7 @@ function buildActionRunTraceDiagnosticsText(
         : null,
       step.fallbackProviderIds.length
         ? `Fallback ${step.fallbackProviderIds.join(' -> ')}`
-        : 'Fallback none',
+        : I18n['com.affine.admin.fallback-none'](),
       ...step.routes.map(route => `Route ${formatActionRunTraceRoute(route)}`),
     ]),
   ]
@@ -7254,16 +7519,24 @@ function ActionRunTraceResult({
   runId: string;
   trace: ActionRunPreparedRouteTrace | null | undefined;
 }) {
+  const i18n = useI18n();
   if (!trace) {
     return (
       <EmptyState>
-        No prepared route trace returned for action run {runId}.
+        {i18n[
+          'com.affine.admin.no-prepared-route-trace-returned-for-action-run'
+        ]()}{' '}
+        {runId}.
       </EmptyState>
     );
   }
 
   if (!trace.steps.length) {
-    return <EmptyState>No prepared route steps returned.</EmptyState>;
+    return (
+      <EmptyState>
+        {i18n['com.affine.admin.no-prepared-route-steps-returned']()}
+      </EmptyState>
+    );
   }
 
   const diagnosticsText = buildActionRunTraceDiagnosticsText(runId, trace);
@@ -7271,7 +7544,9 @@ function ActionRunTraceResult({
   return (
     <div className="space-y-3">
       <div className="rounded-md border border-border/70 bg-muted/30 p-3">
-        <div className="text-sm font-medium">Trace diagnostics text</div>
+        <div className="text-sm font-medium">
+          {i18n['com.affine.admin.trace-diagnostics-text']()}
+        </div>
         <pre
           className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-words text-xs text-muted-foreground"
           data-testid={`action-run-trace-diagnostics-${runId}`}
@@ -7282,10 +7557,12 @@ function ActionRunTraceResult({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Step</TableHead>
-            <TableHead className="w-[120px]">Kind</TableHead>
-            <TableHead>Routes</TableHead>
-            <TableHead>Fallback</TableHead>
+            <TableHead>{i18n['com.affine.admin.step']()}</TableHead>
+            <TableHead className="w-[120px]">
+              {i18n['com.affine.admin.kind']()}
+            </TableHead>
+            <TableHead>{i18n['com.affine.admin.routes']()}</TableHead>
+            <TableHead>{i18n['com.affine.admin.fallback']()}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -7294,7 +7571,7 @@ function ActionRunTraceResult({
               <TableCell className="break-words">
                 <div className="font-medium">{step.stepId}</div>
                 <div className="mt-1 text-xs text-muted-foreground">
-                  {step.routeCount} prepared route
+                  {step.routeCount} {i18n['com.affine.admin.prepared-route']()}{' '}
                   {step.routeCount === 1 ? '' : 's'}
                 </div>
                 <div
@@ -7311,12 +7588,14 @@ function ActionRunTraceResult({
                 </div>
                 {step.requestedModelId ? (
                   <div className="mt-1 break-words text-xs text-muted-foreground">
-                    Requested {step.requestedModelId}
+                    {i18n['com.affine.admin.requested']()}{' '}
+                    {step.requestedModelId}
                   </div>
                 ) : null}
                 {step.requestedModelSource ? (
                   <div className="mt-1 break-words text-xs text-muted-foreground">
-                    Source {formatFeatureKind(step.requestedModelSource)}
+                    {i18n['com.affine.integration.readwise-prop.source']()}{' '}
+                    {formatFeatureKind(step.requestedModelSource)}
                   </div>
                 ) : null}
               </TableCell>
@@ -7327,7 +7606,9 @@ function ActionRunTraceResult({
               <TableCell className="break-words">
                 {step.fallbackProviderIds.length
                   ? step.fallbackProviderIds.join(' -> ')
-                  : 'None'}
+                  : i18n[
+                      'com.affine.settings.editorSettings.edgeless.note.border.none'
+                    ]()}
               </TableCell>
             </TableRow>
           ))}
@@ -7344,6 +7625,7 @@ function ActionRunTraceQueryResult({
   runId: string;
   workspaceId: string;
 }) {
+  const i18n = useI18n();
   const { data, isValidating } = useQuery({
     query: getCopilotActionRunPreparedRouteTraceQuery,
     variables: {
@@ -7357,14 +7639,15 @@ function ActionRunTraceQueryResult({
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <Badge variant="outline" className="font-normal">
-          Workspace {workspaceId}
+          {i18n['com.affine.localmind.tasks.authorization.workspace']()}{' '}
+          {workspaceId}
         </Badge>
         <Badge variant="outline" className="font-normal">
-          Run {runId}
+          {i18n['com.affine.admin.run']()} {runId}
         </Badge>
         {isValidating ? (
           <Badge variant="outline" className="font-normal">
-            Refreshing
+            {i18n['com.affine.admin.refreshing']()}{' '}
           </Badge>
         ) : null}
       </div>
@@ -7383,7 +7666,7 @@ function formatActionRunTimestamp(value: string) {
 
 function formatActionRunPreparedRouteSummary(run: ActionRunDiagnosticsItem) {
   if (!run.hasPreparedRouteTrace) {
-    return 'No prepared route trace';
+    return I18n['com.affine.admin.no-prepared-route-trace']();
   }
 
   const stepLabel =
@@ -7412,7 +7695,7 @@ function formatActionRunPreparedRouteActualSummary(
 
 function formatActionRunPreparedRouteProviders(run: ActionRunDiagnosticsItem) {
   if (!run.preparedRouteProviderIds.length) {
-    return 'No prepared providers';
+    return I18n['com.affine.admin.no-prepared-providers']();
   }
 
   return `Providers ${run.preparedRouteProviderIds.join(' -> ')}`;
@@ -7420,7 +7703,7 @@ function formatActionRunPreparedRouteProviders(run: ActionRunDiagnosticsItem) {
 
 function formatActionRunPreparedRouteSteps(run: ActionRunDiagnosticsItem) {
   if (!run.preparedRouteStepIds.length) {
-    return 'No prepared steps';
+    return I18n['com.affine.admin.no-prepared-steps']();
   }
 
   return `Steps ${run.preparedRouteStepIds.join(' -> ')}`;
@@ -7428,7 +7711,7 @@ function formatActionRunPreparedRouteSteps(run: ActionRunDiagnosticsItem) {
 
 function formatActionRunPreparedRouteModels(run: ActionRunDiagnosticsItem) {
   if (!run.preparedRouteModelIds.length) {
-    return 'No prepared models';
+    return I18n['com.affine.admin.no-prepared-models']();
   }
 
   return `Models ${run.preparedRouteModelIds.join(' -> ')}`;
@@ -7438,7 +7721,7 @@ function formatActionRunPreparedRouteRequestedModels(
   run: ActionRunDiagnosticsItem
 ) {
   if (!run.preparedRouteRequestedModelIds.length) {
-    return 'No requested models';
+    return I18n['com.affine.admin.no-requested-models']();
   }
 
   return `Requested ${run.preparedRouteRequestedModelIds.join(' -> ')}`;
@@ -7448,7 +7731,7 @@ function formatActionRunPreparedRouteRequestedModelSources(
   run: ActionRunDiagnosticsItem
 ) {
   if (!run.preparedRouteRequestedModelSources.length) {
-    return 'No requested model sources';
+    return I18n['com.affine.admin.no-requested-model-sources']();
   }
 
   return `Requested sources ${run.preparedRouteRequestedModelSources
@@ -7460,7 +7743,7 @@ function formatActionRunPreparedRouteStepRequestedModelSources(
   run: ActionRunDiagnosticsItem
 ) {
   if (!run.preparedRouteStepRequestedModelSources.length) {
-    return 'No step requested model sources';
+    return I18n['com.affine.admin.no-step-requested-model-sources']();
   }
 
   return `Step requested sources ${run.preparedRouteStepRequestedModelSources
@@ -7473,7 +7756,7 @@ function formatActionRunPreparedRouteStepRequestedModelSources(
 
 function formatActionRunPreparedRouteTargets(run: ActionRunDiagnosticsItem) {
   if (!run.preparedRouteTargets.length) {
-    return 'No prepared targets';
+    return I18n['com.affine.admin.no-prepared-targets']();
   }
 
   return `Targets ${run.preparedRouteTargets.join(' -> ')}`;
@@ -7481,7 +7764,7 @@ function formatActionRunPreparedRouteTargets(run: ActionRunDiagnosticsItem) {
 
 function formatActionRunPreparedRouteOrder(run: ActionRunDiagnosticsItem) {
   if (!run.preparedRouteOrder.length) {
-    return 'No route order';
+    return I18n['com.affine.admin.no-route-order']();
   }
 
   return `Route order ${run.preparedRouteOrder.join(' | ')}`;
@@ -7491,7 +7774,7 @@ function formatActionRunPreparedRouteFallbackOrder(
   run: ActionRunDiagnosticsItem
 ) {
   if (!run.preparedRouteFallbackOrder.length) {
-    return 'No fallback order';
+    return I18n['com.affine.admin.no-fallback-order']();
   }
 
   return `Fallback order ${run.preparedRouteFallbackOrder.join(' | ')}`;
@@ -7501,7 +7784,7 @@ function formatActionRunPreparedRouteStepTargets(
   run: ActionRunDiagnosticsItem
 ) {
   if (!run.preparedRouteStepTargets.length) {
-    return 'No prepared step targets';
+    return I18n['com.affine.admin.no-prepared-step-targets']();
   }
 
   return `Step targets ${run.preparedRouteStepTargets.join(' | ')}`;
@@ -7511,7 +7794,7 @@ function formatActionRunPreparedRouteRequestedTargets(
   run: ActionRunDiagnosticsItem
 ) {
   if (!run.preparedRouteRequestedTargets.length) {
-    return 'No requested target pairs';
+    return I18n['com.affine.admin.no-requested-target-pairs']();
   }
 
   return `Requested targets ${run.preparedRouteRequestedTargets.join(' | ')}`;
@@ -7521,7 +7804,7 @@ function formatActionRunPreparedRouteStepRequestedTargets(
   run: ActionRunDiagnosticsItem
 ) {
   if (!run.preparedRouteStepRequestedTargets.length) {
-    return 'No step requested target pairs';
+    return I18n['com.affine.admin.no-step-requested-target-pairs']();
   }
 
   return `Step requested targets ${run.preparedRouteStepRequestedTargets.join(
@@ -7531,7 +7814,7 @@ function formatActionRunPreparedRouteStepRequestedTargets(
 
 function formatActionRunPreparedRouteStepOrder(run: ActionRunDiagnosticsItem) {
   if (!run.preparedRouteStepOrder.length) {
-    return 'No step route order';
+    return I18n['com.affine.admin.no-step-route-order']();
   }
 
   return `Step route order ${run.preparedRouteStepOrder.join(' | ')}`;
@@ -7541,7 +7824,7 @@ function formatActionRunPreparedRouteStepRouteCounts(
   run: ActionRunDiagnosticsItem
 ) {
   if (!run.preparedRouteStepRouteCounts.length) {
-    return 'No step route counts';
+    return I18n['com.affine.admin.no-step-route-counts']();
   }
 
   return `Step route counts ${run.preparedRouteStepRouteCounts.join(' | ')}`;
@@ -7563,7 +7846,7 @@ function formatActionRunPreparedRouteStepFallbackOrder(
   run: ActionRunDiagnosticsItem
 ) {
   if (!run.preparedRouteStepFallbackOrder.length) {
-    return 'No step fallback order';
+    return I18n['com.affine.admin.no-step-fallback-order']();
   }
 
   return `Step fallback order ${run.preparedRouteStepFallbackOrder.join(
@@ -7573,7 +7856,7 @@ function formatActionRunPreparedRouteStepFallbackOrder(
 
 function formatActionRunPreparedRouteKinds(run: ActionRunDiagnosticsItem) {
   if (!run.preparedRouteKinds.length) {
-    return 'No prepared kinds';
+    return I18n['com.affine.admin.no-prepared-kinds']();
   }
 
   return `Kinds ${run.preparedRouteKinds.join(' -> ')}`;
@@ -7581,7 +7864,7 @@ function formatActionRunPreparedRouteKinds(run: ActionRunDiagnosticsItem) {
 
 function formatActionRunPreparedRouteProtocols(run: ActionRunDiagnosticsItem) {
   if (!run.preparedRouteProtocols.length) {
-    return 'No route protocols';
+    return I18n['com.affine.admin.no-route-protocols']();
   }
 
   return `Protocols ${run.preparedRouteProtocols.join(' -> ')}`;
@@ -7591,7 +7874,7 @@ function formatActionRunPreparedRouteModelBackendKinds(
   run: ActionRunDiagnosticsItem
 ) {
   if (!run.preparedRouteModelBackendKinds.length) {
-    return 'No route backends';
+    return I18n['com.affine.admin.no-route-backends']();
   }
 
   return `Backends ${run.preparedRouteModelBackendKinds.join(' -> ')}`;
@@ -7601,7 +7884,7 @@ function formatActionRunPreparedRouteCanonicalModelKeys(
   run: ActionRunDiagnosticsItem
 ) {
   if (!run.preparedRouteCanonicalModelKeys.length) {
-    return 'No canonical model keys';
+    return I18n['com.affine.admin.no-canonical-model-keys']();
   }
 
   return `Canonical models ${run.preparedRouteCanonicalModelKeys.join(' -> ')}`;
@@ -7611,7 +7894,7 @@ function formatActionRunPreparedRouteBehaviorFlags(
   run: ActionRunDiagnosticsItem
 ) {
   if (!run.preparedRouteBehaviorFlags.length) {
-    return 'No behavior flags';
+    return I18n['com.affine.admin.no-behavior-flags']();
   }
 
   return `Behavior flags ${run.preparedRouteBehaviorFlags.join(' -> ')}`;
@@ -7621,7 +7904,7 @@ function formatActionRunPreparedRouteDimensionEvidence(
   run: ActionRunDiagnosticsItem
 ) {
   if (!run.preparedRouteDimensionEvidence.length) {
-    return 'No dimension evidence';
+    return I18n['com.affine.admin.no-dimension-evidence']();
   }
 
   return `Dimensions ${run.preparedRouteDimensionEvidence.join(' | ')}`;
@@ -7631,7 +7914,7 @@ function formatActionRunPreparedRouteStepProtocols(
   run: ActionRunDiagnosticsItem
 ) {
   if (!run.preparedRouteStepProtocols.length) {
-    return 'No step protocol pairs';
+    return I18n['com.affine.admin.no-step-protocol-pairs']();
   }
 
   return `Step protocols ${run.preparedRouteStepProtocols.join(' | ')}`;
@@ -7641,7 +7924,7 @@ function formatActionRunPreparedRouteStepModelBackendKinds(
   run: ActionRunDiagnosticsItem
 ) {
   if (!run.preparedRouteStepModelBackendKinds.length) {
-    return 'No step backend pairs';
+    return I18n['com.affine.admin.no-step-backend-pairs']();
   }
 
   return `Step backends ${run.preparedRouteStepModelBackendKinds.join(' | ')}`;
@@ -7651,7 +7934,7 @@ function formatActionRunPreparedRouteStepCanonicalModelKeys(
   run: ActionRunDiagnosticsItem
 ) {
   if (!run.preparedRouteStepCanonicalModelKeys.length) {
-    return 'No step canonical model pairs';
+    return I18n['com.affine.admin.no-step-canonical-model-pairs']();
   }
 
   return `Step canonical models ${run.preparedRouteStepCanonicalModelKeys.join(
@@ -7663,7 +7946,7 @@ function formatActionRunPreparedRouteStepBehaviorFlags(
   run: ActionRunDiagnosticsItem
 ) {
   if (!run.preparedRouteStepBehaviorFlags.length) {
-    return 'No step behavior flag pairs';
+    return I18n['com.affine.admin.no-step-behavior-flag-pairs']();
   }
 
   return `Step behavior flags ${run.preparedRouteStepBehaviorFlags.join(
@@ -7675,7 +7958,7 @@ function formatActionRunPreparedRouteStepDimensionEvidence(
   run: ActionRunDiagnosticsItem
 ) {
   if (!run.preparedRouteStepDimensionEvidence.length) {
-    return 'No step dimension evidence';
+    return I18n['com.affine.admin.no-step-dimension-evidence']();
   }
 
   return `Step dimensions ${run.preparedRouteStepDimensionEvidence.join(
@@ -7687,7 +7970,7 @@ function formatActionRunPreparedRouteRequestLayers(
   run: ActionRunDiagnosticsItem
 ) {
   if (!run.preparedRouteRequestLayers.length) {
-    return 'No request layers';
+    return I18n['com.affine.admin.no-request-layers']();
   }
 
   return `Layers ${run.preparedRouteRequestLayers.join(' -> ')}`;
@@ -7697,7 +7980,7 @@ function formatActionRunPreparedRouteStepRequestLayers(
   run: ActionRunDiagnosticsItem
 ) {
   if (!run.preparedRouteStepRequestLayers.length) {
-    return 'No step layer pairs';
+    return I18n['com.affine.admin.no-step-layer-pairs']();
   }
 
   return `Step layers ${run.preparedRouteStepRequestLayers.join(' | ')}`;
@@ -7725,7 +8008,7 @@ function formatActionRunPreparedRouteStepFallbacks(
 
 function formatActionRunAgentRuntimeSteps(run: ActionRunDiagnosticsItem) {
   if (!run.agentRuntimeStepIds.length) {
-    return 'Agent runtime steps none';
+    return I18n['com.affine.admin.agent-runtime-steps-none']();
   }
 
   return `Agent runtime steps ${run.agentRuntimeStepIds.join(' -> ')}`;
@@ -7733,7 +8016,7 @@ function formatActionRunAgentRuntimeSteps(run: ActionRunDiagnosticsItem) {
 
 function formatActionRunAgentRuntimeStepTypes(run: ActionRunDiagnosticsItem) {
   if (!run.agentRuntimeStepTypes.length) {
-    return 'Agent runtime step types none';
+    return I18n['com.affine.admin.agent-runtime-step-types-none']();
   }
 
   return `Agent runtime step types ${run.agentRuntimeStepTypes.join(' | ')}`;
@@ -7743,7 +8026,7 @@ function formatActionRunAgentRuntimeStepStatuses(
   run: ActionRunDiagnosticsItem
 ) {
   if (!run.agentRuntimeStepStatuses.length) {
-    return 'Agent runtime step statuses none';
+    return I18n['com.affine.admin.agent-runtime-step-statuses-none']();
   }
 
   return `Agent runtime step statuses ${run.agentRuntimeStepStatuses.join(
@@ -7753,7 +8036,7 @@ function formatActionRunAgentRuntimeStepStatuses(
 
 function formatActionRunAgentRuntimeStepKinds(run: ActionRunDiagnosticsItem) {
   if (!run.agentRuntimeStepKinds.length) {
-    return 'Agent runtime step kinds none';
+    return I18n['com.affine.admin.agent-runtime-step-kinds-none']();
   }
 
   return `Agent runtime step kinds ${run.agentRuntimeStepKinds.join(' | ')}`;
@@ -7805,7 +8088,7 @@ function formatActionRunAgentRuntimeTimelineEntries(
   run: ActionRunDiagnosticsItem
 ) {
   if (!run.agentRuntimeTimelineEntries.length) {
-    return 'Agent runtime timeline entries none';
+    return I18n['com.affine.admin.agent-runtime-timeline-entries-none']();
   }
 
   return `Agent runtime timeline entries ${run.agentRuntimeTimelineEntries.join(
@@ -7817,7 +8100,7 @@ function formatActionRunAgentRuntimeTimelineItems(
   run: ActionRunDiagnosticsItem
 ) {
   if (!run.agentRuntimeTimelineItems.length) {
-    return 'Agent runtime timeline items none';
+    return I18n['com.affine.admin.agent-runtime-timeline-items-none']();
   }
 
   return `Agent runtime timeline items ${run.agentRuntimeTimelineItems
@@ -7870,7 +8153,7 @@ function formatActionRunAgentRuntimeTimelineEventTypes(
   run: ActionRunDiagnosticsItem
 ) {
   if (!run.agentRuntimeTimelineEventTypes.length) {
-    return 'Agent runtime timeline event types none';
+    return I18n['com.affine.admin.agent-runtime-timeline-event-types-none']();
   }
 
   return `Agent runtime timeline event types ${run.agentRuntimeTimelineEventTypes.join(
@@ -7882,7 +8165,9 @@ function formatActionRunAgentRuntimeTargetTimelineEventTypes(
   run: ActionRunDiagnosticsItem
 ) {
   if (!run.agentRuntimeTargetTimelineEventTypes.length) {
-    return 'Agent runtime target timeline event types none';
+    return I18n[
+      'com.affine.admin.agent-runtime-target-timeline-event-types-none'
+    ]();
   }
 
   return `Agent runtime target timeline event types ${run.agentRuntimeTargetTimelineEventTypes.join(
@@ -7894,7 +8179,9 @@ function formatActionRunAgentRuntimeProjectedTimelineEventTypes(
   run: ActionRunDiagnosticsItem
 ) {
   if (!run.agentRuntimeProjectedTimelineEventTypes.length) {
-    return 'Agent runtime projected timeline event types none';
+    return I18n[
+      'com.affine.admin.agent-runtime-projected-timeline-event-types-none'
+    ]();
   }
 
   return `Agent runtime projected timeline event types ${run.agentRuntimeProjectedTimelineEventTypes.join(
@@ -7906,7 +8193,9 @@ function formatActionRunAgentRuntimeUnsupportedTimelineEventTypes(
   run: ActionRunDiagnosticsItem
 ) {
   if (!run.agentRuntimeUnsupportedTimelineEventTypes.length) {
-    return 'Agent runtime unsupported timeline event types none';
+    return I18n[
+      'com.affine.admin.agent-runtime-unsupported-timeline-event-types-none'
+    ]();
   }
 
   return `Agent runtime unsupported timeline event types ${run.agentRuntimeUnsupportedTimelineEventTypes.join(
@@ -7918,7 +8207,7 @@ function formatActionRunAgentRuntimeTimelineGaps(
   run: ActionRunDiagnosticsItem
 ) {
   if (!run.agentRuntimeTimelineGaps.length) {
-    return 'Agent runtime timeline gaps none';
+    return I18n['com.affine.admin.agent-runtime-timeline-gaps-none']();
   }
 
   return `Agent runtime timeline gaps ${run.agentRuntimeTimelineGaps.join(
@@ -7930,7 +8219,9 @@ function formatActionRunAgentRuntimeTargetSchemaComponents(
   run: ActionRunDiagnosticsItem
 ) {
   if (!run.agentRuntimeTargetSchemaComponents.length) {
-    return 'Agent runtime target schema components none';
+    return I18n[
+      'com.affine.admin.agent-runtime-target-schema-components-none'
+    ]();
   }
 
   return `Agent runtime target schema components ${run.agentRuntimeTargetSchemaComponents.join(
@@ -7942,7 +8233,9 @@ function formatActionRunAgentRuntimeProjectedSchemaComponents(
   run: ActionRunDiagnosticsItem
 ) {
   if (!run.agentRuntimeProjectedSchemaComponents.length) {
-    return 'Agent runtime projected schema components none';
+    return I18n[
+      'com.affine.admin.agent-runtime-projected-schema-components-none'
+    ]();
   }
 
   return `Agent runtime projected schema components ${run.agentRuntimeProjectedSchemaComponents.join(
@@ -7954,7 +8247,7 @@ function formatActionRunAgentRuntimeSchemaReadinessGaps(
   run: ActionRunDiagnosticsItem
 ) {
   if (!run.agentRuntimeSchemaReadinessGaps.length) {
-    return 'Agent runtime schema readiness gaps none';
+    return I18n['com.affine.admin.agent-runtime-schema-readiness-gaps-none']();
   }
 
   return `Agent runtime schema readiness gaps ${run.agentRuntimeSchemaReadinessGaps.join(
@@ -7966,7 +8259,7 @@ function formatActionRunAgentRuntimeTargetRunStatuses(
   run: ActionRunDiagnosticsItem
 ) {
   if (!run.agentRuntimeTargetRunStatuses.length) {
-    return 'Agent runtime target run statuses none';
+    return I18n['com.affine.admin.agent-runtime-target-run-statuses-none']();
   }
 
   return `Agent runtime target run statuses ${run.agentRuntimeTargetRunStatuses.join(
@@ -7978,7 +8271,7 @@ function formatActionRunAgentRuntimeProjectedRunStatuses(
   run: ActionRunDiagnosticsItem
 ) {
   if (!run.agentRuntimeProjectedRunStatuses.length) {
-    return 'Agent runtime projected run statuses none';
+    return I18n['com.affine.admin.agent-runtime-projected-run-statuses-none']();
   }
 
   return `Agent runtime projected run statuses ${run.agentRuntimeProjectedRunStatuses.join(
@@ -7990,7 +8283,9 @@ function formatActionRunAgentRuntimeUnsupportedRunStatuses(
   run: ActionRunDiagnosticsItem
 ) {
   if (!run.agentRuntimeUnsupportedRunStatuses.length) {
-    return 'Agent runtime unsupported run statuses none';
+    return I18n[
+      'com.affine.admin.agent-runtime-unsupported-run-statuses-none'
+    ]();
   }
 
   return `Agent runtime unsupported run statuses ${run.agentRuntimeUnsupportedRunStatuses.join(
@@ -8002,7 +8297,7 @@ function formatActionRunAgentRuntimeRunStatusGaps(
   run: ActionRunDiagnosticsItem
 ) {
   if (!run.agentRuntimeRunStatusGaps.length) {
-    return 'Agent runtime run status gaps none';
+    return I18n['com.affine.admin.agent-runtime-run-status-gaps-none']();
   }
 
   return `Agent runtime run status gaps ${run.agentRuntimeRunStatusGaps.join(
@@ -8014,7 +8309,7 @@ function formatActionRunAgentRuntimeTargetStepStatuses(
   run: ActionRunDiagnosticsItem
 ) {
   if (!run.agentRuntimeTargetStepStatuses.length) {
-    return 'Agent runtime target step statuses none';
+    return I18n['com.affine.admin.agent-runtime-target-step-statuses-none']();
   }
 
   return `Agent runtime target step statuses ${run.agentRuntimeTargetStepStatuses.join(
@@ -8026,7 +8321,9 @@ function formatActionRunAgentRuntimeProjectedStepStatuses(
   run: ActionRunDiagnosticsItem
 ) {
   if (!run.agentRuntimeProjectedStepStatuses.length) {
-    return 'Agent runtime projected step statuses none';
+    return I18n[
+      'com.affine.admin.agent-runtime-projected-step-statuses-none'
+    ]();
   }
 
   return `Agent runtime projected step statuses ${run.agentRuntimeProjectedStepStatuses.join(
@@ -8038,7 +8335,9 @@ function formatActionRunAgentRuntimeUnsupportedStepStatuses(
   run: ActionRunDiagnosticsItem
 ) {
   if (!run.agentRuntimeUnsupportedStepStatuses.length) {
-    return 'Agent runtime unsupported step statuses none';
+    return I18n[
+      'com.affine.admin.agent-runtime-unsupported-step-statuses-none'
+    ]();
   }
 
   return `Agent runtime unsupported step statuses ${run.agentRuntimeUnsupportedStepStatuses.join(
@@ -8050,7 +8349,7 @@ function formatActionRunAgentRuntimeStepStatusGaps(
   run: ActionRunDiagnosticsItem
 ) {
   if (!run.agentRuntimeStepStatusGaps.length) {
-    return 'Agent runtime step status gaps none';
+    return I18n['com.affine.admin.agent-runtime-step-status-gaps-none']();
   }
 
   return `Agent runtime step status gaps ${run.agentRuntimeStepStatusGaps.join(
@@ -8062,7 +8361,7 @@ function formatActionRunAgentRuntimeTargetStepTypes(
   run: ActionRunDiagnosticsItem
 ) {
   if (!run.agentRuntimeTargetStepTypes.length) {
-    return 'Agent runtime target step types none';
+    return I18n['com.affine.admin.agent-runtime-target-step-types-none']();
   }
 
   return `Agent runtime target step types ${run.agentRuntimeTargetStepTypes.join(
@@ -8074,7 +8373,7 @@ function formatActionRunAgentRuntimeProjectedStepTypes(
   run: ActionRunDiagnosticsItem
 ) {
   if (!run.agentRuntimeProjectedStepTypes.length) {
-    return 'Agent runtime projected step types none';
+    return I18n['com.affine.admin.agent-runtime-projected-step-types-none']();
   }
 
   return `Agent runtime projected step types ${run.agentRuntimeProjectedStepTypes.join(
@@ -8086,7 +8385,7 @@ function formatActionRunAgentRuntimeProjectionGaps(
   run: ActionRunDiagnosticsItem
 ) {
   if (!run.agentRuntimeProjectionGaps.length) {
-    return 'Agent runtime projection gaps none';
+    return I18n['com.affine.admin.agent-runtime-projection-gaps-none']();
   }
 
   return `Agent runtime projection gaps ${run.agentRuntimeProjectionGaps.join(
@@ -8098,7 +8397,7 @@ function formatActionRunAgentRuntimeUnsupportedStepTypes(
   run: ActionRunDiagnosticsItem
 ) {
   if (!run.agentRuntimeUnsupportedStepTypes.length) {
-    return 'Agent runtime unsupported step types none';
+    return I18n['com.affine.admin.agent-runtime-unsupported-step-types-none']();
   }
 
   return `Agent runtime unsupported step types ${run.agentRuntimeUnsupportedStepTypes.join(
@@ -8110,7 +8409,7 @@ function formatActionRunAgentRuntimeNativeTraceEvents(
   run: ActionRunDiagnosticsItem
 ) {
   if (!run.agentRuntimeNativeTraceEventTypes.length) {
-    return 'Agent runtime native trace events none';
+    return I18n['com.affine.admin.agent-runtime-native-trace-events-none']();
   }
 
   return `Agent runtime native trace events ${run.agentRuntimeNativeTraceEventTypes.join(
@@ -8338,10 +8637,13 @@ function ActionRunDiagnosticsPanel({
   manifestJson: string;
   runId: string;
 }) {
+  const i18n = useI18n();
   return (
     <div className="mt-2 space-y-2 rounded-md border border-border/70 bg-muted/30 p-2">
       <div>
-        <div className="text-xs font-medium">Diagnostics text</div>
+        <div className="text-xs font-medium">
+          {i18n['com.affine.admin.diagnostics-text']()}
+        </div>
         <pre
           className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words text-xs text-muted-foreground"
           data-testid={`action-run-diagnostics-${runId}`}
@@ -8351,7 +8653,9 @@ function ActionRunDiagnosticsPanel({
       </div>
       <div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="text-xs font-medium">Diagnostics manifest JSON</div>
+          <div className="text-xs font-medium">
+            {i18n['com.affine.admin.diagnostics-manifest-json']()}
+          </div>
           <Button
             type="button"
             variant="outline"
@@ -8360,7 +8664,7 @@ function ActionRunDiagnosticsPanel({
               navigator.clipboard?.writeText(manifestJson).catch(() => {});
             }}
           >
-            Copy JSON
+            {i18n['com.affine.integration.mcp-server.action.copy-json']()}{' '}
           </Button>
           <Button
             type="button"
@@ -8374,7 +8678,7 @@ function ActionRunDiagnosticsPanel({
               );
             }}
           >
-            Download JSON
+            {i18n['com.affine.admin.download-json']()}{' '}
           </Button>
           <Button
             type="button"
@@ -8386,7 +8690,7 @@ function ActionRunDiagnosticsPanel({
                 .catch(() => {});
             }}
           >
-            Copy metadata
+            {i18n['com.affine.admin.copy-metadata']()}{' '}
           </Button>
           <Button
             type="button"
@@ -8398,7 +8702,7 @@ function ActionRunDiagnosticsPanel({
                 .catch(() => {});
             }}
           >
-            Copy metadata JSON
+            {i18n['com.affine.admin.copy-metadata-json']()}{' '}
           </Button>
           <Button
             type="button"
@@ -8412,7 +8716,7 @@ function ActionRunDiagnosticsPanel({
               );
             }}
           >
-            Download metadata JSON
+            {i18n['com.affine.admin.download-metadata-json']()}{' '}
           </Button>
         </div>
         <pre
@@ -8447,10 +8751,13 @@ function ActionRunRecentList({
   isValidating: boolean;
   onSelect: (runId: string) => void;
 }) {
+  const i18n = useI18n();
   if (!actionRuns.length) {
     return (
       <EmptyState>
-        No recent action runs returned for this workspace.
+        {i18n[
+          'com.affine.admin.no-recent-action-runs-returned-for-this-workspace'
+        ]()}{' '}
       </EmptyState>
     );
   }
@@ -8458,24 +8765,35 @@ function ActionRunRecentList({
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="text-sm font-medium">Recent action runs</div>
+        <div className="text-sm font-medium">
+          {i18n['com.affine.admin.recent-action-runs']()}
+        </div>
         <Badge variant="outline" className="font-normal">
-          {actionRuns.length} run{actionRuns.length === 1 ? '' : 's'}
+          {actionRuns.length} {i18n['com.affine.admin.run-2']()}
+          {actionRuns.length === 1 ? '' : 's'}
         </Badge>
         {isValidating ? (
           <Badge variant="outline" className="font-normal">
-            Refreshing
+            {i18n['com.affine.admin.refreshing']()}{' '}
           </Badge>
         ) : null}
       </div>
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Action</TableHead>
-            <TableHead className="w-[120px]">Status</TableHead>
-            <TableHead className="w-[144px]">Trace</TableHead>
-            <TableHead>Updated</TableHead>
-            <TableHead className="w-[100px]">Inspect</TableHead>
+            <TableHead>{i18n['com.affine.admin.action']()}</TableHead>
+            <TableHead className="w-[120px]">
+              {i18n['com.affine.admin.status']()}
+            </TableHead>
+            <TableHead className="w-[144px]">
+              {i18n['com.affine.admin.trace']()}
+            </TableHead>
+            <TableHead>
+              {i18n['com.affine.localmind.aiContext.operation.update']()}
+            </TableHead>
+            <TableHead className="w-[100px]">
+              {i18n['com.affine.admin.inspect']()}
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -8514,8 +8832,10 @@ function ActionRunRecentList({
                     {run.id}
                   </div>
                   <div className="mt-1 break-words text-xs text-muted-foreground">
-                    Agent runtime {formatFeatureKind(run.agentRuntimeRunStatus)}{' '}
-                    / {run.agentRuntimeStepCount} step
+                    {i18n['com.affine.admin.agent-runtime']()}{' '}
+                    {formatFeatureKind(run.agentRuntimeRunStatus)} /{' '}
+                    {run.agentRuntimeStepCount}{' '}
+                    {i18n['com.affine.admin.step-2']()}{' '}
                     {run.agentRuntimeStepCount === 1 ? '' : 's'}
                   </div>
                   <div className="mt-1 break-words text-xs text-muted-foreground">
@@ -8531,13 +8851,15 @@ function ActionRunRecentList({
                   </div>
                   {run.agentRuntimeProjectionGaps.length ? (
                     <div className="mt-1 break-words text-xs text-amber-700">
-                      {run.agentRuntimeProjectionGaps.length} projection gap
+                      {run.agentRuntimeProjectionGaps.length}{' '}
+                      {i18n['com.affine.admin.projection-gap']()}{' '}
                       {run.agentRuntimeProjectionGaps.length === 1 ? '' : 's'}
                     </div>
                   ) : null}
                   {run.agentRuntimeTimelineGaps.length ? (
                     <div className="mt-1 break-words text-xs text-amber-700">
-                      {run.agentRuntimeTimelineGaps.length} timeline gap
+                      {run.agentRuntimeTimelineGaps.length}{' '}
+                      {i18n['com.affine.admin.timeline-gap']()}{' '}
                       {run.agentRuntimeTimelineGaps.length === 1 ? '' : 's'}
                     </div>
                   ) : null}
@@ -8574,7 +8896,11 @@ function ActionRunRecentList({
                           : 'border-border bg-muted text-muted-foreground'
                       )}
                     >
-                      {run.hasPreparedRouteTrace ? 'Prepared' : 'None'}
+                      {run.hasPreparedRouteTrace
+                        ? i18n['com.affine.admin.prepared']()
+                        : i18n[
+                            'com.affine.settings.editorSettings.edgeless.note.border.none'
+                          ]()}
                     </Badge>
                     <div className="text-xs text-muted-foreground">
                       {formatActionRunPreparedRouteSummary(run)}
@@ -8732,7 +9058,7 @@ function ActionRunRecentList({
                       onSelect(run.id);
                     }}
                   >
-                    Inspect
+                    {i18n['com.affine.admin.inspect']()}{' '}
                   </Button>
                 </TableCell>
               </TableRow>
@@ -8784,23 +9110,30 @@ function ActionRunTraceCard({
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   workspaceId: string | undefined;
 }) {
+  const i18n = useI18n();
   const nextActionRunId = actionRunIdInput.trim();
 
   return (
     <Card className="border-border/60 bg-card shadow-1">
       <CardHeader>
-        <CardTitle className="text-base">Action run route trace</CardTitle>
+        <CardTitle className="text-base">
+          {i18n['com.affine.admin.action-run-route-trace']()}
+        </CardTitle>
         <CardDescription>
-          Sanitized prepared route diagnostics for persisted action runs
+          {i18n[
+            'com.affine.admin.sanitized-prepared-route-diagnostics-for-persisted-action-runs'
+          ]()}{' '}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <form className="flex flex-col gap-3 md:flex-row" onSubmit={onSubmit}>
           <label className="min-w-0 flex-1">
-            <span className="text-xs text-muted-foreground">Action run ID</span>
+            <span className="text-xs text-muted-foreground">
+              {i18n['com.affine.admin.action-run-id']()}
+            </span>
             <Input
               className="mt-1"
-              placeholder="Paste an action run id"
+              placeholder={i18n['com.affine.admin.paste-an-action-run-id']()}
               value={actionRunIdInput}
               onChange={event => {
                 onActionRunIdInputChange(event.target.value);
@@ -8814,14 +9147,16 @@ function ActionRunTraceCard({
               className="h-9"
               disabled={!workspaceId || !nextActionRunId}
             >
-              Inspect run
+              {i18n['com.affine.admin.inspect-run']()}{' '}
             </Button>
           </div>
         </form>
 
         {!workspaceId ? (
           <EmptyState>
-            Select a workspace scope before inspecting an action run.
+            {i18n[
+              'com.affine.admin.select-a-workspace-scope-before-inspecting-an-action-run'
+            ]()}{' '}
           </EmptyState>
         ) : (
           <ActionRunRecentListQuery
@@ -8832,8 +9167,9 @@ function ActionRunTraceCard({
 
         {workspaceId && !actionRunId ? (
           <EmptyState>
-            Enter an action run ID or select a recent run to inspect prepared
-            route diagnostics.
+            {i18n[
+              'com.affine.admin.enter-an-action-run-id-or-select-a-recent-run-to-inspect-prepared-route-diagnostics'
+            ]()}{' '}
           </EmptyState>
         ) : null}
 
@@ -9070,9 +9406,12 @@ function ProviderHealthProbeAttemptsBlock({
   isRetrying?: boolean;
   onRetry?: (attempt: ProviderHealthProbeAttempt) => void;
 }) {
+  const i18n = useI18n();
   return (
     <div className="space-y-2">
-      <div className="text-sm font-medium">Provider health probes</div>
+      <div className="text-sm font-medium">
+        {i18n['com.affine.admin.provider-health-probes']()}
+      </div>
       {attempts.length ? (
         <div className="space-y-2" data-testid="provider-health-probe-attempts">
           {attempts.map(attempt => (
@@ -9092,7 +9431,9 @@ function ProviderHealthProbeAttemptsBlock({
                   disabled={isRetrying}
                   onClick={() => onRetry(attempt)}
                 >
-                  Retry
+                  {i18n[
+                    'com.affine.localmind.directoryPermissions.retry'
+                  ]()}{' '}
                 </Button>
               ) : null}
             </div>
@@ -9100,7 +9441,11 @@ function ProviderHealthProbeAttemptsBlock({
         </div>
       ) : (
         <div data-testid="provider-health-probe-attempts">
-          <EmptyState>No provider health probe attempts returned.</EmptyState>
+          <EmptyState>
+            {i18n[
+              'com.affine.admin.no-provider-health-probe-attempts-returned'
+            ]()}
+          </EmptyState>
         </div>
       )}
     </div>
@@ -9112,6 +9457,7 @@ function ProviderHealthProbeAttemptsQuery({
 }: {
   workspaceId: string;
 }) {
+  const i18n = useI18n();
   const [retryRecord, setRetryRecord] =
     useState<ProviderHealthProbeAttemptRetryRecord | null>(null);
   const [retryError, setRetryError] = useState<string | null>(null);
@@ -9179,12 +9525,16 @@ function ProviderHealthProbeAttemptsQuery({
             setStatusFilter(value as ProviderHealthProbeAttemptStatusFilter);
           }}
         >
-          <SelectTrigger aria-label="Provider health probe status">
-            <SelectValue placeholder="All probe statuses" />
+          <SelectTrigger
+            aria-label={i18n['com.affine.admin.provider-health-probe-status']()}
+          >
+            <SelectValue
+              placeholder={i18n['com.affine.admin.all-probe-statuses']()}
+            />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={PROVIDER_HEALTH_PROBE_ATTEMPT_ALL_STATUSES}>
-              All statuses
+              {i18n['com.affine.admin.all-statuses']()}{' '}
             </SelectItem>
             {PROVIDER_HEALTH_PROBE_ATTEMPT_STATUSES.map(status => (
               <SelectItem key={status} value={status}>
@@ -9194,8 +9544,10 @@ function ProviderHealthProbeAttemptsQuery({
           </SelectContent>
         </Select>
         <Input
-          aria-label="Provider health probe filter"
-          placeholder="Provider, revision, request, profile, or result fingerprint"
+          aria-label={i18n['com.affine.admin.provider-health-probe-filter']()}
+          placeholder={i18n[
+            'com.affine.admin.provider-revision-request-profile-or-result-fingerprint'
+          ]()}
           value={queryFilter}
           onChange={event => {
             setQueryFilter(event.target.value);
@@ -9209,7 +9561,8 @@ function ProviderHealthProbeAttemptsQuery({
       />
       {retryError ? (
         <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-          Provider health probe retry error {retryError}
+          {i18n['com.affine.admin.provider-health-probe-retry-error']()}{' '}
+          {retryError}
         </div>
       ) : null}
     </div>
@@ -9228,6 +9581,7 @@ function SupportBundleManifestBlock({
     event: SupportBundleTransferForwardingEvent
   ) => void;
 }) {
+  const i18n = useI18n();
   const auditEvents = bundle.auditEvents.slice(0, 5);
   const transferEvents = bundle.transferEvents.slice(0, 5);
   const transferForwardingEvents = bundle.transferForwardingEvents.slice(0, 5);
@@ -9299,7 +9653,7 @@ function SupportBundleManifestBlock({
                     disabled={isReplayingForwardingEvent}
                     onClick={() => onReplayForwardingEvent(bundle, event)}
                   >
-                    Replay
+                    {i18n['com.affine.admin.replay']()}{' '}
                   </Button>
                 ) : null}
               </div>
@@ -9328,12 +9682,15 @@ function SupportBundleList({
     event: SupportBundleTransferForwardingEvent
   ) => void;
 }) {
+  const i18n = useI18n();
   if (!bundles.length) {
     return (
       <EmptyState>
         {isValidating
-          ? 'Loading support bundle requests.'
-          : 'No support bundle requests have been created for this workspace.'}
+          ? i18n['com.affine.admin.loading-support-bundle-requests']()
+          : i18n[
+              'com.affine.admin.no-support-bundle-requests-have-been-created-for-this-workspace'
+            ]()}
       </EmptyState>
     );
   }
@@ -9343,11 +9700,13 @@ function SupportBundleList({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Status</TableHead>
-            <TableHead>Manifest</TableHead>
-            <TableHead>Retention</TableHead>
-            <TableHead>Artifact</TableHead>
-            <TableHead>Created</TableHead>
+            <TableHead>{i18n['com.affine.admin.status']()}</TableHead>
+            <TableHead>{i18n['com.affine.admin.manifest']()}</TableHead>
+            <TableHead>{i18n['com.affine.admin.retention']()}</TableHead>
+            <TableHead>{i18n['com.affine.admin.artifact']()}</TableHead>
+            <TableHead>
+              {i18n['com.affine.integration.readwise-prop.created']()}
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -9386,7 +9745,7 @@ function SupportBundleList({
                   type="button"
                   variant="outline"
                 >
-                  Download archive
+                  {i18n['com.affine.admin.download-archive']()}{' '}
                 </Button>
               </TableCell>
               <TableCell className="align-top text-xs text-muted-foreground">
@@ -9405,6 +9764,7 @@ function SupportBundleStatusCard({
 }: {
   workspaceId: string | undefined;
 }) {
+  const i18n = useI18n();
   const [createdBundle, setCreatedBundle] =
     useState<SupportBundleRequest | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
@@ -9614,9 +9974,13 @@ function SupportBundleStatusCard({
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-1">
-            <CardTitle className="text-base">Support bundles</CardTitle>
+            <CardTitle className="text-base">
+              {i18n['com.affine.admin.support-bundles']()}
+            </CardTitle>
             <CardDescription>
-              DB-backed support bundle requests and minimal manifest metadata
+              {i18n[
+                'com.affine.admin.db-backed-support-bundle-requests-and-minimal-manifest-metadata'
+              ]()}{' '}
             </CardDescription>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -9627,7 +9991,9 @@ function SupportBundleStatusCard({
               disabled={!workspaceId || isCleaningRetention}
               onClick={onCleanupRetention}
             >
-              {isCleaningRetention ? 'Cleaning' : 'Cleanup retention'}
+              {isCleaningRetention
+                ? i18n['com.affine.admin.cleaning']()
+                : i18n['com.affine.admin.cleanup-retention']()}
             </Button>
             <Button
               type="button"
@@ -9636,7 +10002,9 @@ function SupportBundleStatusCard({
               disabled={!workspaceId || isMutating}
               onClick={onCreate}
             >
-              {isMutating ? 'Creating' : 'Create bundle'}
+              {isMutating
+                ? i18n['com.affine.admin.creating']()
+                : i18n['com.affine.admin.create-bundle']()}
             </Button>
           </div>
         </div>
@@ -9644,7 +10012,9 @@ function SupportBundleStatusCard({
       <CardContent className="space-y-4">
         {!workspaceId ? (
           <EmptyState>
-            Select a workspace scope before creating or viewing support bundles.
+            {i18n[
+              'com.affine.admin.select-a-workspace-scope-before-creating-or-viewing-support-bundles'
+            ]()}{' '}
           </EmptyState>
         ) : null}
         {createError ? (
@@ -9669,14 +10039,18 @@ function SupportBundleStatusCard({
         ) : null}
         {createdBundle ? (
           <div className="space-y-2">
-            <div className="text-sm font-medium">Latest created bundle</div>
+            <div className="text-sm font-medium">
+              {i18n['com.affine.admin.latest-created-bundle']()}
+            </div>
             <SupportBundleManifestBlock bundle={createdBundle} />
           </div>
         ) : null}
         {downloadAuthorization ? (
           <div className="space-y-2">
             <div className="text-sm font-medium">
-              Latest artifact download authorization
+              {i18n[
+                'com.affine.admin.latest-artifact-download-authorization'
+              ]()}{' '}
             </div>
             <div className="rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-xs">
               {compactList([
@@ -9702,7 +10076,9 @@ function SupportBundleStatusCard({
         ) : null}
         {retentionCleanup ? (
           <div className="space-y-2">
-            <div className="text-sm font-medium">Latest retention cleanup</div>
+            <div className="text-sm font-medium">
+              {i18n['com.affine.admin.latest-retention-cleanup']()}
+            </div>
             <div className="rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-xs">
               {compactList([
                 retentionCleanup.cleanupFingerprint,
@@ -9722,7 +10098,9 @@ function SupportBundleStatusCard({
         {forwardingReplay ? (
           <div className="space-y-2">
             <div className="text-sm font-medium">
-              Latest transfer forwarding replay
+              {i18n[
+                'com.affine.admin.latest-transfer-forwarding-replay'
+              ]()}{' '}
             </div>
             <div className="rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-xs">
               {formatSupportBundleTransferForwardingEvent(forwardingReplay)}
@@ -9739,12 +10117,20 @@ function SupportBundleStatusCard({
                 );
               }}
             >
-              <SelectTrigger aria-label="Support bundle forwarding status">
-                <SelectValue placeholder="All forwarding statuses" />
+              <SelectTrigger
+                aria-label={i18n[
+                  'com.affine.admin.support-bundle-forwarding-status'
+                ]()}
+              >
+                <SelectValue
+                  placeholder={i18n[
+                    'com.affine.admin.all-forwarding-statuses'
+                  ]()}
+                />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={SUPPORT_BUNDLE_FORWARDING_ALL_STATUSES}>
-                  All forwarding
+                  {i18n['com.affine.admin.all-forwarding']()}{' '}
                 </SelectItem>
                 {SUPPORT_BUNDLE_FORWARDING_STATUSES.map(status => (
                   <SelectItem key={status} value={status}>
@@ -9754,8 +10140,12 @@ function SupportBundleStatusCard({
               </SelectContent>
             </Select>
             <Input
-              aria-label="Support bundle forwarding filter"
-              placeholder="Bundle, authorization, forwarding event, source, or fingerprint"
+              aria-label={i18n[
+                'com.affine.admin.support-bundle-forwarding-filter'
+              ]()}
+              placeholder={i18n[
+                'com.affine.admin.bundle-authorization-forwarding-event-source-or-fingerprint'
+              ]()}
               value={forwardingQueryFilter}
               onChange={event => {
                 setForwardingQueryFilter(event.target.value);
@@ -9786,7 +10176,7 @@ function formatAgentRunTimestamp(
 
 function formatAgentRunSteps(run: AgentRunRecord) {
   if (!run.steps.length) {
-    return 'No persisted steps';
+    return I18n['com.affine.admin.no-persisted-steps']();
   }
 
   return run.steps
@@ -9799,7 +10189,7 @@ function formatAgentRunSteps(run: AgentRunRecord) {
 
 function formatAgentRunTimeline(run: AgentRunRecord) {
   if (!run.timelineEvents.length) {
-    return 'No persisted timeline events';
+    return I18n['com.affine.admin.no-persisted-timeline-events']();
   }
 
   return run.timelineEvents
@@ -9879,12 +10269,17 @@ function RepairExecutionList({
   isValidating: boolean;
   repairExecutions: RepairExecutionRecord[];
 }) {
+  const i18n = useI18n();
   if (!repairExecutions.length) {
     return (
       <EmptyState>
         {isValidating
-          ? 'Loading persisted repair execution requests.'
-          : 'No persisted repair execution requests have been created for this workspace.'}
+          ? i18n[
+              'com.affine.admin.loading-persisted-repair-execution-requests'
+            ]()
+          : i18n[
+              'com.affine.admin.no-persisted-repair-execution-requests-have-been-created-for-this-workspace'
+            ]()}
       </EmptyState>
     );
   }
@@ -9894,12 +10289,14 @@ function RepairExecutionList({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Request</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Fingerprints</TableHead>
-            <TableHead>Runtime</TableHead>
-            <TableHead>Ledger</TableHead>
-            <TableHead>Updated</TableHead>
+            <TableHead>{i18n['com.affine.admin.request']()}</TableHead>
+            <TableHead>{i18n['com.affine.admin.status']()}</TableHead>
+            <TableHead>{i18n['com.affine.admin.fingerprints']()}</TableHead>
+            <TableHead>{i18n['com.affine.admin.runtime']()}</TableHead>
+            <TableHead>{i18n['com.affine.admin.ledger']()}</TableHead>
+            <TableHead>
+              {i18n['com.affine.localmind.aiContext.operation.update']()}
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -9925,7 +10322,8 @@ function RepairExecutionList({
                     {formatFeatureKind(record.status)}
                   </Badge>
                   <div className="break-words text-xs text-muted-foreground">
-                    Approval {formatFeatureKind(record.approvalState)}
+                    {i18n['com.affine.localmind.tasks.filter.approval']()}{' '}
+                    {formatFeatureKind(record.approvalState)}
                   </div>
                   {record.failureCode ? (
                     <div className="break-words text-xs text-destructive">
@@ -10010,6 +10408,7 @@ function RepairExecutionStatusCard({
 }: {
   workspaceId: string | undefined;
 }) {
+  const i18n = useI18n();
   const [executionStatusFilter, setExecutionStatusFilter] =
     useState<RepairExecutionStatusFilter>(REPAIR_EXECUTION_ALL_STATUSES);
   const [executionQueryFilter, setExecutionQueryFilter] = useState('');
@@ -10043,15 +10442,18 @@ function RepairExecutionStatusCard({
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-1">
-            <CardTitle className="text-base">Repair executions</CardTitle>
+            <CardTitle className="text-base">
+              {i18n['com.affine.admin.repair-executions']()}
+            </CardTitle>
             <CardDescription>
-              Persisted repair request state, audit history, and side-effect
-              ledger
+              {i18n[
+                'com.affine.admin.persisted-repair-request-state-audit-history-and-side-effect-ledger'
+              ]()}{' '}
             </CardDescription>
           </div>
           {workspaceId && isValidating ? (
             <Badge variant="outline" className="font-normal">
-              Refreshing
+              {i18n['com.affine.admin.refreshing']()}{' '}
             </Badge>
           ) : null}
         </div>
@@ -10059,7 +10461,9 @@ function RepairExecutionStatusCard({
       <CardContent className="space-y-4">
         {!workspaceId ? (
           <EmptyState>
-            Select a workspace scope before viewing repair executions.
+            {i18n[
+              'com.affine.admin.select-a-workspace-scope-before-viewing-repair-executions'
+            ]()}{' '}
           </EmptyState>
         ) : null}
         {workspaceId ? (
@@ -10070,12 +10474,18 @@ function RepairExecutionStatusCard({
                 setExecutionStatusFilter(value as RepairExecutionStatusFilter);
               }}
             >
-              <SelectTrigger aria-label="Repair execution status">
-                <SelectValue placeholder="All execution statuses" />
+              <SelectTrigger
+                aria-label={i18n['com.affine.admin.repair-execution-status']()}
+              >
+                <SelectValue
+                  placeholder={i18n[
+                    'com.affine.admin.all-execution-statuses'
+                  ]()}
+                />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={REPAIR_EXECUTION_ALL_STATUSES}>
-                  All executions
+                  {i18n['com.affine.admin.all-executions']()}{' '}
                 </SelectItem>
                 {REPAIR_EXECUTION_STATUSES.map(status => (
                   <SelectItem key={status} value={status}>
@@ -10085,8 +10495,10 @@ function RepairExecutionStatusCard({
               </SelectContent>
             </Select>
             <Input
-              aria-label="Repair execution filter"
-              placeholder="Request, prompt, action, approval, audit, side effect, failure, lease, or fingerprint"
+              aria-label={i18n['com.affine.admin.repair-execution-filter']()}
+              placeholder={i18n[
+                'com.affine.admin.request-prompt-action-approval-audit-side-effect-failure-lease-or-fingerprint'
+              ]()}
               value={executionQueryFilter}
               onChange={event => {
                 setExecutionQueryFilter(event.target.value);
@@ -10124,18 +10536,22 @@ function AgentRuntimeWorkflowAdapterList({
 }: {
   adapters: AgentRuntimeWorkflowAdapter[];
 }) {
+  const i18n = useI18n();
   if (!adapters.length) {
     return (
       <EmptyState>
-        No Agent Runtime workflow adapters are registered for standalone
-        execution.
+        {i18n[
+          'com.affine.admin.no-agent-runtime-workflow-adapters-are-registered-for-standalone-execution'
+        ]()}{' '}
       </EmptyState>
     );
   }
 
   return (
     <div className="space-y-2">
-      <div className="text-sm font-medium">Workflow adapters</div>
+      <div className="text-sm font-medium">
+        {i18n['com.affine.admin.workflow-adapters']()}
+      </div>
       <div className="grid gap-2 md:grid-cols-2">
         {adapters.map(adapter => (
           <div
@@ -10166,12 +10582,15 @@ function AgentRuntimeRunList({
   isControlling: boolean;
   isValidating: boolean;
 }) {
+  const i18n = useI18n();
   if (!agentRuns.length) {
     return (
       <EmptyState>
         {isValidating
-          ? 'Loading persisted Agent Runtime runs.'
-          : 'No persisted Agent Runtime runs have been created for this workspace.'}
+          ? i18n['com.affine.admin.loading-persisted-agent-runtime-runs']()
+          : i18n[
+              'com.affine.admin.no-persisted-agent-runtime-runs-have-been-created-for-this-workspace'
+            ]()}
       </EmptyState>
     );
   }
@@ -10181,13 +10600,17 @@ function AgentRuntimeRunList({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Run</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Steps</TableHead>
-            <TableHead>Results</TableHead>
-            <TableHead>Timeline</TableHead>
-            <TableHead>Control</TableHead>
-            <TableHead>Updated</TableHead>
+            <TableHead>{i18n['com.affine.admin.run']()}</TableHead>
+            <TableHead>{i18n['com.affine.admin.status']()}</TableHead>
+            <TableHead>{i18n['com.affine.localmind.tasks.steps']()}</TableHead>
+            <TableHead>
+              {i18n['com.affine.cmdk.affine.category.results']()}
+            </TableHead>
+            <TableHead>{i18n['com.affine.admin.timeline']()}</TableHead>
+            <TableHead>{i18n['com.affine.admin.control']()}</TableHead>
+            <TableHead>
+              {i18n['com.affine.localmind.aiContext.operation.update']()}
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -10229,17 +10652,20 @@ function AgentRuntimeRunList({
                     </div>
                   ) : null}
                   <div className="break-words text-xs text-muted-foreground">
-                    Started {formatAgentRunTimestamp(run.startedAt)}
+                    {i18n['com.affine.admin.started']()}{' '}
+                    {formatAgentRunTimestamp(run.startedAt)}
                   </div>
                   <div className="break-words text-xs text-muted-foreground">
-                    Completed {formatAgentRunTimestamp(run.completedAt)}
+                    {i18n['com.affine.localmind.tasks.step.completed']()}{' '}
+                    {formatAgentRunTimestamp(run.completedAt)}
                   </div>
                   <div className="break-words text-xs text-muted-foreground">
                     {formatAgentRunWorkerState(run)}
                   </div>
                   {controlRecord?.id === run.id ? (
                     <div className="break-words text-xs text-muted-foreground">
-                      Latest control {formatFeatureKind(controlRecord.status)}
+                      {i18n['com.affine.admin.latest-control']()}{' '}
+                      {formatFeatureKind(controlRecord.status)}
                     </div>
                   ) : null}
                 </div>
@@ -10271,7 +10697,9 @@ function AgentRuntimeRunList({
               <TableCell className="align-top">
                 {run.sourceType === 'repair_execution_request' ? (
                   <div className="max-w-48 break-words text-xs text-muted-foreground">
-                    Use repair execution controls
+                    {i18n[
+                      'com.affine.admin.use-repair-execution-controls'
+                    ]()}{' '}
                   </div>
                 ) : (
                   <div className="flex flex-col gap-2">
@@ -10286,7 +10714,7 @@ function AgentRuntimeRunList({
                       }
                       onClick={() => controlAgentRun(run, 'cancel')}
                     >
-                      Cancel
+                      {i18n['com.affine.localmind.aiContext.cancel']()}{' '}
                     </Button>
                     <Button
                       size="sm"
@@ -10297,7 +10725,7 @@ function AgentRuntimeRunList({
                       }
                       onClick={() => controlAgentRun(run, 'resume')}
                     >
-                      Resume
+                      {i18n['com.affine.localmind.tasks.action.resume']()}{' '}
                     </Button>
                   </div>
                 )}
@@ -10311,7 +10739,8 @@ function AgentRuntimeRunList({
       </Table>
       {controlError ? (
         <div className="border-t border-border/70 p-3 text-xs text-destructive">
-          Agent Runtime control error {controlError}
+          {i18n['com.affine.admin.agent-runtime-control-error']()}{' '}
+          {controlError}
         </div>
       ) : null}
     </TableViewport>
@@ -10323,6 +10752,7 @@ function AgentRuntimeStatusCard({
 }: {
   workspaceId: string | undefined;
 }) {
+  const i18n = useI18n();
   const [controlRecord, setControlRecord] =
     useState<AgentRuntimeControlRecord | null>(null);
   const [controlError, setControlError] = useState<string | null>(null);
@@ -10402,14 +10832,18 @@ function AgentRuntimeStatusCard({
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-1">
-            <CardTitle className="text-base">Agent runtime runs</CardTitle>
+            <CardTitle className="text-base">
+              {i18n['com.affine.admin.agent-runtime-runs']()}
+            </CardTitle>
             <CardDescription>
-              Persisted AgentRun, AgentStep, and timeline state
+              {i18n[
+                'com.affine.admin.persisted-agentrun-agentstep-and-timeline-state'
+              ]()}{' '}
             </CardDescription>
           </div>
           {workspaceId && isValidating ? (
             <Badge variant="outline" className="font-normal">
-              Refreshing
+              {i18n['com.affine.admin.refreshing']()}{' '}
             </Badge>
           ) : null}
         </div>
@@ -10417,7 +10851,9 @@ function AgentRuntimeStatusCard({
       <CardContent className="space-y-4">
         {!workspaceId ? (
           <EmptyState>
-            Select a workspace scope before viewing Agent Runtime runs.
+            {i18n[
+              'com.affine.admin.select-a-workspace-scope-before-viewing-agent-runtime-runs'
+            ]()}{' '}
           </EmptyState>
         ) : null}
         {workspaceId ? (
@@ -10431,11 +10867,17 @@ function AgentRuntimeStatusCard({
                 setRunStatusFilter(value as AgentRunStatusFilter);
               }}
             >
-              <SelectTrigger aria-label="Agent Runtime run status">
-                <SelectValue placeholder="All run statuses" />
+              <SelectTrigger
+                aria-label={i18n['com.affine.admin.agent-runtime-run-status']()}
+              >
+                <SelectValue
+                  placeholder={i18n['com.affine.admin.all-run-statuses']()}
+                />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={AGENT_RUN_ALL_STATUSES}>All runs</SelectItem>
+                <SelectItem value={AGENT_RUN_ALL_STATUSES}>
+                  {i18n['com.affine.admin.all-runs']()}
+                </SelectItem>
                 {AGENT_RUN_STATUSES.map(status => (
                   <SelectItem key={status} value={status}>
                     {formatFeatureKind(status)}
@@ -10444,8 +10886,10 @@ function AgentRuntimeStatusCard({
               </SelectContent>
             </Select>
             <Input
-              aria-label="Agent Runtime run filter"
-              placeholder="Run, workflow, source, failure, lease, or fingerprint"
+              aria-label={i18n['com.affine.admin.agent-runtime-run-filter']()}
+              placeholder={i18n[
+                'com.affine.admin.run-workflow-source-failure-lease-or-fingerprint'
+              ]()}
               value={runQueryFilter}
               onChange={event => {
                 setRunQueryFilter(event.target.value);
@@ -10482,6 +10926,7 @@ function AiPageSkeleton() {
 }
 
 function AiPageTabs({ active }: { active: 'config' | 'runtime' }) {
+  const i18n = useI18n();
   return (
     <div className="flex flex-wrap gap-2">
       <Button
@@ -10489,14 +10934,16 @@ function AiPageTabs({ active }: { active: 'config' | 'runtime' }) {
         variant={active === 'config' ? 'default' : 'outline'}
         size="sm"
       >
-        <Link to={AI_CONFIG_PATH}>Configuration</Link>
+        <Link to={AI_CONFIG_PATH}>
+          {i18n['com.affine.integration.readwise.setting.caption']()}
+        </Link>
       </Button>
       <Button
         asChild
         variant={active === 'runtime' ? 'default' : 'outline'}
         size="sm"
       >
-        <Link to={AI_RUNTIME_PATH}>Runtime</Link>
+        <Link to={AI_RUNTIME_PATH}>{i18n['com.affine.admin.runtime']()}</Link>
       </Button>
     </div>
   );
@@ -10577,6 +11024,7 @@ function AiConfigPage({
   appConfig: AppConfigData | undefined;
   onSaved: () => Promise<unknown>;
 }) {
+  const i18n = useI18n();
   const savedDraft = useMemo(() => buildAiConfigDraft(appConfig), [appConfig]);
   const [draft, setDraft] = useState(savedDraft);
   const [formError, setFormError] = useState<string | null>(null);
@@ -10630,39 +11078,43 @@ function AiConfigPage({
     const openaiCompatibleHeaders = parseJsonConfig(
       draft,
       'openaiCompatibleHeadersJson',
-      'OpenAI-compatible headers'
+      i18n['com.affine.admin.openai-compatible-headers']()
     );
     const providerProfiles = parseJsonConfig(
       draft,
       'providerProfilesJson',
-      'Provider profiles'
+      i18n['com.affine.ui.provider-profiles']()
     );
     const providerDefaults = parseJsonConfig(
       draft,
       'providerDefaultsJson',
-      'Provider defaults'
+      i18n['com.affine.admin.provider-defaults']()
     );
     const routePolicy = parseJsonConfig(
       draft,
       'routePolicyJson',
-      'Route policy'
+      i18n['com.affine.ui.route-policy']()
     );
     const promptDefaults = parseJsonConfig(
       draft,
       'promptDefaultsJson',
-      'Prompt defaults'
+      i18n['com.affine.admin.prompt-defaults']()
     );
     const promptOverrides = parseJsonConfig(
       draft,
       'promptOverridesJson',
-      'Prompt overrides'
+      i18n['com.affine.admin.prompt-overrides']()
     );
     const supportBundleWebhooks = parseJsonConfig(
       draft,
       'supportBundleWebhooksJson',
-      'Support bundle object-storage webhooks'
+      i18n['com.affine.admin.support-bundle-object-storage-webhooks']()
     );
-    const storage = parseJsonConfig(draft, 'storageJson', 'Copilot storage');
+    const storage = parseJsonConfig(
+      draft,
+      'storageJson',
+      i18n['com.affine.admin.copilot-storage']()
+    );
     const geminiVertex = parseJsonConfig(
       draft,
       'geminiVertexJson',
@@ -10876,54 +11328,68 @@ function AiConfigPage({
     })
       .then(() => onSaved())
       .then(() => {
-        toast.success('AI configuration saved.');
+        toast.success(i18n['com.affine.admin.ai-configuration-saved']());
       })
       .catch(error => {
         console.error(error);
-        toast.error('Failed to save AI configuration.');
+        toast.error(i18n['com.affine.admin.failed-to-save-ai-configuration']());
       });
   };
 
   return (
     <form className="space-y-6" onSubmit={onSubmit}>
       <AiConfigSection
-        title="AI capability switches"
-        description="Global AI enablement and workspace BYOK policy."
+        title={i18n['com.affine.admin.ai-capability-switches']()}
+        description={i18n[
+          'com.affine.admin.global-ai-enablement-and-workspace-byok-policy'
+        ]()}
       >
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
           <div className="flex items-center justify-between gap-4 rounded-md border border-border/70 bg-muted/20 p-3">
             <div className="min-w-0">
-              <div className="text-sm font-medium">Server AI</div>
+              <div className="text-sm font-medium">
+                {i18n['com.affine.admin.server-ai']()}
+              </div>
               <div className="text-xs text-muted-foreground">
-                Enables chat, actions, search, indexing, rerank, and runtime
-                workers.
+                {i18n[
+                  'com.affine.admin.enables-chat-actions-search-indexing-rerank-and-runtime-workers'
+                ]()}{' '}
               </div>
             </div>
             <Switch
               checked={draft.enabled}
               onCheckedChange={checked => updateDraft('enabled', checked)}
-              aria-label="Enable AI"
+              aria-label={i18n[
+                'com.affine.settings.workspace.experimental-features.enable-ai.name'
+              ]()}
             />
           </div>
           <div className="flex items-center justify-between gap-4 rounded-md border border-border/70 bg-muted/20 p-3">
             <div className="min-w-0">
-              <div className="text-sm font-medium">Workspace BYOK</div>
+              <div className="text-sm font-medium">
+                {i18n['com.affine.admin.workspace-byok']()}
+              </div>
               <div className="text-xs text-muted-foreground">
-                Lets instance administrators assign approved server credentials
-                to department workspaces.
+                {i18n[
+                  'com.affine.admin.lets-instance-administrators-assign-approved-server-credentials-to-department-workspaces'
+                ]()}{' '}
               </div>
             </div>
             <Switch
               checked={draft.byokEnabled}
               onCheckedChange={checked => updateDraft('byokEnabled', checked)}
-              aria-label="Enable workspace BYOK"
+              aria-label={i18n['com.affine.admin.enable-workspace-byok']()}
             />
           </div>
           <div className="flex items-center justify-between gap-4 rounded-md border border-border/70 bg-muted/20 p-3">
             <div className="min-w-0">
-              <div className="text-sm font-medium">BYOK custom endpoint</div>
+              <div className="text-sm font-medium">
+                {i18n['com.affine.admin.byok-custom-endpoint']()}
+              </div>
               <div className="text-xs text-muted-foreground">
-                Lets workspace BYOK profiles use custom compatible endpoints.
+                {i18n[
+                  'com.affine.admin.lets-workspace-byok-profiles-use-custom-compatible-endpoints'
+                ]()}{' '}
               </div>
             </div>
             <Switch
@@ -10931,15 +11397,18 @@ function AiConfigPage({
               onCheckedChange={checked =>
                 updateDraft('byokAllowCustomEndpoint', checked)
               }
-              aria-label="Allow BYOK custom endpoint"
+              aria-label={i18n['com.affine.admin.allow-byok-custom-endpoint']()}
             />
           </div>
           <div className="flex items-center justify-between gap-4 rounded-md border border-border/70 bg-muted/20 p-3">
             <div className="min-w-0">
-              <div className="text-sm font-medium">BYOK private endpoints</div>
+              <div className="text-sm font-medium">
+                {i18n['com.affine.admin.byok-private-endpoints']()}
+              </div>
               <div className="text-xs text-muted-foreground">
-                Allows trusted private-network targets. Takes effect only when
-                custom endpoints are enabled.
+                {i18n[
+                  'com.affine.admin.allows-trusted-private-network-targets-takes-effect-only-when-custom-endpoints-are-enabled'
+                ]()}{' '}
               </div>
             </div>
             <Switch
@@ -10947,14 +11416,20 @@ function AiConfigPage({
               onCheckedChange={checked =>
                 updateDraft('byokAllowPrivateEndpoint', checked)
               }
-              aria-label="Allow BYOK private endpoint"
+              aria-label={i18n[
+                'com.affine.admin.allow-byok-private-endpoint'
+              ]()}
             />
           </div>
           <div className="flex items-center justify-between gap-4 rounded-md border border-border/70 bg-muted/20 p-3">
             <div className="min-w-0">
-              <div className="text-sm font-medium">Enterprise CLI</div>
+              <div className="text-sm font-medium">
+                {i18n['com.affine.admin.enterprise-cli']()}
+              </div>
               <div className="text-xs text-muted-foreground">
-                Enables governed user connections for enterprise platforms.
+                {i18n[
+                  'com.affine.admin.enables-governed-user-connections-for-enterprise-platforms'
+                ]()}{' '}
               </div>
             </div>
             <Switch
@@ -10962,13 +11437,15 @@ function AiConfigPage({
               onCheckedChange={checked =>
                 updateDraft('enterpriseCliEnabled', checked)
               }
-              aria-label="Enable Enterprise CLI"
+              aria-label={i18n['com.affine.admin.enable-enterprise-cli']()}
             />
           </div>
         </div>
         <AiConfigField
-          label="BYOK allowed providers"
-          description="Comma-separated provider ids available for per-workspace BYOK routing."
+          label={i18n['com.affine.admin.byok-allowed-providers']()}
+          description={i18n[
+            'com.affine.admin.comma-separated-provider-ids-available-for-per-workspace-byok-routing'
+          ]()}
         >
           <Input
             value={draft.byokAllowedProviders}
@@ -10980,8 +11457,10 @@ function AiConfigPage({
       </AiConfigSection>
 
       <AiConfigSection
-        title="Enterprise CLI governance"
-        description="Instance policy is the maximum capability. Users authorize and manage only their own platform connections."
+        title={i18n['com.affine.admin.enterprise-cli-governance']()}
+        description={i18n[
+          'com.affine.admin.instance-policy-is-the-maximum-capability-users-authorize-and-manage-only-their-own-platform-connect'
+        ]()}
       >
         <div className="overflow-hidden rounded-md border border-border/70">
           {ENTERPRISE_CLI_PROVIDERS.map((provider, index) => {
@@ -10998,13 +11477,17 @@ function AiConfigPage({
                   <div>
                     <div className="text-sm font-medium">{provider.label}</div>
                     <div className="text-xs text-muted-foreground">
-                      {allowed ? 'Provider allowed' : 'Provider blocked'}
+                      {allowed
+                        ? i18n['com.affine.admin.provider-allowed']()
+                        : i18n['com.affine.ui.provider-blocked']()}
                     </div>
                   </div>
                   <Switch
                     checked={allowed}
                     disabled={!draft.enterpriseCliEnabled}
-                    aria-label={`Allow ${provider.label} connections`}
+                    aria-label={i18n[
+                      'com.affine.admin.allow-provider-connections'
+                    ]({ provider: provider.label })}
                     onCheckedChange={checked => {
                       const next = new Set(enterpriseAllowedProviders);
                       if (checked) next.add(provider.id);
@@ -11021,8 +11504,10 @@ function AiConfigPage({
                   />
                 </div>
                 <AiConfigField
-                  label="Allowed tool names"
-                  description="Comma-separated exact tool names. Use * only to allow the full discovered catalog for this provider."
+                  label={i18n['com.affine.admin.allowed-tool-names']()}
+                  description={i18n[
+                    'com.affine.admin.comma-separated-exact-tool-names-use-only-to-allow-the-full-discovered-catalog-for-this-provider'
+                  ]()}
                 >
                   <Input
                     disabled={!draft.enterpriseCliEnabled || !allowed}
@@ -11040,13 +11525,15 @@ function AiConfigPage({
       </AiConfigSection>
 
       <AiConfigSection
-        title="Provider credentials"
-        description="Provider-level API credentials and endpoints used by server-side AI routing."
+        title={i18n['com.affine.admin.provider-credentials']()}
+        description={i18n[
+          'com.affine.admin.provider-level-api-credentials-and-endpoints-used-by-server-side-ai-routing'
+        ]()}
       >
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           <div className="space-y-3 rounded-md border border-border/60 bg-muted/10 p-4">
             <div className="text-sm font-medium">OpenAI</div>
-            <AiConfigField label="API key">
+            <AiConfigField label={i18n['com.affine.admin.api-key']()}>
               <Input
                 type="password"
                 autoComplete="off"
@@ -11057,7 +11544,7 @@ function AiConfigPage({
                 }}
               />
             </AiConfigField>
-            <AiConfigField label="Base URL">
+            <AiConfigField label={i18n['com.affine.admin.base-url']()}>
               <Input
                 placeholder={DEFAULT_OPENAI_BASE_URL}
                 value={draft.openaiBaseURL}
@@ -11068,32 +11555,38 @@ function AiConfigPage({
             </AiConfigField>
             <div className="flex items-center justify-between gap-3">
               <span className="text-xs text-muted-foreground">
-                Legacy chat completions style
+                {i18n['com.affine.admin.legacy-chat-completions-style']()}{' '}
               </span>
               <Switch
                 checked={draft.openaiOldApiStyle}
                 onCheckedChange={checked =>
                   updateDraft('openaiOldApiStyle', checked)
                 }
-                aria-label="Use OpenAI legacy API style"
+                aria-label={i18n[
+                  'com.affine.admin.use-openai-legacy-api-style'
+                ]()}
               />
             </div>
           </div>
 
           <div className="space-y-3 rounded-md border border-border/60 bg-muted/10 p-4">
-            <div className="text-sm font-medium">OpenAI-compatible</div>
-            <AiConfigField label="API key">
+            <div className="text-sm font-medium">
+              {i18n['com.affine.admin.openai-compatible']()}
+            </div>
+            <AiConfigField label={i18n['com.affine.admin.api-key']()}>
               <Input
                 type="password"
                 autoComplete="off"
-                placeholder="Optional for local endpoints"
+                placeholder={i18n[
+                  'com.affine.admin.optional-for-local-endpoints'
+                ]()}
                 value={draft.openaiCompatibleApiKey}
                 onChange={event => {
                   updateDraft('openaiCompatibleApiKey', event.target.value);
                 }}
               />
             </AiConfigField>
-            <AiConfigField label="Base URL">
+            <AiConfigField label={i18n['com.affine.admin.base-url']()}>
               <Input
                 placeholder="http://localhost:11434/v1"
                 value={draft.openaiCompatibleBaseURL}
@@ -11102,7 +11595,7 @@ function AiConfigPage({
                 }}
               />
             </AiConfigField>
-            <AiConfigField label="Request API style">
+            <AiConfigField label={i18n['com.affine.admin.request-api-style']()}>
               <Select
                 value={draft.openaiCompatibleApiStyle}
                 onValueChange={value => {
@@ -11112,7 +11605,11 @@ function AiConfigPage({
                   );
                 }}
               >
-                <SelectTrigger aria-label="OpenAI-compatible request API style">
+                <SelectTrigger
+                  aria-label={i18n[
+                    'com.affine.admin.openai-compatible-request-api-style'
+                  ]()}
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -11120,13 +11617,17 @@ function AiConfigPage({
                     Chat Completions
                   </SelectItem>
                   <SelectItem value="responses">Responses</SelectItem>
-                  <SelectItem value="auto">Auto</SelectItem>
+                  <SelectItem value="auto">
+                    {i18n['com.affine.themeSettings.auto']()}
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </AiConfigField>
             <AiJsonConfigField
-              label="Headers JSON"
-              description="Optional static headers sent to compatible endpoints."
+              label={i18n['com.affine.admin.headers-json']()}
+              description={i18n[
+                'com.affine.admin.optional-static-headers-sent-to-compatible-endpoints'
+              ]()}
               rows={4}
               value={draft.openaiCompatibleHeadersJson}
               onChange={value =>
@@ -11137,7 +11638,7 @@ function AiConfigPage({
 
           <div className="space-y-3 rounded-md border border-border/60 bg-muted/10 p-4">
             <div className="text-sm font-medium">Gemini</div>
-            <AiConfigField label="API key">
+            <AiConfigField label={i18n['com.affine.admin.api-key']()}>
               <Input
                 type="password"
                 autoComplete="off"
@@ -11147,7 +11648,7 @@ function AiConfigPage({
                 }}
               />
             </AiConfigField>
-            <AiConfigField label="Base URL">
+            <AiConfigField label={i18n['com.affine.admin.base-url']()}>
               <Input
                 placeholder={DEFAULT_GEMINI_BASE_URL}
                 value={draft.geminiBaseURL}
@@ -11160,7 +11661,7 @@ function AiConfigPage({
 
           <div className="space-y-3 rounded-md border border-border/60 bg-muted/10 p-4">
             <div className="text-sm font-medium">Anthropic</div>
-            <AiConfigField label="API key">
+            <AiConfigField label={i18n['com.affine.admin.api-key']()}>
               <Input
                 type="password"
                 autoComplete="off"
@@ -11170,7 +11671,7 @@ function AiConfigPage({
                 }}
               />
             </AiConfigField>
-            <AiConfigField label="Base URL">
+            <AiConfigField label={i18n['com.affine.admin.base-url']()}>
               <Input
                 placeholder={DEFAULT_ANTHROPIC_BASE_URL}
                 value={draft.anthropicBaseURL}
@@ -11183,7 +11684,7 @@ function AiConfigPage({
 
           <div className="space-y-3 rounded-md border border-border/60 bg-muted/10 p-4">
             <div className="text-sm font-medium">Cloudflare Workers AI</div>
-            <AiConfigField label="API token">
+            <AiConfigField label={i18n['com.affine.admin.api-token']()}>
               <Input
                 type="password"
                 autoComplete="off"
@@ -11196,7 +11697,7 @@ function AiConfigPage({
                 }}
               />
             </AiConfigField>
-            <AiConfigField label="Account ID">
+            <AiConfigField label={i18n['com.affine.admin.account-id']()}>
               <Input
                 value={draft.cloudflareWorkersAiAccountId}
                 onChange={event => {
@@ -11207,7 +11708,7 @@ function AiConfigPage({
                 }}
               />
             </AiConfigField>
-            <AiConfigField label="Base URL">
+            <AiConfigField label={i18n['com.affine.admin.base-url']()}>
               <Input
                 value={draft.cloudflareWorkersAiBaseURL}
                 onChange={event => {
@@ -11219,7 +11720,7 @@ function AiConfigPage({
 
           <div className="space-y-3 rounded-md border border-border/60 bg-muted/10 p-4">
             <div className="text-sm font-medium">FAL</div>
-            <AiConfigField label="API key">
+            <AiConfigField label={i18n['com.affine.admin.api-key']()}>
               <Input
                 type="password"
                 autoComplete="off"
@@ -11235,45 +11736,59 @@ function AiConfigPage({
         {!openaiCompatibleBaseURL &&
         trimOptionalSecret(draft.openaiCompatibleApiKey) ? (
           <div className="text-sm text-destructive">
-            OpenAI-compatible base URL is required when an API key is set.
+            {i18n[
+              'com.affine.admin.openai-compatible-base-url-is-required-when-an-api-key-is-set'
+            ]()}{' '}
           </div>
         ) : null}
       </AiConfigSection>
 
       <AiConfigSection
-        title="Provider registry and routing"
-        description="Configure provider profiles, output defaults, route policy, and Vertex provider credentials."
+        title={i18n['com.affine.admin.provider-registry-and-routing']()}
+        description={i18n[
+          'com.affine.admin.configure-provider-profiles-output-defaults-route-policy-and-vertex-provider-credentials'
+        ]()}
       >
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           <AiJsonConfigField
-            label="Provider profiles JSON"
-            description="copilot.providers.profiles: provider ids, privacy, priority, middleware, models, modelDefinitions, and provider-specific config."
+            label={i18n['com.affine.admin.provider-profiles-json']()}
+            description={i18n[
+              'com.affine.admin.copilot-providers-profiles-provider-ids-privacy-priority-middleware-models-modeldefinitions-and-prov'
+            ]()}
             rows={12}
             value={draft.providerProfilesJson}
             onChange={value => updateDraft('providerProfilesJson', value)}
           />
           <AiJsonConfigField
-            label="Provider defaults JSON"
-            description="copilot.providers.defaults: defaults for text, object, embedding, image, rerank, structured, and fallback provider ids."
+            label={i18n['com.affine.admin.provider-defaults-json']()}
+            description={i18n[
+              'com.affine.admin.copilot-providers-defaults-defaults-for-text-object-embedding-image-rerank-structured-and-fallback-p'
+            ]()}
             value={draft.providerDefaultsJson}
             onChange={value => updateDraft('providerDefaultsJson', value)}
           />
           <AiJsonConfigField
-            label="Route policy JSON"
-            description="copilot.providers.routePolicy: global, per-feature, and per-workspace allow/block/privacy routing policy."
+            label={i18n['com.affine.admin.route-policy-json']()}
+            description={i18n[
+              'com.affine.admin.copilot-providers-routepolicy-global-per-feature-and-per-workspace-allow-block-privacy-routing-polic'
+            ]()}
             rows={10}
             value={draft.routePolicyJson}
             onChange={value => updateDraft('routePolicyJson', value)}
           />
           <AiJsonConfigField
-            label="Gemini Vertex JSON"
-            description="copilot.providers.geminiVertex: location, project, baseURL, and googleAuthOptions."
+            label={i18n['com.affine.admin.gemini-vertex-json']()}
+            description={i18n[
+              'com.affine.admin.copilot-providers-geminivertex-location-project-baseurl-and-googleauthoptions'
+            ]()}
             value={draft.geminiVertexJson}
             onChange={value => updateDraft('geminiVertexJson', value)}
           />
           <AiJsonConfigField
-            label="Anthropic Vertex JSON"
-            description="copilot.providers.anthropicVertex: location, project, baseURL, and googleAuthOptions."
+            label={i18n['com.affine.admin.anthropic-vertex-json']()}
+            description={i18n[
+              'com.affine.admin.copilot-providers-anthropicvertex-location-project-baseurl-and-googleauthoptions'
+            ]()}
             value={draft.anthropicVertexJson}
             onChange={value => updateDraft('anthropicVertexJson', value)}
           />
@@ -11281,12 +11796,14 @@ function AiConfigPage({
       </AiConfigSection>
 
       <AiConfigSection
-        title="Prompt and task models"
-        description="Configure prompt model defaults, prompt-specific overrides, embedding, workspace indexing, and rerank aliases."
+        title={i18n['com.affine.admin.prompt-and-task-models']()}
+        description={i18n[
+          'com.affine.admin.configure-prompt-model-defaults-prompt-specific-overrides-embedding-workspace-indexing-and-rerank-al'
+        ]()}
       >
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <AiConfigField
-            label="Embedding model alias"
+            label={i18n['com.affine.admin.embedding-model-alias']()}
             description="copilot.tasks.models.embedding"
           >
             <Input
@@ -11297,7 +11814,7 @@ function AiConfigPage({
             />
           </AiConfigField>
           <AiConfigField
-            label="Workspace indexing model alias"
+            label={i18n['com.affine.admin.workspace-indexing-model-alias']()}
             description="copilot.tasks.models.workspaceIndexing"
           >
             <Input
@@ -11308,7 +11825,7 @@ function AiConfigPage({
             />
           </AiConfigField>
           <AiConfigField
-            label="Rerank model alias"
+            label={i18n['com.affine.admin.rerank-model-alias']()}
             description="copilot.tasks.models.rerank"
           >
             <Input
@@ -11321,15 +11838,19 @@ function AiConfigPage({
         </div>
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           <AiJsonConfigField
-            label="Prompt defaults JSON"
-            description="copilot.prompts.defaults: text, structured, image, and transcript default model policies."
+            label={i18n['com.affine.admin.prompt-defaults-json']()}
+            description={i18n[
+              'com.affine.admin.copilot-prompts-defaults-text-structured-image-and-transcript-default-model-policies'
+            ]()}
             rows={10}
             value={draft.promptDefaultsJson}
             onChange={value => updateDraft('promptDefaultsJson', value)}
           />
           <AiJsonConfigField
-            label="Prompt overrides JSON"
-            description="copilot.prompts.overrides: per-prompt model, optionalModels, enabled state, and prompt config."
+            label={i18n['com.affine.admin.prompt-overrides-json']()}
+            description={i18n[
+              'com.affine.admin.copilot-prompts-overrides-per-prompt-model-optionalmodels-enabled-state-and-prompt-config'
+            ]()}
             rows={10}
             value={draft.promptOverridesJson}
             onChange={value => updateDraft('promptOverridesJson', value)}
@@ -11338,11 +11859,15 @@ function AiConfigPage({
       </AiConfigSection>
 
       <AiConfigSection
-        title="Search, assets, storage, and support bundles"
-        description="Configure web search, image source, copilot storage, and support bundle transfer webhooks."
+        title={i18n[
+          'com.affine.admin.search-assets-storage-and-support-bundles'
+        ]()}
+        description={i18n[
+          'com.affine.admin.configure-web-search-image-source-copilot-storage-and-support-bundle-transfer-webhooks'
+        ]()}
       >
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <AiConfigField label="Unsplash key">
+          <AiConfigField label={i18n['com.affine.admin.unsplash-key']()}>
             <Input
               type="password"
               autoComplete="off"
@@ -11352,7 +11877,7 @@ function AiConfigPage({
               }}
             />
           </AiConfigField>
-          <AiConfigField label="Exa web search key">
+          <AiConfigField label={i18n['com.affine.admin.exa-web-search-key']()}>
             <Input
               type="password"
               autoComplete="off"
@@ -11365,15 +11890,21 @@ function AiConfigPage({
         </div>
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           <AiJsonConfigField
-            label="Copilot storage JSON"
-            description="copilot.storage: provider, bucket, and storage provider config used by copilot artifacts."
+            label={i18n['com.affine.admin.copilot-storage-json']()}
+            description={i18n[
+              'com.affine.admin.copilot-storage-provider-bucket-and-storage-provider-config-used-by-copilot-artifacts'
+            ]()}
             rows={8}
             value={draft.storageJson}
             onChange={value => updateDraft('storageJson', value)}
           />
           <AiJsonConfigField
-            label="Support bundle object-storage webhooks JSON"
-            description="copilot.supportBundles.objectStorageWebhooks: HMAC webhook definitions for support bundle direct-download notifications."
+            label={i18n[
+              'com.affine.admin.support-bundle-object-storage-webhooks-json'
+            ]()}
+            description={i18n[
+              'com.affine.admin.copilot-supportbundles-objectstoragewebhooks-hmac-webhook-definitions-for-support-bundle-direct-down'
+            ]()}
             rows={8}
             value={draft.supportBundleWebhooksJson}
             onChange={value => updateDraft('supportBundleWebhooksJson', value)}
@@ -11390,8 +11921,8 @@ function AiConfigPage({
       <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 border-t border-border/70 bg-background/95 py-4 backdrop-blur">
         <div className="text-sm text-muted-foreground">
           {isDirty
-            ? 'Unsaved AI configuration changes'
-            : 'AI configuration is up to date'}
+            ? i18n['com.affine.admin.unsaved-ai-configuration-changes']()
+            : i18n['com.affine.admin.ai-configuration-is-up-to-date']()}
         </div>
         <div className="flex flex-wrap justify-end gap-2">
           {isDirty ? (
@@ -11402,7 +11933,7 @@ function AiConfigPage({
               disabled={isMutating}
               onClick={() => setDraft(savedDraft)}
             >
-              Cancel
+              {i18n['com.affine.localmind.aiContext.cancel']()}{' '}
             </Button>
           ) : null}
           <Button
@@ -11410,7 +11941,9 @@ function AiConfigPage({
             className="h-9 min-w-[88px]"
             disabled={!canSave}
           >
-            {isMutating ? 'Saving...' : 'Save'}
+            {isMutating
+              ? i18n['com.affine.admin.saving']()
+              : i18n['com.affine.localmind.aiContext.save']()}
           </Button>
         </div>
       </div>
@@ -11444,6 +11977,7 @@ function AiConfigPageContent() {
 }
 
 function AiRuntimePageContent() {
+  const i18n = useI18n();
   const [promptName, setPromptName] = useState(ADMIN_AI_DEFAULT_PROMPT_NAME);
   const [promptNameInput, setPromptNameInput] = useState(
     ADMIN_AI_DEFAULT_PROMPT_NAME
@@ -11583,7 +12117,7 @@ function AiRuntimePageContent() {
             <RefreshCwIcon
               className={cn('h-4 w-4', isValidating && 'animate-spin')}
             />
-            Refresh
+            {i18n['com.affine.payment.plans-error-retry']()}{' '}
           </Button>
         }
       />
@@ -11597,10 +12131,12 @@ function AiRuntimePageContent() {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="space-y-1">
                     <CardTitle className="text-lg">
-                      Model route diagnostics
+                      {i18n['com.affine.admin.model-route-diagnostics']()}{' '}
                     </CardTitle>
                     <CardDescription>
-                      Read-only task route checks for self-hosted AI providers
+                      {i18n[
+                        'com.affine.admin.read-only-task-route-checks-for-self-hosted-ai-providers'
+                      ]()}{' '}
                     </CardDescription>
                   </div>
                   <StatusBadge status={diagnostics.status} />
@@ -11611,7 +12147,7 @@ function AiRuntimePageContent() {
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                     <label className="min-w-0">
                       <span className="text-xs text-muted-foreground">
-                        Prompt catalog
+                        {i18n['com.affine.admin.prompt-catalog']()}{' '}
                       </span>
                       <Select
                         value={selectedCatalogPromptName ?? ''}
@@ -11620,10 +12156,14 @@ function AiRuntimePageContent() {
                         }}
                       >
                         <SelectTrigger
-                          aria-label="Prompt catalog"
+                          aria-label={i18n['com.affine.admin.prompt-catalog']()}
                           className="mt-1"
                         >
-                          <SelectValue placeholder="Select prompt" />
+                          <SelectValue
+                            placeholder={i18n[
+                              'com.affine.admin.select-prompt'
+                            ]()}
+                          />
                         </SelectTrigger>
                         <SelectContent>
                           {filteredPromptCatalog.map(prompt => (
@@ -11633,7 +12173,9 @@ function AiRuntimePageContent() {
                           ))}
                           {!filteredPromptCatalog.length ? (
                             <div className="px-2 py-2 text-sm text-muted-foreground">
-                              No prompts match the current filters.
+                              {i18n[
+                                'com.affine.admin.no-prompts-match-the-current-filters'
+                              ]()}{' '}
                             </div>
                           ) : null}
                         </SelectContent>
@@ -11641,11 +12183,13 @@ function AiRuntimePageContent() {
                     </label>
                     <label className="min-w-0">
                       <span className="text-xs text-muted-foreground">
-                        Prompt search
+                        {i18n['com.affine.admin.prompt-search']()}{' '}
                       </span>
                       <Input
                         className="mt-1"
-                        placeholder="Search prompts, actions, or models"
+                        placeholder={i18n[
+                          'com.affine.admin.search-prompts-actions-or-models'
+                        ]()}
                         value={promptCatalogSearch}
                         onChange={event => {
                           setPromptCatalogSearch(event.target.value);
@@ -11654,7 +12198,7 @@ function AiRuntimePageContent() {
                     </label>
                     <label className="min-w-0">
                       <span className="text-xs text-muted-foreground">
-                        Prompt category
+                        {i18n['com.affine.admin.prompt-category']()}{' '}
                       </span>
                       <Select
                         value={promptCatalogCategory}
@@ -11663,14 +12207,20 @@ function AiRuntimePageContent() {
                         }}
                       >
                         <SelectTrigger
-                          aria-label="Prompt category"
+                          aria-label={i18n[
+                            'com.affine.admin.prompt-category'
+                          ]()}
                           className="mt-1"
                         >
-                          <SelectValue placeholder="All categories" />
+                          <SelectValue
+                            placeholder={i18n[
+                              'com.affine.admin.all-categories'
+                            ]()}
+                          />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value={PROMPT_CATALOG_ALL_CATEGORIES}>
-                            All categories
+                            {i18n['com.affine.admin.all-categories']()}{' '}
                           </SelectItem>
                           {promptCatalogCategories.map(category => (
                             <SelectItem key={category} value={category}>
@@ -11682,7 +12232,7 @@ function AiRuntimePageContent() {
                     </label>
                     <label className="min-w-0">
                       <span className="text-xs text-muted-foreground">
-                        Prompt name
+                        {i18n['com.affine.admin.prompt-name']()}{' '}
                       </span>
                       <Input
                         className="mt-1"
@@ -11696,11 +12246,13 @@ function AiRuntimePageContent() {
                     </label>
                     <label className="min-w-0">
                       <span className="text-xs text-muted-foreground">
-                        Workspace ID
+                        {i18n['com.affine.admin.workspace-id']()}{' '}
                       </span>
                       <Input
                         className="mt-1"
-                        placeholder="Global route diagnostics"
+                        placeholder={i18n[
+                          'com.affine.admin.global-route-diagnostics'
+                        ]()}
                         value={workspaceIdInput}
                         onChange={event => {
                           setWorkspaceIdInput(event.target.value);
@@ -11709,7 +12261,7 @@ function AiRuntimePageContent() {
                     </label>
                     <label className="min-w-0">
                       <span className="text-xs text-muted-foreground">
-                        Workspace selector
+                        {i18n['com.affine.admin.workspace-selector']()}{' '}
                       </span>
                       <Select
                         value={selectedWorkspaceScope}
@@ -11725,14 +12277,22 @@ function AiRuntimePageContent() {
                         }}
                       >
                         <SelectTrigger
-                          aria-label="Workspace selector"
+                          aria-label={i18n[
+                            'com.affine.admin.workspace-selector'
+                          ]()}
                           className="mt-1"
                         >
-                          <SelectValue placeholder="Global route diagnostics" />
+                          <SelectValue
+                            placeholder={i18n[
+                              'com.affine.admin.global-route-diagnostics'
+                            ]()}
+                          />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value={WORKSPACE_SCOPE_GLOBAL}>
-                            Global route diagnostics
+                            {i18n[
+                              'com.affine.admin.global-route-diagnostics'
+                            ]()}{' '}
                           </SelectItem>
                           {workspaceScopes.map(workspace => (
                             <SelectItem key={workspace.id} value={workspace.id}>
@@ -11740,7 +12300,9 @@ function AiRuntimePageContent() {
                             </SelectItem>
                           ))}
                           <SelectItem value={WORKSPACE_SCOPE_MANUAL}>
-                            Manual workspace ID
+                            {i18n[
+                              'com.affine.admin.manual-workspace-id'
+                            ]()}{' '}
                           </SelectItem>
                         </SelectContent>
                       </Select>
@@ -11748,10 +12310,13 @@ function AiRuntimePageContent() {
                   </div>
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                     <span>
-                      Catalog results: {filteredPromptCatalog.length} /{' '}
-                      {promptCatalog.length}
+                      {i18n['com.affine.admin.catalog-results']()}{' '}
+                      {filteredPromptCatalog.length} / {promptCatalog.length}
                     </span>
-                    <span>Workspace options: {workspaceScopes.length}</span>
+                    <span>
+                      {i18n['com.affine.admin.workspace-options']()}{' '}
+                      {workspaceScopes.length}
+                    </span>
                   </div>
                   <Button
                     type="submit"
@@ -11762,7 +12327,7 @@ function AiRuntimePageContent() {
                       nextWorkspaceId === workspaceId
                     }
                   >
-                    Test route
+                    {i18n['com.affine.admin.test-route']()}{' '}
                   </Button>
                 </form>
 
@@ -11774,7 +12339,7 @@ function AiRuntimePageContent() {
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                   <div>
                     <div className="text-xs text-muted-foreground">
-                      Active prompt
+                      {i18n['com.affine.admin.active-prompt']()}{' '}
                     </div>
                     <div className="mt-1 break-words font-medium">
                       {formatAIModelPromptDisplayName(promptName)}
@@ -11782,15 +12347,15 @@ function AiRuntimePageContent() {
                   </div>
                   <div>
                     <div className="text-xs text-muted-foreground">
-                      Workspace scope
+                      {i18n['com.affine.admin.workspace-scope']()}{' '}
                     </div>
                     <div className="mt-1 break-words font-medium">
-                      {workspaceId || 'Global'}
+                      {workspaceId || i18n['com.affine.admin.global']()}
                     </div>
                   </div>
                   <div>
                     <div className="text-xs text-muted-foreground">
-                      Workspace metadata
+                      {i18n['com.affine.admin.workspace-metadata']()}{' '}
                     </div>
                     <div className="mt-1 break-words font-medium">
                       {workspaceId
@@ -11798,46 +12363,50 @@ function AiRuntimePageContent() {
                           ? compactList([
                               activeWorkspaceScope.role,
                               activeWorkspaceScope.enableAi
-                                ? 'AI enabled'
-                                : 'AI disabled',
+                                ? i18n['com.affine.admin.ai-enabled']()
+                                : i18n['com.affine.admin.ai-disabled'](),
                               activeWorkspaceScope.enableDocEmbedding
-                                ? 'Embedding enabled'
-                                : 'Embedding disabled',
+                                ? i18n['com.affine.admin.embedding-enabled']()
+                                : i18n['com.affine.admin.embedding-disabled'](),
                             ])
-                          : 'Manual ID, metadata unavailable'
-                        : 'Global policy'}
+                          : i18n[
+                              'com.affine.admin.manual-id-metadata-unavailable'
+                            ]()
+                        : i18n['com.affine.admin.global-policy']()}
                     </div>
                   </div>
                   <div>
                     <div className="text-xs text-muted-foreground">
-                      Candidate models
+                      {i18n['com.affine.admin.candidate-models']()}{' '}
                     </div>
                     <div className="mt-1 font-medium">{models.length}</div>
                   </div>
                   <div>
                     <div className="text-xs text-muted-foreground">
-                      Prompt default
+                      {i18n['com.affine.admin.prompt-default']()}{' '}
                     </div>
                     <div className="mt-1 break-words font-medium">
-                      {modelsPayload?.promptDefaultModel ?? 'Unknown'}
+                      {modelsPayload?.promptDefaultModel ??
+                        i18n['com.affine.ui.unknown']()}
                     </div>
                   </div>
                   <div>
                     <div className="text-xs text-muted-foreground">
-                      Active default
+                      {i18n['com.affine.admin.active-default']()}{' '}
                     </div>
                     <div className="mt-1 break-words font-medium">
-                      {modelsPayload?.defaultModel ?? 'Unknown'}
+                      {modelsPayload?.defaultModel ??
+                        i18n['com.affine.ui.unknown']()}
                     </div>
                   </div>
                   <div>
                     <div className="text-xs text-muted-foreground">
-                      Default source
+                      {i18n['com.affine.admin.default-source']()}{' '}
                     </div>
                     <div className="mt-1 break-words font-medium">
                       {modelsPayload
                         ? formatFeatureKind(modelsPayload.defaultModelSource)
-                        : 'Unknown'}
+                        : i18n['com.affine.ui.unknown']()}
                     </div>
                     {modelsPayload?.defaultModelFallbackReason ? (
                       <div className="mt-1 break-words text-xs text-muted-foreground">
@@ -11849,10 +12418,11 @@ function AiRuntimePageContent() {
                   </div>
                   <div>
                     <div className="text-xs text-muted-foreground">
-                      Active source chain
+                      {i18n['com.affine.admin.active-source-chain']()}{' '}
                     </div>
                     <div className="mt-1 break-words font-medium">
-                      {activeDefaultSourceChain || 'Unknown'}
+                      {activeDefaultSourceChain ||
+                        i18n['com.affine.ui.unknown']()}
                     </div>
                     {activeDefaultPromptSourceChain ? (
                       <div className="mt-1 break-words text-xs text-muted-foreground">
@@ -11862,7 +12432,7 @@ function AiRuntimePageContent() {
                   </div>
                   <div className="lg:col-span-2 xl:col-span-3 2xl:col-span-4">
                     <div className="text-xs text-muted-foreground">
-                      Recommended checks
+                      {i18n['com.affine.admin.recommended-checks']()}{' '}
                     </div>
                     <div className="mt-1">
                       <RecommendedChecks actions={recommendedActionKinds} />
@@ -11882,9 +12452,13 @@ function AiRuntimePageContent() {
 
             <Card className="order-1 min-w-0 self-start border-border/60 bg-card shadow-1 2xl:order-2">
               <CardHeader>
-                <CardTitle className="text-base">Overall health</CardTitle>
+                <CardTitle className="text-base">
+                  {i18n['com.affine.admin.overall-health']()}
+                </CardTitle>
                 <CardDescription>
-                  Embedding and rerank route readiness
+                  {i18n[
+                    'com.affine.admin.embedding-and-rerank-route-readiness'
+                  ]()}{' '}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
@@ -11899,7 +12473,8 @@ function AiRuntimePageContent() {
                   </span>
                 </div>
                 <div className="text-muted-foreground">
-                  Highest severity: {diagnostics.highestSeverity}
+                  {i18n['com.affine.admin.highest-severity']()}{' '}
+                  {diagnostics.highestSeverity}
                 </div>
               </CardContent>
             </Card>
@@ -11907,12 +12482,12 @@ function AiRuntimePageContent() {
 
           <div className="grid grid-cols-1 items-start gap-5">
             <RouteSummaryCard
-              label="Workspace indexing"
+              label={i18n['com.affine.admin.workspace-indexing']()}
               rawRoute={modelsPayload?.embeddingRoute}
               route={embeddingDiagnostics}
             />
             <RouteSummaryCard
-              label="Rerank"
+              label={i18n['com.affine.admin.rerank']()}
               rawRoute={modelsPayload?.rerankRoute}
               route={rerankDiagnostics}
             />

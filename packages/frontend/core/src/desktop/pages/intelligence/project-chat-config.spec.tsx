@@ -1,7 +1,7 @@
 /**
  * @vitest-environment happy-dom
  */
-import { searchProjectResourcesQuery } from '@affine/graphql';
+import { projectResourceQuery } from '@affine/graphql';
 import { cleanup, renderHook, waitFor } from '@testing-library/react';
 import { StrictMode } from 'react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
@@ -29,27 +29,36 @@ import { useProjectChatConfig } from './project-chat-config';
 beforeEach(() => vi.clearAllMocks());
 afterEach(cleanup);
 
-test('resource search remains available after StrictMode effect replay', async () => {
-  state.gql.mockResolvedValue({
-    searchProjectResources: { items: [], nextCursor: null },
-  });
-  const { result } = renderHook(() => useProjectChatConfig('project-a'), {
+test('document choice opens the tree without a query or mutation', () => {
+  const open = vi.fn();
+  const { result } = renderHook(() => useProjectChatConfig('project-a', open), {
     wrapper: StrictMode,
   });
-  const group = result.current.searchMenuConfig.getDocMenuGroup(
-    'report',
-    vi.fn(),
-    new AbortController().signal
-  );
-  await waitFor(() => expect(state.gql).toHaveBeenCalledOnce());
-  const request = state.gql.mock.calls[0][0];
-  expect(request.query).toBe(searchProjectResourcesQuery);
-  expect(request.variables.projectId).toBe('project-a');
-  expect(request.signal.aborted).toBe(false);
-  await waitFor(() => expect(group.loading).toHaveProperty('value', false));
+  result.current.searchMenuConfig.selectDocuments.open();
+  expect(open).toHaveBeenCalledOnce();
+  expect(state.gql).not.toHaveBeenCalled();
 });
 
-test('switching projects aborts pending search and ignores its late response', async () => {
+test('resource titles remain available after StrictMode effect replay', async () => {
+  state.gql.mockResolvedValue({
+    projectResource: { id: 'report', title: 'Report' },
+  });
+  const { result } = renderHook(
+    () => useProjectChatConfig('project-a', vi.fn()),
+    {
+      wrapper: StrictMode,
+    }
+  );
+  const title = result.current.docDisplayConfig.getTitleSignal('report');
+  await waitFor(() => expect(state.gql).toHaveBeenCalledOnce());
+  const request = state.gql.mock.calls[0][0];
+  expect(request.query).toBe(projectResourceQuery);
+  expect(request.variables.projectId).toBe('project-a');
+  expect(request.signal.aborted).toBe(false);
+  await waitFor(() => expect(title.signal.value).toBe('Report'));
+});
+
+test('switching projects aborts pending title reads and ignores late responses', async () => {
   let resolve!: (value: unknown) => void;
   state.gql.mockImplementationOnce(
     () =>
@@ -58,35 +67,22 @@ test('switching projects aborts pending search and ignores its late response', a
       })
   );
   const { result, rerender } = renderHook(
-    ({ projectId }) => useProjectChatConfig(projectId),
+    ({ projectId }) => useProjectChatConfig(projectId, vi.fn()),
     { initialProps: { projectId: 'project-a' }, wrapper: StrictMode }
   );
-  const stale = result.current.searchMenuConfig.getDocMenuGroup(
-    '',
-    vi.fn(),
-    new AbortController().signal
-  );
+  const stale = result.current.docDisplayConfig.getTitleSignal('private-a');
   const request = state.gql.mock.calls[0][0];
   rerender({ projectId: 'project-b' });
   expect(request.signal.aborted).toBe(true);
   resolve({
-    searchProjectResources: {
-      items: [
-        { id: 'private-a', title: 'Private A', contentVersion: 1, path: [] },
-      ],
-      nextCursor: null,
-    },
+    projectResource: { id: 'private-a', title: 'Private A' },
   });
-  await waitFor(() => expect(stale.loading).toHaveProperty('value', false));
-  expect(stale.items).toHaveProperty('value', []);
+  await Promise.resolve();
+  expect(stale.signal.value).toBe('');
   state.gql.mockResolvedValueOnce({
-    searchProjectResources: { items: [], nextCursor: null },
+    projectResource: { id: 'public-b', title: 'Report B' },
   });
-  result.current.searchMenuConfig.getDocMenuGroup(
-    '',
-    vi.fn(),
-    new AbortController().signal
-  );
+  result.current.docDisplayConfig.getTitleSignal('public-b');
   expect(state.gql.mock.calls[1][0].variables.projectId).toBe('project-b');
   expect(state.gql.mock.calls[1][0].signal.aborted).toBe(false);
 });

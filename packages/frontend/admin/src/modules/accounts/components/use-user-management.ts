@@ -18,6 +18,7 @@ import {
   updateAccountFeaturesMutation,
   updateAccountMutation,
 } from '@affine/graphql';
+import { useI18n } from '@affine/i18n';
 import { useCallback, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -32,6 +33,7 @@ export interface ExportField {
 export type UserImportReturnType = ImportUsersMutation['importUsers'];
 
 export const useCreateUser = () => {
+  const i18n = useI18n();
   const { trigger: createAccount } = useMutation({
     mutation: createUserMutation,
   });
@@ -71,29 +73,40 @@ export const useCreateUser = () => {
           } catch (assignmentError) {
             await revalidate(listUsersQuery);
             toast.error(
-              'Account created, but AI Profile assignment failed: ' +
-                (assignmentError as Error).message
+              i18n[
+                'com.affine.admin.account-created-but-ai-profile-assignment-failed'
+              ]() + (assignmentError as Error).message
             );
             return false;
           }
         }
         await revalidate(listUsersQuery);
-        toast('Account created successfully');
+        toast(i18n['com.affine.admin.account-created-successfully']());
         return true;
       } catch (e) {
-        toast.error('Failed to create account: ' + (e as Error).message);
+        toast.error(
+          i18n['com.affine.admin.failed-to-create-account']() +
+            (e as Error).message
+        );
         return false;
       } finally {
         setCreating(false);
       }
     },
-    [createAccount, revalidate, setAiProfileAssignment, updateAccountFeatures]
+    [
+      createAccount,
+      revalidate,
+      setAiProfileAssignment,
+      updateAccountFeatures,
+      i18n,
+    ]
   );
 
   return { creating, create };
 };
 
 export const useUpdateUser = () => {
+  const i18n = useI18n();
   const { trigger: updateAccount } = useMutation({
     mutation: updateAccountMutation,
   });
@@ -137,8 +150,9 @@ export const useUpdateUser = () => {
         } catch (assignmentError) {
           await revalidate(listUsersQuery);
           toast.error(
-            'Account updated, but AI Profile assignment failed: ' +
-              (assignmentError as Error).message
+            i18n[
+              'com.affine.admin.account-updated-but-ai-profile-assignment-failed'
+            ]() + (assignmentError as Error).message
           );
           return false;
         }
@@ -149,22 +163,32 @@ export const useUpdateUser = () => {
             variables => variables.userId === userId
           ),
         ]);
-        toast('Account updated successfully');
+        toast(i18n['com.affine.admin.account-updated-successfully']());
         return true;
       } catch (e) {
-        toast.error('Failed to update account: ' + (e as Error).message);
+        toast.error(
+          i18n['com.affine.admin.failed-to-update-account']() +
+            (e as Error).message
+        );
         return false;
       } finally {
         setUpdating(false);
       }
     },
-    [revalidate, setAiProfileAssignment, updateAccount, updateAccountFeatures]
+    [
+      revalidate,
+      setAiProfileAssignment,
+      updateAccount,
+      updateAccountFeatures,
+      i18n,
+    ]
   );
 
   return { updating, update };
 };
 
 export const useResetUserPassword = () => {
+  const i18n = useI18n();
   const [resetPasswordLink, setResetPasswordLink] = useState('');
   const { trigger: resetPassword } = useMutation({
     mutation: createChangePasswordUrlMutation,
@@ -182,10 +206,12 @@ export const useResetUserPassword = () => {
           callback?.();
         })
         .catch(e => {
-          toast.error('Failed to reset password: ' + e.message);
+          toast.error(
+            i18n['com.affine.admin.failed-to-reset-password']() + e.message
+          );
         });
     },
-    [resetPassword]
+    [resetPassword, i18n]
   );
 
   return useMemo(() => {
@@ -197,6 +223,7 @@ export const useResetUserPassword = () => {
 };
 
 export const useDeleteUser = () => {
+  const i18n = useI18n();
   const { trigger: deleteUserById } = useMutation({
     mutation: deleteUserMutation,
   });
@@ -208,20 +235,23 @@ export const useDeleteUser = () => {
       await deleteUserById({ id })
         .then(async () => {
           await revalidate(listUsersQuery);
-          toast('User deleted successfully');
+          toast(i18n['com.affine.admin.user-deleted-successfully']());
           callback?.();
         })
         .catch(e => {
-          toast.error('Failed to delete user: ' + e.message);
+          toast.error(
+            i18n['com.affine.admin.failed-to-delete-user']() + e.message
+          );
         });
     },
-    [deleteUserById, revalidate]
+    [deleteUserById, revalidate, i18n]
   );
 
   return deleteById;
 };
 
 export const useEnableUser = () => {
+  const i18n = useI18n();
   const { trigger: enableUserById } = useMutation({
     mutation: enableUserMutation,
   });
@@ -237,15 +267,18 @@ export const useEnableUser = () => {
           callback?.();
         })
         .catch(e => {
-          toast.error('Failed to enable user: ' + e.message);
+          toast.error(
+            i18n['com.affine.admin.failed-to-enable-user']() + e.message
+          );
         });
     },
-    [enableUserById, revalidate]
+    [enableUserById, revalidate, i18n]
   );
 
   return enableById;
 };
 export const useDisableUser = () => {
+  const i18n = useI18n();
   const { trigger: disableUserById } = useMutation({
     mutation: disableUserMutation,
   });
@@ -261,16 +294,19 @@ export const useDisableUser = () => {
           callback?.();
         })
         .catch(e => {
-          toast.error('Failed to disable user: ' + e.message);
+          toast.error(
+            i18n['com.affine.admin.failed-to-disable-user']() + e.message
+          );
         });
     },
-    [disableUserById, revalidate]
+    [disableUserById, revalidate, i18n]
   );
 
   return disableById;
 };
 
 export const useImportUsers = () => {
+  const i18n = useI18n();
   const { trigger: importUsers } = useMutation({
     mutation: importUsersMutation,
   });
@@ -287,16 +323,19 @@ export const useImportUsers = () => {
           callback?.(importUsers);
         })
         .catch(e => {
-          toast.error('Failed to import users: ' + e.message);
+          toast.error(
+            i18n['com.affine.admin.failed-to-import-users-2']() + e.message
+          );
         });
     },
-    [importUsers, revalidate]
+    [importUsers, revalidate, i18n]
   );
 
   return handleImportUsers;
 };
 
 export const useExportUsers = () => {
+  const i18n = useI18n();
   const exportCSV = useCallback(
     async (users: UserType[], fields: ExportField[], callback?: () => void) => {
       const selectedFields = fields
@@ -304,7 +343,9 @@ export const useExportUsers = () => {
         .map(field => field.id);
 
       if (selectedFields.length === 0) {
-        alert('Please select at least one field to export');
+        alert(
+          i18n['com.affine.admin.please-select-at-least-one-field-to-export']()
+        );
         return;
       }
 
@@ -350,7 +391,7 @@ export const useExportUsers = () => {
 
       callback?.();
     },
-    []
+    [i18n]
   );
 
   const copyToClipboard = useCallback(

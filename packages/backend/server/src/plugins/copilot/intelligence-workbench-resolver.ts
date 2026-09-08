@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { NotFoundException } from '@nestjs/common';
 import {
   Args,
@@ -18,6 +20,7 @@ import type {
   AiContextProjectGrant,
   AiContextProjectInvitation,
 } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 
 import { BadRequest, Throttle } from '../../base';
 import type { CurrentUser as CurrentUserType } from '../../core/auth';
@@ -36,17 +39,16 @@ import {
   Models,
 } from '../../models';
 import {
+  ProjectAgentTaskType,
+  projectAgentTaskView,
+} from './project-agent-runtime-resolver';
+import {
   CopilotTaskType,
   CopilotType,
   projectCopilotTaskForViewer,
 } from './resolver';
 
-const ACCESS_REQUEST_VIEWS = [
-  'requester',
-  'beneficiary',
-  'project',
-  'source',
-] as const;
+const ACCESS_REQUEST_VIEWS = ['requester', 'project', 'source'] as const;
 type AccessRequestView = (typeof ACCESS_REQUEST_VIEWS)[number];
 
 const PROJECT_INVITATION_DIRECTIONS = [
@@ -64,6 +66,10 @@ type PresentableAccessRequest = AccessRequest & {
 
 @ObjectType()
 export class CopilotAccessRequestType {
+  @Field(() => String, { nullable: true }) projectName!: string | null;
+  @Field(() => String, { nullable: true }) requesterName!: string | null;
+  @Field(() => String, { nullable: true }) requesterEmail!: string | null;
+  @Field(() => String, { nullable: true }) beneficiaryName!: string | null;
   @Field(() => ID)
   id!: string;
 
@@ -151,6 +157,7 @@ export class CopilotProjectInvitationType {
 
 @ObjectType()
 export class CopilotProjectGrantType {
+  @Field(() => String, { nullable: true }) grantedByName!: string | null;
   @Field(() => ID)
   id!: string;
 
@@ -178,9 +185,6 @@ export class CopilotProjectGrantType {
   @Field(() => String)
   approvingSide!: string;
 
-  @Field(() => Boolean)
-  revocable!: boolean;
-
   @Field(() => String, { nullable: true })
   grantedByUserId!: string | null;
 
@@ -201,18 +205,6 @@ export class CopilotProjectGrantType {
 
   @Field(() => GraphQLISODateTime)
   updatedAt!: Date;
-}
-
-@ObjectType()
-export class CopilotProjectGrantRevocationType {
-  @Field(() => CopilotProjectGrantType)
-  grant!: CopilotProjectGrantType;
-
-  @Field(() => String, { nullable: true })
-  rerequestCardId!: string | null;
-
-  @Field(() => Int)
-  quarantinedMemoryCount!: number;
 }
 
 @ObjectType()
@@ -337,11 +329,8 @@ export class RequestCopilotDocumentAccessInput {
   @Field(() => String)
   docId!: string;
 
-  @Field(() => String, { nullable: true })
-  projectId?: string;
-
-  @Field(() => String, { nullable: true, defaultValue: 'read' })
-  requestedLevel?: 'read' | 'write';
+  @Field(() => String)
+  projectId!: string;
 
   @Field(() => String, { nullable: true })
   requestedTitle?: string;
@@ -369,24 +358,6 @@ export class SendCopilotProjectInvitationInput {
 
   @Field(() => String)
   email!: string;
-}
-
-@InputType()
-export class RevokeCopilotProjectGrantInput {
-  @Field(() => ID)
-  grantId!: string;
-
-  @Field(() => String, { nullable: true })
-  reason?: string;
-}
-
-@InputType()
-export class ReRequestCopilotProjectDocumentInput {
-  @Field(() => ID)
-  grantId!: string;
-
-  @Field(() => String, { nullable: true })
-  idempotencyKey?: string;
 }
 
 @InputType()
@@ -442,6 +413,10 @@ export class CopilotWorkbenchBlockerTaskType {
 
 @ObjectType()
 export class CopilotWorkbenchTaskItemType {
+  @Field(() => String, { nullable: true }) projectName!: string | null;
+  @Field(() => String, { nullable: true }) documentTitle!: string | null;
+  @Field(() => String, { nullable: true }) relatedUserName!: string | null;
+  @Field(() => String, { nullable: true }) relatedUserEmail!: string | null;
   @Field(() => ID)
   id!: string;
 
@@ -495,6 +470,8 @@ export class CopilotWorkbenchTaskItemType {
 
   @Field(() => CopilotTaskType, { nullable: true })
   run!: CopilotTaskType | null;
+  @Field(() => ProjectAgentTaskType, { nullable: true })
+  projectTask!: ProjectAgentTaskType | null;
 
   @Field(() => CopilotWorkbenchBlockerTaskType, { nullable: true })
   blocker!: CopilotWorkbenchBlockerTaskType | null;
@@ -538,21 +515,45 @@ export class CopilotWorkbenchTaskListType {
 export class IntelligenceWorkbenchResolver {
   constructor(
     private readonly ac: PermissionAccess,
-    private readonly models: Models
+    private readonly models: Models,
+    private readonly db: PrismaClient
   ) {}
 
-  private presentAccessRequest(
+  private async presentAccessRequest(
     request: PresentableAccessRequest,
     actorUserId: string,
     sourceView = false
-  ): CopilotAccessRequestType {
+  ): Promise<CopilotAccessRequestType> {
     const identityVisible =
       sourceView ||
       request.beneficiaryType === 'user' ||
       (request.requesterSuppliedIdentity !== false &&
         request.requesterUserIdSnapshot === actorUserId) ||
       request.projectGrant?.status === 'active';
+    const [project, requester, beneficiary, doc] = await Promise.all([
+      identityVisible && request.beneficiaryProjectId
+        ? this.db.aiContextProject.findUnique({
+            where: { id: request.beneficiaryProjectId },
+            select: { name: true },
+          })
+        : null,
+      identityVisible
+        ? this.models.user.get(
+            request.requesterUserId ?? request.requesterUserIdSnapshot
+          )
+        : null,
+      identityVisible && request.beneficiaryUserId
+        ? this.models.user.get(request.beneficiaryUserId)
+        : null,
+      sourceView
+        ? this.models.doc.getMeta(request.workspaceId, request.docId)
+        : null,
+    ]);
     return {
+      projectName: project?.name ?? null,
+      requesterName: requester?.name ?? null,
+      requesterEmail: requester?.email ?? null,
+      beneficiaryName: beneficiary?.name || beneficiary?.email || null,
       id: request.id,
       workspaceId: request.workspaceId,
       docId: identityVisible ? request.docId : null,
@@ -563,7 +564,9 @@ export class IntelligenceWorkbenchResolver {
         request.requesterUserId ?? request.requesterUserIdSnapshot,
       requestedLevel: request.requestedLevel,
       purpose: request.purpose,
-      requestedTitle: identityVisible ? request.requestedTitle : null,
+      requestedTitle: identityVisible
+        ? (doc?.title ?? request.requestedTitle)
+        : null,
       status: request.status,
       resolvedByUserId: request.resolvedByUserId,
       resolutionReason: request.resolutionReason,
@@ -594,11 +597,14 @@ export class IntelligenceWorkbenchResolver {
     };
   }
 
-  private presentGrant(
+  private async presentGrant(
     grant: (AiContextProjectGrant & { project: { name: string } }) | null
-  ): CopilotProjectGrantType {
+  ): Promise<CopilotProjectGrantType> {
     if (!grant) throw new NotFoundException('Project grant not found');
+    const grantorId = grant.grantedByUserId ?? grant.grantorUserIdSnapshot;
+    const grantor = grantorId ? await this.models.user.get(grantorId) : null;
     return {
+      grantedByName: grantor?.name || grantor?.email || null,
       id: grant.id,
       projectId: grant.projectId,
       projectName: grant.project.name,
@@ -608,7 +614,6 @@ export class IntelligenceWorkbenchResolver {
       status: grant.status,
       source: grant.source,
       approvingSide: grant.approvingSide,
-      revocable: grant.revocable,
       grantedByUserId: grant.grantedByUserId ?? grant.grantorUserIdSnapshot,
       accessRequestId: grant.accessRequestId,
       grantedAt: grant.grantedAt,
@@ -649,7 +654,46 @@ export class IntelligenceWorkbenchResolver {
     const run = item.run
       ? await projectCopilotTaskForViewer(item.run, userId, this.ac)
       : null;
+    const [project, relatedUser, document, editLease] = await Promise.all([
+      !item.redacted && item.projectId
+        ? this.db.aiContextProject.findUnique({
+            where: { id: item.projectId },
+            select: { name: true },
+          })
+        : null,
+      !item.redacted && item.relatedUserId
+        ? this.models.user.get(item.relatedUserId)
+        : null,
+      !item.redacted &&
+      item.documentId &&
+      item.workspaceId &&
+      item.availableActions.includes('approve_access_request')
+        ? this.models.doc.getMeta(item.workspaceId, item.documentId)
+        : null,
+      item.projectId &&
+      item.projectTask?.status === 'waiting_lease' &&
+      item.projectTask.waitingLeaseResourceId
+        ? this.db.projectResourceEditLease.findFirst({
+            where: {
+              projectId: item.projectId,
+              resourceId: item.projectTask.waitingLeaseResourceId,
+              expiresAt: { gt: new Date() },
+            },
+            include: { holder: true },
+          })
+        : null,
+    ]);
+    const projectTask = item.projectTask
+      ? projectAgentTaskView(item.projectTask)
+      : null;
+    if (projectTask && editLease)
+      projectTask.leaseHolderName =
+        editLease.holder.name || editLease.holder.email;
     return {
+      projectName: project?.name ?? null,
+      documentTitle: item.redacted ? null : (document?.title ?? item.title),
+      relatedUserName: relatedUser?.name ?? null,
+      relatedUserEmail: relatedUser?.email ?? null,
       id: item.id,
       entityId: item.entityId,
       kind: item.kind,
@@ -668,6 +712,7 @@ export class IntelligenceWorkbenchResolver {
       completedAt: item.completedAt,
       availableActions: run?.availableActions ?? item.availableActions,
       run,
+      projectTask,
       blocker: item.blocker,
     };
   }
@@ -968,29 +1013,16 @@ export class IntelligenceWorkbenchResolver {
     @CurrentUser() user: CurrentUserType,
     @Args('input') input: RequestCopilotDocumentAccessInput
   ) {
-    const result = input.projectId
-      ? await this.models.intelligenceWorkbenchAuthorization.requestAccess({
-          workspaceId: input.workspaceId,
-          docId: input.docId,
-          requesterUserId: user.id,
-          requestedLevel: input.requestedLevel ?? 'read',
-          requestedTitle: input.requestedTitle,
-          expiresAt: input.expiresAt,
-          idempotencyKey: input.idempotencyKey,
-          beneficiaryType: 'project',
-          beneficiaryProjectId: input.projectId,
-        })
-      : await this.models.intelligenceWorkbenchAuthorization.requestAccess({
-          workspaceId: input.workspaceId,
-          docId: input.docId,
-          requesterUserId: user.id,
-          requestedLevel: input.requestedLevel ?? 'read',
-          requestedTitle: input.requestedTitle,
-          expiresAt: input.expiresAt,
-          idempotencyKey: input.idempotencyKey,
-          beneficiaryType: 'user',
-          beneficiaryUserId: user.id,
-        });
+    const result =
+      await this.models.intelligenceWorkbenchAuthorization.requestProjectCopy({
+        workspaceId: input.workspaceId,
+        docId: input.docId,
+        projectId: input.projectId,
+        actorId: user.id,
+        requestKey: input.idempotencyKey ?? randomUUID(),
+        requestedTitle: input.requestedTitle,
+        expiresAt: input.expiresAt,
+      });
     return this.presentAccessRequest(result.request, user.id);
   }
 
@@ -1092,42 +1124,6 @@ export class IntelligenceWorkbenchResolver {
         { invitationId, actorUserId: user.id }
       )
     );
-  }
-
-  @Mutation(() => CopilotProjectGrantRevocationType)
-  async revokeCopilotProjectGrant(
-    @CurrentUser() user: CurrentUserType,
-    @Args('input') input: RevokeCopilotProjectGrantInput
-  ) {
-    const result =
-      await this.models.intelligenceWorkbenchAuthorization.revokeProjectGrantById(
-        {
-          grantId: input.grantId,
-          actorUserId: user.id,
-          reason: input.reason,
-        }
-      );
-    const stored =
-      await this.models.intelligenceWorkbenchAuthorization.getProjectGrant(
-        result.grant.id
-      );
-    return { ...result, grant: this.presentGrant(stored) };
-  }
-
-  @Mutation(() => CopilotAccessRequestType)
-  async reRequestCopilotProjectDocumentAccess(
-    @CurrentUser() user: CurrentUserType,
-    @Args('input') input: ReRequestCopilotProjectDocumentInput
-  ) {
-    const result =
-      await this.models.intelligenceWorkbenchAuthorization.reRequestRevokedProjectDocument(
-        {
-          grantId: input.grantId,
-          requesterUserId: user.id,
-          idempotencyKey: input.idempotencyKey,
-        }
-      );
-    return this.presentAccessRequest(result.request, user.id);
   }
 
   @Mutation(() => CopilotProjectAiPolicyType)

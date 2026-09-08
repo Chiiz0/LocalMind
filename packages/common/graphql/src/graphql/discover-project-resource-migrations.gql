@@ -1,7 +1,0 @@
-mutation discoverProjectResourceMigrations($projectId: String!) {
-  discoverProjectResourceMigrations(projectId: $projectId) {
-    items { ...ProjectResourceMigrationFields }
-    nextCursor
-  }
-}
-#import './fragments/project-resource-migration-fields.gql'

@@ -142,7 +142,9 @@ function createCopyLinkToBlockMenuItem(
   framework: FrameworkProvider,
   item = {
     icon: LinkIcon({ width: '20', height: '20' }),
-    label: 'Copy link to block',
+    get label() {
+      return I18n['com.affine.ui.copy-link-to-block']();
+    },
     type: 'copy-link-to-block',
     when: (ctx: MenuContext) => {
       if (ctx.isEmpty()) return false;
@@ -278,7 +280,9 @@ function createToolbarMoreMenuConfigV2(baseUrl?: string) {
         actions: [
           {
             id: 'copy-as-image',
-            label: 'Copy as Image',
+            get label() {
+              return I18n['com.affine.ui.copy-as-image']();
+            },
             icon: CopyAsImgaeIcon(),
             when: ({ isEdgelessMode, gfx, flags }) =>
               !flags.isHovering() &&
@@ -330,7 +334,9 @@ function createToolbarMoreMenuConfigV2(baseUrl?: string) {
           },
           {
             id: 'copy-link-to-block',
-            label: 'Copy link to block',
+            get label() {
+              return I18n['com.affine.ui.copy-link-to-block']();
+            },
             icon: LinkIcon(),
             when: ({ isPageMode, selection, gfx, flags }) => {
               if (flags.isHovering()) return false;
@@ -517,7 +523,9 @@ function createExternalLinkableToolbarConfig(
         actions: [
           {
             id: 'copy-link',
-            tooltip: 'Copy link',
+            get tooltip() {
+              return I18n['com.affine.comment.copy-link']();
+            },
             icon: CopyIcon(),
             run(ctx) {
               const model = ctx.getCurrentBlockByType(klass)?.model;
@@ -526,7 +534,7 @@ function createExternalLinkableToolbarConfig(
               const { url } = model.props;
 
               navigator.clipboard.writeText(url).catch(console.error);
-              toast(ctx.host, 'Copied link to clipboard');
+              toast(ctx.host, I18n['com.affine.ui.copied-link-to-clipboard']());
 
               ctx.track('CopiedLink', {
                 category: matchModels(model, [BookmarkBlockModel])
@@ -539,7 +547,9 @@ function createExternalLinkableToolbarConfig(
           },
           {
             id: 'edit',
-            tooltip: 'Edit Description',
+            get tooltip() {
+              return I18n['com.affine.ui.edit-description']();
+            },
             icon: EditIcon(),
             run(ctx) {
               const block = ctx.getCurrentBlockByType(klass);
@@ -750,7 +760,9 @@ function createSurfaceRefToolbarConfig(baseUrl?: string): ToolbarModuleConfig {
         actions: [
           {
             id: 'copy-link-to-surface-ref',
-            label: 'Copy original link',
+            get label() {
+              return I18n['com.affine.ui.copy-original-link']();
+            },
             icon: LinkIcon(),
             when: ctx =>
               !!ctx.getCurrentBlockByType(SurfaceRefBlockComponent)
@@ -849,7 +861,9 @@ const embedLinkedDocToolbarConfig = {
       actions: [
         {
           id: 'copy-link',
-          tooltip: 'Copy link',
+          get tooltip() {
+            return I18n['com.affine.comment.copy-link']();
+          },
           icon: CopyIcon(),
           run(ctx) {
             const model = ctx.getCurrentModelByType(EmbedLinkedDocModel);
@@ -864,7 +878,7 @@ const embedLinkedDocToolbarConfig = {
             if (!url) return;
 
             navigator.clipboard.writeText(url).catch(console.error);
-            toast(ctx.host, 'Copied link to clipboard');
+            toast(ctx.host, I18n['com.affine.ui.copied-link-to-clipboard']());
 
             ctx.track('CopiedLink', {
               category: 'linked doc',
@@ -875,7 +889,9 @@ const embedLinkedDocToolbarConfig = {
         },
         {
           id: 'edit',
-          tooltip: 'Edit Description',
+          get tooltip() {
+            return I18n['com.affine.ui.edit-description']();
+          },
           icon: EditIcon(),
           run(ctx) {
             const block = ctx.getCurrentBlockByType(
@@ -935,7 +951,9 @@ const embedSyncedDocToolbarConfig = {
       actions: [
         {
           id: 'copy-link',
-          tooltip: 'Copy link',
+          get tooltip() {
+            return I18n['com.affine.comment.copy-link']();
+          },
           icon: CopyIcon(),
           run(ctx) {
             const model = ctx.getCurrentModelByType(EmbedSyncedDocModel);
@@ -950,7 +968,7 @@ const embedSyncedDocToolbarConfig = {
             if (!url) return;
 
             navigator.clipboard.writeText(url).catch(console.error);
-            toast(ctx.host, 'Copied link to clipboard');
+            toast(ctx.host, I18n['com.affine.ui.copied-link-to-clipboard']());
 
             ctx.track('CopiedLink', {
               category: 'linked doc',
@@ -971,7 +989,9 @@ const inlineReferenceToolbarConfig = {
       actions: [
         {
           id: 'copy-link',
-          tooltip: 'Copy link',
+          get tooltip() {
+            return I18n['com.affine.comment.copy-link']();
+          },
           icon: CopyIcon(),
           run(ctx) {
             const target = ctx.message$.peek()?.element;
@@ -989,7 +1009,7 @@ const inlineReferenceToolbarConfig = {
             ctx.reset();
 
             navigator.clipboard.writeText(url).catch(console.error);
-            toast(ctx.host, 'Copied link to clipboard');
+            toast(ctx.host, I18n['com.affine.ui.copied-link-to-clipboard']());
 
             ctx.track('CopiedLink', {
               category: 'linked doc',
@@ -1000,7 +1020,9 @@ const inlineReferenceToolbarConfig = {
         },
         {
           id: 'edit',
-          tooltip: 'Edit Description',
+          get tooltip() {
+            return I18n['com.affine.ui.edit-description']();
+          },
           icon: EditIcon(),
           run(ctx) {
             const target = ctx.message$.peek()?.element;
@@ -1049,7 +1071,9 @@ const embedIframeToolbarConfig = {
       actions: [
         {
           id: 'copy-link',
-          tooltip: 'Copy original link',
+          get tooltip() {
+            return I18n['com.affine.ui.copy-original-link']();
+          },
           icon: CopyIcon(),
           run(ctx) {
             const model = ctx.getCurrentBlockByType(
@@ -1060,7 +1084,7 @@ const embedIframeToolbarConfig = {
             const { url } = model.props;
 
             navigator.clipboard.writeText(url).catch(console.error);
-            toast(ctx.host, 'Copied link to clipboard');
+            toast(ctx.host, I18n['com.affine.ui.copied-link-to-clipboard']());
 
             ctx.track('CopiedLink', {
               category: matchModels(model, [EmbedIframeBlockModel])

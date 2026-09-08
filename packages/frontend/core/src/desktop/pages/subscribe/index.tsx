@@ -2,6 +2,7 @@ import { Button, Loading } from '@affine/component';
 import { UrlService } from '@affine/core/modules/url';
 import { UserFriendlyError } from '@affine/error';
 import { SubscriptionPlan, SubscriptionRecurring } from '@affine/graphql';
+import { useI18n } from '@affine/i18n';
 import { track } from '@affine/track';
 import { effect, fromPromise, useServices } from '@toeverything/infra';
 import { nanoid } from 'nanoid';
@@ -78,6 +79,7 @@ function getProductTriple(searchParams: URLSearchParams): ProductTriple {
 }
 
 export const Component = () => {
+  const uiI18n = useI18n();
   const { authService, subscriptionService, urlService } = useServices({
     AuthService,
     SubscriptionService,
@@ -107,14 +109,14 @@ export const Component = () => {
             authService.session.status$.value === 'authenticated';
 
           if (!loggedIn) {
-            setMessage('Redirecting to sign in...');
+            setMessage(uiI18n['com.affine.ui.redirecting-to-sign-in']());
             jumpToSignIn(
               location.pathname + location.search,
               RouteLogic.REPLACE
             );
             return;
           }
-          setMessage('Checkout...');
+          setMessage(uiI18n['com.affine.ui.checkout']());
 
           try {
             const account = authService.session.account$.value;
@@ -139,7 +141,7 @@ export const Component = () => {
                 recurring
               ),
             });
-            setMessage('Redirecting...');
+            setMessage(uiI18n['com.affine.ui.redirecting']());
             urlService.openExternal(checkout);
           } catch (err) {
             const e = UserFriendlyError.fromAny(err);
@@ -166,6 +168,7 @@ export const Component = () => {
     variant,
     coupon,
     urlService,
+    uiI18n,
   ]);
 
   return (
@@ -181,7 +184,7 @@ export const Component = () => {
           {error}
           <br />
           <Button variant="primary" onClick={() => setRetryCount(i => i + 1)}>
-            Retry
+            {uiI18n['com.affine.localmind.directoryPermissions.retry']()}{' '}
           </Button>
         </>
       )}

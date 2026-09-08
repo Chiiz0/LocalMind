@@ -455,7 +455,11 @@ export class CopilotContextModel extends BaseModel {
       throw new BadRequest('Recalled memory sources exceed their limit');
     const memories = await this.db.aiContextMemory.findMany({
       where: { id: { in: input.memories.map(memory => memory.id) } },
-      include: { sources: true },
+      include: {
+        sources: true,
+        projectSourceCheck: true,
+        summaryRevisions: { orderBy: { createdAt: 'desc' }, take: 1 },
+      },
     });
     const byId = new Map(memories.map(memory => [memory.id, memory]));
     const sources: CopilotInputSource[] = [];
@@ -467,7 +471,13 @@ export class CopilotContextModel extends BaseModel {
         memory.status === 'active' &&
         memory.content === content &&
         !memory.quarantinedAt &&
-        memory.sources.length > 0;
+        (memory.sources.length > 0 ||
+          memory.projectSourceCheck?.allowed ||
+          memory.summaryRevisions.some(
+            revision =>
+              revision.contentFingerprint ===
+              createHash('sha256').update(content).digest('hex')
+          ));
       sources.push({
         workspaceId: input.workspaceId,
         kind: shared ? 'workspace' : memory ? 'private' : 'unknown',

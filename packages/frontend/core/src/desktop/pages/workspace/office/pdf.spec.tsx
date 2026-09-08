@@ -1,8 +1,9 @@
 /**
  * @vitest-environment happy-dom
  */
-
+import { getOrCreateI18n } from '@affine/i18n';
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -10,9 +11,18 @@ import {
   waitFor,
 } from '@testing-library/react';
 import type { ButtonHTMLAttributes, PropsWithChildren } from 'react';
-import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  test,
+  vi,
+} from 'vitest';
 
 import type { PdfSemanticState } from '../../../../modules/office';
+import type { OfficeEditorDraft } from './edit-draft';
 import { PdfEditor } from './pdf';
 import { openPdf } from './pdf-tools';
 
@@ -142,8 +152,46 @@ describe('PdfEditor', () => {
 
   afterEach(() => {
     cleanup();
+    vi.clearAllMocks();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+  });
+
+  test('Project annotations and signature drafts discard without changing the PDF', async () => {
+    const guards = new Set<OfficeEditorDraft>();
+    const gql = vi.fn();
+    render(
+      <PdfEditor
+        state={state}
+        revision={
+          { id: 'revision-1', sequence: 1, packageUrl: 'about:blank' } as never
+        }
+        artifactId="artifact-1"
+        owner={{ kind: 'project', projectId: 'project-1' }}
+        graphql={{ gql } as never}
+        readOnly={false}
+        onRevision={vi.fn()}
+        onCommentAnchorChange={vi.fn()}
+        onAiSelectionChange={vi.fn()}
+        registerDraft={guard => {
+          guards.add(guard);
+          return () => {
+            guards.delete(guard);
+          };
+        }}
+      />
+    );
+    fireEvent.change(screen.getByLabelText('Annotation comment'), {
+      target: { value: 'Draft annotation' },
+    });
+    fireEvent.change(screen.getByLabelText('Signer name'), {
+      target: { value: 'Alice' },
+    });
+    const guard = [...guards][0];
+    expect(guard.hasUnsavedChanges).toBe(true);
+    await act(() => guard.discard());
+    expect(guard.hasUnsavedChanges).toBe(false);
+    expect(gql).not.toHaveBeenCalled();
   });
 
   test('renders lazy page thumbnails from one shared PDF document', async () => {
@@ -195,4 +243,8 @@ describe('PdfEditor', () => {
       });
     });
   });
+});
+
+beforeAll(async () => {
+  await getOrCreateI18n().changeLanguage('en');
 });

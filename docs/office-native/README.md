@@ -21,6 +21,14 @@ foundation. [Project execution evidence](../ai-modernization/project-native-reso
 covers all four formats, saved edits, AI approval/cancellation and publication.
 The engine boundaries and Artifact/Revision integrity remain unchanged.
 
+For Project-owned Office files, the confirmed
+[workbench contract](../ai-modernization/tracks/project-workbench-redesign.md)
+requires exclusive leases held by a browser tab or AI task, renewed every 20
+seconds and expiring within 60 seconds. Other tabs remain read-only; no role can
+force an unlock. Project editing does not merge concurrent CRDT changes. Broader
+collaboration references below describe the Office platform direction, not a
+second Project editing policy.
+
 Native Office resources are peers of the existing BlockSuite page and edgeless
 document, not new BlockSuite view modes:
 

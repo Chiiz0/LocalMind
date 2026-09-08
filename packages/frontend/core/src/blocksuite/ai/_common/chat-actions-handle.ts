@@ -1,3 +1,4 @@
+import { I18n } from '@affine/i18n';
 import { EdgelessCRUDIdentifier } from '@blocksuite/affine/blocks/surface';
 import {
   Bound,
@@ -196,12 +197,22 @@ export function promptDocTitle(host: EditorHost, autofill?: string) {
   if (!notification) return Promise.resolve(undefined);
 
   return notification.prompt({
-    title: 'Create linked doc',
-    message: 'Enter a title for the new doc.',
-    placeholder: 'Untitled',
+    get title() {
+      return I18n['com.affine.ui.create-linked-doc']();
+    },
+    get message() {
+      return I18n['com.affine.ui.enter-a-title-for-the-new-doc']();
+    },
+    get placeholder() {
+      return I18n['com.affine.localmind.aiContext.untitled']();
+    },
     autofill,
-    confirmText: 'Confirm',
-    cancelText: 'Cancel',
+    get confirmText() {
+      return I18n['com.affine.payment.modal.resume.confirm']();
+    },
+    get cancelText() {
+      return I18n['com.affine.localmind.aiContext.cancel']();
+    },
   });
 }
 
@@ -256,7 +267,9 @@ async function insertBelowBlock(
 
 export const PAGE_INSERT = {
   icon: InsertBelowIcon({ width: '20px', height: '20px' }),
-  title: 'Insert',
+  get title() {
+    return I18n['com.affine.ui.insert']();
+  },
   showWhen: (host: EditorHost) => {
     if (host.std.store.readonly$.value) {
       return false;
@@ -337,7 +350,9 @@ export const EDGELESS_INSERT = {
 
 const SAVE_AS_BLOCK: ChatAction = {
   icon: BlockIcon({ width: '20px', height: '20px' }),
-  title: 'Save as block',
+  get title() {
+    return I18n['com.affine.ui.save-as-block']();
+  },
   toast: 'Successfully saved chat to a block',
   showWhen: (host: EditorHost) => {
     if (host.std.store.readonly$.value) {
@@ -370,10 +385,15 @@ const SAVE_AS_BLOCK: ChatAction = {
       docModeService.setEditorMode('edgeless' as DocMode);
       // Notify user to switch to edgeless mode
       notificationService?.notify({
-        title: 'Save chat to a block',
+        get title() {
+          return I18n['com.affine.ui.save-chat-to-a-block']();
+        },
         accent: 'info',
-        message:
-          'This feature is not available in the page editor. Switch to edgeless mode.',
+        get message() {
+          return I18n[
+            'com.affine.ui.this-feature-is-not-available-in-the-page-editor-switch-to-edgeless-mode'
+          ]();
+        },
         onClose: function (): void {},
       });
     }
@@ -428,7 +448,9 @@ const SAVE_AS_BLOCK: ChatAction = {
     } catch (err) {
       console.error(err);
       notificationService?.notify({
-        title: 'Failed to save chat to a block',
+        get title() {
+          return I18n['com.affine.ui.failed-to-save-chat-to-a-block']();
+        },
         accent: 'error',
         onClose: function (): void {},
       });
@@ -441,7 +463,9 @@ const SAVE_AS_BLOCK: ChatAction = {
 
 const ADD_TO_EDGELESS_AS_NOTE = {
   icon: EdgelessIcon({ width: '20px', height: '20px' }),
-  title: 'Add to edgeless as note',
+  get title() {
+    return I18n['com.affine.ui.add-to-edgeless-as-note']();
+  },
   showWhen: (host: EditorHost) => {
     if (host.std.store.readonly$.value) {
       return false;
@@ -482,7 +506,9 @@ const ADD_TO_EDGELESS_AS_NOTE = {
 
 export const SAVE_AS_DOC = {
   icon: PageIcon({ width: '20px', height: '20px' }),
-  title: 'Save as doc',
+  get title() {
+    return I18n['com.affine.ui.save-as-doc']();
+  },
   showWhen: () => true,
   toast: 'New doc created',
   handler: (host: EditorHost, content: string) => {
@@ -520,7 +546,9 @@ export const SAVE_AS_DOC = {
 
 const CREATE_AS_LINKED_DOC = {
   icon: LinkedPageIcon({ width: '20px', height: '20px' }),
-  title: 'Create as a linked doc',
+  get title() {
+    return I18n['com.affine.ui.create-as-a-linked-doc']();
+  },
   showWhen: (host: EditorHost) => {
     if (host.std.store.readonly$.value) {
       return false;

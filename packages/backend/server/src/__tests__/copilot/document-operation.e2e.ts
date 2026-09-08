@@ -40,6 +40,7 @@ import {
   createDocCreationStatusTool,
 } from '../../plugins/copilot/tools/doc-write';
 import { createTestingModule, type TestingModule } from '../utils';
+import { seedProjectSourceGrant } from '../utils/project-source-grant';
 
 const test = ava.serial as TestFn<{
   module: TestingModule;
@@ -54,6 +55,7 @@ const test = ava.serial as TestFn<{
   sessionId: string;
   workspaceId: string;
   hostId: string;
+  projectId: string;
 }>;
 test.before(async t => {
   const module = await createTestingModule();
@@ -125,7 +127,6 @@ test.beforeEach(async t => {
     sessionId: randomUUID(),
     userId: actor.id,
     workspaceId: host.id,
-    selectedContextProjectId: project.id,
     title: null,
     prompt: { name: 'document-execution', model: 'gpt-5-mini', action: null },
   });
@@ -134,6 +135,7 @@ test.beforeEach(async t => {
     workspaceId: workspace.id,
     hostId: host.id,
     sessionId,
+    projectId: project.id,
   });
 });
 test.afterEach.always(() => Sinon.restore());
@@ -188,6 +190,7 @@ async function pendingDelegatedLocation(context: {
   await models.copilotMcpDelegation.updateRequest(record.id, {
     agentRunId: run.id,
     status: 'processing',
+    result: {},
   });
   const workerLeaseId = randomUUID();
   const leased = await models.copilotAgentRuntime.acquireStandaloneWorkerLease({
@@ -733,7 +736,7 @@ test('document creation registers pages in bootstrap roots and preserves registr
     select: { blob: true },
   });
   t.true(
-    readAllDocIdsFromRootDoc(recoveredRoot.blob, false).includes(
+    readAllDocIdsFromRootDoc(Buffer.from(recoveredRoot.blob), false).includes(
       interruptedDocumentId
     )
   );
@@ -775,7 +778,10 @@ test('document creation registers pages in bootstrap roots and preserves registr
     where: { workspaceId_id: { workspaceId, id: workspaceId } },
     select: { blob: true },
   });
-  const registeredIds = readAllDocIdsFromRootDoc(createdRoot.blob, false);
+  const registeredIds = readAllDocIdsFromRootDoc(
+    Buffer.from(createdRoot.blob),
+    false
+  );
   t.true(registeredIds.includes(documentId));
   t.true(registeredIds.includes(interruptedDocumentId));
   const yjsRegisteredIds = readRootDocPageIdsWithYjs(createdRoot.blob);
@@ -802,7 +808,9 @@ test('document creation registers pages in bootstrap roots and preserves registr
     select: { blob: true },
   });
   t.true(
-    readAllDocIdsFromRootDoc(replayedRoot.blob, false).includes(documentId)
+    readAllDocIdsFromRootDoc(Buffer.from(replayedRoot.blob), false).includes(
+      documentId
+    )
   );
   t.true(readRootDocPageIdsWithYjs(replayedRoot.blob).includes(documentId));
 });
@@ -960,10 +968,8 @@ test('confirmed copies transfer frozen attachments into a separate workspace and
     'Original body',
     actorId
   );
-  await models.intelligenceWorkbenchAuthorization.addProjectDocument({
-    projectId: (
-      await db.aiSession.findUniqueOrThrow({ where: { id: sessionId } })
-    ).selectedContextProjectId!,
+  await seedProjectSourceGrant(db, {
+    projectId: t.context.projectId,
     workspaceId: hostId,
     docId: source.docId,
     requesterUserId: actorId,
@@ -1385,10 +1391,8 @@ test('source sharing revocation after confirmation rejects copy execution and re
     'Original body',
     actorId
   );
-  await t.context.models.intelligenceWorkbenchAuthorization.addProjectDocument({
-    projectId: (
-      await db.aiSession.findUniqueOrThrow({ where: { id: sessionId } })
-    ).selectedContextProjectId!,
+  await seedProjectSourceGrant(db, {
+    projectId: t.context.projectId,
     workspaceId: hostId,
     docId: source.docId,
     requesterUserId: actorId,
@@ -2665,8 +2669,9 @@ test('raw folder sync denies restricted changes and incomplete Yjs dependencies 
   }
 });
 
-test('project creation rejects private sources and does not revive old evidence after regrant', async t => {
+test('retired Project document operations reject execution even after source authorization', async t => {
   const {
+    db,
     models,
     service,
     writer,
@@ -2675,14 +2680,19 @@ test('project creation rejects private sources and does not revive old evidence 
     sessionId,
     workspaceId,
     hostId,
+    projectId,
   } = t.context;
+  await db.aiSession.update({
+    where: { id: sessionId },
+    data: { selectedContextProjectId: projectId },
+  });
   const source = await writer.createDoc(
     hostId,
     'Private source',
     'Private content',
     actorId
   );
-  let operation = await models.copilotDocumentOperation.prepare({
+  const operation = await models.copilotDocumentOperation.prepare({
     actorId,
     sessionId,
     requestKey: randomUUID(),
@@ -2690,14 +2700,13 @@ test('project creation rejects private sources and does not revive old evidence 
     markdown: 'Derived content',
     addToProject: true,
   });
-  const projectId = operation.projectId!;
   await models.copilotContext.recordDocumentSources({
     sessionId,
     actorId,
     projectId,
     documents: [{ workspaceId: hostId, docId: source.docId }],
   });
-  let input = { actorId, operationId: operation.id };
+  const input = { actorId, operationId: operation.id };
   const confirm = () =>
     service.confirmDestination({
       ...input,
@@ -2705,10 +2714,10 @@ test('project creation rejects private sources and does not revive old evidence 
       folderId: null,
       expectedRevision: 0,
     });
-  await t.throwsAsync(confirm(), { message: /private or unverified sources/ });
+  await t.throwsAsync(confirm(), { message: /Legacy Project writes/ });
   t.is(await reader.getDoc(workspaceId, operation.documentId), null);
   const authorize = () =>
-    models.intelligenceWorkbenchAuthorization.addProjectDocument({
+    seedProjectSourceGrant(db, {
       projectId,
       workspaceId: hostId,
       docId: source.docId,
@@ -2716,55 +2725,30 @@ test('project creation rejects private sources and does not revive old evidence 
       requestedLevel: 'read',
     });
   await authorize();
-  await t.throwsAsync(confirm(), { message: /private or unverified sources/ });
-  const cleanSession = await models.copilotSession.createWithPrompt({
-    sessionId: randomUUID(),
-    userId: actorId,
-    workspaceId: hostId,
-    selectedContextProjectId: projectId,
-    title: null,
-    prompt: { name: 'document-execution', model: 'gpt-5-mini', action: null },
-  });
-  await models.copilotContext.recordDocumentSources({
-    sessionId: cleanSession,
-    actorId,
-    projectId,
-    documents: [{ workspaceId: hostId, docId: source.docId }],
-  });
-  operation = await models.copilotDocumentOperation.prepare({
-    actorId,
-    sessionId: cleanSession,
-    requestKey: randomUUID(),
-    title: 'Authorized derivative',
-    markdown: 'Derived content',
-    addToProject: true,
-  });
-  input = { actorId, operationId: operation.id };
-  const confirmed = await confirm();
-  await models.intelligenceWorkbenchAuthorization.revokeProjectGrant({
-    projectId,
-    workspaceId: hostId,
-    docId: source.docId,
-    actorUserId: actorId,
-  });
-  const execute = () =>
-    service.execute({
-      ...input,
-      expectedRevision: confirmed.destinationRevision,
-    });
-  await t.throwsAsync(execute(), { message: /private or unverified sources/ });
+  await t.throwsAsync(confirm(), { message: /Legacy Project writes/ });
+  await models.intelligenceWorkbenchAuthorization.removeSourceDocumentAuthorizations(
+    {
+      workspaceId: hostId,
+      docId: source.docId,
+    }
+  );
+  await t.throwsAsync(confirm(), { message: /Legacy Project writes/ });
   t.is(await reader.getDoc(workspaceId, operation.documentId), null);
   t.is(
     (await models.copilotDocumentOperation.get(input)).createdDocumentAt,
     null
   );
   await authorize();
-  await t.throwsAsync(execute(), { message: /private or unverified sources/ });
+  await t.throwsAsync(confirm(), { message: /Legacy Project writes/ });
   t.is(await reader.getDoc(workspaceId, operation.documentId), null);
 });
 
-test('creation receipts reflect revoked project authorization without rewriting execution evidence', async t => {
-  const { models, db, service, actorId, sessionId, workspaceId } = t.context;
+test('database rejects a forged completion receipt for retired Project writes', async t => {
+  const { models, db, actorId, sessionId, workspaceId, projectId } = t.context;
+  await db.aiSession.update({
+    where: { id: sessionId },
+    data: { selectedContextProjectId: projectId },
+  });
   const operation = await models.copilotDocumentOperation.prepare({
     actorId,
     sessionId,
@@ -2774,45 +2758,23 @@ test('creation receipts reflect revoked project authorization without rewriting 
     addToProject: true,
   });
   const input = { actorId, operationId: operation.id };
-  const confirmed = await service.confirmDestination({
-    ...input,
-    workspaceId,
-    folderId: null,
-    expectedRevision: 0,
-  });
-  const result = await service.execute({
-    ...input,
-    expectedRevision: confirmed.destinationRevision,
-  });
-  t.is(result.projectStatus, 'granted');
-  const grant = await db.aiContextProjectGrant.findFirstOrThrow({
-    where: {
-      projectId: operation.projectId!,
-      workspaceId,
-      docId: operation.documentId,
-      status: 'active',
-    },
-  });
-  await models.intelligenceWorkbenchAuthorization.revokeProjectGrantById({
-    grantId: grant.id,
-    actorUserId: actorId,
-  });
-  t.is(
-    (await models.copilotDocumentOperation.receipt(input)).projectStatus,
-    'revoked'
+  await t.throwsAsync(
+    db.copilotDocumentOperation.update({
+      where: { id: operation.id },
+      data: {
+        status: 'complete',
+        projectStatus: 'granted',
+        destinationWorkspaceId: workspaceId,
+        createdDocumentAt: new Date(),
+      },
+    }),
+    { message: /Retired Project operations cannot create Workspace documents/ }
   );
-  t.is(
-    (await models.copilotDocumentOperation.list(sessionId, actorId))[0]
-      .projectStatus,
-    'revoked'
-  );
-  t.is(
-    (await models.copilotDocumentOperation.get(input)).projectStatus,
-    'granted'
-  );
-  t.truthy(
-    (await models.copilotDocumentOperation.receipt(input)).createdDocumentAt
-  );
+  const receipt = await models.copilotDocumentOperation.receipt(input);
+  t.is(receipt.createdDocumentAt, null);
+  t.is(receipt.status, operation.status);
+  t.is(receipt.projectStatus, operation.projectStatus);
+  t.is(await db.aiContextProjectGrant.count(), 0);
 });
 
 test('cross-workspace creation waits for an explicit root and retries the same real document', async t => {

@@ -84,6 +84,10 @@ const task = (
   abandoned = false,
   attention: WorkbenchTask['attention'] = null
 ): WorkbenchTask => ({
+  projectName: 'Project',
+  documentTitle: 'Document',
+  relatedUserName: null,
+  relatedUserEmail: null,
   id,
   entityId: id,
   kind: 'run',
@@ -107,6 +111,7 @@ const task = (
   completedAt: null,
   availableActions,
   blocker: null,
+  projectTask: null,
   run: {
     sessionId: null,
     id,
@@ -468,6 +473,11 @@ describe('TaskPanel', () => {
       selectedProjectId: 'project-1',
       onAction,
     });
+
+    expect(container.querySelector('[data-segment="todo"]')).toBeNull();
+    fireEvent.click(
+      container.querySelector('button[aria-expanded="false"]') as HTMLElement
+    );
 
     const todo = container.querySelector('[data-segment="todo"]');
     const done = container.querySelector('[data-segment="done"]');

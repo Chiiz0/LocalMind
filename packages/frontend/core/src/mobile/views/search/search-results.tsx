@@ -29,6 +29,7 @@ export const SearchResults = ({
   tags,
   error,
 }: SearchResultsProps) => {
+  const i18n = useI18n();
   return (
     <>
       <div className={styles.resTitle}>{title}</div>
@@ -42,7 +43,9 @@ export const SearchResults = ({
       {/* Doc Res */}
       {docs?.length ? (
         <div className={styles.resBlock} data-scroll>
-          <div className={styles.resBlockTitle}>Docs</div>
+          <div className={styles.resBlockTitle}>
+            {i18n['com.affine.editCollection.pages']()}
+          </div>
           <div className={styles.resBlockScrollContent}>
             <div className={styles.scrollDocsContent}>
               {docs.map(doc => (
@@ -56,7 +59,9 @@ export const SearchResults = ({
       {/* Collection Res */}
       {collections?.length ? (
         <div className={styles.resBlock}>
-          <div className={styles.resBlockTitle}>Collections</div>
+          <div className={styles.resBlockTitle}>
+            {i18n['com.affine.editor.at-menu.collections']()}
+          </div>
           <div className={styles.resBlockListContent}>
             {collections.map(collection => (
               <UniversalSearchResultItem
@@ -73,7 +78,9 @@ export const SearchResults = ({
       {/* Tag Res */}
       {tags?.length ? (
         <div className={styles.resBlock}>
-          <div className={styles.resBlockTitle}>Tags</div>
+          <div className={styles.resBlockTitle}>
+            {i18n['com.affine.editor.at-menu.tags']()}
+          </div>
           <div className={styles.resBlockListContent}>
             {tags.map(tag => (
               <UniversalSearchResultItem

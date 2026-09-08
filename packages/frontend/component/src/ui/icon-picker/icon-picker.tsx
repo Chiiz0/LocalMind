@@ -1,3 +1,4 @@
+import { useI18n } from '@affine/i18n';
 import { cssVarV2 } from '@toeverything/theme/v2';
 import clsx from 'clsx';
 import { type HTMLAttributes, useState } from 'react';
@@ -21,6 +22,7 @@ export const IconPicker = ({
 }: Omit<HTMLAttributes<HTMLDivElement>, 'onSelect'> & {
   onSelect?: (data?: IconData) => void;
 }) => {
+  const i18n = useI18n();
   const [activePanel, setActivePanel] = useState<string>('Emoji');
 
   return (
@@ -50,7 +52,7 @@ export const IconPicker = ({
             style={{ color: cssVarV2.text.secondary, fontWeight: 500 }}
             onClick={() => onSelect?.()}
           >
-            Remove
+            {i18n['com.affine.share-menu.member-management.remove']()}{' '}
           </Button>
         </div>
       </header>

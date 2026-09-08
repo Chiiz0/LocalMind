@@ -12,6 +12,7 @@ import { ProjectResourceKind } from '@prisma/client';
 import { BadRequest, Throttle } from '../../base';
 import { Models } from '../../models';
 import { CurrentUser, type CurrentUser as User } from '../auth';
+import { PermissionAccess } from '../permission';
 import { ProjectResourceType } from '../project/types';
 import { ProjectImportService } from './import-service';
 
@@ -37,7 +38,8 @@ export class ProjectImportPermissionRequestType {
 export class ProjectImportResolver {
   constructor(
     private readonly imports: ProjectImportService,
-    private readonly models: Models
+    private readonly models: Models,
+    private readonly ac: PermissionAccess
   ) {}
 
   @Mutation(() => ProjectResourceType)
@@ -66,6 +68,12 @@ export class ProjectImportResolver {
     @Args('resourceId') resourceId: string,
     @Args('requestKey') requestKey: string
   ) {
+    await this.ac.user(user.id).workspace(workspaceId).assert('Workspace.Read');
+    await this.ac
+      .user(user.id)
+      .doc(workspaceId, resourceId)
+      .projectScope(null)
+      .assert('Doc.Read');
     const result =
       await this.models.intelligenceWorkbenchAuthorization.requestProjectCopy({
         projectId,

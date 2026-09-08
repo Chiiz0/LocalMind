@@ -6,6 +6,7 @@ mutation refreshProjectResourceSource(
   $expectedContentVersion: Int!
   $expectedSourceVersion: String!
   $requestKey: String!
+  $editLease: ProjectEditLeaseProofInput!
 ) {
   refreshProjectResourceSource(
     projectId: $projectId
@@ -15,6 +16,7 @@ mutation refreshProjectResourceSource(
     expectedContentVersion: $expectedContentVersion
     expectedSourceVersion: $expectedSourceVersion
     requestKey: $requestKey
+    editLease: $editLease
   ) {
     ...ProjectResourceFields
   }

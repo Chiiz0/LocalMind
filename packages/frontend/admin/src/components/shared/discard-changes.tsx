@@ -1,3 +1,5 @@
+import { useI18n } from '@affine/i18n';
+
 import { ConfirmDialog } from './confirm-dialog';
 
 export const DiscardChanges = ({
@@ -5,7 +7,7 @@ export const DiscardChanges = ({
   onClose,
   onConfirm,
   onOpenChange,
-  description = 'Changes will not be saved.',
+  description,
 }: {
   open: boolean;
   onClose: () => void;
@@ -13,11 +15,14 @@ export const DiscardChanges = ({
   onOpenChange: (open: boolean) => void;
   description?: string;
 }) => {
+  const i18n = useI18n();
+  if (description === undefined)
+    description = i18n['com.affine.admin.changes-will-not-be-saved']();
   return (
     <ConfirmDialog
       open={open}
       onOpenChange={onOpenChange}
-      title="Discard Changes"
+      title={i18n['com.affine.admin.discard-changes']()}
       description={description}
       confirmText="Discard"
       confirmButtonVariant="destructive"

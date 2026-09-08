@@ -216,16 +216,6 @@ async function createScopedProjectAccess(level: 'read' | 'write') {
     },
   });
   const grant = await db.$transaction(async transaction => {
-    await transaction.aiContextProjectDoc.create({
-      data: {
-        projectId: project.id,
-        workspaceId: workspace.id,
-        docId,
-        status: 'granted',
-        requestedLevel: level,
-        addedByUserId: owner.id,
-      },
-    });
     return transaction.aiContextProjectGrant.create({
       data: {
         projectId: project.id,
@@ -253,16 +243,6 @@ async function setScopedProjectGrantStatus(
 ) {
   const revokedAt = status === 'revoked' ? new Date() : null;
   await db.$transaction(async transaction => {
-    await transaction.aiContextProjectDoc.update({
-      where: {
-        projectId_workspaceId_docId: {
-          projectId: grant.projectId,
-          workspaceId: grant.workspaceId,
-          docId: grant.docId,
-        },
-      },
-      data: { status: status === 'active' ? 'granted' : 'revoked', revokedAt },
-    });
     await transaction.aiContextProjectGrant.update({
       where: { id: grant.id },
       data: {

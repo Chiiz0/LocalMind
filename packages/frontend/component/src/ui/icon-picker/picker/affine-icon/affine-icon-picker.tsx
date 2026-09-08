@@ -1,3 +1,4 @@
+import { useI18n } from '@affine/i18n';
 import keywords from '@blocksuite/icons/keywords/en.json';
 import * as allIcons from '@blocksuite/icons/rc';
 import { cssVarV2 } from '@toeverything/theme/v2';
@@ -66,6 +67,7 @@ export const AffineIconPicker = ({
 }: {
   onSelect?: (icon: string, color: string) => void;
 }) => {
+  const i18n = useI18n();
   const [filteredIcons, setFilteredIcons] = useState<Icon[]>([]);
   const [keyword, setKeyword] = useState('');
   const [color, setColor] = useState<string>(cssVarV2.block.callout.icon.blue);
@@ -118,7 +120,7 @@ export const AffineIconPicker = ({
               />
             </div>
           }
-          placeholder="Filter..."
+          placeholder={i18n['com.affine.ui.filter']()}
         />
 
         {/* Color Picker */}
@@ -168,7 +170,7 @@ export const AffineIconPicker = ({
           {recentIcons.length ? (
             <div className={pickerStyles.group}>
               <div className={pickerStyles.groupName} data-group-name="Recent">
-                Recent
+                {i18n['com.affine.editor.at-menu.recent-docs']()}{' '}
               </div>
               <div className={pickerStyles.groupGrid}>
                 {recentIcons.map(iconName => (

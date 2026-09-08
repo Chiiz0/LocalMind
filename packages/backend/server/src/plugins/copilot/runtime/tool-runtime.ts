@@ -40,9 +40,6 @@ import {
   buildOfficeCommandBatchRequestHandler,
   buildOfficeCommandRequestHandler,
   buildOfficeReadHandler,
-  buildProjectDocContentGetter,
-  buildProjectDocKeywordSearchGetter,
-  buildProjectDocSearchGetter,
   type CopilotTool,
   type CopilotToolSet,
   createBlobReadTool,
@@ -62,11 +59,6 @@ import {
   createOfficeCommandBatchRequestTool,
   createOfficeCommandRequestTool,
   createOfficeReadTool,
-  createProjectDocAddTool,
-  createProjectDocKeywordSearchTool,
-  createProjectDocReadTool,
-  createProjectDocSemanticSearchTool,
-  createProjectDocUpdateRequestTool,
   createProjectOfficeTools,
   createSectionEditTool,
   createTaskAttachmentReadTool,
@@ -74,11 +66,11 @@ import {
   defineTool,
 } from '../tools';
 import { createDocCopyRequestTool } from '../tools/doc-write';
-import { createProjectFileRequestTools } from '../tools/project-file-request';
 import {
   createProjectResourceTools,
   PROJECT_NATIVE_TOOL_NAMES,
-} from '../tools/project-resources';
+} from '../tools/project-doc';
+import { createProjectFileRequestTools } from '../tools/project-file-request';
 import { PromptRuntime } from './prompt-runtime';
 import type { ToolLoopBackend } from './tool/bridge';
 import { createNativeToolLoopAdapter } from './tool/native-adapter';
@@ -239,6 +231,11 @@ export class ToolRuntime {
     }
     const nativeProjectId =
       sessionMeta?.workspaceId === null ? selectedProjectId : null;
+    if (selectedProjectId && !nativeProjectId) {
+      throw new Error(
+        'Start a native Project conversation to use Project tools.'
+      );
+    }
     if (nativeProjectId) {
       if (!this.projectResources)
         throw new Error('Project resource service is unavailable.');
@@ -351,17 +348,6 @@ export class ToolRuntime {
           break;
         }
         case 'docSemanticSearch': {
-          if (selectedProjectId) {
-            const searchDocs = buildProjectDocSearchGetter(
-              this.ac,
-              this.context,
-              this.models
-            );
-            tools.doc_semantic_search = createProjectDocSemanticSearchTool(
-              searchDocs.bind(null, options)
-            );
-            break;
-          }
           const searchDocs = buildDocSearchGetter(
             this.ac,
             this.context,
@@ -374,18 +360,6 @@ export class ToolRuntime {
           break;
         }
         case 'docKeywordSearch': {
-          if (selectedProjectId) {
-            const searchDocs = buildProjectDocKeywordSearchGetter(
-              this.ac,
-              this.indexerService,
-              this.models,
-              this.docReader
-            );
-            tools.doc_keyword_search = createProjectDocKeywordSearchTool(
-              searchDocs.bind(null, options)
-            );
-            break;
-          }
           const searchDocs = buildDocKeywordSearchGetter(
             this.ac,
             this.permission,
@@ -399,17 +373,6 @@ export class ToolRuntime {
           break;
         }
         case 'docRead': {
-          if (selectedProjectId) {
-            const getProjectDoc = buildProjectDocContentGetter(
-              this.ac,
-              this.docReader,
-              this.models
-            );
-            tools.project_doc_read = createProjectDocReadTool(
-              getProjectDoc.bind(null, options)
-            );
-            break;
-          }
           const getDoc = buildDocContentGetter(
             this.ac,
             this.docReader,
@@ -436,15 +399,6 @@ export class ToolRuntime {
           break;
         }
         case 'docUpdate': {
-          if (selectedProjectId) {
-            tools.project_doc_update_request =
-              createProjectDocUpdateRequestTool({
-                ac: this.ac,
-                models: this.models,
-                options,
-              });
-            break;
-          }
           const updateDoc = buildDocUpdateHandler(
             this.ac,
             this.docWriter,
@@ -478,14 +432,6 @@ export class ToolRuntime {
           break;
         }
         case 'workspaceOrganization': {
-          if (selectedProjectId) {
-            tools.project_doc_add = createProjectDocAddTool({
-              ac: this.ac,
-              models: this.models,
-              options,
-            });
-            break;
-          }
           Object.assign(
             tools,
             createWorkspaceOrganizationTools(

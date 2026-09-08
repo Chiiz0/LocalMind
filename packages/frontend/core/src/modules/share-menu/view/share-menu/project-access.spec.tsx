@@ -25,7 +25,6 @@ const tokens = vi.hoisted(() => ({
   approve: Symbol('approve'),
   query: Symbol('query'),
   reject: Symbol('reject'),
-  revoke: Symbol('revoke'),
 }));
 
 vi.mock('@affine/component', () => ({
@@ -57,6 +56,10 @@ vi.mock('@affine/core/components/hooks/use-query', () => ({
               id: 'request-1',
               beneficiaryType: 'project',
               beneficiaryProjectId: 'project-1',
+              projectName: 'Planning',
+              requesterName: 'Requester',
+              requesterEmail: 'requester@example.com',
+              beneficiaryName: null,
               beneficiaryUserId: null,
               requesterUserId: 'requester-1',
               requestedTitle: 'Quarterly plan',
@@ -71,8 +74,8 @@ vi.mock('@affine/core/components/hooks/use-query', () => ({
               level: 'read',
               source: 'direct',
               grantedByUserId: 'owner-1',
+              grantedByName: 'Owner',
               grantedAt: '2026-09-04T00:00:00.000Z',
-              revocable: true,
             },
           ],
         },
@@ -96,10 +99,10 @@ vi.mock('@affine/graphql', () => ({
   approveCopilotAccessRequestMutation: tokens.approve,
   copilotWorkbenchSourceAuthorizationGetQuery: tokens.query,
   rejectCopilotAccessRequestMutation: tokens.reject,
-  revokeCopilotProjectGrantMutation: tokens.revoke,
 }));
 
 vi.mock('@affine/i18n', () => ({
+  getOrCreateI18n: () => ({ t: (key: string) => key }),
   useI18n: () =>
     new Proxy(
       {},
@@ -137,43 +140,26 @@ describe('ProjectAccess', () => {
 
     expect(
       screen.getByText(
-        'com.affine.localmind.share.projectAccess.projectBeneficiary project-1'
+        'com.affine.localmind.share.projectAccess.projectBeneficiary Planning'
       )
     ).not.toBeNull();
     expect(
       screen.getByText(
-        'com.affine.localmind.share.projectAccess.requester requester-1'
+        'com.affine.localmind.share.projectAccess.requester Requester requester@example.com'
       )
     ).not.toBeNull();
   });
 
-  test('requires confirmation and restores revoke after a denied mutation', async () => {
-    state.gql
-      .mockRejectedValueOnce(new Error('Denied'))
-      .mockResolvedValueOnce({ revokeCopilotProjectGrant: true });
+  test('keeps approval records without an action to revoke approved copies', () => {
     render(<ProjectAccess workspaceId="workspace-1" docId="doc-1" />);
 
-    const revoke = screen.getByRole('button', {
-      name: 'com.affine.localmind.share.projectAccess.revoke',
-    }) as HTMLButtonElement;
-    fireEvent.click(revoke);
+    expect(screen.getByText('Planning')).not.toBeNull();
+    expect(
+      screen.queryByRole('button', {
+        name: 'com.affine.localmind.share.projectAccess.revoke',
+      })
+    ).toBeNull();
     expect(state.gql).not.toHaveBeenCalled();
-
-    await state.confirm.mock.calls[0][0].onConfirm();
-    expect(state.notifyError).toHaveBeenCalledWith(
-      expect.objectContaining({ message: 'Denied' })
-    );
-    expect(revoke.disabled).toBe(false);
-    expect(state.mutate).not.toHaveBeenCalled();
-
-    fireEvent.click(revoke);
-    await state.confirm.mock.calls[1][0].onConfirm();
-    await waitFor(() => expect(state.mutate).toHaveBeenCalledTimes(1));
-    expect(state.gql).toHaveBeenLastCalledWith({
-      query: tokens.revoke,
-      variables: { input: { grantId: 'grant-1' } },
-    });
-    expect(state.notifySuccess).toHaveBeenCalled();
   });
 
   test('restores source-side decision controls after a denied approval', async () => {
@@ -184,13 +170,31 @@ describe('ProjectAccess', () => {
       name: 'com.affine.localmind.share.projectAccess.approve',
     }) as HTMLButtonElement;
     fireEvent.click(approve);
+    expect(state.gql).not.toHaveBeenCalled();
+    const confirmation = state.confirm.mock.calls[0][0];
+    expect(confirmation.description).toContain('Planning');
+    expect(confirmation.description).not.toContain('project-1');
+    await confirmation.onConfirm();
 
     await waitFor(() => {
       expect(state.notifyError).toHaveBeenCalledWith(
-        expect.objectContaining({ message: 'No longer authorized' })
+        expect.objectContaining({
+          message: 'com.affine.localmind.project-error.failed',
+        })
       );
       expect(approve.disabled).toBe(false);
     });
     expect(state.mutate).not.toHaveBeenCalled();
+  });
+
+  test('confirms rejection without presenting copy approval terms', () => {
+    render(<ProjectAccess workspaceId="workspace-1" docId="doc-1" />);
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'com.affine.localmind.share.projectAccess.reject',
+      })
+    );
+    expect(state.confirm.mock.calls[0][0].description).toBe('Quarterly plan');
+    expect(state.gql).not.toHaveBeenCalled();
   });
 });

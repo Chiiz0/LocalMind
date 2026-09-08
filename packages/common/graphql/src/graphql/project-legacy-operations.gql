@@ -1,6 +1,0 @@
-query projectLegacyOperations($projectId: String!, $cursor: String) {
-  projectLegacyOperations(projectId: $projectId, cursor: $cursor) {
-    items { id title status revision resourceId createdAt }
-    nextCursor
-  }
-}

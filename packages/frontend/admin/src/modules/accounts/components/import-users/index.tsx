@@ -4,6 +4,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@affine/admin/components/ui/dialog';
+import { useI18n } from '@affine/i18n';
 import { useEffect, useRef } from 'react';
 
 import { useServerConfig } from '../../../common';
@@ -28,6 +29,7 @@ export function ImportUsersDialog({
   open,
   onOpenChange,
 }: ImportUsersDialogProps) {
+  const i18n = useI18n();
   const fileUploadRef = useRef<FileUploadAreaRef>(null);
   const serverConfig = useServerConfig();
   const passwordLimits = serverConfig.credentialsRequirement.password;
@@ -67,12 +69,14 @@ export function ImportUsersDialog({
         <DialogHeader>
           <DialogTitle>
             {isFormatError
-              ? 'Incorrect import format'
+              ? i18n['com.affine.admin.incorrect-import-format']()
               : isPreviewMode
                 ? isImported
-                  ? 'Import results'
-                  : 'Confirm import'
-                : 'Import'}
+                  ? i18n['com.affine.admin.import-results']()
+                  : i18n['com.affine.admin.confirm-import-2']()
+                : i18n[
+                    'com.affine.integration.readwise.setting.start-import-button'
+                  ]()}
           </DialogTitle>
         </DialogHeader>
         <div className="text-[15px] mt-3">

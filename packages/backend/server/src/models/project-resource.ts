@@ -10,8 +10,9 @@ import {
 import { generateKeyBetween } from 'fractional-indexing';
 import { z } from 'zod';
 
-import { AccessDenied, BadRequest } from '../base';
+import { AccessDenied, BadRequest, ResourceConflict } from '../base';
 import { BaseModel } from './base';
+import type { ProjectEditLeaseProof } from './project-resource-edit-lease';
 
 export const PROJECT_RESOURCE_MAX_DEPTH = 64;
 export const PROJECT_BLOB_MAX_BYTES = 512 * 1024 * 1024;
@@ -115,6 +116,7 @@ export class ProjectResourceModel extends BaseModel {
       FROM project_resources resource
       LEFT JOIN office_artifacts office ON office.id = resource.office_artifact_id AND office.project_id = resource.project_id
       WHERE resource.project_id = ${input.projectId} AND resource.trashed_at IS NULL
+        AND NOT EXISTS (SELECT 1 FROM project_resource_deletions WHERE resource_id = resource.id)
         AND resource.kind <> 'folder'
         ${after ? Prisma.sql`AND resource.id > ${after.id}` : Prisma.empty}
         AND (position(lower(${query}) in lower(resource.title)) > 0 OR (
@@ -199,6 +201,7 @@ export class ProjectResourceModel extends BaseModel {
       JOIN ai_context_projects project ON project.id = resource.project_id AND project.status = 'active'
       LEFT JOIN office_artifacts office ON office.id = resource.office_artifact_id AND office.project_id = resource.project_id
       WHERE resource.kind <> 'folder' AND resource.trashed_at IS NULL
+        AND NOT EXISTS (SELECT 1 FROM project_resource_deletions WHERE resource_id = resource.id)
         AND resource.search_version < COALESCE(office.revision_counter, resource.content_version)
         AND EXISTS (SELECT 1 FROM ai_context_project_members WHERE project_id = resource.project_id)
         ${afterId ? Prisma.sql`AND resource.id > ${afterId}` : Prisma.empty}
@@ -261,8 +264,8 @@ export class ProjectResourceModel extends BaseModel {
   }
 
   private async requireNode(projectId: string, resourceId: string) {
-    const node = await this.db.projectResource.findUnique({
-      where: { id_projectId: { id: resourceId, projectId } },
+    const node = await this.db.projectResource.findFirst({
+      where: { id: resourceId, projectId, deletion: null },
     });
     if (!node) throw new BadRequest('Project resource is unavailable');
     return node;
@@ -349,6 +352,7 @@ export class ProjectResourceModel extends BaseModel {
         ? await this.db.$queryRaw<{ id: string }[]>(Prisma.sql`
         SELECT resource.id FROM project_resources resource
         WHERE resource.project_id = ${input.projectId} AND resource.trashed_at IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM project_resource_deletions WHERE resource_id = resource.id)
         AND (${search} = '' OR position(lower(${search}) in lower(resource.title)) > 0)
         ${after ? Prisma.sql`AND (resource.sort_key, resource.id) > (${after.sortKey}, ${after.id})` : Prisma.empty}
         AND NOT EXISTS (
@@ -369,6 +373,7 @@ export class ProjectResourceModel extends BaseModel {
           ? { id: { in: trashed.map(row => row.id) } }
           : { parentId }),
         trashedAt: input.trash ? { not: null } : null,
+        deletion: null,
         ...(search ? { title: { contains: search, mode: 'insensitive' } } : {}),
         ...(after
           ? {
@@ -462,6 +467,7 @@ export class ProjectResourceModel extends BaseModel {
     `;
     const visible = await this.db.$queryRaw<{ id: string }[]>(Prisma.sql`
       SELECT resource.id FROM project_resources resource WHERE ${references} AND resource.trashed_at IS NULL
+      AND NOT EXISTS (SELECT 1 FROM project_resource_deletions WHERE resource_id = resource.id)
       AND NOT EXISTS (
         WITH RECURSIVE ancestors AS (
           SELECT id, parent_id, trashed_at, 1 AS depth FROM project_resources WHERE id = resource.parent_id AND project_id = resource.project_id
@@ -508,6 +514,7 @@ export class ProjectResourceModel extends BaseModel {
       throw new BadRequest(
         'Project creation request key was reused with different content'
       );
+    if (node) await this.get({ ...input, resourceId: node.id });
     return node;
   }
 
@@ -555,7 +562,7 @@ export class ProjectResourceModel extends BaseModel {
         throw new BadRequest(
           'Project creation request key was reused with different content'
         );
-      return existing;
+      return this.get({ ...input, resourceId: existing.id });
     }
     if (!Object.values(ProjectResourceKind).includes(input.kind))
       throw new BadRequest('Unsupported Project resource kind');
@@ -643,6 +650,7 @@ export class ProjectResourceModel extends BaseModel {
       requestKey: string;
       requestHash?: string;
       origin: 'user' | 'ai' | 'import';
+      editLease?: ProjectEditLeaseProof;
       attachmentKeys?: string[];
       searchText?: string;
     }
@@ -680,9 +688,11 @@ export class ProjectResourceModel extends BaseModel {
       return existing;
     }
     if (node.contentVersion !== input.expectedContentVersion)
-      throw new BadRequest(
+      throw new ResourceConflict(
         'Project content changed; reload and compare before saving'
       );
+    if (node.contentVersion > 0)
+      await this.models.projectResourceEditLease.assertHeld(input);
     const blob = await this.getBlob({ ...input, key: input.blobKey });
     const parent = node.contentVersion
       ? await this.db.projectResourceRevision.findUniqueOrThrow({
@@ -734,6 +744,8 @@ export class ProjectResourceModel extends BaseModel {
       fingerprint: revision.fingerprint,
       origin: revision.origin,
     });
+    if (node.contentVersion > 0)
+      await this.models.projectResourceEditLease.assertHeld(input);
     return revision;
   }
 
@@ -812,7 +824,7 @@ export class ProjectResourceModel extends BaseModel {
       includeTrash: input.trash === false,
     });
     if (node.version !== input.expectedVersion)
-      throw new BadRequest(
+      throw new ResourceConflict(
         'Project tree changed; reload before making this change'
       );
     const title =
@@ -905,6 +917,89 @@ export class ProjectResourceModel extends BaseModel {
         : undefined
     );
     return updated;
+  }
+
+  @Transactional()
+  async permanentlyDelete(
+    input: ProjectActor & {
+      resourceId: string;
+      expectedVersion: number;
+      requestKey: string;
+    }
+  ) {
+    await this.assertMember(input, true);
+    const requestKey = boundedString(input.requestKey, 'request key');
+    const previous = await this.db.projectResourceDeletion.findUnique({
+      where: { resourceId: input.resourceId },
+    });
+    if (previous) {
+      if (
+        previous.projectId !== input.projectId ||
+        previous.actorId !== input.actorId ||
+        previous.requestKey !== requestKey ||
+        previous.expectedVersion !== input.expectedVersion
+      )
+        throw new BadRequest(
+          'Project resource was already permanently deleted'
+        );
+      return true;
+    }
+    const node = await this.get({ ...input, includeTrash: true });
+    if (!node.trashedAt || node.version !== input.expectedVersion)
+      throw new BadRequest(
+        'Move the current resource to Trash before permanently deleting it'
+      );
+    const descendants = await this.db.$queryRaw<{ id: string }[]>`
+      WITH RECURSIVE tree AS (
+        SELECT id FROM project_resources WHERE id = ${node.id} AND project_id = ${input.projectId}
+        UNION ALL SELECT child.id FROM project_resources child JOIN tree ON child.parent_id = tree.id WHERE child.project_id = ${input.projectId}
+      ) SELECT id FROM tree ORDER BY id LIMIT 10001
+    `;
+    if (descendants.length > 10000)
+      throw new BadRequest('Delete smaller Project folders first');
+    const ids = descendants.map(row => row.id);
+    await this.db.$queryRaw(
+      Prisma.sql`SELECT id FROM project_resources WHERE id IN (${Prisma.join(ids)}) ORDER BY id FOR UPDATE`
+    );
+    const held = await this.db.$queryRaw<{ resource_id: string }[]>(Prisma.sql`
+      SELECT resource_id FROM project_resource_edit_leases WHERE resource_id IN (${Prisma.join(ids)}) AND expires_at > clock_timestamp()
+    `);
+    if (held.length)
+      throw new BadRequest(
+        'Wait for editing to end before permanently deleting this resource'
+      );
+    await this.db.projectResourceDeletion.createMany({
+      data: ids.map(resourceId => ({
+        resourceId,
+        projectId: input.projectId,
+        actorId: input.actorId,
+        rootResourceId: node.id,
+        requestKey,
+        expectedVersion: node.version,
+      })),
+      skipDuplicates: true,
+    });
+    await this.audit(
+      input,
+      node.id,
+      'permanently_deleted',
+      { resourceCount: ids.length, expectedVersion: node.version },
+      {
+        requestKey,
+        requestHash: projectResourceHash({
+          resourceId: node.id,
+          expectedVersion: node.version,
+        }),
+      }
+    );
+    await this.db.projectRealtimeOutbox.create({
+      data: {
+        topic: 'project.resource.changed',
+        scopeId: input.projectId,
+        resourceId: node.id,
+      },
+    });
+    return true;
   }
 
   private async assertFolderName(

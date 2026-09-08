@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 
 import { JOB_SIGNAL, OnJob } from '../../base';
 import { DocWriter } from '../../core/doc';
@@ -8,14 +8,20 @@ import { ProjectResourceService } from '../../core/project';
 import {
   PROJECT_DESTINATION_FOLDER_WORKFLOW,
   ProjectDestinationFolderService,
-  ProjectPublicationConflict,
   ProjectPublicationService,
+  ProjectWorkspaceImportService,
 } from '../../core/project-transfer';
 import { Models } from '../../models';
 import { PROJECT_AGENT_WORKFLOW } from '../../models/copilot-project-agent-runtime';
 import { PROJECT_PUBLICATION_WORKFLOW } from '../../models/project-publication';
+import { PROJECT_WORKSPACE_IMPORT_WORKFLOW } from '../../models/project-workspace-import';
 import { CopilotAgentRuntimeWorkflowRegistry } from './agent-runtime-workflow-registry';
-import { executeProjectResourceRun } from './tools/project-resources';
+import { projectTaskFailure } from './project-agent-runtime-error';
+import { PROJECT_OFFICE_AGENT_WORKFLOW } from './project-office-agent-command';
+import {
+  executeProjectResourceRun,
+  ProjectResourceCommandSchema,
+} from './tools/project-doc';
 
 declare global {
   interface Jobs {
@@ -25,14 +31,28 @@ declare global {
 
 @Injectable()
 export class CopilotProjectAgentRuntimeWorker {
+  private readonly logger = new Logger(CopilotProjectAgentRuntimeWorker.name);
+
   constructor(
     private readonly models: Models,
     resources: ProjectResourceService,
     publications: ProjectPublicationService,
     folders: ProjectDestinationFolderService,
+    imports: ProjectWorkspaceImportService,
     private readonly writer: DocWriter,
     private readonly registry: CopilotAgentRuntimeWorkflowRegistry
   ) {
+    registry.registerProject({
+      workflow: PROJECT_WORKSPACE_IMPORT_WORKFLOW,
+      capabilities: {
+        version: 'agent-runtime-workflow-adapter-capabilities/v1',
+        supportedStepTypes: ['approval', 'tool'],
+        sideEffectMode: 'project_write',
+        summary:
+          'Import an independent Workspace copy after source permission approval.',
+      },
+      execute: run => imports.execute(run),
+    });
     registry.registerProject({
       workflow: PROJECT_DESTINATION_FOLDER_WORKFLOW,
       capabilities: {
@@ -92,24 +112,113 @@ export class CopilotProjectAgentRuntimeWorker {
         workerAttempt: run.workerAttempt,
       };
       try {
+        let resourceId: string | undefined;
+        if (run.workflow === PROJECT_AGENT_WORKFLOW) {
+          const command = ProjectResourceCommandSchema.parse(
+            run.steps.find(step => step.stepKey === 'execute')?.input
+          );
+          const target =
+            command.toolName === 'doc_update'
+              ? command.arguments.doc_id
+              : command.toolName === 'doc_update_meta'
+                ? command.arguments.resource_id
+                : undefined;
+          if (typeof target === 'string') resourceId = target;
+        } else if (run.workflow === PROJECT_OFFICE_AGENT_WORKFLOW) {
+          const requestId = run.sourceId.slice('office:'.length);
+          const request = await this.models.officeCommandRequest.get(
+            { projectId: run.projectId },
+            requestId
+          );
+          if (!request || request.requestedBy !== run.actorId)
+            throw new Error('Project Office request is unavailable');
+          resourceId = (
+            await this.models.projectResource.assertOfficeResource({
+              ...lease,
+              artifactId: request.artifactId,
+            })
+          ).id;
+        }
+        if (resourceId) {
+          const editing = await this.models.projectResourceEditLease.acquire({
+            ...lease,
+            resourceId,
+            kind: 'ai_task',
+            taskId: run.id,
+            tabId: workerLeaseId,
+          });
+          if (!editing.acquired) {
+            if (!editing.lease)
+              throw new Error('Project edit lease changed during acquisition');
+            await this.models.copilotProjectAgentRuntime.waitForEditLease({
+              ...lease,
+              resourceId,
+              leaseId: editing.lease.leaseId,
+            });
+            continue;
+          }
+        }
         const adapter = this.registry.getProject(run.workflow);
         if (!adapter) throw new Error('Project task adapter is unavailable');
+        let execute = (leased: typeof run) => adapter.execute(leased);
+        if (adapter.prepare) {
+          let stopped = false;
+          let heartbeat: Promise<void> | undefined;
+          let abort: (error: Error) => void = () => {};
+          const interrupted = new Promise<never>((_, reject) => {
+            abort = reject;
+          });
+          const deadline = setTimeout(() => {
+            stopped = true;
+            abort(new Error('Project task preparation timed out'));
+          }, 300000);
+          const timer = setInterval(() => {
+            if (stopped || heartbeat) return;
+            heartbeat = this.models.copilotProjectAgentRuntime
+              .renew(lease)
+              .then(active => {
+                if (!active) throw new Error('Project task was cancelled');
+              })
+              .catch(() => {
+                stopped = true;
+                abort(new Error('Project task lease is no longer active'));
+              })
+              .finally(() => {
+                heartbeat = undefined;
+              });
+          }, 20000);
+          try {
+            execute = await Promise.race([adapter.prepare(run), interrupted]);
+          } finally {
+            stopped = true;
+            clearInterval(timer);
+            clearTimeout(deadline);
+            await heartbeat;
+          }
+          if (!(await this.models.copilotProjectAgentRuntime.renew(lease)))
+            continue;
+        }
         await this.writer.withDeferredBroadcasts(() =>
           this.models.copilotProjectAgentRuntime.execute(lease, leased =>
-            adapter.execute(leased)
+            execute(leased)
           )
         );
       } catch (error) {
         // Persist bounded failure evidence without copying resource bodies or provider errors.
+        const failure = projectTaskFailure(error);
+        this.logger.warn({
+          message: 'Project task execution failed',
+          runId: run.id,
+          workflow: run.workflow,
+          ...failure.diagnostic,
+        });
         await this.models.copilotProjectAgentRuntime.fail(
           lease,
-          error instanceof ProjectPublicationConflict
-            ? 'publication_conflict'
-            : 'project_operation_failed',
-          error instanceof ProjectPublicationConflict
-            ? error.message
-            : 'Project operation could not execute; review membership, resource versions and tool availability'
+          failure.code,
+          failure.message
         );
+      } finally {
+        await this.models.projectResourceEditLease.releaseTask(lease);
       }
     }
     return JOB_SIGNAL.Done;

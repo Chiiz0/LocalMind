@@ -1,3 +1,4 @@
+import { useI18n } from '@affine/i18n';
 import { RecentIcon } from '@blocksuite/icons/rc';
 import clsx from 'clsx';
 import {
@@ -104,6 +105,7 @@ export const EmojiGroups = memo(function EmojiGroups({
   keyword?: string;
   skin?: number;
 }) {
+  const i18n = useI18n();
   const masonryRef = useRef<MasonryRef>(null);
   const [activeGroupId, setActiveGroupId] = useState<string | undefined>(
     'Recent'
@@ -181,7 +183,9 @@ export const EmojiGroups = memo(function EmojiGroups({
     return (
       <div className={styles.loadingWrapper}>
         <Loading size={16} />
-        <span style={{ marginLeft: 4 }}>Loading emojis...</span>
+        <span style={{ marginLeft: 4 }}>
+          {i18n['com.affine.ui.loading-emojis']()}
+        </span>
       </div>
     );
   }

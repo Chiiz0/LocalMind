@@ -48,6 +48,7 @@ function isAllowedOpenAppSignInNext(next: string) {
   if (
     hasRouteBoundary('/workspace') ||
     hasRouteBoundary('/intelligence') ||
+    hasRouteBoundary('/project') ||
     hasRouteBoundary('/tasks')
   ) {
     return true;

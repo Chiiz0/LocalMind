@@ -9,7 +9,8 @@ import { AIIcon } from './icons';
 import { aiIslandBtn, aiIslandWrapper, toolStyle } from './styles.css';
 
 const hideChat: Array<string | ((path: string) => boolean)> = [
-  '/intelligence',
+  '/project',
+  path => path.startsWith('/project/'),
   path => path.includes('attachments'),
 ];
 
@@ -46,7 +47,7 @@ export const AIIsland = () => {
       workbench.openSidebar();
       activeView.activeSidebarTab('chat');
     } else {
-      navigate('/intelligence');
+      navigate('/project');
       workbench.closeSidebar();
     }
   }, [activeView, haveChatTab, hide, navigate, workbench]);

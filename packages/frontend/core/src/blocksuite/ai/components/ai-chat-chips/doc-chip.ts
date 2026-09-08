@@ -1,3 +1,5 @@
+import { I18nController } from '@affine/core/modules/i18n/lit-controller';
+import { I18n } from '@affine/i18n';
 import track from '@affine/track';
 import { SignalWatcher, WithDisposable } from '@blocksuite/affine/global/lit';
 import { ShadowlessElement } from '@blocksuite/affine/std';
@@ -15,6 +17,8 @@ const EXTRACT_DOC_THROTTLE = 1000;
 export class ChatPanelDocChip extends SignalWatcher(
   WithDisposable(ShadowlessElement)
 ) {
+  readonly languageController = new I18nController(this);
+
   @property({ attribute: false })
   accessor chip!: DocChip;
 
@@ -126,7 +130,9 @@ export class ChatPanelDocChip extends SignalWatcher(
       } else {
         this.updateChip(this.chip, {
           state: 'failed',
-          tooltip: 'Content exceeds token limit',
+          get tooltip() {
+            return I18n['com.affine.ui.content-exceeds-token-limit']();
+          },
         });
       }
     } catch (e) {

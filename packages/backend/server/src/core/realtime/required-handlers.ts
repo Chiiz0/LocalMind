@@ -1,6 +1,9 @@
 import type { RealtimeRequestName, RealtimeTopicName } from '@affine/realtime';
 
 export const REALTIME_GATEWAY_REQUIRED_REQUESTS = [
+  'project.list.get',
+  'project.task.get',
+  'project.lease.get',
   'workspace.access.get',
   'workspace.config.get',
   'workspace.members.get',
@@ -18,6 +21,9 @@ export const REALTIME_GATEWAY_REQUIRED_REQUESTS = [
 ] as const satisfies readonly RealtimeRequestName[];
 
 export const REALTIME_GATEWAY_REQUIRED_TOPICS = [
+  'project.list.changed',
+  'project.task.changed',
+  'project.lease.changed',
   'workspace.access.changed',
   'workspace.directory-policy.changed',
   'workspace.config.changed',

@@ -41,6 +41,7 @@ const state = vi.hoisted(() => ({
   layoutReady: vi.fn(),
   notifyError: vi.fn(),
   query: vi.fn(),
+  refresh: vi.fn(),
   listTaskIds: null as string[] | null,
   nextCursor: null as string | null,
   detailOverrides: {} as Record<string, object>,
@@ -48,6 +49,7 @@ const state = vi.hoisted(() => ({
 }));
 
 const tokens = vi.hoisted(() => ({
+  DefaultServerService: class DefaultServerService {},
   GraphQLService: class GraphQLService {},
   ServerService: class ServerService {},
   WorkspaceServerService: class WorkspaceServerService {},
@@ -167,6 +169,10 @@ const tasks = [
   },
   {
     id: 'access_request:request-1',
+    projectName: 'Quarterly project',
+    documentTitle: 'Quarterly document',
+    relatedUserName: 'Requesting member',
+    relatedUserEmail: 'member@example.com',
     entityId: 'request-1',
     kind: 'access_request',
     segment: 'todo',
@@ -374,6 +380,7 @@ vi.mock('@affine/core/components/providers/swr-config-provider', () => ({
 }));
 
 vi.mock('@affine/core/modules/cloud', () => ({
+  DefaultServerService: tokens.DefaultServerService,
   GraphQLService: tokens.GraphQLService,
   ServerService: tokens.ServerService,
   WorkspaceServerService: tokens.WorkspaceServerService,
@@ -407,14 +414,13 @@ vi.mock('@affine/graphql', () => ({
   copilotWorkbenchTaskGetQuery: tokens.detailQuery,
   declineCopilotProjectInvitationMutation: tokens.declineInvitationMutation,
   rejectCopilotAccessRequestMutation: tokens.rejectAccessMutation,
-  reRequestCopilotProjectDocumentAccessMutation:
-    tokens.requestProjectAccessMutation,
   resolveCopilotBlockerMutation: tokens.resolveBlockerMutation,
   withdrawCopilotAccessRequestMutation: tokens.withdrawAccessMutation,
   withdrawCopilotProjectInvitationMutation: tokens.withdrawInvitationMutation,
 }));
 
 vi.mock('@affine/i18n', () => ({
+  getOrCreateI18n: () => ({ t: (key: string) => key }),
   useI18n: () =>
     new Proxy(
       {},
@@ -422,6 +428,10 @@ vi.mock('@affine/i18n', () => ({
         get: (_target, key) => () => String(key),
       }
     ),
+}));
+
+vi.mock('@affine/core/modules/project-resources/realtime', () => ({
+  useProjectRefresh: state.refresh,
 }));
 
 vi.mock('@blocksuite/icons/rc', () => ({
@@ -440,19 +450,13 @@ vi.mock('@toeverything/infra', () => ({
     <div data-testid={scope?.id ?? 'missing-scope'}>{children}</div>
   ),
   useService: (token: unknown) => {
+    if (token === tokens.DefaultServerService)
+      return { server: { scope: { id: 'default-server-scope' } } };
     if (token === tokens.GraphQLService) return { gql: state.gql };
     if (token === tokens.ServerService)
       return { server: { baseUrl: 'https://source-server.test' } };
     throw new Error('Global Tasks must not resolve a workspace service');
   },
-}));
-
-vi.mock('../intelligence/host', () => ({
-  useWorkbenchHost: () => ({
-    hostMetadata: state.hostMetadata,
-    hostWorkspace: state.hostWorkspace,
-    workspacesRevalidating: state.workspacesRevalidating,
-  }),
 }));
 
 import { Component as TasksComponent } from './index';
@@ -512,18 +516,26 @@ describe('Global Tasks page', () => {
     );
 
     expect(screen.getByTestId('global-tasks-page')).not.toBeNull();
-    expect(screen.getByTestId('host-server-scope')).not.toBeNull();
-    expect(screen.getByTestId('host-workspace-scope')).not.toBeNull();
+    expect(screen.getByTestId('default-server-scope')).not.toBeNull();
+    expect(screen.queryByTestId('host-workspace-scope')).toBeNull();
     expect(state.layoutReady).toHaveBeenCalledTimes(1);
     expect(state.query).toHaveBeenCalledWith({
       query: tokens.tasksQuery,
       variables: { limit: 100, filter: 'approval', cursor: undefined },
     });
     expect(screen.getAllByText('Quarterly plan access')).toHaveLength(2);
-    expect(screen.getByText('workspace-b')).not.toBeNull();
-    expect(screen.getByText('project-1')).not.toBeNull();
-    expect(screen.getByText('doc-b')).not.toBeNull();
-    expect(screen.getByText('requester-1')).not.toBeNull();
+    for (const id of ['workspace-b', 'project-1', 'doc-b', 'requester-1'])
+      expect(screen.queryByText(id)).toBeNull();
+    expect(state.refresh).toHaveBeenCalledWith(
+      null,
+      'task',
+      expect.any(Function)
+    );
+    expect(screen.getByText('Quarterly project')).not.toBeNull();
+    expect(screen.getByText('Quarterly document')).not.toBeNull();
+    expect(
+      screen.getByText('Requesting member member@example.com')
+    ).not.toBeNull();
 
     fireEvent.click(
       screen.getByRole('button', {
@@ -720,7 +732,9 @@ describe('Global Tasks page', () => {
 
     await waitFor(() => {
       expect(state.notifyError).toHaveBeenCalledWith(
-        expect.objectContaining({ message: 'Denied' })
+        expect.objectContaining({
+          title: 'com.affine.localmind.project-error.failed',
+        })
       );
       expect(approve.hasAttribute('disabled')).toBe(false);
     });
@@ -742,9 +756,9 @@ describe('Global Tasks page', () => {
     ).toHaveLength(2);
     expect(screen.queryByText('Sensitive document title')).toBeNull();
     expect(screen.queryByText('sensitive-document-id')).toBeNull();
-    expect(screen.getByText('workspace-secret')).not.toBeNull();
-    expect(screen.getByText('project-1')).not.toBeNull();
-    expect(screen.getByText('requester-2')).not.toBeNull();
+    expect(screen.queryByText('workspace-secret')).toBeNull();
+    expect(screen.queryByText('project-1')).toBeNull();
+    expect(screen.queryByText('requester-2')).toBeNull();
   });
 
   test('renders blocker details and suppresses duplicate transitions while pending', async () => {
@@ -823,13 +837,15 @@ describe('Global Tasks page', () => {
         variables: { blockerId: 'blocker-1' },
       });
       expect(state.notifyError).toHaveBeenCalledWith(
-        expect.objectContaining({ message: 'Blocker transition denied' })
+        expect.objectContaining({
+          title: 'com.affine.localmind.project-error.failed',
+        })
       );
       expect(abandon.hasAttribute('disabled')).toBe(false);
     });
   });
 
-  test('does not query tasks when no accessible host workspace exists', () => {
+  test('loads tasks without an accessible Workspace', () => {
     state.hostMetadata = null;
     state.hostWorkspace = null;
 
@@ -839,15 +855,12 @@ describe('Global Tasks page', () => {
       </MemoryRouter>
     );
 
-    expect(
-      screen.getByText('com.affine.localmind.workbench.noHost')
-    ).not.toBeNull();
-    expect(screen.queryByTestId('global-tasks-page')).toBeNull();
-    expect(state.query).not.toHaveBeenCalled();
+    expect(screen.getByTestId('global-tasks-page')).not.toBeNull();
+    expect(state.query).toHaveBeenCalled();
     expect(state.layoutReady).toHaveBeenCalledTimes(1);
   });
 
-  test('waits for the host workspace without querying tasks', () => {
+  test('does not wait for Workspace discovery to load tasks', () => {
     state.hostWorkspace = null;
     state.workspacesRevalidating = true;
 
@@ -857,9 +870,8 @@ describe('Global Tasks page', () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByTestId('loading')).not.toBeNull();
-    expect(screen.queryByTestId('global-tasks-page')).toBeNull();
-    expect(state.query).not.toHaveBeenCalled();
+    expect(screen.getByTestId('global-tasks-page')).not.toBeNull();
+    expect(state.query).toHaveBeenCalled();
     expect(state.layoutReady).toHaveBeenCalledTimes(1);
   });
 });

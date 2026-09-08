@@ -12,6 +12,10 @@ import {
   type CopilotAgentRunStatus,
 } from './copilot-agent-runtime';
 import type { ProjectActor } from './project-resource';
+import {
+  PROJECT_WORKSPACE_IMPORT_WORKFLOW,
+  projectWorkspaceImportCommand,
+} from './project-workspace-import';
 
 const include = {
   steps: { orderBy: { order: 'asc' as const } },
@@ -262,6 +266,10 @@ export class CopilotProjectAgentRuntimeModel extends BaseModel {
       run.targetFingerprint !== input.targetFingerprint
     )
       throw new BadRequest('Project task confirmation does not match');
+    if (run.workflow === PROJECT_WORKSPACE_IMPORT_WORKFLOW)
+      throw new BadRequest(
+        'Source copy requests must be approved through the source notification'
+      );
     const approval = run.steps.find(step => step.stepKey === 'approve');
     if (!approval)
       throw new BadRequest('This Project task does not request approval');
@@ -287,7 +295,118 @@ export class CopilotProjectAgentRuntimeModel extends BaseModel {
     );
   }
 
+  @Transactional()
+  async decide(
+    input: ProjectActor & {
+      runId: string;
+      targetFingerprint: string;
+      expectedStatus: string;
+      requestKey: string;
+      action: 'approve' | 'reject' | 'cancel';
+    }
+  ) {
+    if (
+      !input.requestKey.trim() ||
+      input.requestKey.length > 256 ||
+      !['approve', 'reject', 'cancel'].includes(input.action)
+    )
+      throw new BadRequest('Invalid Project task decision');
+    await this.models.projectResource.assertMember(input, true);
+    const run = await this.lock(input.projectId, input.runId);
+    if (
+      run.actorId !== input.actorId ||
+      run.targetFingerprint !== input.targetFingerprint
+    )
+      throw new BadRequest('Project task confirmation does not match');
+    const decisions = run.timelineEvents.filter(event => {
+      const value = event.payload as Prisma.JsonObject;
+      return value.action === 'task_decision';
+    });
+    const replay = decisions.find(
+      event =>
+        (event.payload as Prisma.JsonObject).requestKey === input.requestKey
+    );
+    if (replay) {
+      const value = replay.payload as Prisma.JsonObject;
+      if (
+        value.decision !== input.action ||
+        value.expectedStatus !== input.expectedStatus
+      )
+        throw new BadRequest('Project task decision key was reused');
+    }
+    if (
+      replay ||
+      decisions.some(
+        event => (event.payload as Prisma.JsonObject).decision === 'cancel'
+      ) ||
+      run.timelineEvents.some(
+        event =>
+          (event.payload as Prisma.JsonObject).action === 'cancel_requested'
+      ) ||
+      run.status !== input.expectedStatus ||
+      ['completed', 'failed', 'cancelled'].includes(run.status)
+    ) {
+      const previous =
+        replay ??
+        run.timelineEvents.findLast(
+          event =>
+            (event.eventType === 'run_status' &&
+              event.status === 'cancelled') ||
+            ['task_decision', 'approve', 'cancel_requested'].includes(
+              String((event.payload as Prisma.JsonObject).action)
+            )
+        );
+      const payload = previous?.payload as Prisma.JsonObject | undefined;
+      const action =
+        payload?.decision ??
+        (previous?.status === 'cancelled' ||
+        payload?.action === 'cancel_requested'
+          ? 'cancel'
+          : payload?.action);
+      return {
+        run,
+        applied: false,
+        decision: ['approve', 'reject', 'cancel'].includes(String(action))
+          ? String(action)
+          : run.status === 'cancelled'
+            ? 'cancel'
+            : null,
+        processedById: previous?.actorId ?? run.actorId,
+        processedAt: previous?.createdAt ?? run.updatedAt,
+      };
+    }
+    if (input.action !== 'cancel' && run.status !== 'waiting_approval')
+      throw new BadRequest('Project task is no longer waiting for approval');
+    const result =
+      input.action === 'approve'
+        ? await this.approve(input)
+        : await this.cancel(input);
+    const now = new Date();
+    await this.event(
+      result,
+      result.status,
+      'Project task decision recorded',
+      {
+        action: 'task_decision',
+        decision: input.action,
+        requestKey: input.requestKey,
+        expectedStatus: input.expectedStatus,
+        actorId: input.actorId,
+      },
+      now
+    );
+    return {
+      run: await this.read(input.projectId, input.runId),
+      applied: true,
+      decision: input.action,
+      processedById: input.actorId,
+      processedAt: now,
+    };
+  }
+
   async pending(limit = 50) {
+    await this.resumeWorkspaceImports();
+    await this.resumeWaitingLeases();
     return this.db.aiAgentRun.findMany({
       where: {
         workspaceId: null,
@@ -301,6 +420,184 @@ export class CopilotProjectAgentRuntimeModel extends BaseModel {
       orderBy: [{ queuedAt: 'asc' }, { id: 'asc' }],
       take: Math.min(100, Math.max(1, limit)),
     });
+  }
+
+  async resumeWorkspaceImports() {
+    // Query resolved requests first so a page of pending approvals cannot starve recovery.
+    const rows = await this.db.$queryRaw<{ id: string; projectId: string }[]>`
+      SELECT run.id, run.project_id AS "projectId" FROM ai_agent_runs run
+      JOIN ai_agent_steps step ON step.run_id = run.id AND step.step_key = 'execute'
+      LEFT JOIN access_requests request ON request.id = step.input->>'accessRequestId'
+      WHERE run.workflow = ${PROJECT_WORKSPACE_IMPORT_WORKFLOW} AND run.status = 'waiting_approval'
+        AND (request.id IS NULL OR request.status <> 'pending' OR request.expires_at <= NOW())
+      ORDER BY run.created_at, run.id LIMIT 50
+    `;
+    for (const row of rows)
+      await this.resolveWorkspaceImport(row.projectId, row.id);
+  }
+
+  @Transactional()
+  private async resolveWorkspaceImport(projectId: string, runId: string) {
+    const run = await this.lock(projectId, runId);
+    if (
+      run.workflow !== PROJECT_WORKSPACE_IMPORT_WORKFLOW ||
+      run.status !== 'waiting_approval'
+    )
+      return;
+    const command = projectWorkspaceImportCommand.parse(
+      run.steps.find(step => step.stepKey === 'execute')?.input
+    );
+    const request = command.accessRequestId
+      ? await this.db.accessRequest.findUnique({
+          where: { id: command.accessRequestId },
+        })
+      : null;
+    if (
+      !request ||
+      request.purpose !== 'project_copy' ||
+      request.beneficiaryProjectId !== projectId ||
+      request.workspaceId !== command.workspaceId ||
+      request.docId !== command.sourceResourceId
+    ) {
+      await this.cancelCurrent(run);
+      return;
+    }
+    if (
+      request.status === 'pending' &&
+      (!request.expiresAt || request.expiresAt > new Date())
+    )
+      return;
+    if (request.status !== 'approved') {
+      await this.cancelCurrent(run);
+      return;
+    }
+    await this.stepStatus(
+      run,
+      'completed',
+      {
+        accessRequestId: request.id,
+        approvedBy: request.resolverUserIdSnapshot,
+      },
+      'approve'
+    );
+    await this.transition(
+      run,
+      'queued',
+      'Source copy approved; import queued',
+      { accessRequestId: request.id },
+      { queuedAt: new Date() }
+    );
+  }
+
+  @Transactional()
+  async retryWorkspaceImport(input: ProjectActor & { runId: string }) {
+    await this.models.projectResource.assertMember(input, true);
+    const run = await this.lock(input.projectId, input.runId);
+    if (
+      run.actorId !== input.actorId ||
+      run.workflow !== PROJECT_WORKSPACE_IMPORT_WORKFLOW
+    )
+      throw new BadRequest('Import task is unavailable');
+    if (run.status !== 'failed') return run;
+    await this.stepStatus(run, 'pending');
+    return this.transition(
+      run,
+      'queued',
+      'Workspace import retried',
+      { previousFailureCode: run.failureCode },
+      {
+        queuedAt: new Date(),
+        completedAt: null,
+        failureCode: null,
+        failureMessage: null,
+        workerMaxAttempts: run.workerAttempt + 3,
+        workerLeaseId: null,
+        workerLeaseExpiresAt: null,
+      }
+    );
+  }
+
+  @Transactional()
+  async waitForEditLease(
+    input: ProjectAgentLease & { resourceId: string; leaseId: string }
+  ) {
+    const run = await this.lock(input.projectId, input.runId);
+    this.requireLease(run, input);
+    if (await this.cancellationRequested(run.id))
+      return this.cancelCurrent(run);
+    const waiting = await this.transition(
+      run,
+      'waiting_lease',
+      'Project task is waiting for the current editor',
+      {
+        resourceId: input.resourceId,
+        leaseId: input.leaseId,
+        leaseRetryCount: run.leaseRetryCount,
+      },
+      {
+        waitingLeaseResourceId: input.resourceId,
+        waitingLeaseId: input.leaseId,
+        workerLeaseId: null,
+        workerLeaseExpiresAt: null,
+        queuedAt: null,
+      }
+    );
+    await this.stepStatus(waiting, 'pending');
+    return waiting;
+  }
+
+  async resumeWaitingLeases(projectId?: string, resourceId?: string) {
+    const candidates = await this.db.aiAgentRun.findMany({
+      where: {
+        status: 'waiting_lease',
+        leaseRetryCount: 0,
+        ...(projectId ? { projectId } : {}),
+        ...(resourceId ? { waitingLeaseResourceId: resourceId } : {}),
+      },
+      select: { id: true, projectId: true },
+      orderBy: { updatedAt: 'asc' },
+      take: 100,
+    });
+    const resumed = [];
+    for (const candidate of candidates) {
+      if (
+        candidate.projectId &&
+        (await this.resumeWaitingLease(candidate.projectId, candidate.id))
+      )
+        resumed.push(candidate);
+    }
+    return resumed;
+  }
+
+  @Transactional()
+  private async resumeWaitingLease(projectId: string, runId: string) {
+    const run = await this.lock(projectId, runId);
+    if (
+      run.status !== 'waiting_lease' ||
+      run.leaseRetryCount !== 0 ||
+      !run.waitingLeaseResourceId
+    )
+      return false;
+    if (await this.cancellationRequested(run.id)) {
+      await this.cancelCurrent(run);
+      return false;
+    }
+    const held = await this.db.$queryRaw<{ resource_id: string }[]>`
+      SELECT resource_id FROM project_resource_edit_leases WHERE resource_id = ${run.waitingLeaseResourceId} AND expires_at > clock_timestamp()
+    `;
+    if (held.length) return false;
+    await this.transition(
+      run,
+      'queued',
+      'Project editing ended; retrying the task once',
+      {
+        resourceId: run.waitingLeaseResourceId,
+        previousLeaseId: run.waitingLeaseId,
+        leaseRetryCount: 1,
+      },
+      { queuedAt: new Date(), leaseRetryCount: 1 }
+    );
+    return true;
   }
 
   @Transactional()
@@ -408,6 +705,45 @@ export class CopilotProjectAgentRuntimeModel extends BaseModel {
   }
 
   @Transactional()
+  async renew(input: ProjectAgentLease) {
+    await this.models.projectResource.assertMember(input, true);
+    const run = await this.lock(input.projectId, input.runId);
+    this.requireLease(run, input);
+    if (await this.cancellationRequested(run.id)) {
+      await this.cancelCurrent(run);
+      await this.models.projectResourceEditLease.releaseTask(input);
+      return false;
+    }
+    await this.transition(
+      run,
+      'running',
+      'Project worker lease renewed',
+      { action: 'worker_lease_renewed', workerLeaseId: input.workerLeaseId },
+      { workerLeaseExpiresAt: new Date(Date.now() + 300000) }
+    );
+    const leases = await this.db.projectResourceEditLease.findMany({
+      where: {
+        projectId: input.projectId,
+        taskId: run.id,
+        tabId: input.workerLeaseId,
+      },
+    });
+    for (const lease of leases) {
+      const result = await this.models.projectResourceEditLease.renew({
+        ...input,
+        resourceId: lease.resourceId,
+        kind: 'ai_task',
+        taskId: run.id,
+        tabId: input.workerLeaseId,
+        leaseId: lease.leaseId,
+      });
+      if (!result.acquired)
+        throw new BadRequest('Project resource edit lease expired');
+    }
+    return true;
+  }
+
+  @Transactional()
   async fail(input: ProjectAgentLease, code: string, message: string) {
     const run = await this.lock(input.projectId, input.runId);
     if (
@@ -487,6 +823,7 @@ export class CopilotProjectAgentRuntimeModel extends BaseModel {
   }
 
   private async cancelCurrent(run: ProjectAgentRun) {
+    const now = new Date(Math.max(Date.now(), run.updatedAt.getTime()));
     const cancelled = await this.transition(
       run,
       'cancelled',
@@ -495,9 +832,10 @@ export class CopilotProjectAgentRuntimeModel extends BaseModel {
       {
         workerLeaseId: null,
         workerLeaseExpiresAt: null,
-        completedAt: new Date(),
+        completedAt: now,
         queuedAt: null,
-      }
+      },
+      now
     );
     await this.stepStatus(cancelled, 'skipped');
     if (
@@ -658,7 +996,7 @@ export class CopilotProjectAgentRuntimeModel extends BaseModel {
 
   private async stepStatus(
     run: ProjectAgentRun,
-    status: 'running' | 'completed' | 'failed' | 'skipped',
+    status: 'pending' | 'running' | 'completed' | 'failed' | 'skipped',
     output?: Prisma.InputJsonObject,
     stepKey = 'execute'
   ) {
@@ -673,7 +1011,7 @@ export class CopilotProjectAgentRuntimeModel extends BaseModel {
         status,
         startedAt: step.startedAt ?? now,
         updatedAt: now,
-        completedAt: status === 'running' ? null : now,
+        completedAt: status === 'running' || status === 'pending' ? null : now,
         ...(output ? { outputSummary: output } : {}),
       },
     });

@@ -8,6 +8,7 @@ import {
   DialogTitle,
 } from '@affine/admin/components/ui/dialog';
 import { Input } from '@affine/admin/components/ui/input';
+import { useI18n } from '@affine/i18n';
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
 
 interface TypeConfirmDialogProps {
@@ -30,13 +31,16 @@ export const TypeConfirmDialog = ({
   title,
   description,
   targetText,
-  inputPlaceholder = 'Please type to confirm',
+  inputPlaceholder,
   cancelText = 'Cancel',
   confirmText = 'Confirm',
   confirmButtonVariant = 'destructive',
   onConfirm,
   onClose,
 }: TypeConfirmDialogProps) => {
+  const i18n = useI18n();
+  if (inputPlaceholder === undefined)
+    inputPlaceholder = i18n['com.affine.admin.please-type-to-confirm']();
   const [input, setInput] = useState('');
 
   const handleInput = useCallback(

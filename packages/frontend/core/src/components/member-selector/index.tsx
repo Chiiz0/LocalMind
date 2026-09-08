@@ -11,6 +11,7 @@ import {
   type Member,
   MemberSearchService,
 } from '@affine/core/modules/permissions';
+import { useI18n } from '@affine/i18n';
 import { DoneIcon } from '@blocksuite/icons/rc';
 import { useLiveData, useService } from '@toeverything/infra';
 import clsx from 'clsx';
@@ -73,6 +74,7 @@ export const MemberSelector = ({
   onChange,
   style,
 }: MemberSelectorProps) => {
+  const i18n = useI18n();
   const [inputValue, setInputValue] = useState('');
   const memberSearchService = useService(MemberSearchService);
 
@@ -233,7 +235,7 @@ export const MemberSelector = ({
             onEnter={onEnter}
             autoFocus
             className={styles.searchInput}
-            placeholder="Type here ..."
+            placeholder={i18n['com.affine.search-tags.placeholder']()}
           />
         </InlineMemberList>
         {BUILD_CONFIG.isMobileEdition ? null : (
@@ -253,7 +255,9 @@ export const MemberSelector = ({
             className={styles.memberSelectorScrollContainer}
           >
             {searchedMembers.length === 0 && (
-              <div className={styles.memberSelectorEmpty}>Nothing here yet</div>
+              <div className={styles.memberSelectorEmpty}>
+                {i18n['com.affine.ui.nothing-here-yet']()}
+              </div>
             )}
 
             {searchedMembers.map((member, idx) => {

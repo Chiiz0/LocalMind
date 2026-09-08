@@ -1,8 +1,10 @@
 import type { GraphQLService } from '@affine/core/modules/cloud';
+import { projectErrorMessage } from '@affine/core/modules/project-resources/error';
 import type {
   OfficeArtifactQuery,
   ProjectOfficeArtifactQuery,
 } from '@affine/graphql';
+import { I18n } from '@affine/i18n';
 import type { OfficeCommand, OfficeSelection } from '@localmind/office';
 import type { DocxBlock, DocxParagraph } from '@localmind/office/docx';
 import type { PptxShape } from '@localmind/office/pptx';
@@ -16,6 +18,7 @@ import {
   type OfficeResourceOwner,
   previewOfficeCommand,
 } from '../../../../modules/office';
+import type { RegisterOfficeDraft } from './edit-draft';
 
 export type OfficeArtifact =
   | NonNullable<OfficeArtifactQuery['officeArtifact']>
@@ -156,6 +159,8 @@ export function isOfficeSelectionAvailable(
 }
 
 export type NativeOfficeEditorProps<TState extends NativeOfficeState> = {
+  registerDraft?: RegisterOfficeDraft;
+  beforeSelectionChange?: () => Promise<boolean>;
   state: TState;
   revision: OfficeRevision;
   artifactId: string;
@@ -187,7 +192,9 @@ export async function executeAndReloadOfficeCommand<
   );
   const revision = execution.executeOfficeCommand.artifact.currentRevision;
   if (!revision.stateUrl) {
-    throw new Error('Saved revision has no editable Office state');
+    throw new Error(
+      I18n['com.affine.office.saved-revision-has-no-editable-office-state']()
+    );
   }
   const state = await fetchOfficeState(revision.stateUrl, input.kind);
   return {
@@ -198,9 +205,15 @@ export async function executeAndReloadOfficeCommand<
   };
 }
 
-export function officeErrorMessage(error: unknown) {
+export function officeErrorMessage(
+  error: unknown,
+  owner?: OfficeResourceOwner
+) {
+  if (owner?.kind === 'project') return projectErrorMessage(error);
   const message = error instanceof Error ? error.message : String(error);
   return /revision conflict|stale/i.test(message)
-    ? 'This Office file changed in another session. Reload the latest revision and retry.'
+    ? I18n[
+        'com.affine.office.this-office-file-changed-in-another-session-reload-the-latest-revision-and-retry'
+      ]()
     : message;
 }

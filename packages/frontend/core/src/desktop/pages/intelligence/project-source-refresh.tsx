@@ -1,6 +1,15 @@
-import { Button, IconButton, Loading, Modal } from '@affine/component';
+import {
+  Button,
+  IconButton,
+  Loading,
+  Modal,
+  useConfirmModal,
+} from '@affine/component';
 import { useQuery } from '@affine/core/components/hooks/use-query';
 import { GraphQLService } from '@affine/core/modules/cloud';
+import { useProjectUnsavedConfirmation } from '@affine/core/modules/project-resources/edit-guard';
+import { projectEditLeaseStore } from '@affine/core/modules/project-resources/edit-lease-store';
+import { projectErrorMessage } from '@affine/core/modules/project-resources/error';
 import {
   type ProjectResourceSourcesQuery,
   projectResourceSourcesQuery,
@@ -11,7 +20,6 @@ import { ResetIcon } from '@blocksuite/icons/rc';
 import { useService } from '@toeverything/infra';
 import { useRef, useState } from 'react';
 
-import { projectFilesChanged } from './project-files-data';
 import * as styles from './project-publications.css';
 
 type Source = ProjectResourceSourcesQuery['projectResourceSources'][number];
@@ -27,6 +35,8 @@ export function ProjectSourceRefresh({
 }) {
   const t = useI18n();
   const graphql = useService(GraphQLService);
+  const { openConfirmModal } = useConfirmModal();
+  const confirmUnsaved = useProjectUnsavedConfirmation();
   const [open, setOpen] = useState(false);
   const [selection, setSelection] = useState<{
     source: Source;
@@ -51,24 +61,27 @@ export function ProjectSourceRefresh({
     setError(undefined);
     try {
       const source = selection.source;
-      await graphql.gql({
-        query: refreshProjectResourceSourceMutation,
-        variables: {
-          projectId,
-          resourceId,
-          workspaceId: source.workspaceId,
-          sourceResourceId: source.sourceResourceId,
-          expectedContentVersion: source.projectVersion,
-          expectedSourceVersion: source.sourceVersion,
-          requestKey: selection.requestKey,
-        },
-      });
-      projectFilesChanged(projectId);
+      await projectEditLeaseStore(graphql, projectId, resourceId).withProof(
+        editLease =>
+          graphql.gql({
+            query: refreshProjectResourceSourceMutation,
+            variables: {
+              projectId,
+              resourceId,
+              workspaceId: source.workspaceId,
+              sourceResourceId: source.sourceResourceId,
+              expectedContentVersion: source.projectVersion,
+              expectedSourceVersion: source.sourceVersion,
+              requestKey: selection.requestKey,
+              editLease,
+            },
+          })
+      );
       onRefreshed();
       setOpen(false);
       setSelection(undefined);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : String(caught));
+      setError(projectErrorMessage(caught));
     } finally {
       submitting.current = false;
       setPending(false);
@@ -99,7 +112,7 @@ export function ProjectSourceRefresh({
           {query.isLoading ? <Loading size={20} /> : null}
           {query.error || error ? (
             <p role="alert" className={styles.error}>
-              {error ?? query.error?.message}
+              {error ?? projectErrorMessage(query.error)}
             </p>
           ) : null}
           {!query.isLoading &&
@@ -134,8 +147,6 @@ export function ProjectSourceRefresh({
                     <span className={styles.meta}>
                       {' '}
                       / {source.workspaceName}
-                      {' / '}
-                      {source.sourceResourceId}
                     </span>
                   </span>
                 </label>
@@ -159,7 +170,9 @@ export function ProjectSourceRefresh({
               onClick={() => {
                 setSelection(undefined);
                 setError(undefined);
-                void query.mutate().catch(caught => setError(String(caught)));
+                void query
+                  .mutate()
+                  .catch(caught => setError(projectErrorMessage(caught)));
               }}
             />
             <Button disabled={pending} onClick={() => setOpen(false)}>
@@ -168,7 +181,24 @@ export function ProjectSourceRefresh({
             <Button
               disabled={pending || !selection || !!query.error}
               loading={pending}
-              onClick={() => void refresh()}
+              onClick={() => {
+                if (!selection || pending) return;
+                openConfirmModal({
+                  title: t['com.affine.localmind.source-refresh.title'](),
+                  description: t['com.affine.localmind.source-refresh.confirm'](
+                    {
+                      title: selection.source.title,
+                      version: String(selection.source.projectVersion),
+                    }
+                  ),
+                  confirmText: t['com.affine.localmind.source-refresh.apply'](),
+                  cancelText: t['Cancel'](),
+                  confirmButtonOptions: { variant: 'error' },
+                  onConfirm: async () => {
+                    if (await confirmUnsaved()) await refresh();
+                  },
+                });
+              }}
             >
               {t['com.affine.localmind.source-refresh.apply']()}
             </Button>

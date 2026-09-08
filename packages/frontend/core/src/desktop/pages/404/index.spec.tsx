@@ -23,12 +23,26 @@ const tokens = vi.hoisted(() => ({
   GraphQLService: class GraphQLService {},
   ServersService: class ServersService {},
   requestMutation: Symbol('requestMutation'),
+  projectsQuery: Symbol('projectsQuery'),
   // eslint-disable-next-line rxjs/finnish -- Symbol identifies the mocked observable source.
   servers$: Symbol('servers$'),
 }));
 
 vi.mock('@affine/component', () => ({
   notify: { error: state.notifyError, success: state.notifySuccess },
+  Modal: ({ children }: PropsWithChildren) => (
+    <div role="dialog">{children}</div>
+  ),
+  Loading: () => <span role="status" />,
+  Button: ({
+    children,
+    disabled,
+    onClick,
+  }: PropsWithChildren<{ disabled?: boolean; onClick?: () => void }>) => (
+    <button disabled={disabled} onClick={onClick}>
+      {children}
+    </button>
+  ),
 }));
 
 vi.mock('@affine/component/not-found-page', () => ({
@@ -78,6 +92,7 @@ vi.mock('@affine/error', () => ({
 }));
 
 vi.mock('@affine/graphql', () => ({
+  copilotWorkbenchProjectsGetQuery: tokens.projectsQuery,
   requestCopilotDocumentAccessMutation: tokens.requestMutation,
 }));
 
@@ -108,7 +123,7 @@ vi.mock('../auth/sign-in', () => ({ SignIn: () => <div /> }));
 
 import { PageNotFound } from './index';
 
-describe('PageNotFound personal access request', () => {
+describe('PageNotFound Project copy request', () => {
   beforeEach(() => {
     state.gql.mockReset();
     state.notifyError.mockReset();
@@ -117,8 +132,15 @@ describe('PageNotFound personal access request', () => {
 
   afterEach(cleanup);
 
-  test('fails recoverably and requests personal read access without a project', async () => {
+  test('requires a selected Project and retries after a failed copy request', async () => {
     state.gql
+      .mockResolvedValueOnce({
+        currentUser: {
+          copilot: {
+            contextProjects: [{ id: 'project-1', name: 'Selected project' }],
+          },
+        },
+      })
       .mockRejectedValueOnce(new Error('Request denied'))
       .mockResolvedValueOnce({ requestCopilotDocumentAccess: { id: 'r-1' } });
     render(
@@ -136,6 +158,14 @@ describe('PageNotFound personal access request', () => {
       name: 'Request access',
     });
     fireEvent.click(request);
+    const select = await screen.findByRole('combobox');
+    expect(state.gql).toHaveBeenCalledTimes(1);
+    const submit = screen.getByRole<HTMLButtonElement>('button', {
+      name: 'com.affine.localmind.accessRequest.request',
+    });
+    expect(submit.disabled).toBe(true);
+    fireEvent.change(select, { target: { value: 'project-1' } });
+    fireEvent.click(submit);
     await waitFor(() => {
       expect(state.notifyError).toHaveBeenCalledWith(
         expect.objectContaining({ message: 'Request denied' })
@@ -144,7 +174,7 @@ describe('PageNotFound personal access request', () => {
       expect(request.dataset.requested).toBe('false');
     });
 
-    fireEvent.click(request);
+    fireEvent.click(submit);
     await waitFor(() => {
       expect(request.dataset.requested).toBe('true');
       expect(request.disabled).toBe(true);
@@ -155,7 +185,7 @@ describe('PageNotFound personal access request', () => {
         input: {
           workspaceId: 'workspace-1',
           docId: 'doc-1',
-          requestedLevel: 'read',
+          projectId: 'project-1',
           requestedTitle: 'Known title',
         },
       },

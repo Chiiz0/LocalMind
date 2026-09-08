@@ -104,7 +104,7 @@ const WorkspaceServerInfo = ({
         <div className={styles.workspaceServerName}>{name}</div>
         {isCloud ? (
           <div className={styles.workspaceServerAccount}>
-            {account ? account.email : 'Not signed in'}
+            {account ? account.email : t['com.affine.ui.not-signed-in']()}
           </div>
         ) : null}
       </div>

@@ -100,7 +100,8 @@ export const ErrorDetail: FC<ErrorDetailProps> = props => {
           data-show-stack={showStack}
         >
           <Scrollable.Viewport>
-            {error?.stack || 'No detailed error stack is provided.'}
+            {error?.stack ||
+              t['com.affine.ui.no-detailed-error-stack-is-provided']()}
           </Scrollable.Viewport>
           <Scrollable.Scrollbar />
         </Scrollable.Root>

@@ -99,7 +99,9 @@ const AIChatButton = () => {
   const serverFeatures = useLiveData(serverService.server.features$);
   const enableAI = useLiveData(featureFlagService.flags.enable_ai.$);
 
-  const aiChatActive = location.pathname === '/intelligence';
+  const aiChatActive =
+    location.pathname === '/project' ||
+    location.pathname.startsWith('/project/');
 
   if (!enableAI || !serverFeatures?.copilot) {
     return null;
@@ -110,10 +112,10 @@ const AIChatButton = () => {
       icon={<AiOutlineIcon />}
       active={aiChatActive}
       linkComponent={Link}
-      to="/intelligence"
+      to="/project"
     >
       <span data-testid="ai-chat">
-        {t['com.affine.workspaceSubPath.chat']()}
+        {t['com.affine.localmind.workbench.projects']()}
       </span>
     </MenuLinkItem>
   );

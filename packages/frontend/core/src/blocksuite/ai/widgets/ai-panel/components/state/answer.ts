@@ -1,3 +1,5 @@
+import { I18nController } from '@affine/core/modules/i18n/lit-controller';
+import { I18n } from '@affine/i18n';
 import { WithDisposable } from '@blocksuite/affine/global/lit';
 import type { EditorHost } from '@blocksuite/affine/std';
 import { baseTheme } from '@toeverything/theme';
@@ -8,6 +10,8 @@ import type { AIPanelAnswerConfig, CopyConfig } from '../../type.js';
 import { filterAIItemGroup } from '../../utils.js';
 
 export class AIPanelAnswer extends WithDisposable(LitElement) {
+  readonly languageController = new I18nController(this);
+
   static override styles = css`
     :host {
       width: 100%;
@@ -85,7 +89,9 @@ export class AIPanelAnswer extends WithDisposable(LitElement) {
     const responseGroup = filterAIItemGroup(this.host, this.config.responses);
     return html`
       <div class="answer">
-        <div class="answer-head">Answer</div>
+        <div class="answer-head">
+          ${I18n['com.affine.ai.action-label.answer']()}
+        </div>
         <div class="answer-body" data-testid="answer-content">
           <slot></slot>
         </div>

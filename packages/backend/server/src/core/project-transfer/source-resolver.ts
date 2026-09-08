@@ -15,6 +15,7 @@ import { BadRequest, Throttle } from '../../base';
 import { Models } from '../../models';
 import { CurrentUser, type CurrentUser as User } from '../auth';
 import { DocReader } from '../doc';
+import { ProjectEditLeaseProofInput } from '../project/edit-lease-resolver';
 import { ProjectResourceType } from '../project/types';
 import { ProjectImportService } from './import-service';
 
@@ -113,7 +114,8 @@ export class ProjectResourceSourceResolver {
     @Args('expectedContentVersion', { type: () => Int })
     expectedContentVersion: number,
     @Args('expectedSourceVersion') expectedSourceVersion: string,
-    @Args('requestKey') requestKey: string
+    @Args('requestKey') requestKey: string,
+    @Args('editLease') editLease: ProjectEditLeaseProofInput
   ) {
     const actor = { projectId, actorId: user.id };
     const resource = await this.models.projectResource.get({
@@ -140,6 +142,7 @@ export class ProjectResourceSourceResolver {
       sourceResourceId,
       kind: resource.kind,
       requestKey,
+      editLease: { ...editLease, kind: 'user' },
       replace: { resourceId, expectedContentVersion, expectedSourceVersion },
     });
   }

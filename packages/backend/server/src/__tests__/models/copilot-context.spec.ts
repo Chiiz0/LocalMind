@@ -359,13 +359,6 @@ test('shared source audience rejects Workspace expansion, public exposure and ot
       name: 'Other readers',
       createdByUserId: otherUser.id,
       members: { create: { userId: otherUser.id, role: 'owner' } },
-      documents: {
-        create: {
-          workspaceId: workspace.id,
-          docId: 'audience-sink',
-          status: 'granted',
-        },
-      },
       grants: {
         create: {
           workspaceId: workspace.id,

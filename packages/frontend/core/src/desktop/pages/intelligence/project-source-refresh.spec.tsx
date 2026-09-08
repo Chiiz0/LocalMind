@@ -2,8 +2,10 @@
  * @vitest-environment happy-dom
  */
 import {
+  acquireProjectResourceEditLeaseMutation,
   projectResourceSourcesQuery,
   refreshProjectResourceSourceMutation,
+  releaseProjectResourceEditLeaseMutation,
 } from '@affine/graphql';
 import {
   cleanup,
@@ -17,18 +19,21 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
   gql: vi.fn(),
+  write: vi.fn(),
+  confirm: vi.fn(),
   mutate: vi.fn(),
   error: null as Error | null,
-  changed: vi.fn(),
 }));
 vi.mock('@affine/core/modules/cloud', () => ({ GraphQLService: class {} }));
 vi.mock('@toeverything/infra', () => ({
   useService: () => ({ gql: state.gql }),
 }));
 vi.mock('@affine/i18n', () => ({
+  getOrCreateI18n: () => ({ t: (key: string) => key }),
   useI18n: () => new Proxy({}, { get: (_, key) => () => String(key) }),
 }));
 vi.mock('@affine/component', () => ({
+  useConfirmModal: () => ({ openConfirmModal: state.confirm }),
   Button: ({
     loading: _loading,
     ...props
@@ -71,13 +76,31 @@ vi.mock('@affine/core/components/hooks/use-query', () => ({
     mutate: state.mutate,
   }),
 }));
-vi.mock('./project-files-data', () => ({ projectFilesChanged: state.changed }));
 
 import { ProjectSourceRefresh } from './project-source-refresh';
 
 beforeEach(() => {
   vi.clearAllMocks();
   state.error = null;
+  state.confirm.mockImplementation(({ onConfirm }: { onConfirm: () => void }) =>
+    onConfirm()
+  );
+  state.gql.mockImplementation((request: { query: unknown }) => {
+    if (request.query === acquireProjectResourceEditLeaseMutation)
+      return Promise.resolve({
+        acquireProjectResourceEditLease: {
+          acquired: true,
+          lease: {
+            owned: true,
+            leaseId: 'edit-lease',
+            expiresAt: new Date(Date.now() + 60000).toISOString(),
+          },
+        },
+      });
+    if (request.query === releaseProjectResourceEditLeaseMutation)
+      return Promise.resolve({ releaseProjectResourceEditLease: true });
+    return state.write(request);
+  });
   state.mutate.mockResolvedValue(undefined);
 });
 afterEach(cleanup);
@@ -85,7 +108,7 @@ const label = (name: string) => `com.affine.localmind.${name}`;
 
 test('source refresh freezes both versions and keeps a retry identity after a lost response', async () => {
   const refreshed = vi.fn();
-  state.gql
+  state.write
     .mockRejectedValueOnce(new Error('Response lost'))
     .mockResolvedValueOnce({});
   render(
@@ -105,19 +128,20 @@ test('source refresh freezes both versions and keeps a retry identity after a lo
   fireEvent.click(screen.getByRole('radio'));
   fireEvent.click(apply);
   await screen.findByRole('alert');
-  const first = state.gql.mock.calls[0][0];
+  expect(state.confirm).toHaveBeenCalledOnce();
+  const first = state.write.mock.calls[0][0];
   expect(first.query).toBe(refreshProjectResourceSourceMutation);
   expect(first.variables).toMatchObject({
     projectId: 'project',
     resourceId: 'internal',
     expectedContentVersion: 7,
     expectedSourceVersion: 'external-version',
+    editLease: { tabId: expect.any(String), leaseId: 'edit-lease' },
   });
   expect(refreshed).not.toHaveBeenCalled();
   fireEvent.click(apply);
   await waitFor(() => expect(refreshed).toHaveBeenCalledOnce());
-  expect(state.gql.mock.calls[1][0]).toEqual(first);
-  expect(state.changed).toHaveBeenCalledWith('project');
+  expect(state.write.mock.calls[1][0]).toEqual(first);
 });
 
 test('a fresh comparison clears confirmation and an ACL error hides cached sources', async () => {
@@ -149,6 +173,6 @@ test('a fresh comparison clears confirmation and an ACL error hides cached sourc
   );
   expect(screen.queryByRole('radio')).toBeNull();
   expect(screen.getByRole('alert').textContent).toContain(
-    'Source access revoked'
+    'com.affine.localmind.project-error.failed'
   );
 });

@@ -6,6 +6,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@affine/admin/components/ui/select';
+import { useI18n } from '@affine/i18n';
 import type { Table } from '@tanstack/react-table';
 import {
   ChevronLeftIcon,
@@ -24,6 +25,7 @@ export function DataTablePagination<TData>({
   table,
   disabled = false,
 }: DataTablePaginationProps<TData>) {
+  const i18n = useI18n();
   const [, startTransition] = useTransition();
 
   // to handle the error: a component suspended while responding to synchronous input.
@@ -61,7 +63,9 @@ export function DataTablePagination<TData>({
   return (
     <div className="flex items-center justify-between md:px-2">
       <div className="flex items-center md:space-x-2">
-        <p className="text-sm font-medium max-md:hidden">Rows per page</p>
+        <p className="text-sm font-medium max-md:hidden">
+          {i18n['com.affine.admin.rows-per-page']()}
+        </p>
         <Select
           value={`${table.getState().pagination.pageSize}`}
           onValueChange={onPageSizeChange}
@@ -81,8 +85,14 @@ export function DataTablePagination<TData>({
       </div>
       <div className="flex items-center space-x-6 lg:space-x-8">
         <div className="flex w-[100px] items-center justify-center text-sm font-medium">
-          Page {table.getState().pagination.pageIndex + 1} of{' '}
-          {table.getPageCount()}
+          {i18n['com.affine.office.page-position']({
+            current: String(
+              table.getPageCount()
+                ? table.getState().pagination.pageIndex + 1
+                : 0
+            ),
+            total: String(table.getPageCount()),
+          })}
         </div>
         <div className="flex items-center space-x-2">
           <Button
@@ -91,7 +101,9 @@ export function DataTablePagination<TData>({
             onClick={handleFirstPage}
             disabled={disabled || !table.getCanPreviousPage()}
           >
-            <span className="sr-only">Go to first page</span>
+            <span className="sr-only">
+              {i18n['com.affine.admin.go-to-first-page']()}
+            </span>
             <ChevronsLeftIcon className="h-4 w-4" />
           </Button>
           <Button
@@ -100,7 +112,9 @@ export function DataTablePagination<TData>({
             onClick={handlePreviousPage}
             disabled={disabled || !table.getCanPreviousPage()}
           >
-            <span className="sr-only">Go to previous page</span>
+            <span className="sr-only">
+              {i18n['com.affine.admin.go-to-previous-page']()}
+            </span>
             <ChevronLeftIcon className="h-4 w-4" />
           </Button>
           <Button
@@ -109,7 +123,9 @@ export function DataTablePagination<TData>({
             onClick={handleNextPage}
             disabled={disabled || !table.getCanNextPage()}
           >
-            <span className="sr-only">Go to next page</span>
+            <span className="sr-only">
+              {i18n['com.affine.admin.go-to-next-page']()}
+            </span>
             <ChevronRightIcon className="h-4 w-4" />
           </Button>
           <Button
@@ -118,7 +134,9 @@ export function DataTablePagination<TData>({
             onClick={handleLastPage}
             disabled={disabled || !table.getCanNextPage()}
           >
-            <span className="sr-only">Go to last page</span>
+            <span className="sr-only">
+              {i18n['com.affine.admin.go-to-last-page']()}
+            </span>
             <ChevronsRightIcon className="h-4 w-4" />
           </Button>
         </div>

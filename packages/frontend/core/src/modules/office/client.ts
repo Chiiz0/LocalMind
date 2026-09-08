@@ -7,6 +7,7 @@ import {
   previewOfficeCommandQuery,
   previewProjectOfficeCommandQuery,
 } from '@affine/graphql';
+import { I18n } from '@affine/i18n';
 import { sha } from '@blocksuite/global/utils';
 import type { OfficeCommand } from '@localmind/office';
 
@@ -19,7 +20,11 @@ import {
 
 export type OfficeResourceOwner =
   | { kind: 'workspace'; workspaceId: string }
-  | { kind: 'project'; projectId: string };
+  | {
+      kind: 'project';
+      projectId: string;
+      editLease?: { tabId: string; leaseId: string };
+    };
 
 export const DOCX_MIME =
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
@@ -66,9 +71,37 @@ export function officeFormatForFileName(fileName: string) {
     normalized.endsWith(NATIVE_OFFICE_FORMATS[candidate].extension)
   );
   if (!format) {
-    throw new Error('Native Office requires a DOCX, XLSX, PPTX, or PDF file');
+    throw new Error(
+      I18n[
+        'com.affine.office.native-office-requires-a-docx-xlsx-pptx-or-pdf-file'
+      ]()
+    );
   }
   return { format, ...NATIVE_OFFICE_FORMATS[format] };
+}
+
+// In local web development, API calls go through the frontend proxy while the
+// backend returns absolute asset links to its own port. Keep these Office
+// assets on the same proxy route as their authenticated GraphQL metadata.
+export function officeAssetUrl(url: string) {
+  if (!BUILD_CONFIG.debug || !BUILD_CONFIG.isWeb) return url;
+  const page = new URL(window.location.href);
+  const asset = new URL(url, page);
+  if (
+    ['localhost', '127.0.0.1', '[::1]'].includes(page.hostname) &&
+    asset.hostname === page.hostname &&
+    asset.protocol === page.protocol &&
+    ['http:', 'https:'].includes(page.protocol) &&
+    !asset.username &&
+    !asset.password &&
+    /^\/api\/(projects|workspaces)\/[^/]+\/office\/artifacts\/[^/]+\/revisions\/[^/]+\/(state|package|part|export\/pdf)$/.test(
+      asset.pathname
+    )
+  ) {
+    asset.host = page.host;
+    return asset.toString();
+  }
+  return url;
 }
 
 export async function fetchOfficeState(
@@ -76,7 +109,7 @@ export async function fetchOfficeState(
   kind?: OfficeArtifactKindValue,
   signal?: AbortSignal
 ) {
-  const response = await fetch(url, {
+  const response = await fetch(officeAssetUrl(url), {
     credentials: 'include',
     signal,
   });
@@ -85,7 +118,11 @@ export async function fetchOfficeState(
   }
   const value: unknown = await response.json();
   if (!isNativeOfficeState(value, kind)) {
-    throw new Error('The server returned an unsupported Office state');
+    throw new Error(
+      I18n[
+        'com.affine.office.the-server-returned-an-unsupported-office-state'
+      ]()
+    );
   }
   return value;
 }
@@ -93,7 +130,9 @@ export async function fetchOfficeState(
 export async function fetchOfficeDocxState(url: string, signal?: AbortSignal) {
   const value = await fetchOfficeState(url, 'document', signal);
   if (!isDocxSemanticState(value)) {
-    throw new Error('The server returned an unsupported DOCX state');
+    throw new Error(
+      I18n['com.affine.office.the-server-returned-an-unsupported-docx-state']()
+    );
   }
   return value;
 }
@@ -129,7 +168,13 @@ export async function executeOfficeCommand(
   if (typeof owner !== 'string' && owner.kind === 'project') {
     const result = await graphql.gql({
       query: executeProjectOfficeCommandMutation,
-      variables: { input: { projectId: owner.projectId, command } },
+      variables: {
+        input: {
+          projectId: owner.projectId,
+          command,
+          editLease: owner.editLease,
+        },
+      },
     });
     return { executeOfficeCommand: result.executeProjectOfficeCommand };
   }
@@ -196,13 +241,17 @@ export async function importNativeDocx(
 ) {
   const policy = officeFormatForFileName(file.name);
   if (policy.format !== 'docx') {
-    throw new Error('Native DOCX import requires a .docx file');
+    throw new Error(
+      I18n['com.affine.office.native-docx-import-requires-a-docx-file']()
+    );
   }
   return await importNativeOffice(workspace, graphql, file);
 }
 
 export async function downloadOfficePackage(url: string, filename: string) {
-  const response = await fetch(url, { credentials: 'include' });
+  const response = await fetch(officeAssetUrl(url), {
+    credentials: 'include',
+  });
   if (!response.ok) {
     throw new Error(`Failed to download document (${response.status})`);
   }
@@ -221,20 +270,20 @@ export async function downloadOfficePackage(url: string, filename: string) {
 export function officePackagePartUrl(packageUrl: string, partName: string) {
   const url = new URL(packageUrl, window.location.href);
   if (!url.pathname.endsWith('/package')) {
-    throw new Error('Invalid Office package URL');
+    throw new Error(I18n['com.affine.office.invalid-office-package-url']());
   }
   url.pathname = `${url.pathname.slice(0, -'/package'.length)}/part`;
   url.search = '';
   url.searchParams.set('path', partName);
-  return url.toString();
+  return officeAssetUrl(url.toString());
 }
 
 export function officePdfExportUrl(packageUrl: string) {
   const url = new URL(packageUrl, window.location.href);
   if (!url.pathname.endsWith('/package')) {
-    throw new Error('Invalid Office package URL');
+    throw new Error(I18n['com.affine.office.invalid-office-package-url']());
   }
   url.pathname = `${url.pathname.slice(0, -'/package'.length)}/export/pdf`;
   url.search = '';
-  return url.toString();
+  return officeAssetUrl(url.toString());
 }

@@ -2,11 +2,23 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { Logger, Module, OnModuleInit } from '@nestjs/common';
+import { HttpStatus, Logger, Module, OnModuleInit } from '@nestjs/common';
 import { Args, Query, Resolver } from '@nestjs/graphql';
 
 import { generateUserFriendlyErrors } from './def';
-import { ActionForbidden, ErrorDataUnionType, ErrorNames } from './errors.gen';
+import {
+  ActionForbidden,
+  BadRequest,
+  ErrorDataUnionType,
+  ErrorNames,
+} from './errors.gen';
+
+export class ResourceConflict extends BadRequest {
+  constructor(message: string) {
+    super(message);
+    this.status = HttpStatus.CONFLICT;
+  }
+}
 
 @Resolver(() => ErrorDataUnionType)
 class ErrorResolver {

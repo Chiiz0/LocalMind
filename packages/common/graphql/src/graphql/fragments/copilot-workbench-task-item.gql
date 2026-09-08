@@ -1,4 +1,22 @@
 fragment CopilotWorkbenchTaskItemFields on CopilotWorkbenchTaskItemType {
+  projectTask {
+    id
+    projectId
+    sessionId
+    title
+    workflow
+    status
+    targetFingerprint
+    leaseHolderName
+    leaseRetryCount
+    workerAttempt
+    createdAt
+    updatedAt
+    failureCode
+    failureMessage
+    receipt
+    preview
+  }
   id
   entityId
   kind
@@ -6,6 +24,10 @@ fragment CopilotWorkbenchTaskItemFields on CopilotWorkbenchTaskItemType {
   attention
   workspaceId
   projectId
+  projectName
+  documentTitle
+  relatedUserName
+  relatedUserEmail
   title
   status
   requestedLevel

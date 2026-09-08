@@ -1,3 +1,5 @@
+import { I18nController } from '@affine/core/modules/i18n/lit-controller';
+import { I18n } from '@affine/i18n';
 import { AIStarIcon } from '@blocksuite/affine/components/icons';
 import { SignalWatcher, WithDisposable } from '@blocksuite/affine/global/lit';
 import { ColorScheme } from '@blocksuite/affine/model';
@@ -12,6 +14,8 @@ import { css, html, LitElement, nothing, unsafeCSS } from 'lit';
 import { property, query, state } from 'lit/decorators.js';
 
 export class AIPanelInput extends SignalWatcher(WithDisposable(LitElement)) {
+  readonly languageController = new I18nController(this);
+
   static override styles = css`
     :host {
       width: 100%;
@@ -220,7 +224,7 @@ export class AIPanelInput extends SignalWatcher(WithDisposable(LitElement)) {
       <div class="star">${AIStarIcon}</div>
       <div class="textarea-container">
         <textarea
-          placeholder="What are your thoughts?"
+          placeholder=${I18n.t('com.affine.ai.chat.input-placeholder')}
           rows="1"
           @keydown=${this._onKeyDown}
           @input=${this._onInput}
@@ -240,7 +244,11 @@ export class AIPanelInput extends SignalWatcher(WithDisposable(LitElement)) {
         >
           ${SendIcon()}
           ${this._hasContent
-            ? html`<affine-tooltip .offsetY=${12}>Send to AI</affine-tooltip>`
+            ? html`<affine-tooltip .offsetY=${12}
+                >${I18n[
+                  'com.affine.ai.action-label.send-to-ai'
+                ]()}</affine-tooltip
+              >`
             : nothing}
         </div>
       </div>

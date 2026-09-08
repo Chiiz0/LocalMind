@@ -1,4 +1,5 @@
 import { Button } from '@affine/admin/components/ui/button';
+import { useI18n } from '@affine/i18n';
 import { EditIcon, LinkIcon } from '@blocksuite/icons/rc';
 import { useCallback, useState } from 'react';
 
@@ -13,6 +14,7 @@ export function DataTableRowActions({
 }: {
   workspace: WorkspaceListItem;
 }) {
+  const i18n = useI18n();
   const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<
     'edit' | 'sharedLinks' | null
@@ -107,7 +109,7 @@ export function DataTableRowActions({
           onClick={handleEdit}
         >
           <EditIcon fontSize={18} />
-          <span>Edit</span>
+          <span>{i18n['com.affine.collection-bar.action.tooltip.edit']()}</span>
         </Button>
         <Button
           variant="ghost"
@@ -116,7 +118,7 @@ export function DataTableRowActions({
           onClick={handleSharedLinks}
         >
           <LinkIcon fontSize={18} />
-          <span>Shared links</span>
+          <span>{i18n['com.affine.admin.shared-links']()}</span>
         </Button>
       </div>
       <DiscardChanges
@@ -127,7 +129,9 @@ export function DataTableRowActions({
           setPendingAction(null);
         }}
         onConfirm={handleDiscardConfirm}
-        description="Changes to this workspace will not be saved."
+        description={i18n[
+          'com.affine.admin.changes-to-this-workspace-will-not-be-saved'
+        ]()}
       />
     </>
   );

@@ -1,0 +1,5 @@
+#import "./fragments/project-workspace-import-task.gql"
+
+mutation submitProjectWorkspaceImport($input: SubmitProjectWorkspaceImportInput!) {
+  submitProjectWorkspaceImport(input: $input) { ...ProjectWorkspaceImportTask }
+}

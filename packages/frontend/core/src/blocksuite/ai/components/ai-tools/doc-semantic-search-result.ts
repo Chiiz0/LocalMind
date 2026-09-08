@@ -1,4 +1,5 @@
 import type { PeekViewService } from '@affine/core/modules/peek-view';
+import { I18n } from '@affine/i18n';
 import { WithDisposable } from '@blocksuite/global/lit';
 import { AiEmbeddingIcon, PageIcon } from '@blocksuite/icons/lit';
 import { ShadowlessElement } from '@blocksuite/std';
@@ -7,8 +8,8 @@ import { html, nothing } from 'lit';
 import { property } from 'lit/decorators.js';
 
 import type { DocDisplayConfig } from '../ai-chat-chips';
+import { parseDocSearchResults } from './doc-search-result';
 import { getToolErrorDisplayName, isToolError } from './tool-result-utils';
-import type { ToolError } from './type';
 
 interface DocSemanticSearchToolCall {
   type: 'tool-call';
@@ -22,7 +23,7 @@ interface DocSemanticSearchToolResult {
   toolCallId: string;
   toolName: string;
   args: { query: string };
-  result: Array<{ content: string; docId: string }> | ToolError | null;
+  result: unknown;
 }
 
 function parseResultContent(content: string) {
@@ -82,7 +83,10 @@ export class DocSemanticSearchResult extends WithDisposable(ShadowlessElement) {
       return nothing;
     }
     const result = this.data.result;
-    if (!result || isToolError(result)) {
+    const parsed = isToolError(result)
+      ? null
+      : parseDocSearchResults(result, 'semantic');
+    if (!parsed) {
       return html`<tool-call-failed
         .name=${getToolErrorDisplayName(
           isToolError(result) ? result : null,
@@ -96,25 +100,41 @@ export class DocSemanticSearchResult extends WithDisposable(ShadowlessElement) {
       ></tool-call-failed>`;
     }
     return html`<tool-result-card
-      .name=${`Found semantically related pages for "${this.data.args.query}"`}
+      .name=${parsed.scope === 'project'
+        ? I18n.t('com.affine.localmind.project-search.results', {
+            count: parsed.items.length,
+            query: this.data.args.query,
+          })
+        : `Found semantically related pages for "${this.data.args.query}"`}
       .icon=${AiEmbeddingIcon()}
       .width=${this.width}
-      .results=${result
-        .map(result => ({
-          ...parseResultContent(result.content),
-          title: this.docDisplayService.getTitle(result.docId),
-          onClick: () => {
-            this.peekViewService.peekView
-              .open({
-                type: 'doc',
-                docRef: {
-                  docId: result.docId,
-                },
-              })
-              .catch(console.error);
-          },
-        }))
-        .filter(Boolean)}
+      .results=${parsed.items.map(item => {
+        const docId = item.docId;
+        const preview = item.content ? parseResultContent(item.content) : null;
+        return {
+          ...preview,
+          icon: PageIcon(),
+          title:
+            (parsed.scope === 'workspace' && item.docId
+              ? this.docDisplayService?.getTitle(item.docId)
+              : null) ||
+            item.title ||
+            preview?.title ||
+            I18n.t('Untitled'),
+          content: parsed.scope === 'project' ? item.content : preview?.content,
+          onClick: docId
+            ? () => {
+                if (parsed.scope === 'project' || !this.peekViewService) {
+                  this.onOpenDoc?.(docId);
+                  return;
+                }
+                this.peekViewService.peekView
+                  .open({ type: 'doc', docRef: { docId } })
+                  .catch(console.error);
+              }
+            : undefined,
+        };
+      })}
     ></tool-result-card>`;
   }
 

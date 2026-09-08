@@ -41,7 +41,7 @@ export const BillingHistory = () => {
         <span style={{ color: cssVar('errorColor') }}>
           {error
             ? UserFriendlyError.fromAny(error).message
-            : 'Failed to load invoices'}
+            : t['com.affine.ui.failed-to-load-invoices']()}
         </span>
       );
     }

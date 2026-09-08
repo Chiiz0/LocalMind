@@ -63,7 +63,9 @@ export const McpCredentialModal = ({
       if (copied) {
         notify.success({ title: t['Copied to clipboard']() });
       } else {
-        notify.error({ title: 'Copy failed, please try again later' });
+        notify.error({
+          title: t['com.affine.ui.copy-failed-please-try-again-later'](),
+        });
       }
     },
     [t]

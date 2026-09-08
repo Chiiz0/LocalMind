@@ -102,7 +102,7 @@ export const AIUsage = () => {
           <span>{copilotActionLimit}</span>
         </div>
 
-        <div className={styles.freeTag}>Free</div>
+        <div className={styles.freeTag}>{t['com.affine.ui.free']()}</div>
       </div>
 
       <div className={styles.cloudUsageBar}>

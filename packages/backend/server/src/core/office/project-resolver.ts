@@ -133,6 +133,9 @@ export class ProjectOfficeResolver {
     const command = this.userCommand(input.command);
     const result = await this.commands.execute({
       projectId: input.projectId,
+      editLease: input.editLease
+        ? { ...input.editLease, kind: 'user' }
+        : undefined,
       actorId: user.id,
       command,
     });

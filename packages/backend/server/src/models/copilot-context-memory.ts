@@ -9,7 +9,6 @@ import { BaseModel } from './base';
 import { toPgVector } from './common';
 
 export const AUTO_MEMORY_SCOPE_LIMIT = 200;
-const CONTEXT_PROJECT_DOCUMENT_LIMIT = 100;
 
 export const COPILOT_CONTEXT_MEMORY_SCOPES = [
   'user',
@@ -165,20 +164,12 @@ export type CopilotContextProjectInput = {
   createdByUserId: string;
   name: string;
   description?: string;
-  documents: CopilotContextProjectDocumentInput[];
 };
 
-export type CopilotContextProjectDocumentInput = {
+export type CopilotContextDocumentRef = {
   workspaceId: string;
   docId: string;
-  groupId?: string | null;
-  sortOrder?: number;
 };
-
-export type CopilotContextDocumentRef = Pick<
-  CopilotContextProjectDocumentInput,
-  'workspaceId' | 'docId'
->;
 
 function normalizeMemoryContent(content: string) {
   return content.replace(/\s+/g, ' ').trim();
@@ -473,6 +464,62 @@ export class CopilotContextMemoryModel extends BaseModel {
         autoMemoryEnabled: input.autoMemoryEnabled,
       },
     });
+  }
+
+  @Transactional()
+  async createProjectSummary(
+    actorId: string,
+    projectId: string,
+    content: string
+  ) {
+    await this.assertProjectSummaryOwner(actorId, projectId);
+    const normalized = normalizeMemoryContent(content);
+    if (!normalized || normalized.length > 8000)
+      throw new BadRequest('Project summary content is invalid');
+    const fingerprint = fingerprintContextMemory({
+      scope: 'project',
+      kind: 'project_summary',
+      content: normalized,
+    });
+    await this.lockWriterKey(`project-summary:${projectId}:${fingerprint}`);
+    const existing = await this.db.aiContextMemory.findFirst({
+      where: {
+        projectId,
+        kind: 'project_summary',
+        fingerprint,
+        status: 'active',
+      },
+    });
+    if (existing) return existing;
+    const memory = await this.db.aiContextMemory.create({
+      data: {
+        ownerUserId: actorId,
+        projectId,
+        scope: 'project',
+        kind: 'project_summary',
+        content: normalized,
+        fingerprint,
+        captureMode: 'manual',
+        writerVersion: 'project-summary/v1',
+      },
+    });
+    await this.db.projectSummaryRevision.create({
+      data: {
+        memoryId: memory.id,
+        projectId,
+        actorIdSnapshot: actorId,
+        contentFingerprint: createHash('sha256')
+          .update(memory.content)
+          .digest('hex'),
+      },
+    });
+    return memory;
+  }
+
+  private async assertProjectSummaryOwner(actorId: string, projectId: string) {
+    if (!(await this.lockActiveProjectOwner(projectId, actorId))) {
+      throw new NotFound('Project summary is unavailable');
+    }
   }
 
   @Transactional()
@@ -1190,10 +1237,19 @@ export class CopilotContextMemoryModel extends BaseModel {
   ) {
     const current = await this.get(id);
     if (!current) return null;
+    const manualSummary =
+      current.writerVersion === 'project-summary/v1' ? current.projectId : null;
+    if (manualSummary) {
+      if (!actorUserId) throw new NotFound('Project summary actor is required');
+      await this.assertProjectSummaryOwner(actorUserId, manualSummary);
+    }
     const content =
       input.content === undefined
         ? current.content
         : normalizeMemoryContent(input.content);
+    if (manualSummary && (!content || content.length > 8000)) {
+      throw new BadRequest('Project summary content is invalid');
+    }
     try {
       const updated = await this.db.aiContextMemory.updateMany({
         where: actorUserId
@@ -1214,6 +1270,18 @@ export class CopilotContextMemoryModel extends BaseModel {
       });
       if (updated.count !== 1) {
         throw new NotFound('AI context memory not found');
+      }
+      if (manualSummary && actorUserId && input.content !== undefined) {
+        await this.db.projectSummaryRevision.create({
+          data: {
+            memoryId: id,
+            projectId: manualSummary,
+            actorIdSnapshot: actorUserId,
+            contentFingerprint: createHash('sha256')
+              .update(content)
+              .digest('hex'),
+          },
+        });
       }
       return await this.get(id);
     } catch (error) {
@@ -1250,10 +1318,6 @@ export class CopilotContextMemoryModel extends BaseModel {
     return await this.db.aiContextProject.findUnique({
       where: { id },
       include: {
-        documents: {
-          where: { internalResourceId: null },
-          orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
-        },
         members: { orderBy: [{ role: 'asc' }, { createdAt: 'asc' }] },
       },
     });
@@ -1266,61 +1330,9 @@ export class CopilotContextMemoryModel extends BaseModel {
         ...(input.includeArchived ? {} : { status: 'active' }),
       },
       include: {
-        documents: {
-          where: { internalResourceId: null },
-          orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
-        },
         members: { orderBy: [{ role: 'asc' }, { createdAt: 'asc' }] },
       },
       orderBy: [{ status: 'asc' }, { updatedAt: 'desc' }],
-    });
-  }
-
-  async listProjectIdsForDoc(input: {
-    userId: string;
-    workspaceId: string;
-    docId: string;
-  }) {
-    const projects = await this.db.aiContextProject.findMany({
-      where: {
-        status: 'active',
-        members: { some: { userId: input.userId } },
-        documents: {
-          some: {
-            internalResourceId: null,
-            workspaceId: input.workspaceId,
-            docId: input.docId,
-            status: 'granted',
-          },
-        },
-      },
-      select: { id: true },
-    });
-    return projects.map(project => project.id);
-  }
-
-  async listProjectMembershipsForDocs(input: {
-    userId: string;
-    workspaceId: string;
-    docIds: string[];
-  }) {
-    if (!input.docIds.length) return [];
-    return await this.db.aiContextProjectDoc.findMany({
-      where: {
-        internalResourceId: null,
-        workspaceId: input.workspaceId,
-        docId: { in: input.docIds },
-        status: 'granted',
-        project: {
-          status: 'active',
-          members: { some: { userId: input.userId } },
-        },
-      },
-      select: {
-        workspaceId: true,
-        docId: true,
-        projectId: true,
-      },
     });
   }
 
@@ -1329,10 +1341,9 @@ export class CopilotContextMemoryModel extends BaseModel {
     workspaceId: string;
     docId: string;
   }) {
-    const authorizations =
-      await this.models.intelligenceWorkbenchAuthorization.removeSourceDocumentAuthorizations(
-        input
-      );
+    await this.models.intelligenceWorkbenchAuthorization.removeSourceDocumentAuthorizations(
+      input
+    );
     const memories = await this.db.aiContextMemory.deleteMany({
       where: {
         workspaceId: input.workspaceId,
@@ -1342,7 +1353,6 @@ export class CopilotContextMemoryModel extends BaseModel {
     });
     return {
       memoryCount: memories.count,
-      projectDocumentCount: authorizations.projectDocumentCount,
     };
   }
 
@@ -1361,94 +1371,9 @@ export class CopilotContextMemoryModel extends BaseModel {
         },
       },
     });
-    for (const [index, document] of input.documents.entries()) {
-      await this.models.intelligenceWorkbenchAuthorization.addProjectDocument({
-        projectId: project.id,
-        workspaceId: document.workspaceId,
-        docId: document.docId,
-        requesterUserId: input.createdByUserId,
-        requestedLevel: 'read',
-        groupId: document.groupId ?? null,
-        sortOrder: document.sortOrder ?? index,
-      });
-    }
     const created = await this.getProject(project.id);
     if (!created) throw new Error('Created context project disappeared');
     return created;
-  }
-
-  @Transactional()
-  async addProjectDocument(
-    projectId: string,
-    actorUserId: string,
-    document: CopilotContextProjectDocumentInput
-  ) {
-    if (!(await this.lockActiveProjectOwner(projectId, actorUserId)))
-      return null;
-    await this.models.intelligenceWorkbenchAuthorization.addProjectDocument({
-      projectId,
-      workspaceId: document.workspaceId,
-      docId: document.docId,
-      requesterUserId: actorUserId,
-      requestedLevel: 'read',
-      groupId: document.groupId ?? null,
-      sortOrder: document.sortOrder ?? 0,
-    });
-    await this.db.aiContextProjectDoc.updateMany({
-      where: {
-        projectId,
-        workspaceId: document.workspaceId,
-        docId: document.docId,
-      },
-      data: {
-        groupId: document.groupId ?? null,
-        sortOrder: document.sortOrder ?? 0,
-      },
-    });
-    return await this.getProject(projectId);
-  }
-
-  @Transactional()
-  async removeProjectDocument(
-    projectId: string,
-    actorUserId: string,
-    document: CopilotContextDocumentRef
-  ) {
-    const result =
-      await this.models.intelligenceWorkbenchAuthorization.removeProjectDocument(
-        {
-          projectId,
-          workspaceId: document.workspaceId,
-          docId: document.docId,
-          actorUserId,
-        }
-      );
-    if (!result.removed) return null;
-    return await this.getProject(projectId);
-  }
-
-  @Transactional()
-  async updateProjectDocument(
-    projectId: string,
-    actorUserId: string,
-    document: CopilotContextDocumentRef,
-    input: { groupId?: string | null; sortOrder?: number }
-  ) {
-    if (!(await this.lockActiveProjectOwner(projectId, actorUserId)))
-      return null;
-    const result = await this.db.aiContextProjectDoc.updateMany({
-      where: {
-        projectId,
-        workspaceId: document.workspaceId,
-        docId: document.docId,
-      },
-      data: {
-        groupId: input.groupId,
-        sortOrder: input.sortOrder,
-      },
-    });
-    if (!result.count) return null;
-    return await this.getProject(projectId);
   }
 
   @Transactional()
@@ -1459,130 +1384,18 @@ export class CopilotContextMemoryModel extends BaseModel {
       name?: string;
       description?: string;
       status?: CopilotContextProjectStatus;
-      workspaceDocuments?: {
-        workspaceId: string;
-        documents: CopilotContextProjectDocumentInput[];
-      };
     }
   ) {
     if (!(await this.lockActiveProjectOwner(id, actorUserId))) return null;
-
-    let workspaceDocuments:
-      | { workspaceId: string; documents: CopilotContextProjectDocumentInput[] }
-      | undefined;
-    if (input.workspaceDocuments) {
-      const workspaceId = input.workspaceDocuments.workspaceId.trim();
-      if (!workspaceId) {
-        throw new BadRequest('Project document workspaceId is required');
-      }
-      const documents = new Map<string, CopilotContextProjectDocumentInput>();
-      for (const [
-        index,
-        document,
-      ] of input.workspaceDocuments.documents.entries()) {
-        const documentWorkspaceId = document.workspaceId.trim();
-        const docId = document.docId.trim();
-        const groupId = document.groupId?.trim() || null;
-        const sortOrder = document.sortOrder ?? index;
-        if (documentWorkspaceId !== workspaceId || !docId) {
-          throw new BadRequest(
-            'Project replacement documents must belong to the source workspace'
-          );
-        }
-        if (!Number.isInteger(sortOrder) || sortOrder < 0) {
-          throw new BadRequest(
-            'Project document sortOrder must be a non-negative integer'
-          );
-        }
-        documents.set(docId, {
-          workspaceId,
-          docId,
-          groupId,
-          sortOrder,
-        });
-      }
-      workspaceDocuments = { workspaceId, documents: [...documents.values()] };
-      const retainedDocumentCount = await this.db.aiContextProjectDoc.count({
-        where: { projectId: id, workspaceId: { not: workspaceId } },
-      });
-      if (
-        retainedDocumentCount + workspaceDocuments.documents.length >
-        CONTEXT_PROJECT_DOCUMENT_LIMIT
-      ) {
-        throw new BadRequest(
-          `A project cannot contain more than ${CONTEXT_PROJECT_DOCUMENT_LIMIT} documents`
-        );
-      }
-    }
-
-    if (workspaceDocuments) {
-      const current = await this.db.aiContextProjectDoc.findMany({
-        where: { projectId: id, workspaceId: workspaceDocuments.workspaceId },
-        select: { docId: true },
-      });
-      const currentIds = new Set(current.map(document => document.docId));
-      const desiredIds = new Set(
-        workspaceDocuments.documents.map(document => document.docId)
-      );
-      for (const document of current) {
-        if (desiredIds.has(document.docId)) continue;
-        await this.models.intelligenceWorkbenchAuthorization.removeProjectDocument(
-          {
-            projectId: id,
-            workspaceId: workspaceDocuments.workspaceId,
-            docId: document.docId,
-            actorUserId,
-          }
-        );
-      }
-      for (const document of workspaceDocuments.documents) {
-        if (currentIds.has(document.docId)) {
-          await this.db.aiContextProjectDoc.update({
-            where: {
-              projectId_workspaceId_docId: {
-                projectId: id,
-                workspaceId: document.workspaceId,
-                docId: document.docId,
-              },
-            },
-            data: {
-              groupId: document.groupId ?? null,
-              sortOrder: document.sortOrder ?? 0,
-            },
-          });
-          continue;
-        }
-        await this.models.intelligenceWorkbenchAuthorization.addProjectDocument(
-          {
-            projectId: id,
-            workspaceId: document.workspaceId,
-            docId: document.docId,
-            requesterUserId: actorUserId,
-            requestedLevel: 'read',
-            groupId: document.groupId ?? null,
-            sortOrder: document.sortOrder ?? 0,
-          }
-        );
-      }
-    }
-
     if (input.status === 'archived') {
       await this.models.intelligenceWorkbenchAuthorization.withdrawPendingProjectWorkForArchive(
         { projectId: id, actorUserId }
       );
     }
-
     const project = await this.db.aiContextProject.update({
       where: { id },
-      data: {
-        name: input.name,
-        description: input.description,
-        status: input.status,
-      },
+      data: input,
       include: {
-        documents: {
-          orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
-        },
         members: { orderBy: [{ role: 'asc' }, { createdAt: 'asc' }] },
       },
     });

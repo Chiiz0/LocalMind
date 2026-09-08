@@ -1,4 +1,5 @@
 import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hooks';
+import { useI18n } from '@affine/i18n';
 import { UploadIcon } from '@blocksuite/icons/rc';
 import {
   type ChangeEvent,
@@ -26,6 +27,7 @@ export const FileUploadArea = forwardRef<
   FileUploadAreaRef,
   FileUploadAreaProps
 >(({ onFileSelected }, ref) => {
+  const i18n = useI18n();
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -49,12 +51,12 @@ export const FileUploadArea = forwardRef<
   const validateAndProcessFile = useAsyncCallback(
     async (file: File) => {
       if (file.type !== 'text/csv' && !file.name.endsWith('.csv')) {
-        toast.error('Please upload a CSV file');
+        toast.error(i18n['com.affine.admin.please-upload-a-csv-file']());
         return;
       }
       await onFileSelected(file);
     },
-    [onFileSelected]
+    [onFileSelected, i18n]
   );
 
   const handleDragOver = useCallback((e: DragEvent) => {
@@ -103,11 +105,11 @@ export const FileUploadArea = forwardRef<
         />
         <div className="text-xs font-medium text-muted-foreground">
           {isDragging
-            ? 'Release mouse to upload file'
-            : 'Upload your CSV file or drag it here'}
+            ? i18n['com.affine.admin.release-mouse-to-upload-file']()
+            : i18n['com.affine.admin.upload-your-csv-file-or-drag-it-here']()}
         </div>
         <p className="mt-1 text-xs text-muted-foreground">
-          {isDragging ? 'Preparing to upload...' : ''}
+          {isDragging ? i18n['com.affine.admin.preparing-to-upload']() : ''}
         </p>
       </div>
       <input

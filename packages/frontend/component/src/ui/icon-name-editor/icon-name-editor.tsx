@@ -1,3 +1,4 @@
+import { useI18n } from '@affine/i18n';
 import clsx from 'clsx';
 import { type ReactNode, useCallback, useState } from 'react';
 
@@ -47,6 +48,7 @@ export const IconEditor = ({
   sideOffset?: number;
   triggerVariant?: ButtonProps['variant'];
 }) => {
+  const i18n = useI18n();
   const [isPickerOpen, setIsPickerOpen] = useState(false);
 
   const handleSelect = useCallback(
@@ -83,8 +85,16 @@ export const IconEditor = ({
         variant={triggerVariant}
         className={clsx(styles.iconPicker, triggerClassName)}
         data-icon-type={icon?.type}
-        aria-label={icon ? 'Change Icon' : 'Select Icon'}
-        title={icon ? 'Change Icon' : 'Select Icon'}
+        aria-label={
+          icon
+            ? i18n['com.affine.ui.change-icon']()
+            : i18n['com.affine.ui.select-icon']()
+        }
+        title={
+          icon
+            ? i18n['com.affine.ui.change-icon']()
+            : i18n['com.affine.ui.select-icon']()
+        }
         contentClassName={styles.iconContent}
       >
         <IconRenderer data={icon} fallback={iconPlaceholder} />

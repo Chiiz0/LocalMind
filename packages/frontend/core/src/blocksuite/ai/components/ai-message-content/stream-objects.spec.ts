@@ -1,8 +1,9 @@
 /**
  * @vitest-environment happy-dom
  */
+import { getOrCreateI18n } from '@affine/i18n';
 import { render } from 'lit';
-import { afterEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
 
 import {
   type BlockerSuggestionConfirmation,
@@ -106,6 +107,9 @@ const renderBlockerSuggestion = async (
 afterEach(() => {
   document.body.replaceChildren();
 });
+beforeAll(async () => {
+  await getOrCreateI18n().changeLanguage('en');
+});
 
 describe('Office tool result presentation', () => {
   test('restored read validation errors without an isError flag never claim success', () => {
@@ -113,10 +117,13 @@ describe('Office tool result presentation', () => {
       officeToolResultView('office_read', {
         message: 'selector JSON must match the required Office schema',
       })
-    ).toEqual({ status: 'error', name: 'Office read failed' });
+    ).toEqual({
+      status: 'error',
+      name: 'The file could not be read. Reopen it and try again.',
+    });
     expect(officeToolResultView('office_read', {})).toEqual({
       status: 'error',
-      name: 'Office read failed',
+      name: 'The file could not be read. Reopen it and try again.',
     });
   });
   test('states that an approval request has not created a revision', () => {
@@ -132,9 +139,7 @@ describe('Office tool result presentation', () => {
     if (view.status !== 'success') return;
     expect(view.name).toBe('Office change awaiting approval');
     expect(view.results[0]?.title).toBe('Approval required');
-    expect(view.results[0]?.content).toContain(
-      'No Office revision has been created'
-    );
+    expect(view.results[0]?.content).toContain('The file has not changed');
     expect(view.results[0]?.content).not.toMatch(
       /completed|modification done/i
     );
@@ -149,12 +154,11 @@ describe('Office tool result presentation', () => {
     expect(read).toEqual({
       status: 'success',
       kind: 'read',
-      name: 'Read Revision 4',
+      name: 'Read revision 4',
       results: [
         {
           title: 'Revision 4',
-          content:
-            'Bounded native Office semantic state was read successfully.',
+          content: 'The file was read successfully.',
         },
       ],
     });
@@ -170,9 +174,11 @@ describe('Office tool result presentation', () => {
     if (batch.status !== 'success') return;
     expect(batch.name).toBe('Office change request saved');
     expect(batch.results[0]?.content).toContain(
-      'Execution status is available from the persisted Office task'
+      'Execution is not yet confirmed'
     );
-    expect(batch.results[1]?.content).toContain('Commands: 3');
+    expect(batch.results[1]?.content).toContain('3 changes');
+    expect(JSON.stringify(batch)).not.toContain('task-2');
+    expect(JSON.stringify(batch)).not.toContain('office.command.batch');
   });
 
   test('preserves and renders native Office tool execution errors', () => {
@@ -189,7 +195,28 @@ describe('Office tool result presentation', () => {
     expect(parsed.isError).toBe(true);
     expect(
       officeToolResultView(parsed.toolName, parsed.result, parsed.isError)
-    ).toEqual({ status: 'error', name: 'Office read failed' });
+    ).toEqual({
+      status: 'error',
+      name: 'The file could not be read. Reopen it and try again.',
+    });
+  });
+  test('localizes Office failures without exposing server messages', async () => {
+    const i18n = getOrCreateI18n();
+    await i18n.changeLanguage('zh-Hans');
+    try {
+      expect(
+        officeToolResultView(
+          'office_command_request',
+          { message: 'PRIVATE_SERVER_ERROR' },
+          true
+        )
+      ).toEqual({
+        status: 'error',
+        name: '无法准备修改请求，请检查文件后重试。',
+      });
+    } finally {
+      await i18n.changeLanguage('en');
+    }
   });
 });
 

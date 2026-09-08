@@ -6,6 +6,7 @@ import {
   RadioGroup,
   useConfirmModal,
 } from '@affine/component';
+import { reportProjectError } from '@affine/core/modules/project-resources/error';
 import { useI18n } from '@affine/i18n';
 import { useEffect, useState } from 'react';
 
@@ -193,7 +194,7 @@ export const ProjectCollaboration = ({
                 disabled={pendingKey !== null}
                 onChange={(policy: 'read_only' | 'read_write') => {
                   if (policy !== project.aiPolicy) {
-                    onPolicyChange(policy).catch(console.error);
+                    onPolicyChange(policy).catch(reportProjectError);
                   }
                 }}
                 items={[

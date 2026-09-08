@@ -10,7 +10,6 @@ import {
 import { CopilotContextService } from '../context/service';
 import { workspaceSyncRequiredError } from './doc-sync';
 import { toolError } from './error';
-import { resolveAuthorizedProjectDocuments } from './project-doc';
 import { defineTool } from './tool';
 import type { CopilotChatOptions } from './types';
 
@@ -18,9 +17,6 @@ const getEmbeddingRouteContext = (options: CopilotChatOptions) => ({
   userId: options?.user,
   byokLeaseId: options?.byokLeaseId,
 });
-
-const projectDocumentKey = (workspaceId: string, docId: string) =>
-  `${workspaceId}\0${docId}`;
 
 export const buildDocSearchGetter = (
   ac: PermissionAccess,
@@ -164,140 +160,3 @@ export const createDocSemanticSearchTool = (
     },
   });
 };
-
-export const buildProjectDocSearchGetter = (
-  ac: PermissionAccess,
-  context: CopilotContextService,
-  models: Models
-) => {
-  return async (
-    options: CopilotChatOptions,
-    query?: string,
-    signal?: AbortSignal
-  ) => {
-    if (!options || !query?.trim()) {
-      return toolError(
-        'Project Doc Semantic Search Failed',
-        'Missing query for project document search.'
-      );
-    }
-    const initialScope = await resolveAuthorizedProjectDocuments({
-      ac,
-      models,
-      options,
-    });
-    const documentsByWorkspace = new Map<string, string[]>();
-    for (const document of initialScope.documents) {
-      const docIds = documentsByWorkspace.get(document.workspaceId) ?? [];
-      docIds.push(document.docId);
-      documentsByWorkspace.set(document.workspaceId, docIds);
-    }
-    const routeContext = getEmbeddingRouteContext(options);
-    const matches = (
-      await Promise.all(
-        [...documentsByWorkspace].map(async ([workspaceId, docIds]) => {
-          const chunks = await context.matchWorkspaceProjectDocs(
-            workspaceId,
-            docIds,
-            query,
-            10,
-            signal,
-            0.8,
-            routeContext,
-            initialScope.projectId
-          );
-          return chunks.map(chunk => ({
-            ...chunk,
-            sourceWorkspaceId: workspaceId,
-          }));
-        })
-      )
-    ).flat();
-
-    const currentScope = await resolveAuthorizedProjectDocuments({
-      ac,
-      models,
-      options,
-    });
-    if (currentScope.projectId !== initialScope.projectId) {
-      throw new Error('Project selection changed during document search');
-    }
-    const currentlyAuthorized = new Set(
-      currentScope.documents.map(document =>
-        projectDocumentKey(document.workspaceId, document.docId)
-      )
-    );
-    const authorizedMatches = matches
-      .filter(match =>
-        currentlyAuthorized.has(
-          projectDocumentKey(match.sourceWorkspaceId, match.docId)
-        )
-      )
-      .toSorted(
-        (left, right) =>
-          (left.distance ?? Number.POSITIVE_INFINITY) -
-          (right.distance ?? Number.POSITIVE_INFINITY)
-      )
-      .slice(0, 10);
-    if (!authorizedMatches.length) return [];
-
-    const refs = authorizedMatches.map(match => ({
-      workspaceId: match.sourceWorkspaceId,
-      docId: match.docId,
-    }));
-    const [authors, metas] = await Promise.all([
-      models.doc.findAuthors(refs),
-      models.doc.findMetas(refs, { select: { title: true } }),
-    ]);
-    const authorByDocument = new Map(
-      authors
-        .filter(author => !!author)
-        .map(author => [
-          projectDocumentKey(author.workspaceId, author.id),
-          omit(author, ['id', 'workspaceId']),
-        ])
-    );
-    const metaByDocument = new Map(
-      metas
-        .filter(meta => !!meta)
-        .map(meta => [projectDocumentKey(meta.workspaceId, meta.docId), meta])
-    );
-    return authorizedMatches.map(match => {
-      const key = projectDocumentKey(match.sourceWorkspaceId, match.docId);
-      return {
-        ...clearEmbeddingChunk(match),
-        ...metaByDocument.get(key),
-        ...authorByDocument.get(key),
-        sourceWorkspaceId: match.sourceWorkspaceId,
-      };
-    });
-  };
-};
-
-export const createProjectDocSemanticSearchTool = (
-  searchDocs: (
-    query: string,
-    signal?: AbortSignal
-  ) => Promise<ChunkSimilarity[] | ReturnType<typeof toolError>>
-) =>
-  defineTool({
-    description:
-      'Search only documents currently granted to the selected global Project. Results retain each source workspace and document id, and authorization is checked again before results are returned.',
-    inputSchema: z
-      .object({
-        query: z.string().trim().min(1),
-      })
-      .strict(),
-    execute: async ({ query }, options) => {
-      try {
-        return await searchDocs(query, options.signal);
-      } catch (error) {
-        return toolError(
-          'Project Doc Semantic Search Failed',
-          error instanceof Error
-            ? error.message
-            : 'Project document semantic search failed'
-        );
-      }
-    },
-  });

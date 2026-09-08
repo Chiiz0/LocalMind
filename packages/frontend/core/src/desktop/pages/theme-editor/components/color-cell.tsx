@@ -1,4 +1,5 @@
 import { IconButton, Input, Menu, MenuItem } from '@affine/component';
+import { useI18n } from '@affine/i18n';
 import { MoreHorizontalIcon } from '@blocksuite/icons/rc';
 import { cssVar } from '@toeverything/theme';
 import { useCallback, useState } from 'react';
@@ -15,6 +16,7 @@ export const ColorCell = ({
   custom?: string;
   onValueChange?: (color?: string) => void;
 }) => {
+  const i18n = useI18n();
   const [inputValue, setInputValue] = useState(value);
 
   const onInput = useCallback(
@@ -56,11 +58,11 @@ export const ColorCell = ({
             <Input
               value={inputValue}
               onChange={onInput}
-              placeholder="Input color"
+              placeholder={i18n['com.affine.ui.input-color']()}
             />
             {custom ? (
               <MenuItem type="danger" onClick={() => onValueChange?.()}>
-                Recover
+                {i18n['com.affine.ui.recover']()}{' '}
               </MenuItem>
             ) : null}
           </ul>

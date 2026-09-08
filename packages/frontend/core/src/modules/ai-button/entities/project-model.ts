@@ -11,22 +11,23 @@ export class ProjectAIModel
 {
   readonly modelId = signal<string | undefined>(undefined);
   readonly models = signal<AIModel[]>([]);
+  readonly configuration = signal<
+    'loading' | 'configured' | 'missing' | 'error'
+  >('loading');
   private inflight?: Promise<void>;
   private disposed = false;
 
   constructor(private readonly gql: GraphQLService) {
     super();
     this.refresh();
-    const timer = setInterval(this.refresh, 30_000);
     window.addEventListener('focus', this.refresh);
     this.disposables.push(() => {
       this.disposed = true;
-      clearInterval(timer);
       window.removeEventListener('focus', this.refresh);
     });
   }
 
-  private readonly refresh = () => {
+  readonly refresh = () => {
     if (this.inflight || this.disposed || !this.props.projectId) return;
     this.inflight = this.gql
       .gql({
@@ -35,6 +36,7 @@ export class ProjectAIModel
       })
       .then(({ projectAiModel: model }) => {
         if (this.disposed) return;
+        this.configuration.value = model.configured ? 'configured' : 'missing';
         this.modelId.value = model.configured
           ? (model.modelId ?? undefined)
           : undefined;
@@ -55,6 +57,7 @@ export class ProjectAIModel
       })
       .catch(() => {
         if (this.disposed) return;
+        this.configuration.value = 'error';
         this.modelId.value = undefined;
         this.models.value = [];
       })

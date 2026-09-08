@@ -3,7 +3,7 @@ import {
   isSupportedServerVersion,
   MIN_SUPPORTED_SERVER_VERSION,
 } from '@affine/core/modules/cloud/stores/server-config';
-import { useI18n } from '@affine/i18n';
+import { I18n, useI18n } from '@affine/i18n';
 import { useLiveData } from '@toeverything/infra';
 import { cssVarV2 } from '@toeverything/theme/v2';
 
@@ -32,7 +32,7 @@ const rules = [
             lineHeight: '16px',
           }}
         >
-          LocalMind deployment guide
+          {I18n['com.affine.ui.localmind-deployment-guide']()}{' '}
         </a>
       </div>
     ),

@@ -1,4 +1,5 @@
 import type { FeatureType } from '@affine/graphql';
+import { useI18n } from '@affine/i18n';
 import { useEffect, useMemo, useState } from 'react';
 
 import { Header } from '../header';
@@ -8,6 +9,7 @@ import type { UserType } from './schema';
 import { useUserList } from './use-user-list';
 
 export function AccountPage() {
+  const i18n = useI18n();
   const [keyword, setKeyword] = useState('');
   const [featureFilters, setFeatureFilters] = useState<FeatureType[]>([]);
   const { users, pagination, setPagination, usersCount } = useUserList({
@@ -43,7 +45,7 @@ export function AccountPage() {
 
   return (
     <div className="h-dvh flex-1 flex-col flex">
-      <Header title="Accounts" />
+      <Header title={i18n['com.affine.admin.accounts']()} />
 
       <DataTable
         data={users}

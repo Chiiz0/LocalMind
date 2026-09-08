@@ -1,5 +1,6 @@
 import type { FeatureFlagService } from '@affine/core/modules/feature-flag';
 import type { PeekViewService } from '@affine/core/modules/peek-view';
+import { getOrCreateI18n } from '@affine/i18n';
 import { WithDisposable } from '@blocksuite/affine/global/lit';
 import type { ColorScheme } from '@blocksuite/affine/model';
 import { unsafeCSSVarV2 } from '@blocksuite/affine/shared/theme';
@@ -96,22 +97,17 @@ export function blockerSuggestionFromToolResult(
 
 function officePreviewSummary(result: Record<string, unknown>) {
   const preview = record(result.previewSummary);
-  const operation =
-    typeof preview?.operation === 'string'
-      ? preview.operation.replace(/^office\./, '').replace(/[._]/g, ' ')
-      : null;
   const commandCount =
     typeof result.commandCount === 'number'
       ? result.commandCount
       : typeof preview?.commandCount === 'number'
         ? preview.commandCount
         : null;
-  return [
-    operation ? `Operation: ${operation}` : null,
-    commandCount === null ? null : `Commands: ${commandCount}`,
-  ]
-    .filter(Boolean)
-    .join('. ');
+  return commandCount === null
+    ? ''
+    : getOrCreateI18n().t('com.affine.localmind.project-tasks.commands', {
+        count: commandCount,
+      });
 }
 
 export type OfficeToolResultView =
@@ -128,25 +124,21 @@ export function officeToolResultView(
   result: unknown,
   isError = false
 ): OfficeToolResultView {
+  const t = getOrCreateI18n().t;
+  const failed = () => ({
+    status: 'error' as const,
+    name: t(
+      toolName === 'office_read'
+        ? 'com.affine.localmind.office-tool.readFailed'
+        : 'com.affine.localmind.office-tool.requestFailed'
+    ),
+  });
   if (isError || !result || isToolError(result)) {
-    const value = record(result);
-    return {
-      status: 'error',
-      name: isToolError(result)
-        ? result.name
-        : toolName === 'office_read'
-          ? 'Office read failed'
-          : typeof value?.message === 'string' && value.message.length <= 120
-            ? value.message
-            : 'Office change request failed',
-    };
+    return failed();
   }
   const value = record(result);
   if (!value) {
-    return {
-      status: 'error',
-      name: 'Office tool returned invalid evidence',
-    };
+    return failed();
   }
   if (toolName === 'office_read') {
     if (
@@ -156,45 +148,47 @@ export function officeToolResultView(
       !Number.isInteger(value.sequence) ||
       value.sequence < 1
     )
-      return { status: 'error', name: 'Office read failed' };
-    const revision =
-      typeof value.sequence === 'number'
-        ? `Revision ${value.sequence}`
-        : typeof value.revisionId === 'string'
-          ? value.revisionId
-          : 'Current revision';
+      return failed();
+    const revision = t('com.affine.localmind.office-tool.revision', {
+      sequence: String(value.sequence),
+    });
     const content = value.truncated
-      ? 'The Office state exceeded the bounded read limit. A stable-ID index was returned for a narrower follow-up read.'
-      : 'Bounded native Office semantic state was read successfully.';
+      ? t('com.affine.localmind.office-tool.readPartial')
+      : t('com.affine.localmind.office-tool.readComplete');
     return {
       status: 'success',
       kind: 'read',
-      name: `Read ${revision}`,
+      name: t('com.affine.localmind.office-tool.read', {
+        sequence: String(value.sequence),
+      }),
       results: [{ title: revision, content }],
     };
   }
-  const taskId = typeof value.taskId === 'string' ? value.taskId : null;
   const waiting = value.approvalRequired === true;
   const summary = officePreviewSummary(value);
   return {
     status: 'success',
     kind: 'request',
     name: waiting
-      ? 'Office change awaiting approval'
-      : 'Office change request saved',
+      ? t('com.affine.localmind.office-tool.waiting')
+      : t('com.affine.localmind.office-tool.saved'),
     results: [
       {
-        title: waiting ? 'Approval required' : 'Request persisted',
-        content: [
-          taskId ? `Task ${taskId}.` : null,
-          waiting
-            ? 'No Office revision has been created. Approve or reject the persisted task in the Office sidebar.'
-            : 'Execution status is available from the persisted Office task.',
-        ]
-          .filter(Boolean)
-          .join(' '),
+        title: waiting
+          ? t('com.affine.localmind.office-tool.approval')
+          : t('com.affine.localmind.office-tool.request'),
+        content: waiting
+          ? t('com.affine.localmind.office-tool.notExecuted')
+          : t('com.affine.localmind.office-tool.pending'),
       },
-      ...(summary ? [{ title: 'Preview evidence', content: summary }] : []),
+      ...(summary
+        ? [
+            {
+              title: t('com.affine.localmind.office-tool.preview'),
+              content: summary,
+            },
+          ]
+        : []),
     ],
   };
 }

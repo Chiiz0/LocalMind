@@ -1,3 +1,4 @@
+import { useI18n } from '@affine/i18n';
 import { WarningIcon } from '@blocksuite/icons/rc';
 import type { FC } from 'react';
 
@@ -14,16 +15,21 @@ interface CsvFormatGuidanceProps {
 export const CsvFormatGuidance: FC<CsvFormatGuidanceProps> = ({
   passwordLimits,
 }) => {
+  const i18n = useI18n();
   return (
     <div className="flex gap-1 rounded-[6px] bg-secondary p-1.5 text-xs text-muted-foreground">
       <div className="flex justify-center py-0.5">
         <WarningIcon fontSize={16} className="text-foreground" />
       </div>
       <div>
-        <p>CSV file includes username, email, and password.</p>
+        <p>
+          {i18n[
+            'com.affine.admin.csv-file-includes-username-email-and-password'
+          ]()}
+        </p>
         <ul>
           {[
-            `Username (optional): any text.`,
+            i18n['com.affine.admin.username-optional-any-text'](),
             `Email (required): e.g., user@example.com.`,
             `Password (optional): ${passwordLimits.minLength}–${passwordLimits.maxLength} characters.`,
           ].map((text, index) => (

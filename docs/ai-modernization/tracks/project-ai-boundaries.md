@@ -67,15 +67,21 @@ with their former Workspace write semantics.
 - Document creation and project addition are separate durable outcomes. A
   failed addition or pending request cannot be reported as successful project
   authorization; retries must not create another document.
-- A Project Owner with source sharing authority may add a document directly,
-  capped at their source level. Other members and people without source
-  sharing authority submit an access request. Reading/editing is not sharing.
-- Pending references are redacted per viewer. Revocation immediately isolates
-  derived project memory.
+- Project members with source read/copy/share authority may create independent
+  Project copies. Members without source sharing authority submit a copy
+  request. Reading/editing is not sharing.
+- Pending requests are redacted per viewer and copy no source content before
+  approval. Approved copy permissions cannot be withdrawn by reviewers;
+  subsequent source ACL changes do not invalidate existing Project copies.
+  New imports and source refreshes recheck current source authority.
 - Notifications go to eligible source document owners or workspace admins.
   They identify applicant, project, source document, and requested read/write
   level. Both decisions require a second human confirmation; approval states
-  that the beneficiary is the whole Project. Rejection accepts a reason.
+  that all Project members can access the independent copy and approval cannot
+  be withdrawn. Rejection accepts a reason. Reviewers receive notifications,
+  with no task generated solely because they are reviewers. Applicants and
+  target Project members retain waiting-on-others tasks, without approval
+  actions; eligible applicants may still withdraw pending requests.
 - Decisions recheck authority and conditionally transition pending requests,
   handling duplicates, expiry, withdrawal, and concurrency. Notifications,
   applicant results, sidebar refresh, and audit follow the durable outcome.

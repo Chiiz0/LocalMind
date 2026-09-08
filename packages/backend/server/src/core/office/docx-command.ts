@@ -15,7 +15,7 @@ import {
   type Prisma,
 } from '@prisma/client';
 
-import { readBufferWithLimit } from '../../base';
+import { readBufferWithLimit, ResourceConflict } from '../../base';
 import { Models } from '../../models';
 import { PermissionAccess } from '../permission';
 import { WorkspaceBlobStorage } from '../storage';
@@ -179,9 +179,7 @@ export class OfficeDocxCommandService {
       command.artifactId
     );
     if (!parent || parent.id !== command.expectedRevisionId) {
-      throw new Error(
-        `Office artifact revision conflict: expected ${command.expectedRevisionId}`
-      );
+      throw new ResourceConflict('Office artifact revision conflict');
     }
     if (parent.packageMimeType !== OFFICE_PACKAGE_MIME_TYPE.document) {
       throw new Error(

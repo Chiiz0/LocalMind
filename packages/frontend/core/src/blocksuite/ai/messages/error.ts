@@ -1,3 +1,5 @@
+import { I18nController } from '@affine/core/modules/i18n/lit-controller';
+import { I18n } from '@affine/i18n';
 import { SignalWatcher, WithDisposable } from '@blocksuite/affine/global/lit';
 import { scrollbarStyle } from '@blocksuite/affine/shared/styles';
 import { unsafeCSSVarV2 } from '@blocksuite/affine/shared/theme';
@@ -17,6 +19,8 @@ import {
 } from '../provider';
 
 export class AIErrorWrapper extends SignalWatcher(WithDisposable(LitElement)) {
+  readonly languageController = new I18nController(this);
+
   static override styles = css`
     .error-wrapper {
       display: flex;
@@ -134,7 +138,9 @@ export class AIErrorWrapper extends SignalWatcher(WithDisposable(LitElement)) {
                     (this._showDetailContent.value =
                       !this._showDetailContent.value)}
                 >
-                  <span>Show detail</span>
+                  <span
+                    >${I18n['com.affine.ai.action-label.show-detail']()}</span
+                  >
                   <span
                     class="toggle ${this._showDetailContent.value
                       ? 'down'

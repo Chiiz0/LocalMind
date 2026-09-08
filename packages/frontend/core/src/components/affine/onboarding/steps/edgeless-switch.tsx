@@ -1,4 +1,5 @@
 import { Button } from '@affine/component';
+import { useI18n } from '@affine/i18n';
 import clsx from 'clsx';
 import { debounce } from 'lodash-es';
 import type { CSSProperties } from 'react';
@@ -36,6 +37,7 @@ export const EdgelessSwitch = ({
   onBack,
   onNext,
 }: EdgelessSwitchProps) => {
+  const i18n = useI18n();
   // const windowRef = useRef<HTMLDivElement>(null);
   const docRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -212,7 +214,7 @@ export const EdgelessSwitch = ({
               {
                 /* render blocks */
                 article.blocks.map((block, key) => {
-                  // eslint-disable-next-line react/no-array-index-key
+                   
                   return <OnboardingBlock key={key} mode={mode} {...block} />;
                 })
               }
@@ -230,7 +232,7 @@ export const EdgelessSwitch = ({
                 size="extraLarge"
                 onClick={onBack}
               >
-                Back
+                {i18n['com.affine.backButton']()}{' '}
               </Button>
               <EdgelessSwitchButtons
                 mode={mode}
@@ -238,7 +240,7 @@ export const EdgelessSwitch = ({
                 onSwitchToEdgelessMode={onSwitchToEdgelessMode}
               />
               <Button size="extraLarge" variant="primary" onClick={onNextClick}>
-                Next
+                {i18n['com.affine.ai-onboarding.general.next']()}{' '}
               </Button>
             </header>
 
@@ -256,11 +258,10 @@ export const EdgelessSwitch = ({
             <Logo />
           </div>
           <h1 className={clsx(styles.wellDoneTitle, styles.wellDoneEnterAnim)}>
-            Well Done !
+            {i18n['com.affine.ui.well-done']()}{' '}
           </h1>
           <p className={clsx(styles.wellDoneContent, styles.wellDoneEnterAnim)}>
-            You have the flexibility to switch between Page and Edgeless
-            <br /> Mode at any point during content creation.
+            {i18n['com.affine.ui.onboarding-mode-switch']()}
           </p>
           <Button
             className={styles.wellDoneEnterAnim}
@@ -269,7 +270,7 @@ export const EdgelessSwitch = ({
             size="extraLarge"
             style={{ marginTop: 40 }}
           >
-            Get Started
+            {i18n['com.affine.ui.get-started']()}{' '}
           </Button>
         </div>
       </div>

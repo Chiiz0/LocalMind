@@ -495,7 +495,11 @@ export class AtMenuConfigService extends Service {
                     actions: [
                       {
                         key: 'invite',
-                        label: 'Invite',
+                        get label() {
+                          return I18n[
+                            'com.affine.share-menu.invite-editor.invite'
+                          ]();
+                        },
                         onClick: async () => {
                           track.$.sharePanel.$.inviteUserDocRole({
                             control: 'member list',

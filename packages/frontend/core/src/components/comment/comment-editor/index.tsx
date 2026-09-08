@@ -5,6 +5,7 @@ import type { CommentAttachment } from '@affine/core/modules/comment/types';
 import { PeekViewService } from '@affine/core/modules/peek-view';
 import { downloadResourceWithUrl } from '@affine/core/utils/resource';
 import { DebugLogger } from '@affine/debug';
+import { useI18n } from '@affine/i18n';
 import { getAttachmentFileIconRC } from '@blocksuite/affine/components/icons';
 import { type RichText, selectTextModel } from '@blocksuite/affine/rich-text';
 import { ViewportElementExtension } from '@blocksuite/affine/shared/services';
@@ -131,6 +132,7 @@ const AttachmentPreviewItem: React.FC<{
   handleAttachmentClick,
   handleAttachmentRemove,
 }) => {
+  const i18n = useI18n();
   const isImg = isImageAttachment(attachment);
   const Icon = !isImg
     ? getAttachmentFileIconRC(
@@ -156,7 +158,9 @@ const AttachmentPreviewItem: React.FC<{
       {!isImg && (
         <div className={styles.fileInfo}>
           <span className={styles.fileName}>
-            {attachment.filename || attachment.file?.name || 'File'}
+            {attachment.filename ||
+              attachment.file?.name ||
+              i18n['com.affine.localmind.workbench.blocker.type.file']()}
           </span>
           <span className={styles.fileSize}>
             {attachment.size ? bytes(attachment.size) : ''}
@@ -196,6 +200,7 @@ export const CommentEditor = forwardRef<CommentEditorRef, CommentEditorProps>(
     },
     ref
   ) {
+    const i18n = useI18n();
     const defaultSnapshotOrDoc = defaultSnapshot ?? userDoc;
     if (!defaultSnapshotOrDoc) {
       throw new Error('Either defaultSnapshot or doc must be provided');
@@ -267,7 +272,7 @@ export const CommentEditor = forwardRef<CommentEditorRef, CommentEditorProps>(
           } catch (e: any) {
             logger.error('uploadCommentAttachment failed', { error: e });
             notify.error({
-              title: 'Failed to upload attachment',
+              title: i18n['com.affine.ui.failed-to-upload-attachment'](),
               message: e.message,
             });
             pending.localUrl && URL.revokeObjectURL(pending.localUrl);
@@ -281,7 +286,7 @@ export const CommentEditor = forwardRef<CommentEditorRef, CommentEditorProps>(
           }
         }
       },
-      [attachments?.length, setAttachments, uploadCommentAttachment]
+      [attachments?.length, setAttachments, uploadCommentAttachment, i18n]
     );
 
     const handlePaste = useCallback(
@@ -410,14 +415,18 @@ export const CommentEditor = forwardRef<CommentEditorRef, CommentEditorProps>(
           ).catch(e => {
             console.error('Failed to download attachment', e);
             notify.error({
-              title: 'Failed to download attachment',
+              title: i18n['com.affine.ui.failed-to-download-attachment'](),
               message: e.message,
             });
           });
-          toast('The attachment is being downloaded to your computer.');
+          toast(
+            i18n[
+              'com.affine.ui.the-attachment-is-being-downloaded-to-your-computer'
+            ]()
+          );
         }
       },
-      [attachments, handleImagePreview]
+      [attachments, handleImagePreview, i18n]
     );
 
     // upload attachments and call original onCommit

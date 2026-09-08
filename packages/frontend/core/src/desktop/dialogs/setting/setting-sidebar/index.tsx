@@ -123,6 +123,7 @@ const SettingSidebarItem = ({
   beta,
   ...props
 }: SettingSidebarItemProps) => {
+  const i18n = useI18n();
   return (
     <div
       {...props}
@@ -134,7 +135,11 @@ const SettingSidebarItem = ({
     >
       <div className={style.sidebarSelectItemIcon}>{icon}</div>
       <div className={style.sidebarSelectItemName}>{title}</div>
-      {beta ? <div className={style.sidebarSelectItemBeta}>Beta</div> : null}
+      {beta ? (
+        <div className={style.sidebarSelectItemBeta}>
+          {i18n['com.affine.ui.beta']()}
+        </div>
+      ) : null}
     </div>
   );
 };

@@ -40,16 +40,18 @@ export const UserAvatar = () => {
       try {
         track.$.settingsPanel.accountSettings.uploadAvatar();
         await session.uploadAvatar(file);
-        notify.success({ title: 'Update user avatar success' });
+        notify.success({
+          title: t['com.affine.ui.update-user-avatar-success'](),
+        });
       } catch (e) {
         // TODO(@catsjuice): i18n
         notify.error({
-          title: 'Update user avatar failed',
+          title: t['com.affine.ui.update-user-avatar-failed'](),
           message: String(e),
         });
       }
     },
-    [session]
+    [session, t]
   );
 
   const handleRemoveUserAvatar = useCatchEventCallback(async () => {
@@ -100,11 +102,11 @@ export const AvatarAndName = () => {
       await session.updateLabel(input);
     } catch (e) {
       notify.error({
-        title: 'Failed to update user name.',
+        title: t['com.affine.ui.failed-to-update-user-name'](),
         message: String(e),
       });
     }
-  }, [account, allowUpdate, session, input]);
+  }, [account, allowUpdate, session, input, t]);
 
   return (
     <SettingRow

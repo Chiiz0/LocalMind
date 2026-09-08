@@ -15,6 +15,7 @@ import {
   deleteAuthSigningKeyMutation,
   rotateAuthSigningKeyMutation,
 } from '@affine/graphql';
+import { useI18n } from '@affine/i18n';
 import { useMemo, useState } from 'react';
 
 import { ConfirmDialog } from '../../../components/shared/confirm-dialog';
@@ -24,6 +25,7 @@ type PendingAction =
   | { type: 'delete'; keyId: string };
 
 export function AuthSigningKeys() {
+  const i18n = useI18n();
   const { data, mutate } = useQuery({ query: authSigningKeysQuery });
   const { trigger: rotate, isMutating: rotating } = useMutation({
     mutation: rotateAuthSigningKeyMutation,
@@ -48,14 +50,18 @@ export function AuthSigningKeys() {
       if (pending.type === 'rotate') {
         await rotate({ expectedActiveKeyId: pending.keyId });
         notify.success({
-          title: 'Signing key rotated',
-          message: 'New access tokens now use the replacement key.',
+          title: i18n['com.affine.admin.signing-key-rotated'](),
+          message:
+            i18n[
+              'com.affine.admin.new-access-tokens-now-use-the-replacement-key'
+            ](),
         });
       } else {
         await remove({ id: pending.keyId });
         notify.success({
-          title: 'Signing key deleted',
-          message: 'The expired signing key was removed.',
+          title: i18n['com.affine.admin.signing-key-deleted'](),
+          message:
+            i18n['com.affine.admin.the-expired-signing-key-was-removed'](),
         });
       }
       setPending(undefined);
@@ -63,7 +69,7 @@ export function AuthSigningKeys() {
     } catch (error) {
       const friendly = error as UserFriendlyError;
       notify.error({
-        title: 'Signing key update failed',
+        title: i18n['com.affine.admin.signing-key-update-failed'](),
         message: friendly.message,
       });
     }
@@ -73,11 +79,13 @@ export function AuthSigningKeys() {
     <Card className="border-border/60 shadow-none">
       <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
         <div className="space-y-1">
-          <CardTitle className="text-sm">Access token signing keys</CardTitle>
+          <CardTitle className="text-sm">
+            {i18n['com.affine.admin.access-token-signing-keys']()}
+          </CardTitle>
           <p className="text-xs leading-5 text-muted-foreground">
-            This server generated and stored its signing key automatically.
-            Rotate it here when needed; key material is never shown in the admin
-            panel.
+            {i18n[
+              'com.affine.admin.this-server-generated-and-stored-its-signing-key-automatically-rotate-it-here-when-needed-key-materi'
+            ]()}{' '}
           </p>
         </div>
         <Button
@@ -88,14 +96,15 @@ export function AuthSigningKeys() {
             if (active) setPending({ type: 'rotate', keyId: active.id });
           }}
         >
-          Rotate key
+          {i18n['com.affine.admin.rotate-key']()}{' '}
         </Button>
       </CardHeader>
       <CardContent className="space-y-3">
         {keys.length === 0 ? (
           <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-            No active signing key is available. Restart the server to retry
-            automatic initialization.
+            {i18n[
+              'com.affine.admin.no-active-signing-key-is-available-restart-the-server-to-retry-automatic-initialization'
+            ]()}{' '}
           </div>
         ) : (
           keys.map(key => {
@@ -112,14 +121,19 @@ export function AuthSigningKeys() {
                         key.status === 'active' ? 'default' : 'secondary'
                       }
                     >
-                      {key.status === 'active' ? 'Active' : 'Retiring'}
+                      {key.status === 'active'
+                        ? i18n['com.affine.localmind.aiContext.active']()
+                        : i18n['com.affine.admin.retiring']()}
                     </Badge>
                     {key.source === 'auto' ? (
-                      <Badge variant="outline">Auto-generated</Badge>
+                      <Badge variant="outline">
+                        {i18n['com.affine.admin.auto-generated']()}
+                      </Badge>
                     ) : null}
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    Created {formatDate(key.createdAt)}
+                    {i18n['com.affine.integration.readwise-prop.created']()}{' '}
+                    {formatDate(key.createdAt)}
                     {key.verifyUntil
                       ? ` · Verifiable until ${formatDate(key.verifyUntil)}`
                       : ''}
@@ -136,14 +150,16 @@ export function AuthSigningKeys() {
                     disabled={!key.canDelete || mutating}
                     title={
                       key.canDelete
-                        ? 'Delete expired key'
-                        : 'This key can be deleted after its verification window ends.'
+                        ? i18n['com.affine.admin.delete-expired-key']()
+                        : i18n[
+                            'com.affine.admin.this-key-can-be-deleted-after-its-verification-window-ends'
+                          ]()
                     }
                     onClick={() =>
                       setPending({ type: 'delete', keyId: key.id })
                     }
                   >
-                    Delete
+                    {i18n['com.affine.localmind.aiContext.delete']()}{' '}
                   </Button>
                 ) : null}
               </div>
@@ -159,15 +175,23 @@ export function AuthSigningKeys() {
         }}
         title={
           pending?.type === 'delete'
-            ? 'Delete signing key?'
-            : 'Rotate signing key?'
+            ? i18n['com.affine.admin.delete-signing-key']()
+            : i18n['com.affine.admin.rotate-signing-key']()
         }
         description={
           pending?.type === 'delete'
-            ? 'The expired key will be permanently removed.'
-            : 'A new key will become active immediately. The current key remains available only long enough to verify access tokens already issued.'
+            ? i18n[
+                'com.affine.admin.the-expired-key-will-be-permanently-removed'
+              ]()
+            : i18n[
+                'com.affine.admin.a-new-key-will-become-active-immediately-the-current-key-remains-available-only-long-enough-to-verif'
+              ]()
         }
-        confirmText={pending?.type === 'delete' ? 'Delete key' : 'Rotate key'}
+        confirmText={
+          pending?.type === 'delete'
+            ? i18n['com.affine.admin.delete-key']()
+            : i18n['com.affine.admin.rotate-key']()
+        }
         confirmButtonVariant={
           pending?.type === 'delete' ? 'destructive' : 'default'
         }

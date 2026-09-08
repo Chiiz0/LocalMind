@@ -1,5 +1,7 @@
 import type { TagMeta } from '@affine/core/components/page-list';
 import type { CollectionMeta } from '@affine/core/modules/collection';
+import { I18nController } from '@affine/core/modules/i18n/lit-controller';
+import { I18n } from '@affine/i18n';
 import track, { type EventArgs } from '@affine/track';
 import { SignalWatcher, WithDisposable } from '@blocksuite/affine/global/lit';
 import { scrollbarStyle } from '@blocksuite/affine/shared/styles';
@@ -11,6 +13,7 @@ import {
   CollectionsIcon,
   ImageIcon,
   MoreHorizontalIcon,
+  PageIcon,
   SearchIcon,
   TagsIcon,
   UploadIcon,
@@ -57,6 +60,8 @@ export function resolveSignal<T>(data: T | Signal<T>): T {
 export class ChatPanelAddPopover extends SignalWatcher(
   WithDisposable(ShadowlessElement)
 ) {
+  readonly languageController = new I18nController(this);
+
   static override styles = css`
     .ai-add-popover {
       width: 280px;
@@ -314,7 +319,9 @@ export class ChatPanelAddPopover extends SignalWatcher(
 
   override render() {
     return html`<div class="ai-add-popover" data-testid="ai-add-popover">
-      ${this.attachmentsOnly ? '' : this._renderSearchInput()}
+      ${this.attachmentsOnly || this.searchMenuConfig?.selectDocuments
+        ? ''
+        : this._renderSearchInput()}
       ${this._renderDivider()} ${this._renderMenuGroup(this._menuGroup)}
     </div>`;
   }
@@ -349,7 +356,9 @@ export class ChatPanelAddPopover extends SignalWatcher(
   }
 
   private _renderNoResult() {
-    return html`<div class="no-result">No Result</div>`;
+    return html`<div class="no-result">
+      ${I18n['com.affine.ai.action-label.no-result']()}
+    </div>`;
   }
 
   private _renderMenuGroup(groups: MenuGroup[]) {
@@ -423,6 +432,26 @@ export class ChatPanelAddPopover extends SignalWatcher(
 
   private _updateSearchGroup() {
     if (this.attachmentsOnly) return;
+    const picker = this.searchMenuConfig?.selectDocuments;
+    if (picker) {
+      this._searchGroups = [
+        {
+          name: picker.label,
+          items: [
+            {
+              key: 'project-documents',
+              name: picker.label,
+              icon: PageIcon(),
+              action: () => {
+                this.abortController.abort();
+                picker.open();
+              },
+            },
+          ],
+        },
+      ];
+      return;
+    }
     this._menuGroupAbortController.abort();
     this._menuGroupAbortController = new AbortController();
     switch (this._mode) {

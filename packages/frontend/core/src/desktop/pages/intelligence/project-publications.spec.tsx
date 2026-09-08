@@ -28,6 +28,9 @@ import type {
 } from 'react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
+vi.mock('@affine/core/modules/project-resources/realtime', () => ({
+  useProjectRefresh: vi.fn(),
+}));
 const state = vi.hoisted(() => ({
   data: new Map<string, unknown>(),
   errors: new Map<string, Error>(),
@@ -40,6 +43,7 @@ vi.mock('@toeverything/infra', () => ({
   useService: () => ({ gql: state.gql }),
 }));
 vi.mock('@affine/i18n', () => ({
+  getOrCreateI18n: () => ({ t: (key: string) => key }),
   useI18n: () => new Proxy({}, { get: (_, key) => () => String(key) }),
 }));
 vi.mock('@affine/component', () => ({
@@ -215,7 +219,9 @@ test('confirmation shows exact target and difference, deduplicates clicks and re
   open();
   expect(screen.getByText('External old body')).toBeTruthy();
   expect(screen.getByText('Internal new body')).toBeTruthy();
-  expect(screen.getByText('v4')).toBeTruthy();
+  expect(
+    screen.getAllByText(/com.affine.localmind.project-files.version/)
+  ).toHaveLength(2);
   expect(screen.getByText(/Published report/).dataset.targetResourceId).toBe(
     'target-exact'
   );
@@ -235,7 +241,7 @@ test('confirmation shows exact target and difference, deduplicates clicks and re
   response.reject(new Error('Target permission changed'));
   await waitFor(() =>
     expect(screen.getByRole('alert').textContent).toContain(
-      'Target permission changed'
+      'com.affine.localmind.project-error.failed'
     )
   );
   expect((confirm as HTMLButtonElement).disabled).toBe(false);

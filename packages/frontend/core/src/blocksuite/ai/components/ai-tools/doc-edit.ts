@@ -1,3 +1,5 @@
+import { I18nController } from '@affine/core/modules/i18n/lit-controller';
+import { I18n } from '@affine/i18n';
 import track from '@affine/track';
 import { WithDisposable } from '@blocksuite/affine/global/lit';
 import { unsafeCSSVar, unsafeCSSVarV2 } from '@blocksuite/affine/shared/theme';
@@ -54,6 +56,8 @@ function removeMarkdownComments(markdown: string): string {
 }
 
 export class DocEditTool extends WithDisposable(ShadowlessElement) {
+  readonly languageController = new I18nController(this);
+
   static override styles = css`
     :host {
       display: block;
@@ -268,7 +272,9 @@ export class DocEditTool extends WithDisposable(ShadowlessElement) {
     const success = await copyText(removeMarkdownComments(changedMarkdown));
     if (success) {
       this.notificationService.notify({
-        title: 'Copied to clipboard',
+        get title() {
+          return I18n['com.affine.ui.copied-to-clipboard']();
+        },
         accent: 'success',
         onClose: function (): void {},
       });
@@ -308,7 +314,7 @@ export class DocEditTool extends WithDisposable(ShadowlessElement) {
                 </div>
                 <div class="doc-edit-tool-result-card-diff modified">
                   <div class="doc-edit-tool-result-card-diff-title">
-                    Modified
+                    ${I18n['com.affine.admin.modified']()}
                   </div>
                   <div>${this.renderSantizedText(patch.content)}</div>
                 </div>
@@ -318,14 +324,18 @@ export class DocEditTool extends WithDisposable(ShadowlessElement) {
             const oldBlock = oldBlockMap.get(patch.id);
             return html`
               <div class="doc-edit-tool-result-card-diff deleted">
-                <div class="doc-edit-tool-result-card-diff-title">Deleted</div>
+                <div class="doc-edit-tool-result-card-diff-title">
+                  ${I18n['com.affine.ai.action-label.deleted']()}
+                </div>
                 <div>${this.renderSantizedText(oldBlock?.content ?? '')}</div>
               </div>
             `;
           } else if (patch.op === 'insert') {
             return html`
               <div class="doc-edit-tool-result-card-diff insert">
-                <div class="doc-edit-tool-result-card-diff-title">Inserted</div>
+                <div class="doc-edit-tool-result-card-diff-title">
+                  ${I18n['com.affine.ai.action-label.inserted']()}
+                </div>
                 <div>${this.renderSantizedText(patch.block.content)}</div>
               </div>
             `;
@@ -375,9 +385,15 @@ export class DocEditTool extends WithDisposable(ShadowlessElement) {
                     </button>
                     <button @click=${() => this._handleCopy(changedContent)}>
                       ${CopyIcon()}
-                      <affine-tooltip>Copy</affine-tooltip>
+                      <affine-tooltip
+                        >${I18n[
+                          'com.affine.ai.action-label.copy'
+                        ]()}</affine-tooltip
+                      >
                     </button>
-                    <button @click=${() => this._handleApply(op)}>Apply</button>
+                    <button @click=${() => this._handleApply(op)}>
+                      ${I18n['com.affine.m.selector.confirm-default']()}
+                    </button>
                   </div>
                 </div>
                 <div class="doc-edit-tool-result-card-content">

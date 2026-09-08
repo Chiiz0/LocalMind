@@ -6,6 +6,7 @@ import {
 } from '@affine/admin/components/ui/accordion';
 import { Button } from '@affine/admin/components/ui/button';
 import { ScrollArea } from '@affine/admin/components/ui/scroll-area';
+import { useI18n } from '@affine/i18n';
 import { get } from 'lodash-es';
 import { useCallback, useState } from 'react';
 
@@ -19,6 +20,7 @@ import { type ConfigInputProps, ConfigRow } from './config-input-row';
 import { useAppConfig } from './use-app-config';
 
 export function SettingsPage() {
+  const i18n = useI18n();
   const {
     appConfig,
     update,
@@ -33,7 +35,7 @@ export function SettingsPage() {
 
   return (
     <div className="flex h-dvh flex-1 flex-col bg-background">
-      <Header title="Settings" />
+      <Header title={i18n['com.affine.settingSidebar.title']()} />
       <AdminPanel
         expandedModules={expandedModules}
         onExpandedModulesChange={setExpandedModules}
@@ -73,6 +75,7 @@ const AdminPanel = ({
   isGroupSaving: (module: string) => boolean;
   getGroupVersion: (module: string) => number;
 }) => {
+  const i18n = useI18n();
   const [groupErrors, setGroupErrors] = useState<
     Record<string, Record<string, string>>
   >({});
@@ -162,7 +165,8 @@ const AdminPanel = ({
                   <div className="flex flex-col items-start text-left gap-1">
                     <div className="text-base font-semibold">{name}</div>
                     <div className="text-xs text-muted-foreground">
-                      Manage {name.toLowerCase()} settings
+                      {i18n['com.affine.admin.manage']()} {name.toLowerCase()}{' '}
+                      {i18n['com.affine.admin.settings']()}{' '}
                     </div>
                   </div>
                 </AccordionTrigger>
@@ -230,7 +234,7 @@ const AdminPanel = ({
                           }}
                           disabled={saving}
                         >
-                          Cancel
+                          {i18n['com.affine.localmind.aiContext.cancel']()}{' '}
                         </Button>
                       ) : null}
                       <Button
@@ -243,7 +247,9 @@ const AdminPanel = ({
                         }}
                         disabled={!dirty || saving || hasValidationError}
                       >
-                        {saving ? 'Saving...' : 'Save'}
+                        {saving
+                          ? i18n['com.affine.admin.saving']()
+                          : i18n['com.affine.localmind.aiContext.save']()}
                       </Button>
                     </div>
                   </div>

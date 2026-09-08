@@ -6,6 +6,7 @@ import {
   TableHeader,
   TableRow,
 } from '@affine/admin/components/ui/table';
+import { useI18n } from '@affine/i18n';
 import {
   type ColumnDef,
   type ColumnFiltersState,
@@ -62,6 +63,7 @@ export function SharedDataTable<TData extends { id: string }, TValue>({
   renderToolbar,
   resetFiltersDeps = DEFAULT_RESET_FILTERS_DEPS,
 }: DataTableProps<TData, TValue>) {
+  const i18n = useI18n();
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 
   useEffect(() => {
@@ -115,7 +117,7 @@ export function SharedDataTable<TData extends { id: string }, TValue>({
                 d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
               />
             </svg>
-            <span>Loading...</span>
+            <span>{i18n['com.affine.editor.at-menu.loading']()}</span>
           </div>
         ) : null}
         <Table>
@@ -187,7 +189,7 @@ export function SharedDataTable<TData extends { id: string }, TValue>({
                     colSpan={columns.length}
                     className="h-24 text-center flex-1"
                   >
-                    No results.
+                    {i18n['com.affine.admin.no-results']()}{' '}
                   </TableCell>
                 </TableRow>
               )}

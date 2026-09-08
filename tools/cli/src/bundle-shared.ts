@@ -47,6 +47,32 @@ function rewriteSelfHostedAdminAssetPath(url: string | undefined) {
   return pathname.slice('/admin'.length) + url.slice(pathname.length);
 }
 
+// A local dev proxy represents its own frontend to a production-mode local server.
+// Keep foreign origins intact so the server can reject them normally.
+export function rewriteDevProxyOrigin(
+  origin: string | undefined,
+  host: string | undefined,
+  target: string
+) {
+  if (!origin || !host) return origin;
+  try {
+    const source = new URL(origin);
+    const destination = new URL(target);
+    const loopback = new Set(['localhost', '127.0.0.1', '[::1]']);
+    if (
+      source.host === host &&
+      loopback.has(source.hostname) &&
+      loopback.has(destination.hostname) &&
+      ['http:', 'https:'].includes(source.protocol) &&
+      ['http:', 'https:'].includes(destination.protocol)
+    )
+      return destination.origin;
+  } catch {
+    // Malformed origins remain subject to the server's normal validation.
+  }
+  return origin;
+}
+
 export const DEFAULT_DEV_SERVER_CONFIG: RspackDevServerConfiguration = {
   host: '0.0.0.0',
   allowedHosts: 'all',
@@ -79,6 +105,14 @@ export const DEFAULT_DEV_SERVER_CONFIG: RspackDevServerConfiguration = {
       name: 'self-hosted-admin-asset-public-path',
       middleware: ((req, _res, next) => {
         req.url = rewriteSelfHostedAdminAssetPath(req.url);
+        if (/^\/(api|graphql|socket\.io)(\/|\?|$)/.test(req.url ?? '')) {
+          const origin = rewriteDevProxyOrigin(
+            req.headers.origin,
+            req.headers.host,
+            devServerProxyTarget
+          );
+          if (origin) req.headers.origin = origin;
+        }
         next();
       }) satisfies DevServerMiddlewareHandler,
     });

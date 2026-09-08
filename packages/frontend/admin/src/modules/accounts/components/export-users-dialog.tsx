@@ -9,6 +9,7 @@ import {
 } from '@affine/admin/components/ui/dialog';
 import { Label } from '@affine/admin/components/ui/label';
 import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hooks';
+import { useI18n } from '@affine/i18n';
 import { CopyIcon } from '@blocksuite/icons/rc';
 import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
@@ -27,17 +28,18 @@ export function ExportUsersDialog({
   open,
   onOpenChange,
 }: ExportUsersDialogProps) {
+  const i18n = useI18n();
   const [isExporting, setIsExporting] = useState(false);
   const [isCopying, setIsCopying] = useState(false);
   const [fields, setFields] = useState<ExportField[]>([
     {
       id: 'name',
-      label: 'Username',
+      label: i18n['com.affine.integration.calendar.caldav.field.username'](),
       checked: true,
     },
     {
       id: 'email',
-      label: 'Email',
+      label: i18n['com.affine.settings.email'](),
       checked: true,
     },
   ]);
@@ -59,14 +61,14 @@ export function ExportUsersDialog({
       await exportCSV(users, fields, () => {
         setIsExporting(false);
         onOpenChange(false);
-        toast('Users exported successfully');
+        toast(i18n['com.affine.admin.users-exported-successfully']());
       });
     } catch (error) {
-      console.error('Failed to export users', error);
-      toast.error('Failed to export users');
+      console.error(i18n['com.affine.admin.failed-to-export-users'](), error);
+      toast.error(i18n['com.affine.admin.failed-to-export-users']());
       setIsExporting(false);
     }
-  }, [exportCSV, fields, onOpenChange, users]);
+  }, [exportCSV, fields, onOpenChange, users, i18n]);
 
   const handleCopy = useAsyncCallback(async () => {
     setIsCopying(true);
@@ -74,20 +76,20 @@ export function ExportUsersDialog({
       await copyToClipboard(users, fields, () => {
         setIsCopying(false);
         onOpenChange(false);
-        toast('Users copied successfully');
+        toast(i18n['com.affine.admin.users-copied-successfully']());
       });
     } catch (error) {
-      console.error('Failed to copy users', error);
-      toast.error('Failed to copy users');
+      console.error(i18n['com.affine.admin.failed-to-copy-users'](), error);
+      toast.error(i18n['com.affine.admin.failed-to-copy-users']());
       setIsCopying(false);
     }
-  }, [copyToClipboard, fields, onOpenChange, users]);
+  }, [copyToClipboard, fields, onOpenChange, users, i18n]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Export</DialogTitle>
+          <DialogTitle>{i18n['com.affine.ui.export']()}</DialogTitle>
         </DialogHeader>
 
         <div className="grid gap-4 py-4">
@@ -112,7 +114,9 @@ export function ExportUsersDialog({
             className="w-full text-[15px] px-4 py-2 h-10"
             disabled={isExporting || isCopying}
           >
-            {isExporting ? 'Exporting...' : 'Download account information'}
+            {isExporting
+              ? i18n['com.affine.admin.exporting']()
+              : i18n['com.affine.admin.download-account-information']()}
           </Button>
           <Button
             variant="outline"

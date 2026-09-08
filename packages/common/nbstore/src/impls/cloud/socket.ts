@@ -28,6 +28,7 @@ type WebsocketResponse<T> =
     };
 
 interface ServerEvents {
+  'project:resource-changed': { projectId: string; resourceId: string };
   'space:broadcast-doc-update': {
     spaceType: string;
     spaceId: string;
@@ -63,6 +64,18 @@ interface ServerEvents {
 }
 
 interface ClientEvents {
+  'project:join': [{ projectId: string }, { success: boolean }];
+  'project:leave': [{ projectId: string }, { success: boolean }];
+  'project:load-document': [
+    { projectId: string; resourceId: string; stateVector?: string },
+    {
+      projectId: string;
+      resourceId: string;
+      missing: string;
+      state: string;
+      contentVersion: number;
+    },
+  ];
   'space:join': [
     {
       spaceType: string;

@@ -1,7 +1,4 @@
-query copilotContextDashboardGet(
-  $workspaceId: String!
-  $includeDisabled: Boolean
-) {
+query copilotContextDashboardGet($workspaceId: String!, $includeDisabled: Boolean) {
   currentUser {
     copilot(workspaceId: $workspaceId) {
       contextSettings {
@@ -24,14 +21,6 @@ query copilotContextDashboardGet(
         description
         status
         role
-        documents {
-          workspaceId
-          docId
-          title
-          groupId
-          sortOrder
-        }
-        documentCount
         canManage
         createdAt
         updatedAt

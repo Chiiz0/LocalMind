@@ -9,13 +9,12 @@ import { StorageModule } from '../storage';
 import { ProjectDestinationFolderService } from './destination-folder-service';
 import { ProjectDestinationResolver } from './destination-resolver';
 import { ProjectImportService } from './import-service';
-import { ProjectLegacyResolver } from './legacy-resolver';
-import { ProjectResourceMigrationResolver } from './migration-resolver';
-import { ProjectResourceMigrationService } from './migration-service';
 import { ProjectPublicationResolver } from './publication-resolver';
 import { ProjectPublicationService } from './publication-service';
 import { ProjectImportResolver } from './resolver';
 import { ProjectResourceSourceResolver } from './source-resolver';
+import { ProjectWorkspaceImportResolver } from './workspace-import-resolver';
+import { ProjectWorkspaceImportService } from './workspace-import-service';
 
 @Module({
   imports: [
@@ -27,20 +26,19 @@ import { ProjectResourceSourceResolver } from './source-resolver';
     QuotaModule,
   ],
   providers: [
-    ProjectLegacyResolver,
     ProjectResourceSourceResolver,
-    ProjectResourceMigrationService,
-    ProjectResourceMigrationResolver,
     ProjectImportService,
+    ProjectWorkspaceImportService,
     ProjectImportResolver,
+    ProjectWorkspaceImportResolver,
     ProjectDestinationResolver,
     ProjectPublicationService,
     ProjectPublicationResolver,
     ProjectDestinationFolderService,
   ],
   exports: [
-    ProjectResourceMigrationService,
     ProjectImportService,
+    ProjectWorkspaceImportService,
     ProjectPublicationService,
     ProjectDestinationFolderService,
   ],
@@ -53,3 +51,4 @@ export {
   ProjectDestinationFolderService,
 } from './destination-folder-service';
 export { ProjectPublicationConflict } from './publication-service';
+export { ProjectWorkspaceImportService } from './workspace-import-service';

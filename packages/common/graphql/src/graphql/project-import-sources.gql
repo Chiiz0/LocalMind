@@ -1,0 +1,6 @@
+query projectImportSources($projectId: String!, $workspaceId: String!, $query: String, $cursor: String) {
+  projectImportSources(projectId: $projectId, workspaceId: $workspaceId, query: $query, cursor: $cursor) {
+    items { id title kind permission }
+    nextCursor
+  }
+}

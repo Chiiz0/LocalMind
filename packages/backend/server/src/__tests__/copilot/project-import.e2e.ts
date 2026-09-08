@@ -14,7 +14,6 @@ import {
   ProjectImportService,
   ProjectTransferModule,
 } from '../../core/project-transfer';
-import { ProjectResourceMigrationService } from '../../core/project-transfer/migration-service';
 import { ProjectResourceSourceResolver } from '../../core/project-transfer/source-resolver';
 import { WorkspaceBlobStorage } from '../../core/storage';
 import { Models } from '../../models';
@@ -161,15 +160,32 @@ test('explicit source refresh preserves identity, rejects stale versions and per
   );
   const latest = await module.get(DocReader).getDoc(workspaceId, sourceId);
   const sourceVersion = createHash('sha256').update(latest!.bin).digest('hex');
+  const lease = (
+    await models.projectResourceEditLease.acquire({
+      ...actor,
+      resourceId: imported.id,
+      kind: 'user',
+      tabId: 'source-refresh',
+    })
+  ).lease!;
+  const editLease = {
+    kind: 'user' as const,
+    tabId: lease.tabId,
+    leaseId: lease.leaseId,
+  };
   const input = {
     ...source,
     requestKey: 'refresh',
+    editLease,
     replace: {
       resourceId: imported.id,
       expectedContentVersion: 1,
       expectedSourceVersion: sourceVersion,
     },
   };
+  await t.throwsAsync(imports.import({ ...input, editLease: undefined }), {
+    message: /edit lease/,
+  });
   await t.throwsAsync(
     imports.import({
       ...input,
@@ -208,8 +224,13 @@ test('explicit source refresh preserves identity, rejects stale versions and per
   );
   const resolver = module.get(ProjectResourceSourceResolver);
   const user = await models.user.get(actorId);
+  const principal = {
+    ...user!,
+    hasPassword: !!user!.password,
+    emailVerified: !!user!.emailVerifiedAt,
+  };
   const sources = await resolver.projectResourceSources(
-    user!,
+    principal,
     projectId,
     imported.id
   );
@@ -217,20 +238,25 @@ test('explicit source refresh preserves identity, rejects stale versions and per
   t.is(sources[0].projectVersion, 2);
   await t.throwsAsync(
     resolver.refreshProjectResourceSource(
-      user!,
+      principal,
       projectId,
       imported.id,
       workspaceId,
       randomUUID(),
       2,
       sourceVersion,
-      'forged'
+      'forged',
+      { tabId: editLease.tabId, leaseId: editLease.leaseId }
     ),
     { message: /linked/ }
   );
   t.deepEqual(
     await resolver.projectResourceSources(
-      (await models.user.get(readerId))!,
+      {
+        ...(await models.user.get(readerId))!,
+        hasPassword: false,
+        emailVerified: false,
+      },
       projectId,
       imported.id
     ),
@@ -272,12 +298,27 @@ test('native Office source refresh appends an independent native version without
   const input = {
     ...source,
     requestKey: 'office-refresh',
+    editLease: {
+      kind: 'user' as const,
+      tabId: 'office-refresh',
+      leaseId: (
+        await models.projectResourceEditLease.acquire({
+          ...source,
+          resourceId: imported.id,
+          kind: 'user',
+          tabId: 'office-refresh',
+        })
+      ).lease!.leaseId,
+    },
     replace: {
       resourceId: imported.id,
       expectedContentVersion: 1,
       expectedSourceVersion: native.revision.id,
     },
   };
+  await t.throwsAsync(imports.import({ ...input, editLease: undefined }), {
+    message: /edit lease/,
+  });
   t.is((await imports.import(input)).id, imported.id);
   t.is((await imports.import(input)).id, imported.id);
   const result = await models.officeArtifact.getCurrentRevision(
@@ -296,273 +337,6 @@ test('native Office source refresh appends an independent native version without
       )
     )?.sequence,
     1
-  );
-});
-
-async function legacyReference(
-  db: PrismaClient,
-  input: {
-    projectId: string;
-    workspaceId: string;
-    sourceId: string;
-    actorId: string;
-    addedByUserId: string;
-  }
-) {
-  await db.$transaction(async tx => {
-    await tx.aiContextProjectDoc.create({
-      data: {
-        projectId: input.projectId,
-        workspaceId: input.workspaceId,
-        docId: input.sourceId,
-        addedByUserId: input.addedByUserId,
-        groupId: 'Historical group',
-        sortOrder: 7,
-      },
-    });
-    await tx.aiContextProjectGrant.create({
-      data: {
-        projectId: input.projectId,
-        workspaceId: input.workspaceId,
-        docId: input.sourceId,
-        level: 'read',
-        status: 'active',
-        source: 'direct',
-        grantedByUserId: input.actorId,
-        grantorUserIdSnapshot: input.actorId,
-      },
-    });
-  });
-}
-
-test('legacy references backfill as two independent copies with immutable evidence and restart-safe identities', async t => {
-  const { db, models, module, projectId, workspaceId, actorId, sourceId } =
-    t.context;
-  const second = await db.aiContextProject.create({
-    data: {
-      name: 'Second project',
-      members: {
-        create: [
-          { userId: actorId, role: 'member' },
-          { userId: t.context.readerId, role: 'owner' },
-        ],
-      },
-    },
-  });
-  for (const id of [projectId, second.id])
-    await legacyReference(db, {
-      projectId: id,
-      workspaceId,
-      sourceId,
-      actorId,
-      addedByUserId: actorId,
-    });
-  const before = await module.get(DocReader).getDoc(workspaceId, sourceId);
-  t.is(await models.projectResourceMigration.discover(), 2);
-  t.is(await models.projectResourceMigration.discover(), 0);
-  const rows = await models.projectResourceMigration.queued();
-  const service = module.get(ProjectResourceMigrationService);
-  for (const row of rows) await service.migrate(row.id);
-  const migrated = await db.projectResourceMigration.findMany({
-    orderBy: { projectId: 'asc' },
-  });
-  t.true(migrated.every(row => row.status === 'complete'));
-  t.not(migrated[0].resourceId, migrated[1].resourceId);
-  for (const row of migrated) {
-    t.not(row.resourceId, sourceId);
-    t.is(
-      (
-        await db.aiContextProjectDoc.findUniqueOrThrow({
-          where: {
-            projectId_workspaceId_docId: {
-              projectId: row.projectId,
-              workspaceId,
-              docId: sourceId,
-            },
-          },
-        })
-      ).internalResourceId,
-      row.resourceId
-    );
-    t.is(
-      (await models.copilotContextMemory.getProject(row.projectId))?.documents
-        .length,
-      0
-    );
-    t.true(
-      (
-        await module.get(ProjectResourceService).readDocument({
-          projectId: row.projectId,
-          actorId,
-          resourceId: row.resourceId!,
-        })
-      ).bytes.length > 0
-    );
-    await service.migrate(row.id);
-    await t.throwsAsync(
-      db.projectResourceMigration.update({
-        where: { id: row.id },
-        data: { revision: { increment: 1 }, status: 'pending' },
-      })
-    );
-  }
-  t.is(await db.projectResource.count(), 2);
-  t.is(
-    await db.projectResourceMigrationEvent.count({
-      where: { status: 'complete' },
-    }),
-    2
-  );
-  t.deepEqual(
-    (await module.get(DocReader).getDoc(workspaceId, sourceId))?.bin,
-    before?.bin
-  );
-  const event = await db.projectResourceMigrationEvent.findFirstOrThrow();
-  await t.throwsAsync(
-    db.projectResourceMigrationEvent.update({
-      where: { id: event.id },
-      data: { evidence: {} },
-    })
-  );
-});
-
-test('read-only legacy sharing cannot authorize copying; an explicit authorized retry preserves the original actor', async t => {
-  const {
-    db,
-    models,
-    module,
-    projectId,
-    workspaceId,
-    actorId,
-    readerId,
-    sourceId,
-  } = t.context;
-  await legacyReference(db, {
-    projectId,
-    workspaceId,
-    sourceId,
-    actorId,
-    addedByUserId: readerId,
-  });
-  await models.projectResourceMigration.discover();
-  const row = (await models.projectResourceMigration.queued())[0];
-  const service = module.get(ProjectResourceMigrationService);
-  await service.migrate(row.id);
-  const denied = await models.projectResourceMigration.get({
-    projectId,
-    actorId: readerId,
-    migrationId: row.id,
-  });
-  t.is(denied.status, 'waiting_for_authorization');
-  t.is(await db.projectResource.count(), 0);
-  t.is(await db.projectBlob.count(), 0);
-  await models.projectResourceMigration.change({
-    projectId,
-    actorId,
-    migrationId: row.id,
-    expectedRevision: denied.revision,
-    action: 'retry',
-  });
-  await service.migrate(row.id);
-  const complete = await models.projectResourceMigration.get({
-    projectId,
-    actorId,
-    migrationId: row.id,
-  });
-  t.is(complete.status, 'complete');
-  t.is(complete.originalActorId, readerId);
-  t.is(complete.actorId, actorId);
-});
-
-test('a failed migration rolls back the copy and resumes without losing its failure or lease history', async t => {
-  const {
-    db,
-    models,
-    imports,
-    module,
-    projectId,
-    workspaceId,
-    actorId,
-    sourceId,
-  } = t.context;
-  await legacyReference(db, {
-    projectId,
-    workspaceId,
-    sourceId,
-    actorId,
-    addedByUserId: actorId,
-  });
-  await models.projectResourceMigration.discover();
-  const row = (await models.projectResourceMigration.queued())[0];
-  const original = imports.import.bind(imports);
-  const stub = Sinon.stub(imports, 'import').callsFake(async input => {
-    await original(input);
-    throw new Error('Interrupted before committing the result');
-  });
-  const service = module.get(ProjectResourceMigrationService);
-  try {
-    await service.migrate(row.id);
-  } finally {
-    stub.restore();
-  }
-  const failed = await models.projectResourceMigration.get({
-    projectId,
-    actorId,
-    migrationId: row.id,
-  });
-  t.is(failed.status, 'failed');
-  t.is(await db.projectResource.count(), 0);
-  t.is(await db.projectBlob.count(), 0);
-  await models.projectResourceMigration.change({
-    projectId,
-    actorId,
-    migrationId: row.id,
-    expectedRevision: failed.revision,
-    action: 'retry',
-  });
-  const first = await models.projectResourceMigration.acquire(row.id);
-  const clock = Sinon.useFakeTimers({
-    now: Date.now() + 121000,
-    toFake: ['Date'],
-  });
-  try {
-    const second = await models.projectResourceMigration.acquire(row.id);
-    t.is(second?.attempt, first!.attempt + 1);
-    await t.throwsAsync(
-      models.projectResourceMigration.execute(
-        { id: row.id, leaseId: first!.leaseId!, attempt: first!.attempt },
-        async () => {
-          throw new Error('Stale worker must never run');
-        }
-      ),
-      { message: /lease is no longer current/ }
-    );
-    await models.projectResourceMigration.fail(
-      { id: row.id, leaseId: second!.leaseId!, attempt: second!.attempt },
-      'source_or_copy_unavailable'
-    );
-  } finally {
-    clock.restore();
-  }
-  const current = await models.projectResourceMigration.get({
-    projectId,
-    actorId,
-    migrationId: row.id,
-  });
-  await models.projectResourceMigration.change({
-    projectId,
-    actorId,
-    migrationId: row.id,
-    expectedRevision: current.revision,
-    action: 'retry',
-  });
-  await service.migrate(row.id);
-  t.is(await db.projectResource.count(), 1);
-  t.is(
-    await db.projectResourceMigrationEvent.count({
-      where: { migrationId: row.id, status: 'failed' },
-    }),
-    2
   );
 });
 
@@ -634,6 +408,19 @@ test('ordinary Project member imports an independent snapshot and attachments wi
     expectedContentVersion: 1,
     requestKey: 'edit',
     origin: 'user',
+    editLease: {
+      kind: 'user',
+      tabId: 'internal-editor',
+      leaseId: (
+        await models.projectResourceEditLease.acquire({
+          projectId,
+          actorId,
+          resourceId: resource.id,
+          kind: 'user',
+          tabId: 'internal-editor',
+        })
+      ).lease!.leaseId,
+    },
   });
   const after = await module.get(DocReader).getDoc(workspaceId, sourceId);
   if (!after || !before) throw new Error('Source document disappeared');
@@ -650,7 +437,7 @@ test('ordinary Project member imports an independent snapshot and attachments wi
   );
 });
 
-test('read access and historical grants cannot copy; explicit source approval allows Project-only members and revocation blocks new copies', async t => {
+test('read access and historical grants cannot copy; disabling source sharing blocks new imports without invalidating approved copies', async t => {
   const {
     module,
     db,
@@ -672,20 +459,16 @@ test('read access and historical grants cannot copy; explicit source approval al
   };
   await t.throwsAsync(imports.import(input), { message: /Source permission/ });
   t.is(await db.projectBlob.count(), 0);
-  const oldRequest =
-    await models.intelligenceWorkbenchAuthorization.requestProjectDocumentAccess(
-      {
-        projectId,
-        workspaceId,
-        docId: sourceId,
-        requesterUserId: readerId,
-        requestedLevel: 'read',
-        idempotencyKey: 'read-request',
-      }
-    );
-  await models.intelligenceWorkbenchAuthorization.approveAccessRequest({
-    requestId: oldRequest.request.id,
-    actorUserId: actorId,
+  await db.aiContextProjectGrant.create({
+    data: {
+      projectId,
+      workspaceId,
+      docId: sourceId,
+      level: 'read',
+      source: 'direct',
+      grantedByUserId: actorId,
+      grantorUserIdSnapshot: actorId,
+    },
   });
   await t.throwsAsync(imports.import(input), { message: /Source permission/ });
   t.is(await db.projectBlob.count(), 0);
@@ -698,7 +481,6 @@ test('read access and historical grants cannot copy; explicit source approval al
       requestKey: 'copy-request',
     });
   t.is(request.request.purpose, 'project_copy');
-  t.not(request.request.id, oldRequest.request.id);
   await models.intelligenceWorkbenchAuthorization.approveAccessRequest({
     requestId: request.request.id,
     actorUserId: actorId,
@@ -706,18 +488,16 @@ test('read access and historical grants cannot copy; explicit source approval al
   const copy = await imports.import(input);
   t.is(copy.kind, 'page');
   t.is(await db.workspaceMember.count({ where: { userId: readerId } }), 0);
-  const approval = await db.aiContextProjectCopyAuthorization.findUniqueOrThrow(
-    { where: { requestId: request.request.id } }
-  );
   await t.throwsAsync(
     db.accessRequest.update({
-      where: { id: oldRequest.request.id },
-      data: { purpose: 'project_copy' },
+      where: { id: request.request.id },
+      data: { purpose: 'access' },
     })
   );
-  await models.intelligenceWorkbenchAuthorization.revokeProjectGrantById({
-    grantId: approval.grantId,
-    actorUserId: actorId,
+  await db.workspaceAccessPolicy.upsert({
+    where: { workspaceId },
+    create: { workspaceId, sharingEnabled: false },
+    update: { sharingEnabled: false },
   });
   await t.throwsAsync(imports.import({ ...input, requestKey: 'another-copy' }));
   t.truthy(

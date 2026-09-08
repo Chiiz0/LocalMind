@@ -2,8 +2,7 @@
  * @vitest-environment happy-dom
  */
 import {
-  approveProjectAgentTaskMutation,
-  cancelProjectAgentTaskMutation,
+  decideProjectAgentTaskMutation,
   type ProjectAgentTaskFieldsFragment,
 } from '@affine/graphql';
 import {
@@ -22,6 +21,8 @@ const state = vi.hoisted(() => ({
   error: null as Error | null,
   loading: false,
   gql: vi.fn(),
+  confirm: vi.fn(),
+  notifyError: vi.fn(),
   query: vi.fn(),
   mutate: vi.fn(),
 }));
@@ -31,9 +32,12 @@ vi.mock('@toeverything/infra', () => ({
   useService: () => ({ gql: state.gql }),
 }));
 vi.mock('@affine/i18n', () => ({
+  getOrCreateI18n: () => ({ t: (key: string) => key }),
   useI18n: () => new Proxy({}, { get: (_, key) => () => String(key) }),
 }));
 vi.mock('@affine/component', () => ({
+  useConfirmModal: () => ({ openConfirmModal: state.confirm }),
+  notify: { error: state.notifyError, success: vi.fn() },
   Button: ({
     loading: _loading,
     variant: _variant,
@@ -51,6 +55,9 @@ vi.mock('@affine/component', () => ({
     tooltip?: string;
   }) => <button {...props} />,
   Loading: () => <span data-testid="loading" />,
+}));
+vi.mock('@affine/core/modules/project-resources/realtime', () => ({
+  useProjectRefresh: vi.fn(),
 }));
 vi.mock('@affine/core/components/hooks/use-query', () => ({
   useQuery: (request: unknown) => {
@@ -80,6 +87,8 @@ const task = (
   status: 'waiting_approval',
   workflow: 'agent_runtime_project_office_command',
   targetFingerprint: 'exact-preview',
+  leaseHolderName: null,
+  leaseRetryCount: 0,
   workerAttempt: 0,
   createdAt: '2026-09-06T00:00:00.000Z',
   updatedAt: '2026-09-06T00:00:00.000Z',
@@ -100,7 +109,12 @@ beforeEach(() => {
   state.error = null;
   state.loading = false;
   state.nextCursor = null;
-  state.gql.mockResolvedValue({});
+  state.gql.mockResolvedValue({
+    decideProjectAgentTask: { applied: true, processedByName: 'Editor' },
+  });
+  state.confirm.mockImplementation(({ onConfirm }: { onConfirm: () => void }) =>
+    onConfirm()
+  );
   state.mutate.mockResolvedValue(undefined);
 });
 afterEach(cleanup);
@@ -116,32 +130,42 @@ test('approval uses the displayed task fingerprint once and keeps failed control
     />
   );
   expect(screen.getByText('Set the forecast to 12')).toBeTruthy();
-  expect(screen.getByText('v3')).toBeTruthy();
+  expect(screen.getByText(files('version'))).toBeTruthy();
   const approve = screen.getByRole('button', { name: label('approve') });
   fireEvent.click(approve);
   fireEvent.click(approve);
-  expect(state.gql).toHaveBeenCalledTimes(1);
+  await waitFor(() => expect(state.gql).toHaveBeenCalledTimes(1));
   expect(state.gql).toHaveBeenCalledWith({
-    query: approveProjectAgentTaskMutation,
+    query: decideProjectAgentTaskMutation,
     variables: {
-      projectId: 'project-1',
-      runId: 'request-unique-1',
-      targetFingerprint: 'exact-preview',
+      input: {
+        projectId: 'project-1',
+        runId: 'request-unique-1',
+        targetFingerprint: 'exact-preview',
+        expectedStatus: 'waiting_approval',
+        action: 'approve',
+        requestKey: expect.any(String),
+      },
     },
   });
   pending.reject(new Error('Permission changed'));
-  await waitFor(() =>
-    expect(screen.getByRole('alert').textContent).toContain(
-      'Permission changed'
-    )
-  );
+  await waitFor(() => expect(state.notifyError).toHaveBeenCalledOnce());
   expect((approve as HTMLButtonElement).disabled).toBe(false);
-  state.gql.mockResolvedValue({});
+  state.gql.mockResolvedValue({
+    decideProjectAgentTask: { applied: true, processedByName: 'Editor' },
+  });
   fireEvent.click(screen.getByRole('button', { name: files('cancel') }));
   await waitFor(() =>
     expect(state.gql).toHaveBeenCalledWith({
-      query: cancelProjectAgentTaskMutation,
-      variables: { projectId: 'project-1', runId: 'request-unique-1' },
+      query: decideProjectAgentTaskMutation,
+      variables: {
+        input: expect.objectContaining({
+          projectId: 'project-1',
+          runId: 'request-unique-1',
+          action: 'cancel',
+          expectedStatus: 'waiting_approval',
+        }),
+      },
     })
   );
 });
@@ -196,7 +220,7 @@ test('pagination is bounded and changing Project resets the cursor and errors', 
   state.error = new Error('Connection unavailable');
   rerender(<ProjectTasks projectId="project-2" onOpenResource={vi.fn()} />);
   expect(screen.getByRole('alert').textContent).toContain(
-    'Connection unavailable'
+    'com.affine.localmind.project-error.failed'
   );
   fireEvent.click(screen.getByRole('button', { name: files('retry') }));
   expect(state.mutate).toHaveBeenCalled();

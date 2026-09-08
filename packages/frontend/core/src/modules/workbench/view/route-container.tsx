@@ -1,5 +1,6 @@
 import { IconButton } from '@affine/component';
 import { AffineErrorBoundary } from '@affine/core/components/affine/affine-error-boundary';
+import { useI18n } from '@affine/i18n';
 import { RightSidebarIcon } from '@blocksuite/icons/rc';
 import { useLiveData, useService } from '@toeverything/infra';
 import { Suspense, useCallback } from 'react';
@@ -28,6 +29,7 @@ const ToggleButton = ({
   className: string;
   show: boolean;
 }) => {
+  const i18n = useI18n();
   return (
     <IconButton
       size="24"
@@ -35,7 +37,7 @@ const ToggleButton = ({
       className={className}
       data-show={show}
       data-testid="right-sidebar-toggle"
-      tooltip="Open sidebar"
+      tooltip={i18n['com.affine.ui.open-sidebar']()}
     >
       <RightSidebarIcon />
     </IconButton>

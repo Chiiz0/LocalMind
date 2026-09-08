@@ -94,10 +94,10 @@ const PageOperationCellMenuItem = ({
 
   const onDisablePublicSharing = useCallback(() => {
     // TODO(@EYHN): implement disable public sharing
-    toast('Successfully disabled', {
+    toast(t['com.affine.ui.successfully-disabled'](), {
       portal: document.body,
     });
-  }, []);
+  }, [t]);
 
   const { openConfirmModal } = useConfirmModal();
 

@@ -1,4 +1,5 @@
 import { cn } from '@affine/admin/utils';
+import { useI18n } from '@affine/i18n';
 import { ROUTES } from '@affine/routes';
 import { AccountIcon, SelfhostIcon } from '@blocksuite/icons/rc';
 import {
@@ -8,6 +9,7 @@ import {
   ListChecksIcon,
 } from 'lucide-react';
 
+import { AdminLanguageSelect } from '../../i18n';
 import { NavItem } from './nav-item';
 import { ServerVersion } from './server-version';
 import { SettingsItem } from './settings-item';
@@ -18,6 +20,7 @@ interface NavProps {
 }
 
 export function Nav({ isCollapsed = false }: NavProps) {
+  const i18n = useI18n();
   return (
     <div
       className={cn(
@@ -34,27 +37,27 @@ export function Nav({ isCollapsed = false }: NavProps) {
         <NavItem
           to={ROUTES.admin.dashboard}
           icon={<BarChart3Icon size={18} />}
-          label="Dashboard"
+          label={i18n['com.affine.admin.dashboard']()}
           isCollapsed={isCollapsed}
         />
         <NavItem
           to={ROUTES.admin.accounts}
           icon={<AccountIcon fontSize={20} />}
-          label="Accounts"
+          label={i18n['com.affine.admin.accounts']()}
           isCollapsed={isCollapsed}
         />
         {environment.isSelfHosted ? null : (
           <NavItem
             to={ROUTES.admin.workspaces}
             icon={<LayoutDashboardIcon size={18} />}
-            label="Workspaces"
+            label={i18n['com.affine.admin.workspaces']()}
             isCollapsed={isCollapsed}
           />
         )}
         <NavItem
           to={ROUTES.admin.queue}
           icon={<ListChecksIcon size={18} />}
-          label="Queue"
+          label={i18n['com.affine.admin.queue']()}
           isCollapsed={isCollapsed}
         />
         <NavItem
@@ -67,7 +70,7 @@ export function Nav({ isCollapsed = false }: NavProps) {
         <NavItem
           to={ROUTES.admin.about}
           icon={<SelfhostIcon fontSize={20} />}
-          label="About"
+          label={i18n['com.affine.mobile.setting.about.title']()}
           isCollapsed={isCollapsed}
         />
       </nav>
@@ -77,6 +80,7 @@ export function Nav({ isCollapsed = false }: NavProps) {
           isCollapsed && 'items-center px-0 gap-1'
         )}
       >
+        {!isCollapsed && <AdminLanguageSelect />}
         <UserDropdown isCollapsed={isCollapsed} />
         {isCollapsed ? null : <ServerVersion />}
       </div>

@@ -18,6 +18,10 @@ query copilotWorkbenchSourceAuthorizationGet(
         beneficiaryUserId
         beneficiaryProjectId
         requesterUserId
+        projectName
+        requesterName
+        requesterEmail
+        beneficiaryName
         requestedLevel
         requestedTitle
         status
@@ -39,8 +43,8 @@ query copilotWorkbenchSourceAuthorizationGet(
         status
         source
         approvingSide
-        revocable
         grantedByUserId
+        grantedByName
         accessRequestId
         grantedAt
         createdAt

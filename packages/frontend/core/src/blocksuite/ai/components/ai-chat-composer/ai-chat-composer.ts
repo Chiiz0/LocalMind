@@ -11,6 +11,7 @@ import type {
   SubscriptionService,
 } from '@affine/core/modules/cloud';
 import type { WorkspaceDialogService } from '@affine/core/modules/dialogs';
+import { I18nController } from '@affine/core/modules/i18n/lit-controller';
 import type { CopilotChatHistoryFragment } from '@affine/graphql';
 import { I18n } from '@affine/i18n';
 import { SignalWatcher, WithDisposable } from '@blocksuite/affine/global/lit';
@@ -120,6 +121,8 @@ export function shouldShowContextProjectSelector(
 export class AIChatComposer extends SignalWatcher(
   WithDisposable(ShadowlessElement)
 ) {
+  readonly languageController = new I18nController(this);
+
   static override styles = css`
     .chat-panel-footer {
       margin: 8px 0px;
@@ -310,7 +313,11 @@ export class AIChatComposer extends SignalWatcher(
       <div class="chat-panel-footer">
         <ai-chat-composer-tip
           .tips=${[
-            html`<span>AI outputs can be misleading or wrong</span>`,
+            html`<span
+              >${I18n[
+                'com.affine.ai.action-label.ai-outputs-can-be-misleading-or-wrong'
+              ]()}</span
+            >`,
           ].filter(Boolean)}
           .loop=${false}
         ></ai-chat-composer-tip>

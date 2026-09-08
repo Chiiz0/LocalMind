@@ -1,6 +1,10 @@
 import { type Framework } from '@toeverything/infra';
 
-import { WorkspaceServerService } from '../cloud';
+import {
+  DefaultServerService,
+  ServerScope,
+  WorkspaceServerService,
+} from '../cloud';
 import { CollectionService } from '../collection';
 import { WorkspaceDialogService } from '../dialogs';
 import { DocsService } from '../doc';
@@ -24,6 +28,7 @@ import { DocsQuickSearchSession } from './impls/docs';
 import { ExternalLinksQuickSearchSession } from './impls/external-links';
 import { JournalsQuickSearchSession } from './impls/journals';
 import { LinksQuickSearchSession } from './impls/links';
+import { ProjectsQuickSearchSession } from './impls/projects';
 import { RecentDocsQuickSearchSession } from './impls/recent-docs';
 import { TagsQuickSearchSession } from './impls/tags';
 import { CMDKQuickSearchService } from './services/cmdk';
@@ -38,6 +43,7 @@ export { CreationQuickSearchSession } from './impls/creation';
 export { DocsQuickSearchSession } from './impls/docs';
 export { ExternalLinksQuickSearchSession } from './impls/external-links';
 export { LinksQuickSearchSession } from './impls/links';
+export { ProjectsQuickSearchSession } from './impls/projects';
 export { RecentDocsQuickSearchSession } from './impls/recent-docs';
 export { TagsQuickSearchSession } from './impls/tags';
 export type { QuickSearchItem } from './types/item';
@@ -45,6 +51,11 @@ export { QuickSearchContainer } from './views/container';
 export { QuickSearchTagIcon } from './views/tag-icon';
 
 export function configureQuickSearchModule(framework: Framework) {
+  framework
+    .entity(ProjectsQuickSearchSession, [DefaultServerService])
+    .scope(ServerScope)
+    .service(QuickSearchService)
+    .entity(QuickSearch);
   framework
     .scope(WorkspaceScope)
     .service(QuickSearchService)

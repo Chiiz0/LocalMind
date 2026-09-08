@@ -50,6 +50,7 @@ import {
   adminMailDeliveriesQuery,
   previewLicenseMutation,
 } from '@affine/graphql';
+import { useI18n } from '@affine/i18n';
 import { ROUTES } from '@affine/routes';
 import {
   ChevronDownIcon,
@@ -262,8 +263,13 @@ function TrendChart({
   secondaryLabel?: string;
   secondaryFormatter?: (value: number) => string;
 }) {
+  const i18n = useI18n();
   if (points.length === 0) {
-    return <div className="text-sm text-muted-foreground">No data</div>;
+    return (
+      <div className="text-sm text-muted-foreground">
+        {i18n['com.affine.admin.no-data']()}
+      </div>
+    );
   }
 
   const chartPoints =
@@ -400,12 +406,13 @@ function MultiTrendChart({
   series: MultiTrendSeries[];
   valueFormatter: (value: number) => string;
 }) {
+  const i18n = useI18n();
   const visibleSeries = series.filter(item => item.total > 0).slice(0, 4);
 
   if (points.length === 0 || visibleSeries.length === 0) {
     return (
       <div className="flex h-44 items-center justify-center rounded-lg border border-dashed border-border/60 bg-muted/15 text-sm text-muted-foreground">
-        No mail deliveries in this window
+        {i18n['com.affine.admin.no-mail-deliveries-in-this-window']()}{' '}
       </div>
     );
   }
@@ -500,12 +507,13 @@ function PrimaryMetricCard({
   value: string;
   description: string;
 }) {
+  const i18n = useI18n();
   return (
     <Card className="h-full border-border/60 bg-card shadow-1">
       <CardHeader className="pb-2">
         <CardDescription className="flex items-center gap-2 text-sm">
           <UsersIcon className="h-4 w-4" aria-hidden="true" />
-          Current Sync Active Users
+          {i18n['com.affine.admin.current-sync-active-users']()}{' '}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-1.5">
@@ -552,11 +560,17 @@ function SecondaryMetricCard({
   );
 }
 
-function rangeOptionLabel(option: number, unit: 'hours' | 'days') {
-  if (unit === 'hours') {
-    return option === 168 ? '7d' : `${option}h`;
+function rangeOptionLabel(
+  option: number,
+  unit: 'hours' | 'days',
+  i18n: ReturnType<typeof useI18n>
+) {
+  if (unit === 'hours' && option !== 168) {
+    return i18n['com.affine.admin.range-hours']({ hours: String(option) });
   }
-  return `${option}d`;
+  return i18n['com.affine.admin.range-days']({
+    days: String(unit === 'hours' ? 7 : option),
+  });
 }
 
 function PanelRangeSelect({
@@ -572,6 +586,7 @@ function PanelRangeSelect({
   unit: 'hours' | 'days';
   onChange: (value: number) => void;
 }) {
+  const i18n = useI18n();
   return (
     <Select
       value={String(value)}
@@ -583,7 +598,7 @@ function PanelRangeSelect({
       <SelectContent>
         {options.map(option => (
           <SelectItem key={option} value={String(option)}>
-            {rangeOptionLabel(option, unit)}
+            {rangeOptionLabel(option, unit, i18n)}
           </SelectItem>
         ))}
       </SelectContent>
@@ -598,17 +613,27 @@ function LicensePreviewDialog({
   license: LicensePreview | null;
   onOpenChange: (open: boolean) => void;
 }) {
+  const i18n = useI18n();
   const rows = license
     ? [
         ['Status', license.valid ? 'Valid' : 'Invalid'],
-        ['License ID', license.id],
-        ['Workspace ID', license.workspaceId],
+        [i18n['com.affine.admin.license-id'](), license.id],
+        [i18n['com.affine.admin.workspace-id'](), license.workspaceId],
         ['Plan', license.plan],
         ['Recurring', license.recurring],
         ['Seats', intFormatter.format(license.quantity)],
-        ['Issued At', formatDateTime(license.issuedAt)],
-        ['File Expires At', formatDateTime(license.expiresAt)],
-        ['License Ends At', formatDateTime(license.endAt)],
+        [
+          i18n['com.affine.admin.issued-at'](),
+          formatDateTime(license.issuedAt),
+        ],
+        [
+          i18n['com.affine.admin.file-expires-at'](),
+          formatDateTime(license.expiresAt),
+        ],
+        [
+          i18n['com.affine.admin.license-ends-at'](),
+          formatDateTime(license.endAt),
+        ],
         ['Entity', license.entity],
         ['Issuer', license.issuer],
       ]
@@ -618,9 +643,13 @@ function LicensePreviewDialog({
     <Dialog open={!!license} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>License Preview</DialogTitle>
+          <DialogTitle>
+            {i18n['com.affine.admin.license-preview']()}
+          </DialogTitle>
           <DialogDescription>
-            Signature and payload format are valid.
+            {i18n[
+              'com.affine.admin.signature-and-payload-format-are-valid'
+            ]()}{' '}
           </DialogDescription>
         </DialogHeader>
         <div className="rounded-lg border border-border/60 overflow-hidden">
@@ -637,7 +666,9 @@ function LicensePreviewDialog({
           ))}
         </div>
         <DialogFooter className="mt-2">
-          <Button onClick={() => onOpenChange(false)}>Confirm</Button>
+          <Button onClick={() => onOpenChange(false)}>
+            {i18n['com.affine.payment.modal.resume.confirm']()}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -653,6 +684,7 @@ function DashboardActions({
   isValidating: boolean;
   onRefresh: () => void;
 }) {
+  const i18n = useI18n();
   const inputRef = useRef<HTMLInputElement>(null);
   const pickerOpenRef = useRef(false);
   const [licensePreview, setLicensePreview] = useState<LicensePreview | null>(
@@ -663,13 +695,15 @@ function DashboardActions({
   });
 
   const notifyNoFileSelected = useCallback(() => {
-    toast.error('No license file selected.');
-  }, []);
+    toast.error(i18n['com.affine.admin.no-license-file-selected']());
+  }, [i18n]);
 
   const openLicensePicker = useCallback(() => {
     const input = inputRef.current;
     if (!input) {
-      toast.error('Failed to open license file picker.');
+      toast.error(
+        i18n['com.affine.admin.failed-to-open-license-file-picker']()
+      );
       return;
     }
 
@@ -688,7 +722,7 @@ function DashboardActions({
 
     window.addEventListener('focus', handleFocus);
     input.click();
-  }, [notifyNoFileSelected]);
+  }, [notifyNoFileSelected, i18n]);
 
   const handleLicenseFileChange = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => {
@@ -706,10 +740,10 @@ function DashboardActions({
         })
         .catch(error => {
           console.error(error);
-          toast.error('Failed to preview license.');
+          toast.error(i18n['com.affine.admin.failed-to-preview-license']());
         });
     },
-    [notifyNoFileSelected, previewLicense]
+    [notifyNoFileSelected, previewLicense, i18n]
   );
 
   const menuItems = useMemo(
@@ -719,18 +753,18 @@ function DashboardActions({
         : [
             {
               key: 'preview-license',
-              label: 'Preview license',
+              label: i18n['com.affine.admin.preview-license'](),
               onSelect: openLicensePicker,
             },
           ],
-    [openLicensePicker]
+    [openLicensePicker, i18n]
   );
 
   return (
     <>
       <div className="flex flex-wrap items-center justify-end gap-3">
         <span className="text-xs text-muted-foreground tabular-nums">
-          Updated at {formatDateTime(updatedAt)}
+          {i18n['com.affine.admin.updated-at']()} {formatDateTime(updatedAt)}
         </span>
         <div className="flex items-center gap-2">
           <Button
@@ -743,12 +777,16 @@ function DashboardActions({
               className={`h-3.5 w-3.5 mr-1.5 ${isValidating ? 'animate-spin' : ''}`}
               aria-hidden="true"
             />
-            Refresh
+            {i18n['com.affine.payment.plans-error-retry']()}{' '}
           </Button>
           {menuItems.length ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" aria-label="Dashboard menu">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  aria-label={i18n['com.affine.admin.dashboard-menu']()}
+                >
                   <ChevronDownIcon className="h-3.5 w-3.5" aria-hidden />
                 </Button>
               </DropdownMenuTrigger>
@@ -784,10 +822,11 @@ function DashboardActions({
 }
 
 function DashboardPageSkeleton() {
+  const i18n = useI18n();
   return (
     <div className="h-dvh flex-1 flex-col flex overflow-hidden">
       <Header
-        title="Dashboard"
+        title={i18n['com.affine.admin.dashboard']()}
         endFix={
           <div className="flex items-center gap-3">
             <Skeleton className="h-3 w-44" />
@@ -855,6 +894,7 @@ function TopSharedLinksSection({
   sharedLinkWindowDays: number;
   onWindowChange: (value: number) => void;
 }) {
+  const i18n = useI18n();
   const variables = useMemo(
     () => ({
       input: {
@@ -885,14 +925,18 @@ function TopSharedLinksSection({
     <Card className="border-border/60 bg-card shadow-1">
       <CardHeader className="flex flex-col gap-3 pb-4 md:flex-row md:items-start md:justify-between">
         <div className="space-y-1.5">
-          <CardTitle className="text-base">Top Shared Links</CardTitle>
+          <CardTitle className="text-base">
+            {i18n['com.affine.admin.top-shared-links']()}
+          </CardTitle>
           <CardDescription>
-            Top {topSharedLinks.length} links in the last{' '}
-            {topSharedLinksWindow.effectiveSize} days
+            {i18n['com.affine.admin.top-links-window']({
+              count: String(topSharedLinks.length),
+              days: String(topSharedLinksWindow.effectiveSize),
+            })}
           </CardDescription>
         </div>
         <PanelRangeSelect
-          ariaLabel="Top shared links range"
+          ariaLabel={i18n['com.affine.admin.shared-links-range']()}
           value={sharedLinkWindowDays}
           options={SHARED_DAY_OPTIONS}
           unit="days"
@@ -903,26 +947,41 @@ function TopSharedLinksSection({
         {topSharedLinks.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border/60 p-8 text-center bg-muted/15">
             <div className="text-sm font-medium">
-              No shared links in this window
+              {i18n['com.affine.admin.no-shared-links-in-this-window']()}{' '}
             </div>
             <div className="text-xs text-muted-foreground mt-2">
-              Publish pages and collect traffic, then this table will rank links
-              by views.
+              {i18n[
+                'com.affine.admin.publish-pages-and-collect-traffic-then-this-table-will-rank-links-by-views'
+              ]()}{' '}
             </div>
             <Button asChild variant="outline" size="sm" className="mt-4">
-              <Link to={ROUTES.admin.workspaces}>Go to Workspaces</Link>
+              <Link to={ROUTES.admin.workspaces}>
+                {i18n['com.affine.admin.go-to-workspaces']()}
+              </Link>
             </Button>
           </div>
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Document</TableHead>
-                <TableHead>Workspace</TableHead>
-                <TableHead className="text-right">Views</TableHead>
-                <TableHead className="text-right">Unique</TableHead>
-                <TableHead className="text-right">Guest</TableHead>
-                <TableHead>Last Accessed</TableHead>
+                <TableHead>
+                  {i18n['com.affine.localmind.aiContext.scope.document']()}
+                </TableHead>
+                <TableHead>
+                  {i18n['com.affine.localmind.tasks.authorization.workspace']()}
+                </TableHead>
+                <TableHead className="text-right">
+                  {i18n['com.affine.admin.views']()}
+                </TableHead>
+                <TableHead className="text-right">
+                  {i18n['com.affine.doc.analytics.metric.unique']()}
+                </TableHead>
+                <TableHead className="text-right">
+                  {i18n['com.affine.doc.analytics.metric.guest']()}
+                </TableHead>
+                <TableHead>
+                  {i18n['com.affine.admin.last-accessed']()}
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -972,10 +1031,6 @@ function TopSharedLinksSection({
       </CardContent>
     </Card>
   );
-}
-
-function mailWindowLabel(hours: number) {
-  return hours === 24 ? '24h' : '7d';
 }
 
 function mailBucketLabel(value: string, hours: number) {
@@ -1056,6 +1111,7 @@ function MailDeliverySection({
   hours: number;
   onHoursChange: (value: number) => void;
 }) {
+  const i18n = useI18n();
   const [mode, setMode] = useState<MailChartMode>('status');
   const { data } = useQuery(
     {
@@ -1112,16 +1168,19 @@ function MailDeliverySection({
         <div className="space-y-1.5">
           <CardTitle className="flex items-center gap-2 text-base">
             <MailIcon className="h-4 w-4" aria-hidden="true" />
-            Email Delivery Trend
+            {i18n['com.affine.admin.email-delivery-trend']()}{' '}
           </CardTitle>
           <CardDescription>
-            {mailWindowLabel(hours)} at{' '}
-            {analytics.window.bucket === 'Hour' ? 'hour' : 'day'} bucket in UTC
+            {i18n[
+              analytics.window.bucket === 'Hour'
+                ? 'com.affine.admin.mail-bucket-hour'
+                : 'com.affine.admin.mail-bucket-day'
+            ]({ window: rangeOptionLabel(hours, 'hours', i18n) })}
           </CardDescription>
         </div>
         <div className="flex w-full flex-col gap-2 md:w-auto md:flex-row">
           <PanelRangeSelect
-            ariaLabel="Email delivery range"
+            ariaLabel={i18n['com.affine.admin.mail-delivery-range']()}
             value={hours}
             options={MAIL_HOUR_OPTIONS}
             unit="hours"
@@ -1135,9 +1194,15 @@ function MailDeliverySection({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="status">Status</SelectItem>
-              <SelectItem value="type">Mail type</SelectItem>
-              <SelectItem value="outcome">Success / failure</SelectItem>
+              <SelectItem value="status">
+                {i18n['com.affine.admin.status']()}
+              </SelectItem>
+              <SelectItem value="type">
+                {i18n['com.affine.admin.mail-type']()}
+              </SelectItem>
+              <SelectItem value="outcome">
+                {i18n['com.affine.admin.success-failure']()}
+              </SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -1145,25 +1210,33 @@ function MailDeliverySection({
       <CardContent className="space-y-4">
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <div className="rounded-md border border-border/60 bg-muted/15 px-3 py-2">
-            <div className="text-xs text-muted-foreground">Sent</div>
+            <div className="text-xs text-muted-foreground">
+              {i18n['com.affine.auth.sent']()}
+            </div>
             <div className="mt-1 text-xl font-semibold tabular-nums">
               {compactFormatter.format(analytics.summary.sent)}
             </div>
           </div>
           <div className="rounded-md border border-border/60 bg-muted/15 px-3 py-2">
-            <div className="text-xs text-muted-foreground">Not delivered</div>
+            <div className="text-xs text-muted-foreground">
+              {i18n['com.affine.admin.not-delivered']()}
+            </div>
             <div className="mt-1 text-xl font-semibold tabular-nums">
               {compactFormatter.format(failedLike)}
             </div>
           </div>
           <div className="rounded-md border border-border/60 bg-muted/15 px-3 py-2">
-            <div className="text-xs text-muted-foreground">Pending</div>
+            <div className="text-xs text-muted-foreground">
+              {i18n['com.affine.localmind.workbench.status.pending']()}
+            </div>
             <div className="mt-1 text-xl font-semibold tabular-nums">
               {compactFormatter.format(pending)}
             </div>
           </div>
           <div className="rounded-md border border-border/60 bg-muted/15 px-3 py-2">
-            <div className="text-xs text-muted-foreground">Success rate</div>
+            <div className="text-xs text-muted-foreground">
+              {i18n['com.affine.admin.success-rate']()}
+            </div>
             <div className="mt-1 text-xl font-semibold tabular-nums">
               {(analytics.summary.successRate * 100).toFixed(1)}%
             </div>
@@ -1171,7 +1244,7 @@ function MailDeliverySection({
         </div>
 
         <MultiTrendChart
-          ariaLabel="Email delivery trend"
+          ariaLabel={i18n['com.affine.admin.mail-delivery-chart']()}
           points={chartPoints}
           series={chartSeries}
           valueFormatter={value => intFormatter.format(value)}
@@ -1223,6 +1296,7 @@ function MailDeliveryCardSkeleton() {
 }
 
 function DashboardPageContent() {
+  const i18n = useI18n();
   const [storageHistoryDays, setStorageHistoryDays] = useState<number>(30);
   const [syncHistoryHours, setSyncHistoryHours] = useState<number>(48);
   const [copilotWindowDays, setCopilotWindowDays] = useState<number>(7);
@@ -1295,7 +1369,7 @@ function DashboardPageContent() {
   return (
     <div className="h-dvh flex-1 flex-col flex overflow-hidden">
       <Header
-        title="Dashboard"
+        title={i18n['com.affine.admin.dashboard']()}
         endFix={
           <DashboardActions
             updatedAt={dashboard.generatedAt}
@@ -1313,20 +1387,24 @@ function DashboardPageContent() {
           <div className="h-full min-w-0 lg:col-span-5">
             <PrimaryMetricCard
               value={intFormatter.format(dashboard.syncActiveUsers)}
-              description={`${dashboard.syncWindow.effectiveSize}h active window`}
+              description={i18n['com.affine.admin.active-window']({
+                hours: String(dashboard.syncWindow.effectiveSize),
+              })}
             />
           </div>
           <div className="h-full min-w-0 lg:col-span-3">
             <SecondaryMetricCard
-              title="Copilot Conversations"
+              title={i18n['com.affine.admin.copilot-conversations']()}
               value={intFormatter.format(dashboard.copilotConversations)}
-              description={`${dashboard.copilotWindow.effectiveSize}d aggregation`}
+              description={i18n['com.affine.admin.conversation-aggregation']({
+                days: String(dashboard.copilotWindow.effectiveSize),
+              })}
               icon={
                 <MessageSquareTextIcon className="h-4 w-4" aria-hidden="true" />
               }
               action={
                 <PanelRangeSelect
-                  ariaLabel="Copilot conversations range"
+                  ariaLabel={i18n['com.affine.admin.conversation-range']()}
                   value={copilotWindowDays}
                   options={COPILOT_DAY_OPTIONS}
                   unit="days"
@@ -1340,7 +1418,7 @@ function DashboardPageContent() {
               <CardHeader className="pb-2">
                 <CardDescription className="flex items-center gap-2 text-sm">
                   <DatabaseIcon className="h-4 w-4" aria-hidden="true" />
-                  Managed Storage
+                  {i18n['com.affine.admin.managed-storage']()}{' '}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -1348,8 +1426,10 @@ function DashboardPageContent() {
                   {formatBytes(totalStorageBytes)}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Workspace {formatBytes(dashboard.workspaceStorageBytes)} •
-                  Blob {formatBytes(dashboard.blobStorageBytes)}
+                  {i18n['com.affine.localmind.tasks.authorization.workspace']()}{' '}
+                  {formatBytes(dashboard.workspaceStorageBytes)}{' '}
+                  {i18n['com.affine.admin.blob']()}{' '}
+                  {formatBytes(dashboard.blobStorageBytes)}
                 </p>
               </CardContent>
             </Card>
@@ -1361,14 +1441,16 @@ function DashboardPageContent() {
             <CardHeader className="flex flex-col gap-3 pb-4 md:flex-row md:items-start md:justify-between">
               <div className="space-y-1.5">
                 <CardTitle className="text-base">
-                  Sync Active Users Trend
+                  {i18n['com.affine.admin.sync-active-users-trend']()}{' '}
                 </CardTitle>
                 <CardDescription>
-                  {dashboard.syncWindow.effectiveSize}h at minute bucket
+                  {i18n['com.affine.admin.sync-window']({
+                    hours: String(dashboard.syncWindow.effectiveSize),
+                  })}
                 </CardDescription>
               </div>
               <PanelRangeSelect
-                ariaLabel="Sync active users range"
+                ariaLabel={i18n['com.affine.admin.sync-users-range']()}
                 value={syncHistoryHours}
                 options={SYNC_HOUR_OPTIONS}
                 unit="hours"
@@ -1377,9 +1459,9 @@ function DashboardPageContent() {
             </CardHeader>
             <CardContent className="space-y-3">
               <TrendChart
-                ariaLabel="Sync active users trend"
+                ariaLabel={i18n['com.affine.admin.sync-users-chart']()}
                 points={syncPoints}
-                primaryLabel="Sync Active Users"
+                primaryLabel={i18n['com.affine.admin.sync-users-series']()}
                 primaryFormatter={value => intFormatter.format(value)}
               />
             </CardContent>
@@ -1389,14 +1471,16 @@ function DashboardPageContent() {
             <CardHeader className="flex flex-col gap-3 pb-4 md:flex-row md:items-start md:justify-between">
               <div className="space-y-1.5">
                 <CardTitle className="text-base">
-                  Storage Trend (Workspace + Blob)
+                  {i18n['com.affine.admin.storage-trend-workspace-blob']()}{' '}
                 </CardTitle>
                 <CardDescription>
-                  {dashboard.storageWindow.effectiveSize}d at day bucket
+                  {i18n['com.affine.admin.storage-window']({
+                    days: String(dashboard.storageWindow.effectiveSize),
+                  })}
                 </CardDescription>
               </div>
               <PanelRangeSelect
-                ariaLabel="Storage trend range"
+                ariaLabel={i18n['com.affine.admin.storage-range']()}
                 value={storageHistoryDays}
                 options={STORAGE_DAY_OPTIONS}
                 unit="days"
@@ -1405,22 +1489,26 @@ function DashboardPageContent() {
             </CardHeader>
             <CardContent className="space-y-4">
               <TrendChart
-                ariaLabel="Workspace and blob storage trend"
+                ariaLabel={i18n['com.affine.admin.storage-chart']()}
                 points={storagePoints}
-                primaryLabel="Workspace Storage"
+                primaryLabel={i18n[
+                  'com.affine.admin.workspace-storage-series'
+                ]()}
                 primaryFormatter={value => formatBytes(value)}
-                secondaryLabel="Blob Storage"
+                secondaryLabel={i18n['com.affine.admin.blob-storage-series']()}
                 secondaryFormatter={value => formatBytes(value)}
               />
 
               <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
                 <div className="flex items-center gap-2">
                   <span className="h-2 w-2 rounded-full bg-primary" />
-                  Workspace: {formatBytes(dashboard.workspaceStorageBytes)}
+                  {i18n['com.affine.admin.workspace']()}{' '}
+                  {formatBytes(dashboard.workspaceStorageBytes)}
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="h-2 w-2 rounded-full bg-foreground/50" />
-                  Blob: {formatBytes(dashboard.blobStorageBytes)}
+                  {i18n['com.affine.admin.blob-2']()}{' '}
+                  {formatBytes(dashboard.blobStorageBytes)}
                 </div>
               </div>
             </CardContent>

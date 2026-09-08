@@ -36,6 +36,7 @@ import { SearchResults } from '../../views/search/search-results';
 import * as styles from '../../views/search/style.css';
 
 const RecentList = () => {
+  const i18n = useI18n();
   const { mobileSearchService, collectionService, tagService } = useServices({
     MobileSearchService,
     CollectionService,
@@ -92,7 +93,7 @@ const RecentList = () => {
 
   return (
     <SearchResults
-      title="Recent"
+      title={i18n['com.affine.editor.at-menu.recent-docs']()}
       docs={docs}
       collections={collectionList}
       tags={tagList}
@@ -101,6 +102,7 @@ const RecentList = () => {
 };
 
 const WithQueryList = () => {
+  const i18n = useI18n();
   const searchService = useService(MobileSearchService);
   const collectionList = useLiveData(searchService.collections.items$);
   const docList = useLiveData(searchService.docs.items$);
@@ -122,7 +124,7 @@ const WithQueryList = () => {
 
   return (
     <SearchResults
-      title="Search result"
+      title={i18n['com.affine.ui.search-result']()}
       docs={docs}
       collections={collectionList}
       tags={tagList}
@@ -175,7 +177,7 @@ export const Component = () => {
             autoFocus={!searchInput}
             value={searchInput}
             onInput={onSearch}
-            placeholder="Search Docs, Collections"
+            placeholder={t['com.affine.ui.search-docs-collections']()}
           />
           <NavigationBackButton>
             <Button

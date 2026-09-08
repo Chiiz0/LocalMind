@@ -3,7 +3,10 @@ import 'fake-indexeddb/auto';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { applyUpdate, Doc, encodeStateAsUpdate } from 'yjs';
 
-import { ProjectDocumentSession } from './document-session';
+import {
+  ProjectDocumentSession,
+  type ProjectRecoverableDraft,
+} from './document-session';
 
 const sessions: ProjectDocumentSession[] = [];
 const documents: Doc[] = [];
@@ -44,7 +47,13 @@ function fixture(
     version,
   }));
   const onState = vi.fn();
-  const open = (key = cacheKey) => {
+  const open = (
+    key = cacheKey,
+    options: {
+      recoverFrom?: string[];
+      onRecoverableDrafts?: (drafts: ProjectRecoverableDraft[]) => void;
+    } = {}
+  ) => {
     const doc = newDoc();
     const session = new ProjectDocumentSession({
       doc,
@@ -53,6 +62,7 @@ function fixture(
       read,
       onState,
       onSaved: vi.fn(),
+      ...options,
     });
     sessions.push(session);
     return { doc, session };
@@ -77,6 +87,68 @@ afterEach(async () => {
 });
 
 describe('Project document persistence', () => {
+  test('another tab lists isolated local drafts and recovers only after explicit selection without merging remote edits', async () => {
+    const prefix = [crypto.randomUUID(), 'actor', 'project', 'resource'];
+    const oldKey = [...prefix, 'old-tab'];
+    const f = fixture(oldKey);
+    const first = f.open();
+    await first.session.load();
+    first.doc.getMap('content').set('local', 'Earlier tab');
+    await first.session.dispose();
+    f.changeRemote();
+    const drafts = vi.fn();
+    const key = [...prefix, 'new-tab'];
+    const fresh = f.open(key, { onRecoverableDrafts: drafts });
+    await fresh.session.load();
+    expect(fresh.doc.getMap('content').has('local')).toBe(false);
+    expect(drafts.mock.lastCall?.[0]).toEqual([
+      expect.objectContaining({ cacheKey: oldKey, version: 1 }),
+    ]);
+    await fresh.session.dispose();
+    const recovered = f.open(key, { recoverFrom: oldKey });
+    await recovered.session.load();
+    expect(recovered.doc.getMap('content').get('local')).toBe('Earlier tab');
+    expect(recovered.doc.getMap('content').has('remote')).toBe(false);
+    await recovered.session.saveChanges().catch(() => {});
+    expect(f.save).not.toHaveBeenCalled();
+    expect(f.onState.mock.lastCall?.[0].phase).toBe('error');
+    expect(f.onState.mock.lastCall?.[0].error.status).toBe(409);
+    const denied = f.open(key, {
+      recoverFrom: [prefix[0], 'other-actor', 'project', 'resource', 'old-tab'],
+    });
+    await expect(denied.session.load()).rejects.toThrow('scope');
+  });
+  test('discarding a suspended draft removes it without sending a save', async () => {
+    const f = fixture();
+    const { session, doc } = f.open();
+    await session.load();
+    doc.getMap('content').set('body', 'Discarded draft');
+    session.suspend();
+    await session.flush();
+    expect(f.save).not.toHaveBeenCalled();
+    await session.discardChanges();
+    session.resume();
+    await session.dispose();
+    const reopened = f.open();
+    await reopened.session.load();
+    expect(reopened.doc.getMap('content').get('body')).toBeUndefined();
+    expect(f.save).not.toHaveBeenCalled();
+  });
+
+  test('explicit save waits for the draft and fails if it remains unsaved', async () => {
+    const f = fixture();
+    const { session, doc } = f.open();
+    await session.load();
+    doc.getMap('content').set('body', 'Close after saving');
+    session.suspend();
+    await session.saveChanges();
+    expect(session.hasUnsavedChanges).toBe(false);
+    expect(f.server.getMap('content').get('body')).toBe('Close after saving');
+    doc.getMap('content').set('body', 'Still offline');
+    f.save.mockRejectedValue(new Error('Offline'));
+    await expect(session.saveChanges()).rejects.toThrow('remain unsaved');
+    expect(session.hasUnsavedChanges).toBe(true);
+  });
   test('replays the exact request after a committed response is lost', async () => {
     const f = fixture();
     const { session, doc } = f.open();
@@ -121,7 +193,7 @@ describe('Project document persistence', () => {
     expect(f.save.mock.calls[1][0].expectedContentVersion).toBe(2);
   });
 
-  test('retains local and remote Yjs edits after an explicit conflict retry', async () => {
+  test('a conflict retains the local draft without merging or overwriting the remote version', async () => {
     const f = fixture();
     const { session, doc } = f.open();
     await session.load();
@@ -130,9 +202,12 @@ describe('Project document persistence', () => {
     await session.flush();
     expect(f.receipts.size).toBe(0);
     await session.retry();
-    expect(f.server.getMap('content').get('local')).toBe('My edit');
+    expect(f.server.getMap('content').get('local')).toBeUndefined();
     expect(f.server.getMap('content').get('remote')).toBe('Another member');
-    expect(f.receipts.size).toBe(1);
+    expect(f.receipts.size).toBe(0);
+    expect(doc.getMap('content').get('local')).toBe('My edit');
+    expect(doc.getMap('content').get('remote')).toBeUndefined();
+    expect(session.hasUnsavedChanges).toBe(true);
   });
 
   test('reopens a durable failed request without changing its identity', async () => {

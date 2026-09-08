@@ -3,11 +3,13 @@ import { useMutation } from '@affine/admin/use-mutation';
 import { notify } from '@affine/component';
 import type { UserFriendlyError } from '@affine/error';
 import { sendTestEmailMutation } from '@affine/graphql';
+import { useI18n } from '@affine/i18n';
 import { useCallback } from 'react';
 
 import type { AppConfig } from '../config';
 
 export function SendTestEmail({ appConfig }: { appConfig: AppConfig }) {
+  const i18n = useI18n();
   const { trigger } = useMutation({
     mutation: sendTestEmailMutation,
   });
@@ -16,17 +18,24 @@ export function SendTestEmail({ appConfig }: { appConfig: AppConfig }) {
     trigger(appConfig.mailer.SMTP)
       .then(() => {
         notify.success({
-          title: 'Test email sent',
-          message: 'The test email has been successfully sent.',
+          title: i18n['com.affine.admin.test-email-sent'](),
+          message:
+            i18n[
+              'com.affine.admin.the-test-email-has-been-successfully-sent'
+            ](),
         });
       })
       .catch((err: UserFriendlyError) => {
         notify.error({
-          title: 'Failed to send test email',
+          title: i18n['com.affine.admin.failed-to-send-test-email'](),
           message: err.message,
         });
       });
-  }, [appConfig, trigger]);
+  }, [appConfig, trigger, i18n]);
 
-  return <Button onClick={onClick}>Send Test Email</Button>;
+  return (
+    <Button onClick={onClick}>
+      {i18n['com.affine.admin.send-test-email']()}
+    </Button>
+  );
 }

@@ -9,11 +9,13 @@ import type {
   ServerService,
   SubscriptionService,
 } from '@affine/core/modules/cloud';
+import { I18nController } from '@affine/core/modules/i18n/lit-controller';
 import {
   type CopilotChatHistoryFragment,
   ServerDeploymentType,
   SubscriptionStatus,
 } from '@affine/graphql';
+import { I18n } from '@affine/i18n';
 import {
   menu,
   popMenu,
@@ -45,6 +47,8 @@ const modelSubMenuMiddleware = [
 export class ChatInputPreference extends SignalWatcher(
   WithDisposable(ShadowlessElement)
 ) {
+  readonly languageController = new I18nController(this);
+
   static override styles = css`
     .chat-input-preference-trigger {
       display: flex;
@@ -235,7 +239,9 @@ export class ChatInputPreference extends SignalWatcher(
               select: () => {
                 if (model.isPro && !isSelfHosted && !isSubscribed) {
                   this.notificationService.toast(
-                    `Pro models require a LocalMind AI subscription.`
+                    I18n[
+                      'com.affine.ui.pro-models-require-a-localmind-ai-subscription'
+                    ]()
                   );
                   return;
                 }

@@ -61,7 +61,7 @@ export default defineConfig({
       // rootDir cannot be used as a pattern on windows
       fg.convertPathToPattern(rootDir) +
         'packages/{common,frontend}/**/*.spec.{ts,tsx}',
-      fg.convertPathToPattern(rootDir) + 'tools/utils/**/*.spec.ts',
+      fg.convertPathToPattern(rootDir) + 'tools/{cli,utils}/**/*.spec.ts',
     ],
     exclude: [
       '**/node_modules',

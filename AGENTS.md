@@ -22,7 +22,9 @@ Project 原生资源已实现，产品及验收契约的 source of truth 是
 `docs/ai-modernization/tracks/project-native-resources.md`。Project 拥有独立文档
 和文件树，默认内部保存不属于任何 Workspace；只有用户明确要求才发布或更新
 指定 Workspace 的独立副本。成员默认内部读写，对外操作按目标 ACL，导入按
-来源复制/分享权限。该契约覆盖旧的共享引用直接写回语义，不能用隐藏 Workspace
+来源复制/分享权限。复制审批人通过通知处理申请，不因审批身份额外生成待办；申请方
+保留等待待办。已批准的复制授权不可由审批人撤回，未决申请仍可撤回。该契约覆盖旧的
+共享引用直接写回语义，不能用隐藏 Workspace
 替代项目原生存储。
 
 新增 LocalMind AI 能力通常至少应落到以下一项：
@@ -168,14 +170,15 @@ AI 现代化任务按以下顺序读取：
 
 当前 track：
 
-| Track                    | 文档                                 | 关注点                                                    |
-| ------------------------ | ------------------------------------ | --------------------------------------------------------- |
-| Support Bundle           | `tracks/support-bundle.md`           | 请求、归档、下载授权、保留清理、转发与重放                |
-| Repair Execution         | `tracks/repair-execution.md`         | 预览、预检、审批、worker、side effect 与人工控制          |
-| Agent Runtime            | `tracks/agent-runtime.md`            | run/step/timeline、租约、adapter、执行结果与取消          |
-| Registries               | `tracks/registries.md`               | prompt/model/provider/task route/health 的 DB-backed 状态 |
-| Context Memory           | `tracks/context-memory.md`           | Rule、Automatic Memory、scope、检索、信任边界与评测       |
-| Project Native Resources | `tracks/project-native-resources.md` | Project 原生文档/文件树、独立副本、显式发布与旧引用迁移   |
+| Track                      | 文档                                   | 关注点                                                                            |
+| -------------------------- | -------------------------------------- | --------------------------------------------------------------------------------- |
+| Support Bundle             | `tracks/support-bundle.md`             | 请求、归档、下载授权、保留清理、转发与重放                                        |
+| Repair Execution           | `tracks/repair-execution.md`           | 预览、预检、审批、worker、side effect 与人工控制                                  |
+| Agent Runtime              | `tracks/agent-runtime.md`              | run/step/timeline、租约、adapter、执行结果与取消                                  |
+| Registries                 | `tracks/registries.md`                 | prompt/model/provider/task route/health 的 DB-backed 状态                         |
+| Context Memory             | `tracks/context-memory.md`             | Rule、Automatic Memory、scope、检索、信任边界与评测                               |
+| Project Native Resources   | `tracks/project-native-resources.md`   | Project 原生文档/文件树、独立副本、导入与显式发布；旧引用退场由工作台重构契约覆盖 |
+| Project Workbench Redesign | `tracks/project-workbench-redesign.md` | Project 独立壳与路由、主区域文件树、旧引用退场、实时、编辑租约、双入口审批        |
 
 `docs/ai-modernization/archive/` 是历史审计记录，不是默认执行入口。只有当前文档
 引用了具体历史章节，或任务需要追溯旧决策时才读取。不要继续旧的“不断加深
