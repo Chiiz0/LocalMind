@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import * as styles from '../workspace/office/chat.css';
 import { ProjectPublications } from './project-publications';
+import * as taskStyles from './project-tasks.css';
 import { useProjectTaskDecision } from './use-project-task-decision';
 
 type ProjectTasksProps = {
@@ -122,10 +123,10 @@ function ProjectTaskList({
   };
   return (
     <details
-      className={styles.taskRegion}
+      className={taskStyles.taskRegion}
       open={tasks.some(task => task.status === 'waiting_approval')}
     >
-      <summary className={styles.taskHeader}>
+      <summary className={taskStyles.taskSummary}>
         {t['com.affine.localmind.project-tasks.title']()} ({tasks.length})
       </summary>
       <div className={styles.taskList}>
@@ -186,11 +187,15 @@ function ProjectTaskList({
                     </span>
                   ) : null}
                 </div>
-                {task.status === 'waiting_lease' && task.leaseHolderName ? (
+                {task.status === 'waiting_lease' ? (
                   <p className={styles.taskReason}>
-                    {t['com.affine.localmind.project-lease.heldBy']({
-                      name: task.leaseHolderName,
-                    })}
+                    {task.leaseHolderName
+                      ? t['com.affine.localmind.project-tasks.waitingEditor']({
+                          name: task.leaseHolderName,
+                        })
+                      : t[
+                          'com.affine.localmind.project-tasks.waitingEditorUnknown'
+                        ]()}
                   </p>
                 ) : null}
                 {typeof preview?.reason === 'string' ? (

@@ -1,6 +1,7 @@
 /** @vitest-environment happy-dom */
 import {
   acquireProjectResourceEditLeaseMutation,
+  projectAgentTaskQuery,
   projectResourceEditLeaseQuery,
   releaseProjectResourceEditLeaseMutation,
   renewProjectResourceEditLeaseMutation,
@@ -165,5 +166,132 @@ test('15 second snapshots never postpone the 20 second renewal deadline', async 
     )
   ).toHaveLength(3);
   expect(store.snapshot().proof).not.toBeNull();
+  await leave();
+});
+
+test('handoff stops renewal and competing acquisitions until the exact AI task completes', async () => {
+  const { store, gql } = fixture();
+  const leave = store.retain();
+  await store.acquire();
+  const original = gql.getMockImplementation()!;
+  let status = 'queued';
+  gql.mockImplementation(async request => {
+    if (request.query === projectAgentTaskQuery)
+      return {
+        projectAgentTask: { id: 'task', projectId: 'project', status },
+      } as never;
+    if (request.query === projectResourceEditLeaseQuery)
+      return { projectResourceEditLease: null } as never;
+    return original(request);
+  });
+  expect(await store.handoff('task')).toBe(true);
+  expect(store.snapshot().proof).toBeNull();
+  await store.acquire();
+  await vi.advanceTimersByTimeAsync(60000);
+  expect(
+    gql.mock.calls.filter(
+      ([r]) => r.query === renewProjectResourceEditLeaseMutation
+    )
+  ).toHaveLength(0);
+  await store.trackHandoff('task');
+  expect(store.snapshot().proof).toBeNull();
+  status = 'running';
+  await store.refresh();
+  expect(store.snapshot().proof).toBeNull();
+  status = 'completed';
+  await store.refresh();
+  expect(store.snapshot().handoff).toBeNull();
+  expect(store.snapshot().proof).not.toBeNull();
+  expect(
+    gql.mock.calls.filter(
+      ([r]) => r.query === acquireProjectResourceEditLeaseMutation
+    )
+  ).toHaveLength(2);
+  await leave();
+});
+
+test.each(['failed', 'cancelled', 'waiting_approval'])(
+  'handoff recovers after %s without assuming a successful approval response',
+  async status => {
+    const { store, gql } = fixture();
+    const leave = store.retain();
+    await store.acquire();
+    await store.handoff('task');
+    gql.mockResolvedValueOnce({
+      projectAgentTask: { id: 'task', projectId: 'project', status },
+    } as never);
+    await store.trackHandoff('task');
+    expect(store.snapshot().handoff).toBeNull();
+    expect(store.snapshot().proof).not.toBeNull();
+    await leave();
+  }
+);
+
+test('failed release and late unsaved changes never proceed with a handoff', async () => {
+  const { store, gql } = fixture();
+  const leave = store.retain();
+  await store.acquire();
+  await expect(store.handoff('task', () => false)).rejects.toThrow('unsaved');
+  expect(store.snapshot().proof).not.toBeNull();
+  gql.mockRejectedValueOnce(new Error('offline'));
+  await expect(store.handoff('task')).rejects.toThrow('offline');
+  expect(store.snapshot().handoff).toBeNull();
+  expect(store.snapshot().proof).not.toBeNull();
+  await leave();
+});
+
+test('lost task status response keeps the editor read-only, including across pageshow', async () => {
+  const { store, gql } = fixture();
+  const leave = store.retain();
+  await store.acquire();
+  await store.handoff('task');
+  gql.mockRejectedValueOnce(new Error('offline'));
+  await expect(store.trackHandoff('task')).rejects.toThrow('offline');
+  expect(store.snapshot().handoff?.submitted).toBe(true);
+  expect(store.snapshot().proof).toBeNull();
+  window.dispatchEvent(new Event('pagehide'));
+  await vi.advanceTimersByTimeAsync(0);
+  gql.mockResolvedValueOnce({
+    projectAgentTask: { id: 'task', projectId: 'project', status: 'running' },
+  } as never);
+  window.dispatchEvent(new Event('pageshow'));
+  await vi.advanceTimersByTimeAsync(0);
+  expect(store.snapshot().proof).toBeNull();
+  expect(
+    gql.mock.calls.filter(
+      ([r]) => r.query === acquireProjectResourceEditLeaseMutation
+    )
+  ).toHaveLength(1);
+  await leave();
+});
+
+test('an uncertain approval cannot restore editing from an unchanged pending snapshot', async () => {
+  const { store, gql } = fixture();
+  const leave = store.retain();
+  await store.acquire();
+  await store.handoff('task');
+  const original = gql.getMockImplementation()!;
+  gql.mockImplementation(async request => {
+    if (request.query === projectAgentTaskQuery)
+      return {
+        projectAgentTask: {
+          id: 'task',
+          projectId: 'project',
+          status: 'waiting_approval',
+        },
+      } as never;
+    if (request.query === projectResourceEditLeaseQuery)
+      return { projectResourceEditLease: null } as never;
+    return original(request);
+  });
+  await store.trackHandoff('task', true);
+  await store.refresh();
+  expect(store.snapshot().handoff?.uncertain).toBe(true);
+  expect(store.snapshot().proof).toBeNull();
+  expect(
+    gql.mock.calls.filter(
+      ([r]) => r.query === acquireProjectResourceEditLeaseMutation
+    )
+  ).toHaveLength(1);
   await leave();
 });

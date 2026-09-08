@@ -19015,6 +19015,56 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.office.table-name-label"](): string;
     /**
+      * `Saving your changes…`
+      */
+    ["com.affine.localmind.project-tasks.savingBeforeHandoff"](): string;
+    /**
+      * `This tab will save any local changes first. Saved changes need a new AI preview; otherwise approval hands this file to AI and temporarily pauses editing.`
+      */
+    ["com.affine.localmind.project-tasks.handoffDescription"](): string;
+    /**
+      * `If this file is open for editing elsewhere, AI will wait. Save and close it in that editing tab so the task can continue.`
+      */
+    ["com.affine.localmind.project-tasks.approvalWaitDescription"](): string;
+    /**
+      * `Save changes first`
+      */
+    ["com.affine.localmind.project-tasks.saveAndReview"](): string;
+    /**
+      * `Approve and let AI edit`
+      */
+    ["com.affine.localmind.project-tasks.approveAndHandoff"](): string;
+    /**
+      * `Changes saved. Ask AI to generate a new preview for the latest version before approving.`
+      */
+    ["com.affine.localmind.project-tasks.savedNeedsPreview"](): string;
+    /**
+      * `The file has changed. Save any local edits and ask AI for a new preview before approving.`
+      */
+    ["com.affine.localmind.project-tasks.previewOutdated"](): string;
+    /**
+      * `Approved. AI will continue when the file is available for editing.`
+      */
+    ["com.affine.localmind.project-tasks.approvedQueued"](): string;
+    /**
+      * `Editing is paused while AI processes the approved task. Editing will resume when the task finishes.`
+      */
+    ["com.affine.localmind.project-tasks.handoffInProgress"](): string;
+    /**
+      * `{{name}} is editing this file. Save and close the file in that tab so AI can continue.`
+      */
+    ["com.affine.localmind.project-tasks.waitingEditor"](options: {
+        readonly name: string;
+    }): string;
+    /**
+      * `Waiting for editing to finish. Save and close the file in the editing tab so AI can continue.`
+      */
+    ["com.affine.localmind.project-tasks.waitingEditorUnknown"](): string;
+    /**
+      * `Approval could not be confirmed. Retry approval in the task card. This page stays read-only until the task is resolved.`
+      */
+    ["com.affine.localmind.project-tasks.handoffApprovalUnknown"](): string;
+    /**
       * `An internal error occurred.`
       */
     ["error.INTERNAL_SERVER_ERROR"](): string;

@@ -14,8 +14,10 @@ import {
 } from 'react';
 
 import { GraphQLService } from '../cloud';
+import { useProjectHandoffPreparation } from './edit-guard';
 import { projectEditLeaseStore, projectEditorTabId } from './edit-lease-store';
 import { useProjectRefresh } from './realtime';
+import { registerProjectTaskEditor } from './task-handoff';
 
 export { projectEditorTabId } from './edit-lease-store';
 const LeaseContext = createContext<{
@@ -29,18 +31,34 @@ export function useProjectEditLease() {
 export function ProjectResourceEditLeaseProvider({
   projectId,
   resourceId,
+  artifactId,
   children,
-}: PropsWithChildren<{ projectId: string; resourceId: string }>) {
+}: PropsWithChildren<{
+  projectId: string;
+  resourceId: string;
+  artifactId?: string;
+}>) {
   const t = useI18n();
   const graphql = useService(GraphQLService);
   const store = useMemo(
     () => projectEditLeaseStore(graphql, projectId, resourceId),
     [graphql, projectId, resourceId]
   );
-  const { lease, proof, pending, error } = useSyncExternalStore(
+  const { lease, proof, pending, error, handoff } = useSyncExternalStore(
     store.subscribe,
     store.snapshot
   );
+  const preparation = useProjectHandoffPreparation();
+  useEffect(() => {
+    if (!artifactId || !preparation) return;
+    return registerProjectTaskEditor(graphql, {
+      projectId,
+      resourceId,
+      artifactId,
+      store,
+      ...preparation,
+    });
+  }, [artifactId, graphql, preparation, projectId, resourceId, store]);
   const context = useMemo(
     () => ({ proof, tabId: projectEditorTabId() }),
     [proof]
@@ -50,6 +68,9 @@ export function ProjectResourceEditLeaseProvider({
   const messages = useRef(t);
   messages.current = t;
   useProjectRefresh(projectId, 'lease', store.refresh);
+  useProjectRefresh(projectId, 'task', () =>
+    store.snapshot().handoff ? store.refresh() : undefined
+  );
   useEffect(() => {
     const release = store.retain();
     previous.current = null;
@@ -90,17 +111,23 @@ export function ProjectResourceEditLeaseProvider({
           }}
         >
           <span>
-            {pending
-              ? t['com.affine.localmind.project-lease.acquiring']()
-              : error
-                ? t['com.affine.localmind.project-lease.failed']()
-                : lease
-                  ? lease.kind === 'ai_task'
-                    ? t['com.affine.localmind.project-lease.aiWriting']()
-                    : t['com.affine.localmind.project-lease.heldBy']({
-                        name: lease.holderName,
-                      })
-                  : t['com.affine.localmind.project-lease.available']()}
+            {handoff
+              ? t[
+                  handoff.uncertain
+                    ? 'com.affine.localmind.project-tasks.handoffApprovalUnknown'
+                    : 'com.affine.localmind.project-tasks.handoffInProgress'
+                ]()
+              : pending
+                ? t['com.affine.localmind.project-lease.acquiring']()
+                : error
+                  ? t['com.affine.localmind.project-lease.failed']()
+                  : lease
+                    ? lease.kind === 'ai_task'
+                      ? t['com.affine.localmind.project-lease.aiWriting']()
+                      : t['com.affine.localmind.project-lease.heldBy']({
+                          name: lease.holderName,
+                        })
+                    : t['com.affine.localmind.project-lease.available']()}
           </span>
           {lease && !lease.owned ? (
             <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -118,7 +145,12 @@ export function ProjectResourceEditLeaseProvider({
               {t['com.affine.localmind.project-lease.notify']()}
             </label>
           ) : null}
-          {!pending && (!lease || error) ? (
+          {handoff && error ? (
+            <Button onClick={() => void store.refresh().catch(store.report)}>
+              {t['Retry']()}
+            </Button>
+          ) : null}
+          {!handoff && !pending && (!lease || error) ? (
             <Button onClick={() => void store.acquire().catch(store.report)}>
               {t['com.affine.localmind.project-lease.edit']()}
             </Button>

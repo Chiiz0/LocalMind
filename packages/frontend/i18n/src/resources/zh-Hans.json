@@ -4839,5 +4839,17 @@
   "com.affine.localmind.workspace-import.permissionDenied": "导入权限已变更，请确认来源访问权限后重试。",
   "com.affine.localmind.workspace-import.sourceUnavailable": "源文件不可用，请确认文件仍然存在。",
   "com.affine.localmind.workspace-import.conflict": "导入期间文件发生了变化，请重试。",
-  "com.affine.office.table-name-label": "表格名称"
+  "com.affine.office.table-name-label": "表格名称",
+  "com.affine.localmind.project-tasks.savingBeforeHandoff": "正在保存你的修改…",
+  "com.affine.localmind.project-tasks.handoffDescription": "会先保存当前页面的未保存修改。保存后需重新生成 AI 预览；没有修改时，批准会将文件交给 AI，并暂时切换为只读。",
+  "com.affine.localmind.project-tasks.approvalWaitDescription": "如果此文件正在其他页面编辑，AI 会等待。请在持有编辑权的页面保存并关闭文件，让任务继续。",
+  "com.affine.localmind.project-tasks.saveAndReview": "先保存修改",
+  "com.affine.localmind.project-tasks.approveAndHandoff": "批准并交给 AI 执行",
+  "com.affine.localmind.project-tasks.savedNeedsPreview": "修改已保存。请让 AI 根据最新版本重新生成预览，再批准执行。",
+  "com.affine.localmind.project-tasks.previewOutdated": "文件内容已变化。请保存本地修改，并让 AI 重新生成预览后再批准。",
+  "com.affine.localmind.project-tasks.approvedQueued": "已批准，文件可编辑后 AI 将继续执行。",
+  "com.affine.localmind.project-tasks.handoffInProgress": "已将文件交给 AI，当前页面暂时只读。任务结束后会恢复编辑。",
+  "com.affine.localmind.project-tasks.waitingEditor": "{{name}} 正在编辑此文件。请在持有编辑权的页面保存并关闭文件，AI 随后会继续执行。",
+  "com.affine.localmind.project-tasks.waitingEditorUnknown": "正在等待编辑结束。请在持有编辑权的页面保存并关闭文件，AI 随后会继续执行。",
+  "com.affine.localmind.project-tasks.handoffApprovalUnknown": "尚未确认审批结果，请在任务卡片重试批准。当前页面保持只读，直到任务状态确认。"
 }

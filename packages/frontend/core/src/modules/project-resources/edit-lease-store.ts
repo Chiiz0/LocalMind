@@ -1,5 +1,6 @@
 import {
   acquireProjectResourceEditLeaseMutation,
+  projectAgentTaskQuery,
   type ProjectEditLeaseFieldsFragment,
   type ProjectEditLeaseProofInput,
   projectResourceEditLeaseQuery,
@@ -19,6 +20,7 @@ type State = {
   proof: ProjectEditLeaseProofInput | null;
   pending: boolean;
   error: unknown;
+  handoff: { taskId: string; submitted: boolean; uncertain?: boolean } | null;
 };
 
 /** One serialized lifecycle per resource and GraphQL identity, shared by editors and short writes. */
@@ -28,6 +30,7 @@ export class ProjectEditLeaseStore {
     proof: null,
     pending: true,
     error: null,
+    handoff: null,
   };
   private readonly listeners = new Set<() => void>();
   private users = 0;
@@ -69,14 +72,14 @@ export class ProjectEditLeaseStore {
   }
 
   private get active() {
-    return this.users > 0 && !this.suspended;
+    return this.users > 0 && !this.suspended && !this.state.handoff;
   }
 
   retain() {
     if (++this.users === 1) {
       window.addEventListener('pagehide', this.hide);
       window.addEventListener('pageshow', this.show);
-      void this.acquire().catch(() => {
+      void (this.state.handoff ? this.refresh() : this.acquire()).catch(() => {
         /* Published through the store. */
       });
     }
@@ -103,7 +106,7 @@ export class ProjectEditLeaseStore {
 
   private readonly show = () => {
     this.suspended = false;
-    void this.acquire().catch(() => {
+    void (this.state.handoff ? this.refresh() : this.acquire()).catch(() => {
       /* Published through the store. */
     });
   };
@@ -147,22 +150,75 @@ export class ProjectEditLeaseStore {
     }, 20000);
   }
 
-  readonly acquire = () =>
-    this.enqueue(async () => {
-      if (!this.active) return;
-      if (this.state.proof) return;
-      this.update({ pending: true });
-      const result = await this.graphql.gql({
-        query: acquireProjectResourceEditLeaseMutation,
-        variables: { input: this.input },
-      });
-      this.failures = 0;
-      this.accept(result.acquireProjectResourceEditLease.lease);
+  readonly acquire = () => this.enqueue(() => this.acquireCurrent());
+
+  private async acquireCurrent() {
+    if (!this.active || this.state.proof) return;
+    this.update({ pending: true });
+    const result = await this.graphql.gql({
+      query: acquireProjectResourceEditLeaseMutation,
+      variables: { input: this.input },
     });
+    this.failures = 0;
+    this.accept(result.acquireProjectResourceEditLease.lease);
+  }
+
+  /** Release only this tab's proof, and stay read-only until this exact task settles. */
+  readonly handoff = (taskId: string, isClean: () => boolean = () => true) =>
+    this.enqueue(async () => {
+      if (this.state.handoff) throw new Error('A Project handoff is pending');
+      const proof = this.state.proof;
+      if (!this.active || !proof) return false;
+      if (!isClean()) throw new Error('Project changes remain unsaved');
+      this.update({ handoff: { taskId, submitted: false }, proof: null });
+      this.schedule();
+      clearTimeout(this.expiry);
+      try {
+        await this.graphql.gql({
+          query: releaseProjectResourceEditLeaseMutation,
+          variables: { input: { ...this.input, leaseId: proof.leaseId } },
+        });
+        this.update({ lease: null });
+        return true;
+      } catch (error) {
+        // Approval has not been sent. Recheck authority after an ambiguous release.
+        this.update({ handoff: null, lease: null });
+        await this.acquireCurrent();
+        throw error;
+      }
+    });
+
+  readonly trackHandoff = async (taskId: string, uncertain = false) => {
+    if (this.state.handoff?.taskId !== taskId) return;
+    this.update({ handoff: { taskId, submitted: true, uncertain } });
+    await this.refresh();
+  };
 
   readonly refresh = () =>
     this.enqueue(async () => {
-      if (!this.active) return;
+      if (!this.users || this.suspended) return;
+      const handoff = this.state.handoff;
+      if (handoff?.submitted) {
+        const { projectAgentTask: task } = await this.graphql.gql({
+          query: projectAgentTaskQuery,
+          variables: { projectId: this.input.projectId, runId: handoff.taskId },
+        });
+        if (
+          task.id !== handoff.taskId ||
+          task.projectId !== this.input.projectId
+        )
+          throw new Error('Project handoff task does not match');
+        if (
+          ['completed', 'failed', 'cancelled'].includes(task.status) ||
+          (task.status === 'waiting_approval' && !handoff.uncertain)
+        ) {
+          this.update({ handoff: null, lease: null, proof: null });
+          await this.acquireCurrent();
+          return;
+        }
+        if (task.status !== 'waiting_approval' && handoff.uncertain)
+          this.update({ handoff: { ...handoff, uncertain: false } });
+      }
       const result = await this.graphql.gql({
         query: projectResourceEditLeaseQuery,
         variables: { input: this.input },

@@ -364,6 +364,17 @@ export const TaskPanel = ({
             </span>
           </span>
           <span className={styles.taskMeta}>{formatDate(task.updatedAt)}</span>
+          {task.status === 'waiting_lease' ? (
+            <span className={styles.taskMeta}>
+              {task.projectTask?.leaseHolderName
+                ? t['com.affine.localmind.project-tasks.waitingEditor']({
+                    name: task.projectTask.leaseHolderName,
+                  })
+                : t[
+                    'com.affine.localmind.project-tasks.waitingEditorUnknown'
+                  ]()}
+            </span>
+          ) : null}
           {isBlocker(task) ? (
             <span className={styles.blockerDetails}>
               <span>{blockerTypeLabel(task.blocker.type)}</span>

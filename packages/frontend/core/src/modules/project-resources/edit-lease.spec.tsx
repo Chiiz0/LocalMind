@@ -37,7 +37,7 @@ vi.mock('./realtime', () => ({
     _topic: string,
     callback: () => Promise<void>
   ) => {
-    state.refresh = callback;
+    if (_topic === 'lease') state.refresh = callback;
   },
 }));
 

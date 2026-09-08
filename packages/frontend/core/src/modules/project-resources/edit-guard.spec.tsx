@@ -16,6 +16,7 @@ import {
   type ProjectEditGuard,
   ProjectEditorGuard,
   useProjectEditGuard,
+  useProjectHandoffPreparation,
   useProjectUnsavedConfirmation,
 } from './edit-guard';
 
@@ -24,6 +25,7 @@ vi.mock('@affine/i18n', () => ({
 }));
 vi.mock('@affine/component', () => ({
   notify: { error: vi.fn() },
+  Loading: () => <span>Saving</span>,
   Button: ({
     children,
     onClick,
@@ -62,9 +64,20 @@ function setup(saveError = false) {
   function Editor() {
     useProjectEditGuard(guard);
     const confirm = useProjectUnsavedConfirmation();
+    const handoff = useProjectHandoffPreparation();
     return (
       <>
         <Link to="/project">Close</Link>
+        <button
+          onClick={() => {
+            void handoff
+              ?.save()
+              .then(saved => reload(saved))
+              .catch(() => notify.error({ title: 'save failed' }));
+          }}
+        >
+          Save for AI
+        </button>
         <button
           onClick={() => {
             void confirm()
@@ -147,4 +160,26 @@ describe('ProjectEditorGuard', () => {
     expect(router.state.location.pathname).toBe('/resource');
     expect(guard.hasUnsavedChanges).toBe(false);
   });
+});
+
+test('handoff saves the registered editor before continuing and does not discard drafts', async () => {
+  const { guard, reload } = setup();
+  fireEvent.click(screen.getByText('Save for AI'));
+  await waitFor(() => expect(reload).toHaveBeenCalledWith(true));
+  expect(guard.save).toHaveBeenCalledOnce();
+  expect(guard.discard).not.toHaveBeenCalled();
+  expect(guard.hasUnsavedChanges).toBe(false);
+  expect(guard.resume).toHaveBeenCalled();
+});
+
+test('handoff save failure keeps unsaved changes and restores the editor', async () => {
+  const { guard, reload } = setup(true);
+  fireEvent.click(screen.getByText('Save for AI'));
+  await waitFor(() =>
+    expect(notify.error).toHaveBeenCalledWith({ title: 'save failed' })
+  );
+  expect(reload).not.toHaveBeenCalled();
+  expect(guard.hasUnsavedChanges).toBe(true);
+  expect(guard.resume).toHaveBeenCalled();
+  expect(screen.queryByText('Saving')).toBeNull();
 });

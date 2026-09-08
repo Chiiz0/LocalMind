@@ -1,4 +1,4 @@
-import { Button, Modal, notify } from '@affine/component';
+import { Button, Loading, Modal, notify } from '@affine/component';
 import { UserFriendlyError } from '@affine/error';
 import { useI18n } from '@affine/i18n';
 import {
@@ -23,6 +23,7 @@ export type ProjectEditGuard = {
 const GuardContext = createContext<{
   register: (guard: ProjectEditGuard) => () => void;
   confirm: () => Promise<boolean>;
+  handoff: { hasUnsavedChanges: () => boolean; save: () => Promise<boolean> };
 } | null>(null);
 
 export function useProjectEditGuard(guard: ProjectEditGuard | null) {
@@ -49,12 +50,17 @@ export function useProjectUnsavedConfirmation() {
   return useContext(GuardContext)?.confirm ?? allow;
 }
 
+export function useProjectHandoffPreparation() {
+  return useContext(GuardContext)?.handoff;
+}
+
 export function ProjectEditorGuard({ children }: PropsWithChildren) {
   const t = useI18n();
   const guards = useRef(new Set<ProjectEditGuard>());
   const localDecision = useRef<((allow: boolean) => void) | null>(null);
   const [localOpen, setLocalOpen] = useState(false);
   const [pending, setPending] = useState(false);
+  const [handoffSaving, setHandoffSaving] = useState(false);
   const pendingRef = useRef(false);
   const register = useCallback((guard: ProjectEditGuard) => {
     guards.current.add(guard);
@@ -78,7 +84,33 @@ export function ProjectEditorGuard({ children }: PropsWithChildren) {
       localDecision.current = resolve;
     });
   }, [dirty]);
-  const context = useMemo(() => ({ register, confirm }), [register, confirm]);
+  const saveForHandoff = useCallback(async () => {
+    if (pendingRef.current || localDecision.current)
+      throw new Error('A Project edit decision is pending');
+    if (!dirty()) return false;
+    pendingRef.current = true;
+    setHandoffSaving(true);
+    const active = [...guards.current];
+    active.forEach(guard => guard.suspend?.());
+    try {
+      for (const guard of active)
+        if (guard.hasUnsavedChanges) await guard.save();
+      if (dirty()) throw new Error('Project changes remain unsaved');
+      return true;
+    } finally {
+      active.forEach(guard => guard.resume?.());
+      pendingRef.current = false;
+      setHandoffSaving(false);
+    }
+  }, [dirty]);
+  const context = useMemo(
+    () => ({
+      register,
+      confirm,
+      handoff: { hasUnsavedChanges: dirty, save: saveForHandoff },
+    }),
+    [register, confirm, dirty, saveForHandoff]
+  );
   const open = blocker.state === 'blocked' || localOpen;
   useEffect(() => {
     const active = [...guards.current];
@@ -134,6 +166,13 @@ export function ProjectEditorGuard({ children }: PropsWithChildren) {
   return (
     <GuardContext.Provider value={context}>
       {children}
+      <Modal
+        open={handoffSaving}
+        title={t['com.affine.localmind.project-tasks.savingBeforeHandoff']()}
+        onOpenChange={() => {}}
+      >
+        <Loading size={24} />
+      </Modal>
       <Modal
         open={open}
         title={t['com.affine.localmind.project-files.unsavedConfirm']()}

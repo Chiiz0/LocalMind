@@ -70,6 +70,7 @@ export function ProjectResourcePreview({
         key={`${projectId}:${resourceId}`}
         projectId={projectId}
         resourceId={resourceId}
+        artifactId={resource?.officeArtifactId ?? undefined}
       >
         <section
           className={styles.preview}
