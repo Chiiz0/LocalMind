@@ -214,7 +214,6 @@ export const EdgelessSwitch = ({
               {
                 /* render blocks */
                 article.blocks.map((block, key) => {
-                   
                   return <OnboardingBlock key={key} mode={mode} {...block} />;
                 })
               }
